@@ -1,31 +1,51 @@
-# Nautilus 交易系统
+# SeeAlpha
 
-本仓库是一个基于 `nautilus-trader 2.0.0rc7` 候选版 软件包搭建的项目内交易系统，
-并不是上游 NautilusTrader 源代码仓库的副本。
+SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密资产、期货、股票等市场，
+覆盖现货、永续合约、期权等交易产品，围绕数据准备、行情、策略研究、回测、风控与交易执行构建。
+
+本仓库使用 `nautilus-trader 2.0.0rc7` 候选版软件包作为底层引擎，
+并不是上游 NautilusTrader 源代码仓库的副本。SeeAlpha 是产品名称，NautilusTrader 是底层引擎名称。
+
+## 产品范围与当前实现
+
+多资产、多交易产品是 SeeAlpha 的产品定位；具体市场能否使用，取决于对应连接器、
+合约定义、数据准备、账户与执行接入的实现及验收情况。当前实现范围如下：
+
+| 能力 | 当前实现 |
+| --- | --- |
+| 数据准备与行情 | Binance USD-M 永续合约公开行情，默认 BTC、ETH、SOL；连续行情层输出闭合分钟 OHLCV |
+| 策略研究与回测 | 现有 BTC/ETH 策略、组合回测及报告 |
+| Web 管理端 | 项目检查、BTC/ETH 策略回测、报告和任务日志 |
+| 账户与实盘执行 | 尚未接入真实交易账户或实盘下单 |
+| 其他市场与交易产品 | 股票、其他期货、现货、期权等尚未完成本项目接入与验收 |
+
+现有 Binance USD-M 命名、USDT 计价和分钟行情约定仅适用于当前实现，
+不能直接作为所有市场的通用规则。新增接入优先复用 NautilusTrader 原生适配器，
+并按市场明确交易场所、合约标识、精度、交易时段、费用和保证金等约束。
 
 ## 本机开发（2026-10-26）
 
 项目已迁移到 macOS Apple Silicon；完整性校验通过后进行了环境清理。
 本机开发环境已安装并验收：Python 3.14.9、NautilusTrader 2.0.0rc7、Rust 1.99.1。
 全量 1,345 项测试通过；未启动长期采集或后台服务。详见 [开发环境说明](DEV_ENVIRONMENT.md)。
-v2 接口、数据格式和版本可用性限制见 [升级记录](handover/ENGINE_UPGRADE.md)。
-恢复步骤、数据缺失范围及迁移记录见 [开发交接说明](HANDOVER.md)。
+v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_UPGRADE.md)。
+安装与重建步骤见 [开发环境说明](DEV_ENVIRONMENT.md)。
 下文研究进度和测试数量为旧机器历史记录，不能视为本机运行状态。
 
 本机 `data` 已链接到外置 APFS 卷 `ssd1`，具体位置和使用要求见 [数据存储说明](DATA_STORAGE.md)。
 
 ## Web 管理端
 
-运行 `.venv/bin/python -m ops.web_console`，在浏览器打开
-[综合管理端](http://127.0.0.1:8765)，即可查看采集与运维状态、运行项目检查、
+运行 `.venv/bin/python -m web.server`，在浏览器打开
+[综合管理端](http://127.0.0.1:8765)，即可查看项目检查、
 发起 BTC/ETH 策略回测、查看任务日志及历史报告。使用现有本地数据及策略参数，
-其他设备可访问 `http://运行机器的IP:8765`。无需安装新依赖。详见 [Web 管理端说明](ops/WEB_CONSOLE.md)。
+其他设备可访问 `http://运行机器的IP:8765`。无需安装新依赖。详见 [Web 管理端说明](web/README.md)。
 
 ## 当前进度与检查
 
-[项目状态及待办](PROJECT_STATUS.md) · [BTC/ETH 采集健康](data/forward_validation/btc_eth_mrl_20260921/health.html) · [样本质量](data/forward_validation/btc_eth_mrl_20260921/quality.html) · [运维说明](ops/README.md)
+[项目状态及待办](PROJECT_STATUS.md) · [Web 管理端说明](web/README.md)
 
-BTC 现行四策略已完成历史诊断，目前没有版本通过对应的收益或稳定性门槛。旧机器记录了固定 90 天的 BTC/ETH 下轨限价前向观察；只采集公开行情和模拟报价，到期统一评估。
+BTC 现行四策略已完成历史诊断，目前没有版本通过对应的收益或稳定性门槛。旧机器的前向观察模块及专用运维工具已于 2026-10-27 移除。
 
 2026-09-22新增的[日线过滤与有限持仓周期研究](strategy_python/_optimization/mrl_regime_20260922/INTERPRETATION.md)已完成16组完整回放：持仓时间缩短，但主候选净收益恶化，三种新增规则均未通过门槛。研究代码和全部结果独立保存。
 
@@ -36,22 +56,21 @@ BTC 现行四策略已完成历史诊断，目前没有版本通过对应的收�
 本机开发检查使用：
 
 ```bash
-bash handover/check_dev.sh
+python -m pytest -q
 ```
 
-该入口核验历史源码、运行 Ruff 和全量测试。旧观察数据未迁移，
-`ops.check_project` 默认的前向冻结检查与 `ops.project_health` 暂不适用于本机；
-开发模式使用 `ops.check_project --development`，管理端项目检查已使用该模式。
+pytest 包含历史源码与授权更新核验；代码规范另用 `python -m ruff check .`。
+Web 项目检查按同一范围依次运行 Ruff 和 pytest。
 
 ## 连续分钟行情层
 
-新增独立的[统一行情层](market_data/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
+新增独立的[统一行情层](feed/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
 REST 补齐与 WebSocket 实时数据，包含连续检查点、重启回放、来源冲突检测和数据就绪控制。
-仅采集公开行情，尚未接入真实账户或自动启用现行策略；冻结前向观察保持独立。
+仅采集公开行情，尚未接入真实账户或自动启用现行策略。
 
 ```bash
-.venv/bin/python -m market_data.service serve
-.venv/bin/python -m market_data.service status
+.venv/bin/python -m feed.service serve
+.venv/bin/python -m feed.service status
 ```
 
 ## 进入项目环境
@@ -65,16 +84,17 @@ source ./activate.sh
 
 ## 常用命令
 
-以下同步环境命令供安装或明确需要重建环境时使用；前向观察运行期间，改变依赖版本会触发冻结校验，日常检查优先使用上面的本地环境入口。
+以下同步环境命令用于安装或明确需要重建环境时；日常检查使用上面的本地环境入口。
 
 ```bash
-bash handover/bootstrap.sh
+uv sync --locked
 uv run python -c "import nautilus_trader; print(nautilus_trader.__version__)"
 uv run pytest
 uv run ruff check .
 ```
 
-测试统一放在根目录的 `tests/`，按 `pipeline/`、`strategy_python/` 及其子模块分组，
+测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`connectors/`、`feed/`、
+`pipeline/`、`strategy_python/` 及其子模块分组，
 文件名继续使用 `*_test.py`。测试按关键行为和出错影响组织，不要求每个 Python 文件
 都有对应的测试文件。
 相关的小用例集中维护，重点覆盖交易规则、风控、数据处理和完整回测流程；
@@ -112,7 +132,7 @@ uv run python -m strategy_python.portfolio_backtest \
 
 可用 `--config strategy_python/_portfolio/mean_reversion.json` 选择运行清单。
 清单定义启用的策略、各自参数、成员风险权重和账户设置，也支持同一策略的多个参数实例。
-结果输出在 `strategy_python/_report/backtest/portfolio/<清单名称>/`，包含唯一账户、
+结果输出在 `data/reports/backtest/portfolio/<清单名称>/`，包含唯一账户、
 各策略贡献统计及独立成交、持仓明细。
 
 ## Binance ETHUSDT 合约回测
@@ -162,7 +182,7 @@ PnL 只能用于迁移对照，不能直接当作本引擎的预期结果。上�
 重新检查 Binance 是否更新过历史归档。
 
 程序会输出账户、成交和持仓三个基础报表，并自动保存到统一报告目录
-`strategy_python/_report/backtest/<策略名称>/<run_id>/`，同时记录参数快照和引擎汇总指标。该回测使用 K 线级撮合，无法还原
+`data/reports/backtest/<策略名称>/<run_id>/`，同时记录参数快照和引擎汇总指标。该回测使用 K 线级撮合，无法还原
 K 线内部的价格路径、点差、盘口深度和真实排队情况。
 
 所有单策略及组合回测均支持 `--interval 1s|1m|5m`，默认沿用原输入周期。
@@ -227,4 +247,25 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 未平仓持仓与浮盈亏不计入。支持悬停、图例开关、缩放、拖动、自选日期和“全部 / 近 6 个月”。
 “近 6 个月”相对回测结束时间计算，筛选保留原始累计值，指标卡统计完整回测区间。
 
-2026-10-27: [Native capability adoption and validation](handover/NATIVE_CAPABILITY_ADOPTION.md).
+2026-10-27: [Native capability adoption and validation](docs/NATIVE_CAPABILITY_ADOPTION.md).
+
+## 数据模块分工
+
+| 目录 | 职责 |
+|---|---|
+| [`pipeline/`](pipeline/README.md) | 历史归档下载、转换、校验、特征与 Catalog 入库 |
+| [`feed/`](feed/README.md) | 连续行情服务、历史衔接、补洞、就绪与回放交付 |
+| [`connectors/`](connectors/README.md) | 交易所原生适配器配置、桥接与必要扩展 |
+| [`core/`](core/README.md) | 公共行情类型、命名规则和项目路径 |
+
+连接器与公共定义不依赖行情服务和离线管道；行情服务仅在历史 Catalog 桥接处使用管道存储接口。
+
+## 工程边界
+
+- `core/`：公共行情定义和逻辑路径。
+- `web/`：HTTP 服务、页面、后台任务、日志、超时与取消。
+- `tests/`：自动化行为测试、源码基线及历史研究来源校验。
+- 配置继续位于所属模块，依赖与工具链由根目录声明文件管理。
+
+不设置独立的 conf、cli、runtime、checks、benchmarks 或 scripts 目录。
+Web 启动入口为 `python -m web.server`，环境和构建步骤见 [开发环境说明](DEV_ENVIRONMENT.md)。

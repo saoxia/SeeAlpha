@@ -23,9 +23,6 @@ reports/
 # Rust 编译产物
 **/target/
 
-# 统一报告目录仅忽略回测产物，保留生成代码和模板
-/strategy_python/_report/backtest/
-
 # macOS 文件元数据
 .DS_Store
 ._*

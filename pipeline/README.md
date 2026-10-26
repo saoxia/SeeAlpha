@@ -1,10 +1,13 @@
 # `pipeline` 数据准备模块
 
-本目录保存项目的数据获取、转换、校验和准备代码。`data/` 目录只保存运行时
+本目录保存 SeeAlpha 的数据获取、转换、校验和准备代码。`data/` 目录只保存运行时
 数据，不放 Python 代码。
 
 策略代码不得直接下载、修复或转换历史数据；回测、研究和后续实盘统一通过
 `prepare_data()` 使用本模块。
+
+本模块当前实现 Binance USD-M 永续合约数据准备；这是现阶段接入范围，
+不代表 SeeAlpha 仅面向加密资产。其他市场与交易产品需要独立接入及验证。
 
 ## 当前处理流程
 
@@ -256,14 +259,7 @@ CSV 数值由解析器直接读取，每块只规范化一次；主动买卖标�
 浮点汇总顺序变化可能产生末位舍入差异，不改变指标定义；成交计数保持精确。
 策略目前仍使用原有实时计算逻辑，此改动提供缓存，尚未自动切换策略指标来源。
 
-本地性能测量（不写生产 Catalog，不下载数据）：
-
-```bash
-.venv/bin/python -m ops.benchmark_trade_features \
-  data/raw/binance/futures/um/daily/trades/ETHUSDT/ETHUSDT-trades-2023-01-26.zip
-```
-
-输出读取/校验/聚合、滚动指标的分阶段耗时、CPU 时间和进程峰值内存。
+以下为历史性能测量记录，当前不再提供独立基准命令。
 2026-09-28 在本机 245 万笔真实成交、1s/1m/5m/15m 四周期上的对照结果：
 读取至指标计算约 51.86 秒降至 8.88 秒，CPU 时间约 51.82 秒降至 8.87 秒，
 峰值内存约 472 MiB 降至 396 MiB。该测量不含下载、Rust TradeTick 转换及 Catalog
@@ -337,8 +333,14 @@ features = read_bar_features(
 
 ### 已新增的分钟级衔接入口
 
-独立的 [`market_data`](../market_data/README.md) 已实现闭合 1 分钟 OHLCV 的历史读取、
+独立的 [`feed`](../feed/README.md) 已实现闭合 1 分钟 OHLCV 的历史读取、
 REST 补洞、WebSocket 缓冲、重连补齐和就绪控制。上面的逐笔 Trade 衔接仍是独立后续范围；
 新入口不混用 trades/aggTrades 编号，不改历史 Catalog，不自动接入冻结策略。
 
-2026-10-27: Native Arrow scans, quote supplements, feature metadata sidecars and cache rebuild requirements are documented in [native adoption](../handover/NATIVE_CAPABILITY_ADOPTION.md).
+2026-10-27: Native Arrow scans, quote supplements, feature metadata sidecars and cache rebuild requirements are documented in [native adoption](../docs/NATIVE_CAPABILITY_ADOPTION.md).
+
+## 与行情服务、连接器的边界
+
+本模块负责离线历史数据准备。持续行情服务位于 [`feed/`](../feed/README.md)，
+交易所原生适配器桥接位于 [`connectors/`](../connectors/README.md)。公共市场命名和项目路径
+位于 [`core/`](../core/README.md)，管道原有导出仍可使用。

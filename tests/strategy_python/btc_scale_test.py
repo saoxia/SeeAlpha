@@ -68,6 +68,6 @@ def test_dynamic_lock_preserves_curve_at_equal_normalized_returns(key):
 
 
 def test_current_strategy_source_baselines_are_unchanged():
-    manifest = ROOT / "handover/current_source_baselines.json"
+    manifest = ROOT / "tests/baselines/current_source_baselines.json"
     for path, digest in json.loads(manifest.read_text())["source_sha256"].items():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest

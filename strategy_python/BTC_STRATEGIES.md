@@ -34,13 +34,12 @@
 当前继续保留冻结基线并停止扩大历史参数搜索；若继续研究，先用冻结之后新产生的数据验证下轨限价入场的净优势。
 详见[文字结论](_optimization/btc_eth_signal_attribution_20260921/RESULTS.md)与[研究方案](_optimization/btc_eth_signal_attribution_20260921/PROTOCOL.md)。
 
-已落实 [BTC/ETH 下轨限价入场的前向观察](../forward_validation/README.md)：冻结信号规则和成本口径，使用此后新产生的公开行情持续记录 90 天，到期统一评估。当前只运行行情观察与模拟报价，不使用账户资金。可查看[采集健康](../data/forward_validation/btc_eth_mrl_20260921/health.html)及[冻结方案](../forward_validation/PROTOCOL.md)。
 
 2026-09-22按新的优化要求，另建[日线过滤与有限持仓周期研究](mean_reversion_long_regime_5min/README.md)，完成BTC/ETH、四组固定规则、两档费用共16次完整回放。三种新增规则均未通过门槛。组合主候选虽将最长持仓由约101/118天缩至24小时，原费率BTC净收益却从−29.74降至−50.40 USDT，ETH从−52.15降至−97.47 USDT；成本压力后回撤也高于基线。保留独立研究代码和失败结果，不替换四策略入口。详见[结果解释](_optimization/mrl_regime_20260922/INTERPRETATION.md)及[全部对照](_optimization/mrl_regime_20260922/RESULTS.md)。
 
 后续新增[入场质量研究](mean_reversion_long_entry_5min/README.md)，实现成本门槛与跌破收复确认，完成10组新增回放及8组参考核验。主候选原费率BTC/ETH回撤降至9.45%／16.82%，净收益仍为−36.06／−68.19 USDT，低于原策略；费用压力下亏损减少但仍为负。该版本没有通过替换门槛，独立保留代码和[完整解释](_optimization/mrl_entry_20260922/INTERPRETATION.md)，不计入现行四策略。
 
-最新[收复后持续走强候选](mean_reversion_long_recovery_5min/README.md)在后续完整一分钟收盘突破确认线高点时尝试限价入场。6组新增回放和10组参考核验完成，BTC原费率净收益−26.02 USDT、回撤6.63%，ETH−69.22、回撤15.44%；回撤降低但全期／近期收益均为负，平均单笔净亏损增加，仍未通过替换门槛。详见[结论与原因](_optimization/mrl_recovery_20260922/INTERPRETATION.md)，默认四策略与现有前向观察不变。
+最新[收复后持续走强候选](mean_reversion_long_recovery_5min/README.md)在后续完整一分钟收盘突破确认线高点时尝试限价入场。6组新增回放和10组参考核验完成，BTC原费率净收益−26.02 USDT、回撤6.63%，ETH−69.22、回撤15.44%；回撤降低但全期／近期收益均为负，平均单笔净亏损增加，仍未通过替换门槛。详见[结论与原因](_optimization/mrl_recovery_20260922/INTERPRETATION.md)，默认四策略不变。
 
 趋势空头本轮在BTC/ETH各做25格、原费率与每次成交额外5bp两档压力测试，另有中心与原版对照，合计106次。
 BTC原费率全期25/25格盈利，但2025年以后只有7/25格盈利；额外5bp后近期为0/25。

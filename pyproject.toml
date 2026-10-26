@@ -1,7 +1,7 @@
 [project]
-name = "nautilus-trading-system"
+name = "seealpha"
 version = "0.2.0"
-description = "项目内 NautilusTrader v2 策略研究与回测系统"
+description = "SeeAlpha：基于 NautilusTrader 的多资产量化交易系统"
 requires-python = ">=3.13,<3.15"
 dependencies = [
     "nautilus-trader==2.0.0rc7",
@@ -61,8 +61,8 @@ target-version = "py313"
 
 # 历史研究与回放快照保留原始字节；当前报告生成器、全部策略和测试仍检查。
 extend-exclude = [
+    ".local", ".venv", "data", "logs", "reports",
     "strategy_python/_optimization",
     "strategy_python/_report/analysis",
-    "strategy_python/_report/backtest",
 ]
 

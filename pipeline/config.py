@@ -5,6 +5,7 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+from core.paths import PROJECT_ROOT
 from pipeline.models import (
     SUPPORTED_DATA_TYPES,
     PipelineConfigError,
@@ -13,7 +14,6 @@ from pipeline.models import (
     normalize_symbol,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("binance_sources.toml")
 
 

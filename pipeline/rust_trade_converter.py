@@ -55,12 +55,7 @@ def find_rust_converter() -> Path | None:
             return None
         path = Path(configured).expanduser()
     else:
-        from ops.storage import check_data_directory
-        try:
-            external = check_data_directory(PROJECT_ROOT).parent / ".build-cache/rust-target/release/nautilus-data-converter"
-        except RuntimeError:
-            external = DEFAULT_BINARY
-        path = external if external.is_file() else DEFAULT_BINARY
+        path = DEFAULT_BINARY
     return path.resolve() if path.is_file() and os.access(path, os.X_OK) else None
 
 

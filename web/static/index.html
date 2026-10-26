@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>SeeAlpha · 量化交易系统</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳至主要内容</a>
+  <aside class="sidebar" aria-label="主导航">
+    <a class="brand" href="#overview" aria-label="SeeAlpha 管理台首页">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M23 9H13a5 5 0 0 0 0 10h6a3 3 0 0 1 0 6H9"/><path d="M5 27h22"/></svg></span>
+      <span><strong>SeeAlpha</strong><small>多资产量化交易系统</small></span>
+    </a>
+    <div class="sidebar-label">工作空间</div>
+    <nav class="nav-list">
+      <a href="#overview" data-page="overview" class="nav-item active"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>运行总览</span></a>
+      <a href="#research" data-page="research" class="nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4m0 16h16M8 15l4-5 4 3 5-8"/></svg><span>策略与回测</span></a>
+      <a href="#reports" data-page="reports" class="nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8m-8 4h5"/></svg><span>报告中心</span><span class="nav-count" id="nav-report-count">—</span></a>
+      <a href="#jobs" data-page="jobs" class="nav-item"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 7 5 5-5 5m8 0h6"/><rect x="2" y="3" width="20" height="18" rx="3"/></svg><span>任务与日志</span><span class="running-dot" id="nav-running" hidden></span></a>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="workspace-card"><span class="workspace-icon" aria-hidden="true">S</span><div><strong>本地研究环境</strong><small>NautilusTrader</small></div></div>
+      <p>从数据状态到研究结果，<br>在一个工作台中查看。</p>
+      <div class="sidebar-foot"><span class="status-dot neutral"></span> LOCAL WORKSPACE</div>
+    </div>
+  </aside>
+
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb">工作空间 <span>/</span> <strong id="breadcrumb-page">运行总览</strong></div><div class="topbar-right"><span class="environment-label"><span class="status-dot"></span> Web 管理</span><span class="topbar-divider"></span><span class="timezone-label">北京时间 · UTC+8</span></div></header>
+    <main id="main-content" tabindex="-1">
+      <div class="page-heading"><div><div class="eyebrow" id="page-eyebrow">WORKSPACE OVERVIEW</div><h1 id="page-title">运行总览</h1><p id="page-description">查看项目检查、策略回测和研究任务。</p></div><button type="button" class="button secondary refresh-button" id="refresh-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg><span>刷新状态</span></button></div>
+      <div id="connection-banner" class="banner neutral-banner" role="status">正在连接管理服务…</div>
+      <div id="action-message" class="banner" role="status" hidden></div>
+
+      <section id="page-overview" class="page" aria-label="运行总览">
+        <div id="overview-metrics" class="metrics-grid"><div class="metric-card skeleton"></div><div class="metric-card skeleton"></div><div class="metric-card skeleton"></div><div class="metric-card skeleton"></div></div>
+        <div class="overview-columns">
+          <section class="panel action-panel"><div class="panel-heading"><div><h2>日常运维</h2><p>发起检查后，在任务页查看结果</p></div><span class="small-label">ACTIONS</span></div><div id="operations-actions" class="operation-actions"><div class="empty-state">正在加载可用操作…</div></div><p class="panel-note">同一时间运行一个任务。检查结果将保留在任务记录中。</p></section>
+        </div>
+        <div class="overview-columns lower-columns"><section class="panel"><div class="panel-heading"><div><h2>运维记录</h2><p>代码规范、源码校验与测试结果</p></div></div><div id="snapshot-list" class="snapshot-list"></div></section><section class="panel"><div class="panel-heading"><div><h2>最近任务</h2><p>本管理台发起的最近活动</p></div><a href="#jobs" class="text-link">全部任务 <span aria-hidden="true">↗</span></a></div><div id="recent-jobs" class="recent-jobs"><div class="empty-state">暂无任务记录</div></div></section></div>
+      </section>
+
+      <section id="page-research" class="page" aria-label="策略与回测" hidden>
+        <div class="research-layout"><section class="panel strategy-panel"><div class="panel-heading"><div><h2>策略库 <span id="strategy-count" class="subtle-count">—</span></h2><p>选择已有策略，使用本地历史数据进行研究</p></div><span class="small-label">STRATEGIES</span></div><label class="search-box strategy-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input type="search" id="strategy-search" placeholder="搜索策略名称或市场" aria-label="搜索策略"></label><div id="strategy-list" class="strategy-list"><div class="empty-state">正在加载策略…</div></div></section>
+        <section class="panel backtest-panel"><div class="panel-heading"><div><div class="eyebrow">NEW EXPERIMENT</div><h2>发起一次回测</h2><p>指定策略与数据区间，生成独立报告。</p></div></div><form id="backtest-form"><label class="field"><span>回测策略</span><select id="backtest-strategy" name="strategy" required><option value="">请选择策略</option></select></label><p id="strategy-description" class="field-description">从左侧策略库中选择一个策略。</p><div class="form-rule"></div><div class="date-fields"><label class="field"><span>开始日期</span><input type="date" id="backtest-start" name="start" value="2026-08-01" required></label><label class="field"><span>结束日期</span><input type="date" id="backtest-end" name="end" value="2026-08-08" required></label></div><label class="field"><span>数据周期</span><select id="backtest-interval" name="interval"><option value="1m">1 分钟</option><option value="5m">5 分钟</option></select></label><div class="form-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></svg><p>日期使用 UTC，包含开始日，不包含结束日；区间最长 366 天。仅使用已有本地数据，数据缺失时请查看任务日志。</p></div><p id="backtest-validation" class="field-error" role="alert" hidden></p><button class="button primary launch-button" type="submit" id="backtest-submit" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>开始回测</button><p id="backtest-availability" class="button-caption">等待连接管理服务</p></form></section></div>
+      </section>
+
+      <section id="page-reports" class="page" aria-label="报告中心" hidden>
+        <div class="reports-intro"><div><span class="small-label">RESEARCH ARCHIVE</span><h2>研究留下的每一步，都有迹可循。</h2><p>集中浏览已有回测报告，打开交互式图表与交易明细。</p></div><div class="archive-count"><strong id="report-total">—</strong><span>份可用报告</span></div></div>
+        <section class="panel"><div class="panel-heading reports-heading"><div><h2>回测报告</h2><p id="report-result-count">正在加载报告…</p></div><label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input type="search" id="report-search" placeholder="搜索策略、报告或运行编号" aria-label="搜索报告"></label></div><div id="reports-table" class="table-wrap"><div class="empty-state">等待报告列表…</div></div><div class="panel-footer">报告在新标签页打开，保留原有交互与研究结果。</div></section>
+      </section>
+
+      <section id="page-jobs" class="page" aria-label="任务与日志" hidden>
+        <div class="jobs-layout"><section class="panel jobs-panel"><div class="panel-heading"><div><h2>任务记录</h2><p id="jobs-count">正在加载任务…</p></div><span class="small-label">JOBS</span></div><div id="jobs-list" class="jobs-list"><div class="empty-state">暂无任务记录<br><span>可以从运行总览发起检查，或创建一次回测。</span></div></div></section><section class="panel log-panel"><div class="panel-heading"><div><h2 id="log-title">任务日志</h2><p id="log-description">选择一个任务，查看执行过程与结果。</p></div><button type="button" class="button danger small" id="cancel-job" hidden>停止任务</button></div><div id="job-details" class="job-details" hidden></div><div class="log-toolbar"><span><span class="status-dot neutral" id="log-dot"></span><span id="log-state">尚未选择任务</span></span><span id="log-updated">日志每 2 秒更新</span></div><pre id="job-log" class="job-log" tabindex="0" aria-label="任务输出日志">选择左侧任务后，将在这里显示输出。</pre><div id="job-reports" class="job-reports" hidden></div></section></div>
+      </section>
+      <footer class="main-footer"><span>SeeAlpha <span class="footer-dot">·</span> 基于 NautilusTrader</span><span id="last-refreshed">页面同步：—</span></footer>
+    </main>
+  </div>
+  <noscript><div class="noscript-message">管理台需要启用 JavaScript 才能读取状态与运行任务。</div></noscript>
+</body>
+</html>
