@@ -1,0 +1,16 @@
+{
+  "name": "mean_reversion",
+  "market": {
+    "instrument_id": "ETHUSDT-PERP.BINANCE",
+    "bar_type": "ETHUSDT-PERP.BINANCE-1-MINUTE-LAST-EXTERNAL",
+    "data_symbol": "ETHUSDT",
+    "interval": "1m"
+  },
+  "account": {"starting_balance": "500", "leverage": "5"},
+  "backtest": {"warmup_days": 135},
+  "risk": {"mode": "shared", "total_fraction": "0.30"},
+  "strategies": [
+    {"id": "LONG", "strategy": "mean_reversion_long_5min", "enabled": true, "risk_weight": "0.50", "parameters": {}},
+    {"id": "SHORT", "strategy": "mean_reversion_short_5min", "enabled": true, "risk_weight": "0.50", "parameters": {}}
+  ]
+}

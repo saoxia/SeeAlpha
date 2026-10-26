@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-09-20T22:35:23.845354+00:00",
+  "original_manifest_sha256": "24fee49cda5f345b9ba957c675923267554045e841d45ec6c38f89e54963b55b",
+  "sha256": {
+    "audit_replay.py": "8fdacbf70e9e1cc9236dade3d164401ae8758633394f8120634adec9925b5c76",
+    "AUDIT_AMENDMENT.md": "af9c88cc32769b215aae697ca70b9065f0eb55085989e198436fa4d7f40420ae",
+    "audit_amendment/first_ETH_MRL.log": "fb6f4c37d91fbeb4c05f15304917197ca36179d4ea0a2d332efab629225b5526",
+    "audit_amendment/first_ETH_MRL/account.csv": "f6736502751a8e103111df6288c011e227eeaf0c409eacd308168e827349a4b1",
+    "audit_amendment/first_ETH_MRL/annual.csv": "b0a20ec4ffe5adae0fd771e9fed483a41d973e9052855c060ecbae8d074a515f",
+    "audit_amendment/first_ETH_MRL/daily_equity.csv": "998200e0760d8d2e274729ec2a7ac4f11cc95513843971fe6be9d0112111409d",
+    "audit_amendment/first_ETH_MRL/decisions.parquet": "95530cb14666a73265a5edf5e8b7543b246b445223fe0935bd5007ab86a4aa73",
+    "audit_amendment/first_ETH_MRL/fills.csv": "4ee9f99dd7a5e8da23f3a5204e639c0faf0a2cc2a22893136f43899d4d04db80",
+    "audit_amendment/first_ETH_MRL/market.parquet": "2a02f1eaf3cec88cd19b6bee318161b3ce56d4d58be1426ff7de1283650fcbb5",
+    "audit_amendment/first_ETH_MRL/parameters.json": "2ee51231054cbe452422d1f7d6aaf84ccafdf8a632ea02780d61021bd0adf58f",
+    "audit_amendment/first_ETH_MRL/positions.csv": "c54944aeda4116844d9819341c14bc12ea6b53b17c2a949e9580016388b71b7c",
+    "audit_amendment/first_ETH_MRL/trades.csv": "84e6d0356e4562cc3088135f7f1216b5c5959a000fa6e8f028eec934081de225"
+  }
+}

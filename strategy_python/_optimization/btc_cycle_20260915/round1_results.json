@@ -1,0 +1,724 @@
+[
+  {
+    "slot": "MRL_original",
+    "variant": "main",
+    "period": "develop",
+    "net_pnl": -113.66370346000002,
+    "return_pct": -22.732740692000007,
+    "max_drawdown_pct": 41.59811017346446,
+    "cashflow_trades": 923,
+    "cashflow_win_rate_pct": 97.39978331527628,
+    "payoff_ratio": 0.019522913833289635,
+    "fees": 69.10727355,
+    "turnover_usdt": 306532.83545,
+    "extra_5bp_net_pnl": -266.93012127499935,
+    "annual": {
+      "2021": 21.920151660000556,
+      "2022": -154.43402023000039,
+      "2023": 18.850165020000134
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "time24",
+    "period": "develop",
+    "net_pnl": -245.50177792,
+    "return_pct": -49.100355584,
+    "max_drawdown_pct": 56.440365065133655,
+    "cashflow_trades": 1816,
+    "cashflow_win_rate_pct": 90.52863436123349,
+    "payoff_ratio": 0.07065585402671523,
+    "fees": 124.75919815,
+    "turnover_usdt": 537683.831,
+    "extra_5bp_net_pnl": -514.3436936499979,
+    "annual": {
+      "2021": -168.36874038000133,
+      "2022": -61.660483369997735,
+      "2023": -15.472554399999495
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "time48",
+    "period": "develop",
+    "net_pnl": -308.52123091,
+    "return_pct": -61.70424618200001,
+    "max_drawdown_pct": 68.16397357379546,
+    "cashflow_trades": 1519,
+    "cashflow_win_rate_pct": 91.70506912442397,
+    "payoff_ratio": 0.051265697730873416,
+    "fees": 91.98141097,
+    "turnover_usdt": 398408.41404,
+    "extra_5bp_net_pnl": -507.7254379900006,
+    "annual": {
+      "2021": -243.35130401000066,
+      "2022": -55.325980039999365,
+      "2023": -9.843946920000576
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "time72",
+    "period": "develop",
+    "net_pnl": -310.91412307999997,
+    "return_pct": -62.182824616,
+    "max_drawdown_pct": 67.35328992038845,
+    "cashflow_trades": 1421,
+    "cashflow_win_rate_pct": 92.25897255453906,
+    "payoff_ratio": 0.04547187950520397,
+    "fees": 84.15421313,
+    "turnover_usdt": 365574.73929,
+    "extra_5bp_net_pnl": -493.7014927749998,
+    "annual": {
+      "2021": -247.70488417000075,
+      "2022": -49.141470469999206,
+      "2023": -14.06776849000039
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "band4",
+    "period": "develop",
+    "net_pnl": -173.40618971000004,
+    "return_pct": -34.68123794200001,
+    "max_drawdown_pct": 40.20829936250255,
+    "cashflow_trades": 2054,
+    "cashflow_win_rate_pct": 88.31548198636806,
+    "payoff_ratio": 0.1073684233630428,
+    "fees": 172.11532988,
+    "turnover_usdt": 715816.1786799999,
+    "extra_5bp_net_pnl": -531.3142792200011,
+    "annual": {
+      "2021": -94.67246904000115,
+      "2022": -57.15970032000024,
+      "2023": -21.57402051999844
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "band8",
+    "period": "develop",
+    "net_pnl": -258.5245402,
+    "return_pct": -51.70490804,
+    "max_drawdown_pct": 59.859151372736605,
+    "cashflow_trades": 1679,
+    "cashflow_win_rate_pct": 91.6617033948779,
+    "payoff_ratio": 0.06162235907962679,
+    "fees": 119.90482043,
+    "turnover_usdt": 513045.25430000003,
+    "extra_5bp_net_pnl": -515.0471675800013,
+    "annual": {
+      "2021": -155.15054825000158,
+      "2022": -101.6810533099993,
+      "2023": -1.6929388700002619
+    }
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "flat",
+    "period": "develop",
+    "net_pnl": -45.34512238000002,
+    "return_pct": -9.06902447600001,
+    "max_drawdown_pct": 32.703381381449915,
+    "cashflow_trades": 1445,
+    "cashflow_win_rate_pct": 97.16262975778547,
+    "payoff_ratio": 0.025792050749520564,
+    "fees": 84.36245258,
+    "turnover_usdt": 380425.07094999996,
+    "extra_5bp_net_pnl": -235.55765805500107,
+    "annual": {
+      "2021": -6.74204946999987,
+      "2022": -80.03629852000051,
+      "2023": 41.43322540999992
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "main",
+    "period": "develop",
+    "net_pnl": -117.09462922,
+    "return_pct": -23.418925844000004,
+    "max_drawdown_pct": 40.19327588895257,
+    "cashflow_trades": 768,
+    "cashflow_win_rate_pct": 97.39583333333334,
+    "payoff_ratio": 0.018564867875053098,
+    "fees": 55.06108919,
+    "turnover_usdt": 247669.39160000003,
+    "extra_5bp_net_pnl": -240.92932499000005,
+    "annual": {
+      "2021": 1.0787156499998787,
+      "2022": -136.47454280999995,
+      "2023": 18.30119797000009
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "time24",
+    "period": "develop",
+    "net_pnl": -229.03142834,
+    "return_pct": -45.806285668,
+    "max_drawdown_pct": 54.79402486261862,
+    "cashflow_trades": 1601,
+    "cashflow_win_rate_pct": 91.06808244846971,
+    "payoff_ratio": 0.06820010527797872,
+    "fees": 119.0855284,
+    "turnover_usdt": 517526.16362,
+    "extra_5bp_net_pnl": -487.79451020999994,
+    "annual": {
+      "2021": -163.66719751999904,
+      "2022": -52.86020477000113,
+      "2023": -12.504026109999813
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "time48",
+    "period": "develop",
+    "net_pnl": -311.17146925,
+    "return_pct": -62.23429385,
+    "max_drawdown_pct": 68.96099399789348,
+    "cashflow_trades": 1285,
+    "cashflow_win_rate_pct": 92.06225680933852,
+    "payoff_ratio": 0.04828030355857067,
+    "fees": 80.37454938,
+    "turnover_usdt": 349677.74698000005,
+    "extra_5bp_net_pnl": -486.01034286999914,
+    "annual": {
+      "2021": -253.9031943599984,
+      "2022": -49.51799546999979,
+      "2023": -7.750279550000414
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "time72",
+    "period": "develop",
+    "net_pnl": -300.31489302,
+    "return_pct": -60.06297860400001,
+    "max_drawdown_pct": 66.08679954730634,
+    "cashflow_trades": 1218,
+    "cashflow_win_rate_pct": 92.52873563218391,
+    "payoff_ratio": 0.0436416179216555,
+    "fees": 72.48472304,
+    "turnover_usdt": 316647.19779,
+    "extra_5bp_net_pnl": -458.63849193500073,
+    "annual": {
+      "2021": -245.98223839999912,
+      "2022": -41.36548396000035,
+      "2023": -12.967170680001118
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "band4",
+    "period": "develop",
+    "net_pnl": -194.12010060999995,
+    "return_pct": -38.82402012199999,
+    "max_drawdown_pct": 47.062423364398484,
+    "cashflow_trades": 1845,
+    "cashflow_win_rate_pct": 89.81029810298104,
+    "payoff_ratio": 0.09011979383977047,
+    "fees": 156.44966055,
+    "turnover_usdt": 656319.5777,
+    "extra_5bp_net_pnl": -522.2798893999986,
+    "annual": {
+      "2021": -108.5591639799988,
+      "2022": -71.4012901500011,
+      "2023": -14.159646419999888
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "band8",
+    "period": "develop",
+    "net_pnl": -310.42218023,
+    "return_pct": -62.084436046,
+    "max_drawdown_pct": 68.12715085756875,
+    "cashflow_trades": 1279,
+    "cashflow_win_rate_pct": 92.49413604378421,
+    "payoff_ratio": 0.048909386943788866,
+    "fees": 87.28259019,
+    "turnover_usdt": 376354.56457000005,
+    "extra_5bp_net_pnl": -498.59946247499954,
+    "annual": {
+      "2021": -246.8132871199988,
+      "2022": -62.71271744000029,
+      "2023": -0.8961756300004993
+    }
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "flat",
+    "period": "develop",
+    "net_pnl": -81.55969164999999,
+    "return_pct": -16.311938329999997,
+    "max_drawdown_pct": 36.726117539256265,
+    "cashflow_trades": 1314,
+    "cashflow_win_rate_pct": 97.56468797564688,
+    "payoff_ratio": 0.02019361456448846,
+    "fees": 76.11577170000001,
+    "turnover_usdt": 348004.74069999997,
+    "extra_5bp_net_pnl": -255.5620620500007,
+    "annual": {
+      "2021": -36.255623870000306,
+      "2022": -82.46238960999955,
+      "2023": 37.158321779999824
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "main",
+    "period": "develop",
+    "net_pnl": -35.57506177999994,
+    "return_pct": -7.115012355999983,
+    "max_drawdown_pct": 12.601700998739595,
+    "cashflow_trades": 518,
+    "cashflow_win_rate_pct": 42.277992277992276,
+    "payoff_ratio": 1.2945129516936404,
+    "fees": 111.68992177999999,
+    "turnover_usdt": 223379.84312,
+    "extra_5bp_net_pnl": -147.26498334000019,
+    "annual": {
+      "2021": -18.988251279999986,
+      "2022": -16.733297999999763,
+      "2023": 0.14648749999958
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "time24",
+    "period": "develop",
+    "net_pnl": -40.943277110000054,
+    "return_pct": -8.188655422000013,
+    "max_drawdown_pct": 13.780007861985656,
+    "cashflow_trades": 548,
+    "cashflow_win_rate_pct": 43.24817518248175,
+    "payoff_ratio": 1.2353669340150082,
+    "fees": 121.27622711000001,
+    "turnover_usdt": 242552.45375,
+    "extra_5bp_net_pnl": -162.21950398499962,
+    "annual": {
+      "2021": -9.232695899999896,
+      "2022": -19.98379800999976,
+      "2023": -11.726783199999943
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "time48",
+    "period": "develop",
+    "net_pnl": -43.88133782,
+    "return_pct": -8.776267563999996,
+    "max_drawdown_pct": 13.576364420734743,
+    "cashflow_trades": 532,
+    "cashflow_win_rate_pct": 42.66917293233083,
+    "payoff_ratio": 1.2582871835804346,
+    "fees": 113.83736782000001,
+    "turnover_usdt": 227674.73519,
+    "extra_5bp_net_pnl": -157.71870541499942,
+    "annual": {
+      "2021": -18.965634069999965,
+      "2022": -23.461530599999662,
+      "2023": -1.4541731499999173
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "clock15",
+    "period": "develop",
+    "net_pnl": -103.22725864999995,
+    "return_pct": -20.645451729999987,
+    "max_drawdown_pct": 27.735888062103122,
+    "cashflow_trades": 409,
+    "cashflow_win_rate_pct": 38.87530562347188,
+    "payoff_ratio": 1.2648827668990084,
+    "fees": 78.18561865,
+    "turnover_usdt": 156371.23704,
+    "extra_5bp_net_pnl": -181.41287716999983,
+    "annual": {
+      "2021": -51.62127132000012,
+      "2022": -41.40855172999983,
+      "2023": -10.197435599999835
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "clock30",
+    "period": "develop",
+    "net_pnl": -8.207510350000007,
+    "return_pct": -1.6415020700000005,
+    "max_drawdown_pct": 14.46387769384405,
+    "cashflow_trades": 155,
+    "cashflow_win_rate_pct": 43.225806451612904,
+    "payoff_ratio": 1.2667167606228011,
+    "fees": 37.30903035,
+    "turnover_usdt": 74618.06058,
+    "extra_5bp_net_pnl": -45.516540639999505,
+    "annual": {
+      "2021": 52.98813021000012,
+      "2022": 0.8679305400002022,
+      "2023": -62.063571099999876
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "cost3",
+    "period": "develop",
+    "net_pnl": -33.051851279999994,
+    "return_pct": -6.610370255999998,
+    "max_drawdown_pct": 12.480297518773376,
+    "cashflow_trades": 512,
+    "cashflow_win_rate_pct": 42.3828125,
+    "payoff_ratio": 1.293663727690178,
+    "fees": 109.24631127999999,
+    "turnover_usdt": 218492.62211999999,
+    "extra_5bp_net_pnl": -142.29816233999975,
+    "annual": {
+      "2021": -18.988251279999986,
+      "2022": -16.733297999999763,
+      "2023": 2.6696979999999257
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "cost5",
+    "period": "develop",
+    "net_pnl": -24.092676129999973,
+    "return_pct": -4.818535225999998,
+    "max_drawdown_pct": 12.303854358131206,
+    "cashflow_trades": 500,
+    "cashflow_win_rate_pct": 42.6,
+    "payoff_ratio": 1.299033784058403,
+    "fees": 104.28943612999998,
+    "turnover_usdt": 208578.87182000003,
+    "extra_5bp_net_pnl": -128.3821120399998,
+    "annual": {
+      "2021": -18.988251279999986,
+      "2022": -14.248522699999853,
+      "2023": 9.14409784999998
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "lock50",
+    "period": "develop",
+    "net_pnl": 8.383396399999981,
+    "return_pct": 1.676679279999993,
+    "max_drawdown_pct": 14.961441243850725,
+    "cashflow_trades": 464,
+    "cashflow_win_rate_pct": 43.103448275862064,
+    "payoff_ratio": 1.336941458559059,
+    "fees": 111.6813236,
+    "turnover_usdt": 223362.64688000001,
+    "extra_5bp_net_pnl": -103.2979270400001,
+    "annual": {
+      "2021": 27.398889099999792,
+      "2022": -15.348186499999883,
+      "2023": -3.6673061999999845
+    }
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "lock80",
+    "period": "develop",
+    "net_pnl": -72.40968884999995,
+    "return_pct": -14.481937769999986,
+    "max_drawdown_pct": 17.3502411561507,
+    "cashflow_trades": 520,
+    "cashflow_win_rate_pct": 42.30769230769231,
+    "payoff_ratio": 1.211809346511442,
+    "fees": 105.19357885,
+    "turnover_usdt": 210387.15722999998,
+    "extra_5bp_net_pnl": -177.60326746499896,
+    "annual": {
+      "2021": -53.19958276999989,
+      "2022": -9.827004579999766,
+      "2023": -9.383101499999384
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "main",
+    "period": "develop",
+    "net_pnl": 3.3318067600000063,
+    "return_pct": 0.666361352,
+    "max_drawdown_pct": 3.8372093401137897,
+    "cashflow_trades": 48,
+    "cashflow_win_rate_pct": 45.83333333333333,
+    "payoff_ratio": 1.2487707655375053,
+    "fees": 7.15759324,
+    "turnover_usdt": 14315.186400000002,
+    "extra_5bp_net_pnl": -3.8257864399997175,
+    "annual": {
+      "2021": 8.556189869999969,
+      "2022": -8.243497509999884,
+      "2023": 3.0191144000002055
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "time24",
+    "period": "develop",
+    "net_pnl": -17.350783750000005,
+    "return_pct": -3.4701567499999975,
+    "max_drawdown_pct": 4.656045105061635,
+    "cashflow_trades": 54,
+    "cashflow_win_rate_pct": 35.18518518518518,
+    "payoff_ratio": 1.3627633092527838,
+    "fees": 8.45066375,
+    "turnover_usdt": 16901.327400000002,
+    "extra_5bp_net_pnl": -25.80144744999984,
+    "annual": {
+      "2021": -4.036356770000054,
+      "2022": -7.899925079999775,
+      "2023": -5.414501900000005
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "time48",
+    "period": "develop",
+    "net_pnl": 0.18643155000000888,
+    "return_pct": 0.03728630999999538,
+    "max_drawdown_pct": 3.3796758704259355,
+    "cashflow_trades": 50,
+    "cashflow_win_rate_pct": 46.0,
+    "payoff_ratio": 1.1776241830908947,
+    "fees": 7.3048284500000005,
+    "turnover_usdt": 14609.656819999998,
+    "extra_5bp_net_pnl": -7.118396859999734,
+    "annual": {
+      "2021": 7.029883789999985,
+      "2022": -5.839756239999872,
+      "2023": -1.0036959999998203
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "clock15",
+    "period": "develop",
+    "net_pnl": -1.0211951000000568,
+    "return_pct": -0.2042390200000077,
+    "max_drawdown_pct": 1.5453894058574336,
+    "cashflow_trades": 13,
+    "cashflow_win_rate_pct": 46.15384615384615,
+    "payoff_ratio": 1.0977568822072654,
+    "fees": 1.7999750999999997,
+    "turnover_usdt": 3599.95018,
+    "extra_5bp_net_pnl": -2.8211701899998616,
+    "annual": {
+      "2021": 4.09826256000008,
+      "2022": -2.727290460000006,
+      "2023": -2.3921671999999603
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "clock30",
+    "period": "develop",
+    "net_pnl": -14.935204860000056,
+    "return_pct": -2.98704097200001,
+    "max_drawdown_pct": 3.21906452161973,
+    "cashflow_trades": 9,
+    "cashflow_win_rate_pct": 11.11111111111111,
+    "payoff_ratio": 1.1616054930121364,
+    "fees": 1.03250486,
+    "turnover_usdt": 2065.0097,
+    "extra_5bp_net_pnl": -15.967709710000065,
+    "annual": {
+      "2021": -5.665997570000059,
+      "2022": -6.667354139999929,
+      "2023": -2.6018531500000677
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "cost3",
+    "period": "develop",
+    "net_pnl": 3.3318067600000063,
+    "return_pct": 0.666361352,
+    "max_drawdown_pct": 3.8372093401137897,
+    "cashflow_trades": 48,
+    "cashflow_win_rate_pct": 45.83333333333333,
+    "payoff_ratio": 1.2487707655375053,
+    "fees": 7.15759324,
+    "turnover_usdt": 14315.186400000002,
+    "extra_5bp_net_pnl": -3.8257864399997175,
+    "annual": {
+      "2021": 8.556189869999969,
+      "2022": -8.243497509999884,
+      "2023": 3.0191144000002055
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "cost5",
+    "period": "develop",
+    "net_pnl": 3.3318067600000063,
+    "return_pct": 0.666361352,
+    "max_drawdown_pct": 3.8372093401137897,
+    "cashflow_trades": 48,
+    "cashflow_win_rate_pct": 45.83333333333333,
+    "payoff_ratio": 1.2487707655375053,
+    "fees": 7.15759324,
+    "turnover_usdt": 14315.186400000002,
+    "extra_5bp_net_pnl": -3.8257864399997175,
+    "annual": {
+      "2021": 8.556189869999969,
+      "2022": -8.243497509999884,
+      "2023": 3.0191144000002055
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "lock50",
+    "period": "develop",
+    "net_pnl": -5.387208700000031,
+    "return_pct": -1.077441740000007,
+    "max_drawdown_pct": 5.898082859539544,
+    "cashflow_trades": 45,
+    "cashflow_win_rate_pct": 44.44444444444444,
+    "payoff_ratio": 1.130301981292354,
+    "fees": 6.937548700000001,
+    "turnover_usdt": 13875.097339999998,
+    "extra_5bp_net_pnl": -12.324757369999986,
+    "annual": {
+      "2021": 5.739660660000027,
+      "2022": -11.632735309999873,
+      "2023": 0.5058659499998726
+    }
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "lock80",
+    "period": "develop",
+    "net_pnl": 4.7005808000000115,
+    "return_pct": 0.9401161600000041,
+    "max_drawdown_pct": 3.617407586760124,
+    "cashflow_trades": 48,
+    "cashflow_win_rate_pct": 45.83333333333333,
+    "payoff_ratio": 1.2762762498309348,
+    "fees": 7.156909199999999,
+    "turnover_usdt": 14313.818310000002,
+    "extra_5bp_net_pnl": -2.456328354999755,
+    "annual": {
+      "2021": 9.042022659999986,
+      "2022": -8.454102759999842,
+      "2023": 4.112660900000094
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "main",
+    "period": "develop",
+    "net_pnl": -114.36974662,
+    "return_pct": -22.873949323999998,
+    "max_drawdown_pct": 30.79038145257521,
+    "cashflow_trades": 83,
+    "cashflow_win_rate_pct": 32.53012048192771,
+    "payoff_ratio": 1.3838682652306429,
+    "fees": 39.02572662,
+    "turnover_usdt": 78883.44418,
+    "extra_5bp_net_pnl": -153.81146870999908,
+    "annual": {
+      "2021": 29.89944113000024,
+      "2022": -37.12676544999988,
+      "2023": -107.14242229999945
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "time12",
+    "period": "develop",
+    "net_pnl": -122.52271145999998,
+    "return_pct": -24.504542291999996,
+    "max_drawdown_pct": 31.07286716807525,
+    "cashflow_trades": 91,
+    "cashflow_win_rate_pct": 32.967032967032964,
+    "payoff_ratio": 1.2610235770458786,
+    "fees": 41.226331460000004,
+    "turnover_usdt": 83264.80436000001,
+    "extra_5bp_net_pnl": -164.15511363999872,
+    "annual": {
+      "2021": -9.040035899999793,
+      "2022": -16.991158009999594,
+      "2023": -96.49151754999934
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "time48",
+    "period": "develop",
+    "net_pnl": -129.02719353999998,
+    "return_pct": -25.805438707999993,
+    "max_drawdown_pct": 33.776303157902674,
+    "cashflow_trades": 72,
+    "cashflow_win_rate_pct": 22.22222222222222,
+    "payoff_ratio": 2.2396676868869108,
+    "fees": 32.756093539999995,
+    "turnover_usdt": 66837.28294,
+    "extra_5bp_net_pnl": -162.44583500999886,
+    "annual": {
+      "2021": 20.67689302000042,
+      "2022": -52.482861209999555,
+      "2023": -97.22122534999971
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "reward2",
+    "period": "develop",
+    "net_pnl": -14.823835920000022,
+    "return_pct": -2.9647671840000056,
+    "max_drawdown_pct": 23.68673306628213,
+    "cashflow_trades": 83,
+    "cashflow_win_rate_pct": 39.75903614457831,
+    "payoff_ratio": 1.4502605517497065,
+    "fees": 41.33034592,
+    "turnover_usdt": 89321.75331,
+    "extra_5bp_net_pnl": -59.48471257499864,
+    "annual": {
+      "2021": 91.09795003000022,
+      "2022": -41.95549204999929,
+      "2023": -63.96629389999953
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "reward3",
+    "period": "develop",
+    "net_pnl": -80.10377715000004,
+    "return_pct": -16.020755430000012,
+    "max_drawdown_pct": 29.010783949188635,
+    "cashflow_trades": 83,
+    "cashflow_win_rate_pct": 33.734939759036145,
+    "payoff_ratio": 1.5144230512836945,
+    "fees": 39.63065715,
+    "turnover_usdt": 81772.63848,
+    "extra_5bp_net_pnl": -120.99009638999951,
+    "annual": {
+      "2021": 29.392561050000268,
+      "2022": -11.73763100000042,
+      "2023": -97.75870719999932
+    }
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "falling_ma",
+    "period": "develop",
+    "net_pnl": -104.21818739000003,
+    "return_pct": -20.84363747800001,
+    "max_drawdown_pct": 24.343225635986833,
+    "cashflow_trades": 41,
+    "cashflow_win_rate_pct": 24.390243902439025,
+    "payoff_ratio": 1.0641633998677533,
+    "fees": 16.49311739,
+    "turnover_usdt": 32986.23469,
+    "extra_5bp_net_pnl": -120.71130473499977,
+    "annual": {
+      "2021": -29.659231100000056,
+      "2022": -34.01785133999988,
+      "2023": -40.54110494999986
+    }
+  }
+]

@@ -1,0 +1,143 @@
+{
+  "created_at": "2026-09-22T00:40:58.243396+00:00",
+  "script_sha256": "62bf5af2384fd719dab98e01eaf042859adaa5beae6be8949c0f7bce2fe6d2d5",
+  "manifest_sha256": "07c4acac2bcc93a19cb80bbef873f846187ef05a2f1e421e58077098297826b1",
+  "runs": {
+    "BTC_cost_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 1221,
+        "cycle_structure_exit": 560,
+        "cycle_time_exit": 8
+      },
+      "classified_trades": 1789,
+      "pnl_sum": -114.59122729000006,
+      "order_event_types": {
+        "OrderCancelRejected": 1221
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_cost_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 2932,
+        "cycle_structure_exit": 1383,
+        "cycle_time_exit": 8
+      },
+      "classified_trades": 4323,
+      "pnl_sum": -186.3046438000001,
+      "order_event_types": {
+        "OrderCancelRejected": 2932
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_reclaim_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 430,
+        "cycle_structure_exit": 192,
+        "cycle_time_exit": 11
+      },
+      "classified_trades": 633,
+      "pnl_sum": -36.0605576999999,
+      "order_event_types": {
+        "OrderCancelRejected": 430
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_reclaim_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 952,
+        "cycle_structure_exit": 468,
+        "cycle_time_exit": 16
+      },
+      "classified_trades": 1436,
+      "pnl_sum": -68.18662113999962,
+      "order_event_types": {
+        "OrderCancelRejected": 952
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_cost_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 655,
+        "cycle_structure_exit": 319,
+        "cycle_time_exit": 10
+      },
+      "classified_trades": 984,
+      "pnl_sum": -160.4100020200006,
+      "order_event_types": {
+        "OrderCancelRejected": 655
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_cost_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 1751,
+        "cycle_structure_exit": 804,
+        "cycle_time_exit": 16
+      },
+      "classified_trades": 2571,
+      "pnl_sum": -242.43984823999952,
+      "order_event_types": {
+        "OrderCancelRejected": 1751
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_reclaim_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 232,
+        "cycle_structure_exit": 99,
+        "cycle_time_exit": 11
+      },
+      "classified_trades": 342,
+      "pnl_sum": -44.78780602000015,
+      "order_event_types": {
+        "OrderCancelRejected": 232
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_reclaim_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 542,
+        "cycle_structure_exit": 259,
+        "cycle_time_exit": 17
+      },
+      "classified_trades": 818,
+      "pnl_sum": -101.75409350000025,
+      "order_event_types": {
+        "OrderCancelRejected": 542
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_reclaim_fee5_strict": {
+      "filled_exit_orders": {
+        "take-profit": 231,
+        "cycle_structure_exit": 99,
+        "cycle_time_exit": 11
+      },
+      "classified_trades": 341,
+      "pnl_sum": -45.22023325999997,
+      "order_event_types": {
+        "OrderCancelRejected": 231
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_reclaim_fee5_strict": {
+      "filled_exit_orders": {
+        "take-profit": 541,
+        "cycle_structure_exit": 258,
+        "cycle_time_exit": 17
+      },
+      "classified_trades": 816,
+      "pnl_sum": -100.58360671999955,
+      "order_event_types": {
+        "OrderCancelRejected": 541
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    }
+  },
+  "note": "Exit reasons are reconstructed from frozen fills and reconciled to all completed trade cash flows. These are descriptive contributions, not causal effects or a new selection rule. Monthly intervals use three-month circular blocks, 2000 draws and seed 20260922; they do not correct prior historical model selection. August 2026 is partial.",
+  "outputs": {
+    "payoff_diagnostics.csv": "f7ffdc6c84d198882730c5a4b5900ce8149f3730cb99acc7757613734054017b",
+    "exit_contributions.csv": "c75c2206c2953cb745014a148ff4324c9bb758c0cb0c705725a2f5cb606bb82e",
+    "monthly_uncertainty.csv": "17520d2f756829675e38b104ebd7421d796bd6970f973bc5d0580314dd08a612"
+  }
+}

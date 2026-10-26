@@ -1,0 +1,29 @@
+{
+  "completed_at": "2026-09-20T21:49:32.369360+00:00",
+  "completed_runs": 4,
+  "frozen_inputs_verified": true,
+  "max_cashflow_error": 1.2789769243681803e-13,
+  "invalid_openings": 0,
+  "off_tick_prices": 0,
+  "report_source_sha256": "b8c481f3bd202f3ea447f696037689dcb2de617d0c1f7fc8bbcbc23667f36973",
+  "decision": {
+    "trend_following_long": {
+      "passed": false,
+      "checks": {
+        "full_profit_at_both_costs": false,
+        "recent_profit_at_both_costs": false,
+        "minimum_trade_counts": true,
+        "valid_execution": true
+      }
+    },
+    "mean_reversion_long": {
+      "passed": false,
+      "checks": {
+        "full_profit_at_both_costs": false,
+        "recent_profit_at_both_costs": false,
+        "minimum_trade_counts": true,
+        "valid_execution": true
+      }
+    }
+  }
+}

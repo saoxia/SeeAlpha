@@ -1,0 +1,58 @@
+{
+  "net_pnl": 15.771205180000038,
+  "return_pct": 3.154241036000016,
+  "max_drawdown_pct": 10.533939352978638,
+  "trades": 27,
+  "fees": 6.970014819999999,
+  "win_rate_pct": 40.74074074074074,
+  "profit_factor": 1.1671877464739262,
+  "stress": {
+    "2": {
+      "net_pnl": 12.933913532000133,
+      "drawdown_pct": 10.81003395116269
+    },
+    "5": {
+      "net_pnl": 8.677976060000162,
+      "drawdown_pct": 11.225031208177683
+    },
+    "10": {
+      "net_pnl": 1.5847469400001728,
+      "drawdown_pct": 11.918983704095131
+    }
+  },
+  "missing_minutes": 15,
+  "first_bar": "2024-01-01 00:00:59.999000+00:00",
+  "last_bar": "2024-12-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2024": 15.771205180000152
+  },
+  "cashflow_trades": 27,
+  "cashflow_win_rate_pct": 40.74074074074074,
+  "payoff_ratio": 1.697727631234804,
+  "cashflow_profit_factor": 1.1671877464739275,
+  "turnover_usdt": 14186.458239999998,
+  "cashflow_reconciliation_error": 9.947598300641403e-14,
+  "expected_minutes": 527040,
+  "observed_minutes": 527025,
+  "missing_minutes_including_edges": 15,
+  "order_status_counts": {
+    "14": 54,
+    "8": 42
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20240104-085959-001-PBS-3') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240404-015959-001-PBS-10') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240413-165959-001-PBS-12') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240418-055959-001-PBS-20') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240503-065959-001-PBS-27') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240509-045959-001-PBS-30') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240511-145959-001-PBS-33') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240614-145959-001-PBS-48') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240619-145959-001-PBS-51') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240706-045959-001-PBS-54') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240804-145959-001-PBS-68') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20241223-065959-001-PBS-96') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 42.33
+}

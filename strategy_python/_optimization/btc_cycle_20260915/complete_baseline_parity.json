@@ -1,0 +1,122 @@
+[
+  {
+    "slot": "MRL_original",
+    "period": "validation",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/validation/MRL_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "MRL_optimized",
+    "period": "validation",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/validation/MRL_optimized",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFL_original",
+    "period": "validation",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/validation/TFL_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFS_original",
+    "period": "validation",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/validation/TFS_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "PBS_original",
+    "period": "validation",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/validation/PBS_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "MRL_original",
+    "period": "review",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/review/MRL_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "MRL_optimized",
+    "period": "review",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/review/MRL_optimized",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFL_original",
+    "period": "review",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/review/TFL_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFS_original",
+    "period": "review",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/review/TFS_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "PBS_original",
+    "period": "review",
+    "reference": "strategy_python/_optimization/btc_cycle_20260915/runs/review/PBS_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "MRL_original",
+    "period": "full",
+    "reference": "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_original",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "MRL_optimized",
+    "period": "full",
+    "reference": "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_optimized",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFL_original",
+    "period": "full",
+    "reference": "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_TFL",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "TFS_original",
+    "period": "full",
+    "reference": "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_TFS",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  },
+  {
+    "slot": "PBS_original",
+    "period": "full",
+    "reference": "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_PBS",
+    "fills_exact": true,
+    "daily_equity_exact": true,
+    "metrics_equal": true
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "completed": [
+    "trend_following_long_fee5",
+    "trend_following_long_fee0",
+    "mean_reversion_long_fee5",
+    "mean_reversion_long_fee0"
+  ],
+  "failed": [],
+  "total": 4
+}

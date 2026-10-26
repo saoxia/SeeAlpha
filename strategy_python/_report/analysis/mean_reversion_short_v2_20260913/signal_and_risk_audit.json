@@ -1,0 +1,44 @@
+{
+  "full_3x": {
+    "entries_verified": 95,
+    "five_minute_signals_only": true,
+    "all_entries_in_weekend_signal_window": true,
+    "no_intrabar_retroactive_entry": true,
+    "mean_target_fills_checked": 71,
+    "all_short_only": true,
+    "entry_leverage_cap": 3.0,
+    "entry_leverage_min": 0.6812981654981035,
+    "entry_leverage_median": 1.7065892919441012,
+    "entry_leverage_max": 2.99288786354466,
+    "max_planned_risk_pct": 1.9998453126879672,
+    "max_holding_hours": 12.0
+  },
+  "full_5x": {
+    "entries_verified": 95,
+    "five_minute_signals_only": true,
+    "all_entries_in_weekend_signal_window": true,
+    "no_intrabar_retroactive_entry": true,
+    "mean_target_fills_checked": 71,
+    "all_short_only": true,
+    "entry_leverage_cap": 5.0,
+    "entry_leverage_min": 0.6812981654981035,
+    "entry_leverage_median": 1.7065892919441012,
+    "entry_leverage_max": 3.199071509069707,
+    "max_planned_risk_pct": 1.999966443341468,
+    "max_holding_hours": 12.0
+  },
+  "later_3x": {
+    "entries_verified": 24,
+    "five_minute_signals_only": true,
+    "all_entries_in_weekend_signal_window": true,
+    "no_intrabar_retroactive_entry": true,
+    "mean_target_fills_checked": 15,
+    "all_short_only": true,
+    "entry_leverage_cap": 3.0,
+    "entry_leverage_min": 0.9176035983214353,
+    "entry_leverage_median": 2.0538959334733526,
+    "entry_leverage_max": 2.991755848737301,
+    "max_planned_risk_pct": 1.9999689519788695,
+    "max_holding_hours": 12.0
+  }
+}

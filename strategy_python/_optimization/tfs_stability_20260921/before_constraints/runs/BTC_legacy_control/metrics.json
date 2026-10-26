@@ -1,0 +1,36 @@
+{
+  "net_pnl": -24.651055040000017,
+  "return_pct": -4.930211008000003,
+  "max_drawdown_pct": 17.16205725287946,
+  "trades": 137,
+  "fees": 63.49725504000001,
+  "turnover": 126994.51,
+  "profit_factor": 0.9269000365891789,
+  "payoff_ratio": 7.0096815267056645,
+  "win_rate_pct": 11.678832116788321,
+  "top5_profit": 143.17585344999998,
+  "pnl_without_best5": -167.82690849,
+  "worst5_pnl": -15.457005030000232,
+  "annual_marked_pnl": {
+    "2021": -22.26647499000046,
+    "2022": -4.944624899999326,
+    "2023": 8.14786724999982,
+    "2024": 24.706667500000094,
+    "2025": 2.193805999999938,
+    "2026": -32.488295899999514
+  },
+  "review_marked_pnl": -30.294489899999576,
+  "review_closed_trades": 55,
+  "expected_minutes": 2977920,
+  "observed_minutes": 2976982,
+  "missing_minutes": 938,
+  "first_bar": "2021-01-01 00:00:59.999000+00:00",
+  "last_bar": "2026-08-30 23:59:59.999000+00:00",
+  "cashflow_error": 7.958078640513122e-13,
+  "order_status_counts": {
+    "14": 274
+  },
+  "order_event_reasons": {},
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 271.71
+}

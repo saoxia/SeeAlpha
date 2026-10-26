@@ -1,0 +1,77 @@
+{
+  "runs": [
+    {
+      "slot": "MRL_original",
+      "package": "strategy_python.btc_cycle_optimized_20260915_mrl_original",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": -47.16543386000001,
+      "max_drawdown_pct": 14.706945849122787
+    },
+    {
+      "slot": "MRL_optimized",
+      "package": "strategy_python.btc_cycle_optimized_20260915_mrl_optimized",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": -51.86324538000002,
+      "max_drawdown_pct": 15.335216294155007
+    },
+    {
+      "slot": "TFL_original",
+      "package": "strategy_python.btc_cycle_optimized_20260915_tfl_original",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": -12.00142371000004,
+      "max_drawdown_pct": 6.304484343827554
+    },
+    {
+      "slot": "TFL_optimized",
+      "package": "strategy_python.btc_cycle_optimized_20260915_tfl_optimized",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": -12.00142371000004,
+      "max_drawdown_pct": 6.304484343827554
+    },
+    {
+      "slot": "TFS_original",
+      "package": "strategy_python.btc_cycle_optimized_20260915_tfs_original",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": 32.52907929000003,
+      "max_drawdown_pct": 2.2136771182550197
+    },
+    {
+      "slot": "TFS_optimized",
+      "package": "strategy_python.btc_cycle_optimized_20260915_tfs_optimized",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": 32.52907929000003,
+      "max_drawdown_pct": 2.2136771182550197
+    },
+    {
+      "slot": "PBS_original",
+      "package": "strategy_python.btc_cycle_optimized_20260915_pbs_original",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": 3.673416179999947,
+      "max_drawdown_pct": 10.906613863289804
+    },
+    {
+      "slot": "PBS_optimized",
+      "package": "strategy_python.btc_cycle_optimized_20260915_pbs_optimized",
+      "config_exact": true,
+      "full_history_fills_exact": true,
+      "daily_equity_exact": true,
+      "net_pnl": 3.673416179999947,
+      "max_drawdown_pct": 10.906613863289804
+    }
+  ],
+  "all_prior_files_unchanged": true
+}

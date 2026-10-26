@@ -1,0 +1,58 @@
+[
+  {
+    "slot": "MRL_original",
+    "variant": "space_units2_same_risk",
+    "category": "layers_same_budget",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "MRL_original",
+    "variant": "space_units1_same_unit",
+    "category": "layers_reduced_budget",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "space_units2_same_risk",
+    "category": "layers_same_budget",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "space_units1_same_unit",
+    "category": "layers_reduced_budget",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "space_budget0.5",
+    "category": "risk_allocation",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "next_slope_level",
+    "category": "slope_direction",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "space_cap0.5",
+    "category": "risk_allocation",
+    "status": "development_only",
+    "mechanism_claim": false
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "space_risk0.005",
+    "category": "risk_allocation",
+    "status": "development_only",
+    "mechanism_claim": false
+  }
+]

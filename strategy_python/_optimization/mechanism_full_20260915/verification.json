@@ -1,0 +1,40 @@
+{
+  "runs": 7,
+  "copies_verified": 52,
+  "old_frozen_files_unchanged": 335,
+  "cashflows_reconciled": true,
+  "prices_on_tick": true,
+  "missing_minutes": 938,
+  "includes_training": true,
+  "market_files_verified": 2434,
+  "sources": {
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_original": {
+      "metrics_sha256": "db653c23291ee1d7b3f50d46c4df9475872a9e8efab5b2426a8778b4a0e3bde6",
+      "parameters_sha256": "760a17cc413b6f00c8cc94e735c30edaf1cc92325c9a306bf7d702f88b00fb36"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_optimized": {
+      "metrics_sha256": "04dc2bdb979c0be5b263c68b16c5c4780ca0b4c14cb07375ce5a47bd3c164e80",
+      "parameters_sha256": "5ecfccb22956127adea63a6798504e12f48fcec7ceced3bfffbf977cfc3c9667"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_TFL": {
+      "metrics_sha256": "1185792cc9f7b1069016ad47858e8ede1336303a719d4d50d4ae276b1d239bf1",
+      "parameters_sha256": "a08eb5938fd7b39165555eb5c7ff5b0bfd9ea4cf0900527efe2f2ebe38d5d225"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_TFS": {
+      "metrics_sha256": "5739b269072e75934893620f4c785c675903c9375edf6de0aff044de62748dfb",
+      "parameters_sha256": "a31f861925f78757a94b419b71d75db1bbe8b4461af338174b656d3512d85c10"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_PBS": {
+      "metrics_sha256": "07fe97a4f5bc34b67d2c712f7bb4b225d71a0c5f8674126a4efde8b0b2a63522",
+      "parameters_sha256": "5095d87d237d1711f1605c978d4e37342685844130ff1ec3b001f4671e0b5078"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_original__flat_risk": {
+      "metrics_sha256": "0c698dd972731f70fe57caabcbef4bab8b75c731664eac4c3568e565564a9d6a",
+      "parameters_sha256": "56136ac54baad86a56fe7a25c6b7498e7a046dfddcd31b8fdf4e2ef7053ad29d"
+    },
+    "strategy_python/_optimization/mechanism_full_20260915/runs/full/BTC_MRL_optimized__flat_risk": {
+      "metrics_sha256": "8795e4e246deaf5e55a011ad0a7960a10811500a3378656530d58afd5bc322f6",
+      "parameters_sha256": "dc5345bac1eb2b4832cfe76611881762deabb299f3808b6c975c161935f286a0"
+    }
+  }
+}

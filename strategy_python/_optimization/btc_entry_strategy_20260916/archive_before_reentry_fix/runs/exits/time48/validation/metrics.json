@@ -1,0 +1,12 @@
+{
+  "net_pnl": 197.94891123648188,
+  "return_pct": 39.58978224729637,
+  "max_drawdown_pct": 27.70747021849185,
+  "trades": 103,
+  "fees": 51.62478684904277,
+  "win_rate_pct": 55.33980582524271,
+  "payoff": 1.0740584245615408,
+  "rejected_entries": 0,
+  "gap_exits": 0,
+  "active_months": 12
+}

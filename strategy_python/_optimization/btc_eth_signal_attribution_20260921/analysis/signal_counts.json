@@ -1,0 +1,135 @@
+[
+  {
+    "asset": "BTC",
+    "strategy": "MRL",
+    "decisions": 595389,
+    "market_eligible_decisions": 329963,
+    "eligible_decision_status": {
+      "invested": 162084,
+      "risk_sizing_unavailable": 124391,
+      "recovery_wait": 20004,
+      "admitted_quote": 14142,
+      "order_constraint": 8712,
+      "cooldown": 630
+    },
+    "all_quote_touch_rows": 94770,
+    "eligible_candidates_before_dedup": 52548,
+    "cohorts": [
+      {
+        "spacing_hours": 1,
+        "deduplicated": 10764,
+        "common_window_and_past_vol_available": 10643,
+        "missing_window_or_vol": 121
+      },
+      {
+        "spacing_hours": 24,
+        "deduplicated": 1378,
+        "common_window_and_past_vol_available": 1364,
+        "missing_window_or_vol": 14
+      }
+    ],
+    "matching_files": [
+      "BTC_MRL_s1_calendar_vol",
+      "BTC_MRL_s1_touch_vol",
+      "BTC_MRL_s24_calendar_vol",
+      "BTC_MRL_s24_touch_vol"
+    ]
+  },
+  {
+    "asset": "BTC",
+    "strategy": "TFS",
+    "decisions": 108,
+    "market_eligible_decisions": 108,
+    "eligible_decision_status": {
+      "admitted_market": 76,
+      "invested": 22,
+      "order_constraint": 10
+    },
+    "all_quote_touch_rows": null,
+    "eligible_candidates_before_dedup": 108,
+    "cohorts": [
+      {
+        "spacing_hours": 1,
+        "deduplicated": 107,
+        "common_window_and_past_vol_available": 106,
+        "missing_window_or_vol": 1
+      },
+      {
+        "spacing_hours": 24,
+        "deduplicated": 70,
+        "common_window_and_past_vol_available": 69,
+        "missing_window_or_vol": 1
+      }
+    ],
+    "matching_files": [
+      "BTC_TFS_s1_calendar_vol",
+      "BTC_TFS_s24_calendar_vol"
+    ]
+  },
+  {
+    "asset": "ETH",
+    "strategy": "MRL",
+    "decisions": 595454,
+    "market_eligible_decisions": 330679,
+    "eligible_decision_status": {
+      "invested": 216274,
+      "recovery_wait": 42203,
+      "admitted_quote": 30151,
+      "risk_sizing_unavailable": 21173,
+      "order_constraint": 19551,
+      "cooldown": 1327
+    },
+    "all_quote_touch_rows": 95988,
+    "eligible_candidates_before_dedup": 52962,
+    "cohorts": [
+      {
+        "spacing_hours": 1,
+        "deduplicated": 10720,
+        "common_window_and_past_vol_available": 10617,
+        "missing_window_or_vol": 103
+      },
+      {
+        "spacing_hours": 24,
+        "deduplicated": 1392,
+        "common_window_and_past_vol_available": 1379,
+        "missing_window_or_vol": 13
+      }
+    ],
+    "matching_files": [
+      "ETH_MRL_s1_calendar_vol",
+      "ETH_MRL_s1_touch_vol",
+      "ETH_MRL_s24_calendar_vol",
+      "ETH_MRL_s24_touch_vol"
+    ]
+  },
+  {
+    "asset": "ETH",
+    "strategy": "TFS",
+    "decisions": 124,
+    "market_eligible_decisions": 124,
+    "eligible_decision_status": {
+      "admitted_market": 105,
+      "invested": 19
+    },
+    "all_quote_touch_rows": null,
+    "eligible_candidates_before_dedup": 124,
+    "cohorts": [
+      {
+        "spacing_hours": 1,
+        "deduplicated": 121,
+        "common_window_and_past_vol_available": 118,
+        "missing_window_or_vol": 3
+      },
+      {
+        "spacing_hours": 24,
+        "deduplicated": 79,
+        "common_window_and_past_vol_available": 77,
+        "missing_window_or_vol": 2
+      }
+    ],
+    "matching_files": [
+      "ETH_TFS_s1_calendar_vol",
+      "ETH_TFS_s24_calendar_vol"
+    ]
+  }
+]

@@ -1,0 +1,79 @@
+{
+  "net_pnl": 48.9317483399999,
+  "return_pct": 9.786349667999982,
+  "max_drawdown_pct": 9.921862387783753,
+  "trades": 53,
+  "fees": 26.884751660000003,
+  "win_rate_pct": 37.735849056603776,
+  "profit_factor": 1.2427625503055162,
+  "stress": {
+    "2": {
+      "net_pnl": 37.77028336000069,
+      "drawdown_pct": 11.073302545794228
+    },
+    "5": {
+      "net_pnl": 21.02808589000074,
+      "drawdown_pct": 12.80690727568109
+    },
+    "10": {
+      "net_pnl": -6.875576559999331,
+      "drawdown_pct": 15.713562532724357
+    }
+  },
+  "missing_minutes": 18,
+  "first_bar": "2025-01-01 00:00:59.999000+00:00",
+  "last_bar": "2026-08-30 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2025": -5.440727849999689,
+    "2026": 54.372476190000384
+  },
+  "cashflow_trades": 53,
+  "cashflow_win_rate_pct": 37.735849056603776,
+  "payoff_ratio": 2.0505582080041034,
+  "cashflow_profit_factor": 1.242762550305517,
+  "turnover_usdt": 55807.32490000001,
+  "cashflow_reconciliation_error": 3.410605131648481e-13,
+  "expected_minutes": 874080,
+  "observed_minutes": 874062,
+  "missing_minutes_including_edges": 18,
+  "order_status_counts": {
+    "14": 106,
+    "8": 74
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20250110-135959-001-PBS-3') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250207-065959-001-PBS-10') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250224-025959-001-PBS-12') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250302-135959-001-PBS-20') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250623-165959-001-PBS-31') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250804-095959-001-PBS-42') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250806-005959-001-PBS-45') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250826-155959-001-PBS-48') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250827-075959-001-PBS-51') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250827-225959-001-PBS-54') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250926-145959-001-PBS-57') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251018-165959-001-PBS-64') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251104-045959-001-PBS-66') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251105-085959-001-PBS-70') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251107-065959-001-PBS-77') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251120-135959-001-PBS-91') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251217-035959-001-PBS-99') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251218-055959-001-PBS-102') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260126-205959-001-PBS-109') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260130-175959-001-PBS-112') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260131-075959-001-PBS-114') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260203-055959-001-PBS-121') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260204-045959-001-PBS-124') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260330-175959-001-PBS-140') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260524-135959-001-PBS-143') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260529-025959-001-PBS-146') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260603-135959-001-PBS-152') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260606-135959-001-PBS-160') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260626-185959-001-PBS-163') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260701-065959-001-PBS-170') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260802-115959-001-PBS-173') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260804-085959-001-PBS-176') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 65.61
+}

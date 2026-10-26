@@ -1,0 +1,65 @@
+{
+  "net_pnl": -35.57506177999994,
+  "return_pct": -7.115012355999983,
+  "max_drawdown_pct": 12.601700998739595,
+  "trades": 518,
+  "fees": 111.68992177999999,
+  "win_rate_pct": 42.277992277992276,
+  "profit_factor": 0.9481549713073827,
+  "stress": {
+    "2": {
+      "net_pnl": -80.25103040400018,
+      "drawdown_pct": 18.245408389854177
+    },
+    "5": {
+      "net_pnl": -147.26498334000019,
+      "drawdown_pct": 31.090931836704737
+    },
+    "10": {
+      "net_pnl": -258.9549049000002,
+      "drawdown_pct": 52.65993619042983
+    }
+  },
+  "missing_minutes": 905,
+  "first_bar": "2021-01-01 00:00:59.999000+00:00",
+  "last_bar": "2023-12-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2021": -18.988251279999986,
+    "2022": -16.733297999999763,
+    "2023": 0.14648749999958
+  },
+  "cashflow_trades": 518,
+  "cashflow_win_rate_pct": 42.277992277992276,
+  "payoff_ratio": 1.2945129516936404,
+  "cashflow_profit_factor": 0.9481549713073821,
+  "turnover_usdt": 223379.84312,
+  "cashflow_reconciliation_error": -2.8421709430404007e-13,
+  "expected_minutes": 1576800,
+  "observed_minutes": 1575895,
+  "missing_minutes_including_edges": 905,
+  "order_status_counts": {
+    "14": 1036,
+    "8": 17
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20210725-185959-001-TFL-188') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20211015-031459-001-TFL-255') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20211020-085959-001-TFL-266') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220206-082959-001-TFL-357') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220604-070459-001-TFL-438') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20221016-022459-001-TFL-577') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20221201-132959-001-TFL-616') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20221222-215459-001-TFL-639') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230319-122459-001-TFL-724') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230416-164959-001-TFL-761') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230831-072459-001-TFL-908') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230910-214959-001-TFL-923') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20231001-222459-001-TFL-944') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20231006-170459-001-TFL-951') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20231013-141959-001-TFL-960') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20231014-052459-001-TFL-963') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20231205-130459-001-TFL-1020') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 153.54
+}

@@ -1,0 +1,61 @@
+{
+  "net_pnl": 1.1999722099999985,
+  "return_pct": 0.23999444199999972,
+  "max_drawdown_pct": 0.8114078704202887,
+  "trades": 16,
+  "fees": 0.6615277900000001,
+  "turnover": 2856.6317,
+  "profit_factor": 1.3088966310760197,
+  "payoff_ratio": 0.43629887702533987,
+  "win_rate_pct": 75.0,
+  "top5_profit": 2.9967121600000013,
+  "pnl_without_best5": -1.7967399500000028,
+  "worst5_pnl": -3.8847047500000045,
+  "annual_marked_pnl": {
+    "2022": 1.1999722099999985
+  },
+  "review_marked_pnl": null,
+  "review_closed_trades": 0,
+  "expected_minutes": 44640,
+  "observed_minutes": 44576,
+  "missing_minutes": 64,
+  "first_bar": "2022-05-01 00:00:59.999000+00:00",
+  "last_bar": "2022-05-31 23:59:59.999000+00:00",
+  "cashflow_error": 1.4210854715202004e-14,
+  "invalid_entry_orders": 0,
+  "off_tick_fields": 0,
+  "limit_price_improvement_exceptions": 0,
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20220504-184059-001-000-2') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220513-134059-001-000-6') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220519-194559-001-000-25') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220520-051059-001-000-29') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220520-130459-001-000-34') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220522-154459-001-000-39') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-004059-001-000-42') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-085459-001-000-46') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-142059-001-000-51') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-224359-001-000-55') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220529-023059-001-000-59') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220529-192759-001-000-63') not found": 1
+  },
+  "conditional_entry_orders": 0,
+  "triggered_entry_orders": 0,
+  "experiment": {
+    "id": "BTC_control_fee0",
+    "asset": "BTC",
+    "variant": "control",
+    "extra_fee_bp": 0,
+    "strict": false
+  },
+  "entry_admission": {
+    "original_eligible": 3726,
+    "reclaim_blocked": 3647,
+    "cost_blocked": 23,
+    "passed_admission": 56
+  },
+  "holding_max_hours": 5.366666666666666,
+  "holding_median_hours": 0.725,
+  "elapsed_seconds": 20.499793080000018,
+  "control_reconciliation": true
+}

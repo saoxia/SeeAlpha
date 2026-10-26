@@ -1,0 +1,216 @@
+{
+  "created_at": "2026-09-22T00:06:17.225447+00:00",
+  "script_sha256": "607f23ef5a223bafcfcfff5d708ff8de7ca49bffebd324d81854a095bbf8c597",
+  "manifest_sha256": "e13ed112d14409196729315ac91c556b528f4d92c817ef3dae6febbd50243a08",
+  "runs": {
+    "BTC_baseline_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 699,
+        "hard-stop": 12
+      },
+      "classified_trades": 711,
+      "pnl_sum": -29.741936809999892,
+      "order_event_types": {
+        "OrderCancelRejected": 711
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_baseline_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 1417,
+        "hard-stop": 26,
+        "unlabelled_close": 1
+      },
+      "classified_trades": 1444,
+      "pnl_sum": -52.151382489999975,
+      "order_event_types": {
+        "OrderCancelRejected": 1443
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_baseline_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 617,
+        "hard-stop": 11
+      },
+      "classified_trades": 628,
+      "pnl_sum": -74.70944074999986,
+      "order_event_types": {
+        "OrderCancelRejected": 628
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_baseline_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 1382,
+        "hard-stop": 26,
+        "unlabelled_close": 1
+      },
+      "classified_trades": 1409,
+      "pnl_sum": -121.93060745000008,
+      "order_event_types": {
+        "OrderCancelRejected": 1408
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_regime_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 294,
+        "hard-stop": 8
+      },
+      "classified_trades": 302,
+      "pnl_sum": -80.40406695000009,
+      "order_event_types": {
+        "OrderCancelRejected": 302
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_regime_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 807,
+        "hard-stop": 16,
+        "unlabelled_close": 1
+      },
+      "classified_trades": 824,
+      "pnl_sum": -26.115720950000018,
+      "order_event_types": {
+        "OrderCancelRejected": 823
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_regime_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 288,
+        "hard-stop": 7
+      },
+      "classified_trades": 295,
+      "pnl_sum": -86.39799481999987,
+      "order_event_types": {
+        "OrderCancelRejected": 295
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_regime_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 813,
+        "hard-stop": 16,
+        "unlabelled_close": 1
+      },
+      "classified_trades": 830,
+      "pnl_sum": -78.74341455000007,
+      "order_event_types": {
+        "OrderCancelRejected": 829
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_bounded_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 1653,
+        "cycle_structure_exit": 816,
+        "cycle_time_exit": 7
+      },
+      "classified_trades": 2476,
+      "pnl_sum": -153.44134681000006,
+      "order_event_types": {
+        "OrderCancelRejected": 1653
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_bounded_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 3845,
+        "cycle_structure_exit": 1856,
+        "cycle_time_exit": 10
+      },
+      "classified_trades": 5711,
+      "pnl_sum": -235.6903636599992,
+      "order_event_types": {
+        "OrderCancelRejected": 3845
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_bounded_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 1132,
+        "cycle_structure_exit": 548,
+        "cycle_time_exit": 6
+      },
+      "classified_trades": 1686,
+      "pnl_sum": -230.67919790000025,
+      "order_event_types": {
+        "OrderCancelRejected": 1132
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_bounded_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 3187,
+        "cycle_structure_exit": 1557,
+        "cycle_time_exit": 12
+      },
+      "classified_trades": 4756,
+      "pnl_sum": -383.9472644000009,
+      "order_event_types": {
+        "OrderCancelRejected": 3187
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_combined_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 454,
+        "cycle_structure_exit": 226,
+        "cycle_time_exit": 2
+      },
+      "classified_trades": 682,
+      "pnl_sum": -50.402239589999844,
+      "order_event_types": {
+        "OrderCancelRejected": 454
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_combined_fee0": {
+      "filled_exit_orders": {
+        "take-profit": 1368,
+        "cycle_structure_exit": 654,
+        "cycle_time_exit": 5
+      },
+      "classified_trades": 2027,
+      "pnl_sum": -97.46747743999964,
+      "order_event_types": {
+        "OrderCancelRejected": 1368
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "BTC_combined_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 403,
+        "cycle_structure_exit": 201,
+        "cycle_time_exit": 2
+      },
+      "classified_trades": 606,
+      "pnl_sum": -94.69498367000003,
+      "order_event_types": {
+        "OrderCancelRejected": 403
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    },
+    "ETH_combined_fee5": {
+      "filled_exit_orders": {
+        "take-profit": 1307,
+        "cycle_structure_exit": 629,
+        "cycle_time_exit": 3
+      },
+      "classified_trades": 1939,
+      "pnl_sum": -195.3164937099998,
+      "order_event_types": {
+        "OrderCancelRejected": 1307
+      },
+      "all_rejections_are_missing_cancel_targets": true
+    }
+  },
+  "note": "Use these CSV-derived exit counts. The frozen runner's optional exit_order_tags counter does not normalize list-valued tags or take-profit/hard-stop names; it is not used in returns or decision gates. All frozen run files remain unchanged.",
+  "outputs": {
+    "payoff_diagnostics.csv": "1abd90a58276298bc30189b0807ded59d4acc83f4a0033d3e53525a90c746340",
+    "exit_contributions.csv": "80c5346b2f8e1525e7f40fef959a43ac600bb3f4872387987be81bce6e17b31d"
+  }
+}

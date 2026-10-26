@@ -1,0 +1,74 @@
+[
+  {
+    "signal": "reversion_long",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  },
+  {
+    "signal": "breakout_long",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  },
+  {
+    "signal": "reversion_short",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  },
+  {
+    "signal": "pullback_long",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  },
+  {
+    "signal": "pullback_short",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  },
+  {
+    "signal": "breakout_short",
+    "accepted": false,
+    "gates": {
+      "all_three_periods_positive": false,
+      "validation_review_at_least_30": true,
+      "net_ci_positive": false,
+      "excess_ci_positive": false,
+      "multiple_test_pass": false,
+      "time_neighbors_positive": false
+    }
+  }
+]

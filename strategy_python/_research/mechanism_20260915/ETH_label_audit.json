@@ -1,0 +1,6 @@
+{
+  "events": 36630,
+  "valid_labels": 109204,
+  "rejected_horizon_labels": 683,
+  "no_truncated_trade_paths": true
+}

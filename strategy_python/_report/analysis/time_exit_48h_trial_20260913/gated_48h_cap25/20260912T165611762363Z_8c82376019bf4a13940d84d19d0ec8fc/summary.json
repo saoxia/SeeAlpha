@@ -1,0 +1,62 @@
+{
+  "trader_id": "BACKTESTER-001",
+  "machine_id": "DESKTOP-LLY",
+  "run_config_id": null,
+  "instance_id": "3c41d13e-3dbd-409d-b6c5-298dd59db73a",
+  "run_id": "b1e5af6b-666a-4d85-9164-c4bb2c4cc5d5",
+  "run_started": 1789232042795855000,
+  "run_finished": 1789232170032869000,
+  "backtest_start": 1765929659999000000,
+  "backtest_end": 1788220799999000000,
+  "elapsed_time": 22291140.0,
+  "iterations": 371520,
+  "total_events": 25949,
+  "total_orders": 1509,
+  "total_positions": 285,
+  "summary": {
+    "iterations": "371520",
+    "total_events": "25949",
+    "orders.total": "1509",
+    "orders.open": "0",
+    "orders.closed": "1509",
+    "orders.emulated": "0",
+    "orders.inflight": "0",
+    "positions.total": "285",
+    "positions.open": "0",
+    "positions.closed": "285",
+    "positions.snapshots": "0",
+    "positions.total_with_snapshots": "285",
+    "venues.total": "1",
+    "account.BINANCE.id": "BINANCE-001",
+    "account.BINANCE.type": "MARGIN",
+    "account.BINANCE.base_currency": "None",
+    "account.BINANCE.event_count": "24388",
+    "account.BINANCE.balance.USDT.total": "438.88593233 USDT",
+    "account.BINANCE.balance.USDT.free": "438.88593233 USDT",
+    "account.BINANCE.balance.USDT.locked": "0.00000000 USDT"
+  },
+  "stats_pnls": {
+    "USDT": {
+      "PnL (total)": -61.11406767,
+      "PnL% (total)": -12.222813533999998,
+      "Max Winner": 9.31678128,
+      "Avg Winner": 1.2221900415584415,
+      "Min Winner": 0.01516268,
+      "Min Loser": -0.03885123,
+      "Avg Loser": -6.359999393888889,
+      "Max Loser": -162.58156443,
+      "Expectancy": -0.21443532515789496,
+      "Win Rate": 0.8105263157894737
+    }
+  },
+  "stats_returns": {
+    "Returns Volatility (252 days)": 0.2890024595886349,
+    "Average (Return)": -0.00030968272324218346,
+    "Average Loss (Return)": -0.011043858136626412,
+    "Average Win (Return)": 0.004416863990262425,
+    "Sharpe Ratio (252 days)": -0.27003246397318614,
+    "Sortino Ratio (252 days)": -0.2778457650213949,
+    "Profit Factor": 0.8558683769953728,
+    "Risk Return Ratio": -0.017010446323501405
+  }
+}

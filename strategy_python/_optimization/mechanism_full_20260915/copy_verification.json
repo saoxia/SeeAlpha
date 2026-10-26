@@ -1,0 +1,262 @@
+{
+  "strategy_python/mechanism_mean_reversion_long_5min/config.py": {
+    "source_sha256": "6e3367580b7e316464ede281c7d34b57c21973c8ce218b2502bfa7cdb9baf785",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/config.py",
+    "copy_sha256": "6e3367580b7e316464ede281c7d34b57c21973c8ce218b2502bfa7cdb9baf785"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/signal.py": {
+    "source_sha256": "212bdaba2cb2fb36109627bc5c196b26866640a8f984e1030a5fee19e1237735",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/signal.py",
+    "copy_sha256": "f7c124a72e8881ab4795569f4ec840e76eecd82f9cf78573efdc23219667a335"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/strategy.py": {
+    "source_sha256": "fdbabbaa55b4300d9f6202ce57dd6a9a66e6367f08e56fbd1434a79de13cdb72",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/strategy.py",
+    "copy_sha256": "062dcfd591a383e1cf459b9d5069f1cff917d2a207239be789b04711804fbbd2"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/risk.py": {
+    "source_sha256": "a0b3f4d11ee0b74cd445a65fec5035d2f01015a648d6b5e78c0e015863a24357",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/risk.py",
+    "copy_sha256": "2b9813f1b72e39d2836d97c2337e7cc6dd64172eea9040c6e8b346d99d34bd1d"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/execution.py": {
+    "source_sha256": "d5a7b7a07d3c4765b9a5326fda3890d816a1d5fd3eb4785f112c220e6633d3dd",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/execution.py",
+    "copy_sha256": "bbda3f8bd4eb5f4d9f68bdebc59c81fc18c734796e19f59bcd7029ed23e10927"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/bars.py": {
+    "source_sha256": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/bars.py",
+    "copy_sha256": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/position.py": {
+    "source_sha256": "2e5f3e24ae1e5d3d2d51d1187f89bf0fcc4accf33d7ae393f848c551f1497102",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/position.py",
+    "copy_sha256": "2e5f3e24ae1e5d3d2d51d1187f89bf0fcc4accf33d7ae393f848c551f1497102"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/indicators.py": {
+    "source_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/indicators.py",
+    "copy_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/features.py": {
+    "source_sha256": "3659387dfd786f7c6674f7cdc81068d5fad405cecc530d3760696e4ca5356d67",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/features.py",
+    "copy_sha256": "45dabf0c38ae5f9ccf584b7dadb63a7108d8cacbccd13933331410b154817a11"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/__init__.py": {
+    "source_sha256": "5468ecb3ed43451cde5fa98c92915701b380721b75bbfe1478b86c4c3f679411",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/__init__.py",
+    "copy_sha256": "6c697e7234c79dcd023146c2f6e46c6c2572fb58a290a846a7caa7dba3675108"
+  },
+  "strategy_python/mechanism_mean_reversion_long_5min/state.py": {
+    "source_sha256": "5585986f725b1d1b97896a19ff7e4df84065ea318b62e73e993691b9426315b4",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_5min/state.py",
+    "copy_sha256": "4b45e4c3e91062ef3761b0d6debd698d064499b3812b8ef453987a47e6a84f87"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/config.py": {
+    "source_sha256": "96c9a8dfb5f09ced3dc0b10abf543bdf54b9257df5b991e666b18046619d268d",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/config.py",
+    "copy_sha256": "96c9a8dfb5f09ced3dc0b10abf543bdf54b9257df5b991e666b18046619d268d"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/signal.py": {
+    "source_sha256": "85a4a43bc5b5a7e805f2ca6de2b6a712fb4814dddada0fda8056f7971a9c3238",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/signal.py",
+    "copy_sha256": "b54d31be12eb77bb11e0224d0d161e31fdfa1cbd7c092eb1b5845b0372556545"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/strategy.py": {
+    "source_sha256": "c05ba4412a848f89def1f6f93f08f684c05364521b5d475c8dbb77b78d9015f4",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/strategy.py",
+    "copy_sha256": "7685af1538ee6d9df3887903b9e526b3fd6afa25e862700dd94d458dbb286928"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/risk.py": {
+    "source_sha256": "adb7efe00952a63b25df70f73b9fbe84e7bdc86c48015773a91933d29066d87c",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/risk.py",
+    "copy_sha256": "4e8b806c956064a478bb9534af2055c42058d3f5e402c77ba3c040f755c41fed"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/execution.py": {
+    "source_sha256": "def317113e068d18fe89ccd2d9b326ac79f5ecb2624dbae3dd19d6adb3f887e4",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/execution.py",
+    "copy_sha256": "d3ffd3af5f224d4b8e8309c32fa75126111efd46b4f346fb151f3cc12b5262e8"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/bars.py": {
+    "source_sha256": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/bars.py",
+    "copy_sha256": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/position.py": {
+    "source_sha256": "2e5f3e24ae1e5d3d2d51d1187f89bf0fcc4accf33d7ae393f848c551f1497102",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/position.py",
+    "copy_sha256": "2e5f3e24ae1e5d3d2d51d1187f89bf0fcc4accf33d7ae393f848c551f1497102"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/indicators.py": {
+    "source_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/indicators.py",
+    "copy_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/features.py": {
+    "source_sha256": "515acb0d7397db113e2aaebe90820638a37f51c01e2948130a87910d326f34d2",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/features.py",
+    "copy_sha256": "dc9ca3fbb72354456f2c97344aae3597070119541d5e2be523ee3e1c8df83fda"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/__init__.py": {
+    "source_sha256": "aab7ff6dfe0d1a617381b548bd84d4f50b80b2d6e0858cc58c333329d87f29d0",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/__init__.py",
+    "copy_sha256": "8bce37a2f5cd8df4b91abea96ead18f674aecf0670beb14ecd0bd63f7f013bfb"
+  },
+  "strategy_python/mechanism_mean_reversion_long_optimized_5min/state.py": {
+    "source_sha256": "03ac472e355724a36a609054f3c870a1379f438eb7cc026677f49c85688cabf8",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_mean_reversion_long_optimized_5min/state.py",
+    "copy_sha256": "4fa8e41a664fbd647ffd985245146490072aec68d714f662829de2ae80fcecc5"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/config.py": {
+    "source_sha256": "960b760da90e2fde5a666cd474fe5eb783d7aba84d0d5283789c0ea8c0c419d5",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/config.py",
+    "copy_sha256": "960b760da90e2fde5a666cd474fe5eb783d7aba84d0d5283789c0ea8c0c419d5"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/signal.py": {
+    "source_sha256": "27967618aac13cb1f33581f7770d6cb31bf1cef332c72bb5a6b98411289e36c6",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/signal.py",
+    "copy_sha256": "d6abe5933f214456bcd631688ac2b7aa3002a04599e4a46e92dabb98ea12e491"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/strategy.py": {
+    "source_sha256": "8758a7ce6a962db609ec2da4d9fc44bf17068722758b88dbd4bc422a9d5ff11c",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/strategy.py",
+    "copy_sha256": "dd7b17d0779c834b17e2ec58e1352880993cfc84965137afc34cdea3f429bc8e"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/risk.py": {
+    "source_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/risk.py",
+    "copy_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/execution.py": {
+    "source_sha256": "19a33e2827ce026ce90cc49f52c4610b1a6704997fff77846412cbfe7b3a0e05",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/execution.py",
+    "copy_sha256": "3cf7f4125fb94b49de3db7743b8c7b5f53b61d101d0b99aa46b8db7dcf72d71b"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/bars.py": {
+    "source_sha256": "e2cc7ad142eaf31cf5bc47b2dd9412026e943e584fe3c393063ec709d5e7ad2e",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/bars.py",
+    "copy_sha256": "e2cc7ad142eaf31cf5bc47b2dd9412026e943e584fe3c393063ec709d5e7ad2e"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/indicators.py": {
+    "source_sha256": "f18f01c7339ce83ddfc48312ff527f991565a8cd72e96b0de0ec949c5a059c3e",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/indicators.py",
+    "copy_sha256": "f18f01c7339ce83ddfc48312ff527f991565a8cd72e96b0de0ec949c5a059c3e"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/sizing.py": {
+    "source_sha256": "3f7fae8e82158ee13aea6cfe81c6efde55ab836623c8a460234a351459898feb",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/sizing.py",
+    "copy_sha256": "3f7fae8e82158ee13aea6cfe81c6efde55ab836623c8a460234a351459898feb"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/profit_protection.py": {
+    "source_sha256": "6fc50f373d0f4ef112629569ea16d0828ae0d4fd464fd2331330eae568131d6b",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/profit_protection.py",
+    "copy_sha256": "6fc50f373d0f4ef112629569ea16d0828ae0d4fd464fd2331330eae568131d6b"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/__init__.py": {
+    "source_sha256": "d0f00ff6509c4893e402c0f15ea2a0529ec007b314c2291c12522b1fb2dc3957",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/__init__.py",
+    "copy_sha256": "7d799618420927560355552734ae3d57c10bde6400aaf31d8e20897539b7292d"
+  },
+  "strategy_python/mechanism_trend_following_long_5min/state.py": {
+    "source_sha256": "5c878263b015604d1a03321d55ffd3bc951f09fd76e87be4b630ea10b629d10c",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_long_5min/state.py",
+    "copy_sha256": "5c878263b015604d1a03321d55ffd3bc951f09fd76e87be4b630ea10b629d10c"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/config.py": {
+    "source_sha256": "9d3013dbf81f7176e087d4a712259357cafa933f67001209d18ef0c359b5bbee",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/config.py",
+    "copy_sha256": "9d3013dbf81f7176e087d4a712259357cafa933f67001209d18ef0c359b5bbee"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/signal.py": {
+    "source_sha256": "9c467053166f68c41060501dd410882347ca885056831cd779ecdefbe5f91040",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/signal.py",
+    "copy_sha256": "8173aa72861da681cd17824803b091b7af2393494d45dc90448eda41ba655c86"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/strategy.py": {
+    "source_sha256": "8094ad47e8dc9351e7c020dad938827a89d8e3d4949af55050bf58fa36f4e00e",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/strategy.py",
+    "copy_sha256": "277dd5e2b39de08203b45bf7005e8182b23c31ec0a82a650f4c2cee0f4a15b59"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/risk.py": {
+    "source_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/risk.py",
+    "copy_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/execution.py": {
+    "source_sha256": "609299c8ee2a01ce23b8724bb09d4b9ea5606a236490fae521e962a34507dfd2",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/execution.py",
+    "copy_sha256": "23e89a629fa36f452c287f45c6eccdb1e51e0c1bd20dbbd3f7353000dc1ac35c"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/bars.py": {
+    "source_sha256": "e2cc7ad142eaf31cf5bc47b2dd9412026e943e584fe3c393063ec709d5e7ad2e",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/bars.py",
+    "copy_sha256": "e2cc7ad142eaf31cf5bc47b2dd9412026e943e584fe3c393063ec709d5e7ad2e"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/indicators.py": {
+    "source_sha256": "7166a1d2c66b1aee467f0265df3f8b4cbe4f446375112a73807bc861e72b666b",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/indicators.py",
+    "copy_sha256": "7166a1d2c66b1aee467f0265df3f8b4cbe4f446375112a73807bc861e72b666b"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/sizing.py": {
+    "source_sha256": "3f7fae8e82158ee13aea6cfe81c6efde55ab836623c8a460234a351459898feb",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/sizing.py",
+    "copy_sha256": "3f7fae8e82158ee13aea6cfe81c6efde55ab836623c8a460234a351459898feb"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/profit_protection.py": {
+    "source_sha256": "6fc50f373d0f4ef112629569ea16d0828ae0d4fd464fd2331330eae568131d6b",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/profit_protection.py",
+    "copy_sha256": "6fc50f373d0f4ef112629569ea16d0828ae0d4fd464fd2331330eae568131d6b"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/__init__.py": {
+    "source_sha256": "e247faeba132a9bb3f22aa0ca63a8b890c59718415e01404eeae2f01663ac0ef",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/__init__.py",
+    "copy_sha256": "b0fb31fc817ebc6356beeae2bce141ab4ca1a2553cd4ec8d611bb1550c74e6db"
+  },
+  "strategy_python/mechanism_trend_following_short_5min/state.py": {
+    "source_sha256": "5c878263b015604d1a03321d55ffd3bc951f09fd76e87be4b630ea10b629d10c",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_trend_following_short_5min/state.py",
+    "copy_sha256": "5c878263b015604d1a03321d55ffd3bc951f09fd76e87be4b630ea10b629d10c"
+  },
+  "strategy_python/mechanism_pullback_short_1h/config.py": {
+    "source_sha256": "534fda9151bf8c5185b932923bc3555bc7ee6c5407682b216cac02fb26818f1d",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/config.py",
+    "copy_sha256": "534fda9151bf8c5185b932923bc3555bc7ee6c5407682b216cac02fb26818f1d"
+  },
+  "strategy_python/mechanism_pullback_short_1h/signal.py": {
+    "source_sha256": "c880e029acbdd5f216419652e86a31014b00712827db11de651cfeb18ddbd3a1",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/signal.py",
+    "copy_sha256": "7412c214d7ffa55fb3cf3dd6519c711642a597851cad5fed9deb8605f4af9cb7"
+  },
+  "strategy_python/mechanism_pullback_short_1h/strategy.py": {
+    "source_sha256": "bc8f28ee9cdc86a4beded2525600910ccbd8a01d569977b05168c74fb2ca415a",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/strategy.py",
+    "copy_sha256": "98b114468d444396983a10cc795ea6574e9a6f5c9c21c282ba037a331db92378"
+  },
+  "strategy_python/mechanism_pullback_short_1h/risk.py": {
+    "source_sha256": "d9067d5754703932087fc02a979f129f3ecb8e7aa03c6b6bca7964dfa61119e1",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/risk.py",
+    "copy_sha256": "d9067d5754703932087fc02a979f129f3ecb8e7aa03c6b6bca7964dfa61119e1"
+  },
+  "strategy_python/mechanism_pullback_short_1h/execution.py": {
+    "source_sha256": "6b934d6f79b3842dd22b79f26e3db292d050e724f356fc93d7e967cc04338f92",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/execution.py",
+    "copy_sha256": "feb98fbe998178e09fc607b9739f98ad90185d4c5f5cea1e6045d41fa3818ad0"
+  },
+  "strategy_python/mechanism_pullback_short_1h/indicators.py": {
+    "source_sha256": "a90b2713c7d7a40c3747d500a9ecb08d10255dab498d49663549ff7b6d7cbe78",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/indicators.py",
+    "copy_sha256": "a90b2713c7d7a40c3747d500a9ecb08d10255dab498d49663549ff7b6d7cbe78"
+  },
+  "strategy_python/mechanism_pullback_short_1h/__init__.py": {
+    "source_sha256": "101feef9e0917fe1eceb69bb8bf4855500f98c7cb72d394c3d773999c7cd7ed7",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/__init__.py",
+    "copy_sha256": "625ed2a0eb8fdd9ae60a30c02a71b41e1dcaf501871c7ffb0e8396433e0541d2"
+  },
+  "strategy_python/mechanism_pullback_short_1h/state.py": {
+    "source_sha256": "f350af6de76b17c1ffb5503a91f179e1207234e15a0e33563e61dd81dad74b12",
+    "copy": "strategy_python/_optimization/mechanism_full_20260915/packages/mechanism_pullback_short_1h/state.py",
+    "copy_sha256": "f350af6de76b17c1ffb5503a91f179e1207234e15a0e33563e61dd81dad74b12"
+  }
+}

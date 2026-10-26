@@ -1,0 +1,16 @@
+[
+  {
+    "strategy": "trend_following_long",
+    "report": "strategy_python/_report/backtest/btc_current_trend_following_long/20260920T200723521379Z_8a54ccb090474081b4f5fdbdfde2537d",
+    "positions": 2,
+    "invalid_openings": 0,
+    "open_positions": 0
+  },
+  {
+    "strategy": "mean_reversion_long",
+    "report": "strategy_python/_report/backtest/btc_current_mean_reversion_long/20260920T200738445560Z_d2a78f216ef84ba19a963cdd6adf99bc",
+    "positions": 5,
+    "invalid_openings": 0,
+    "open_positions": 0
+  }
+]

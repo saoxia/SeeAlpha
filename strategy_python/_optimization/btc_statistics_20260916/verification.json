@@ -1,0 +1,10 @@
+{
+  "main_versions": 30,
+  "annual_rows": 180,
+  "current_native_records": 356,
+  "custom_simulations": 72,
+  "package_coverage_rows": 51,
+  "source_hashes_checked": true,
+  "links_valid": true,
+  "return_calculations_match": true
+}

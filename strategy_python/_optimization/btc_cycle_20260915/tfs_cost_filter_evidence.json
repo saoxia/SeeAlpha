@@ -1,0 +1,10 @@
+{
+  "cost3": {
+    "fill_rows": 96,
+    "same_execution_fields": true
+  },
+  "cost5": {
+    "fill_rows": 96,
+    "same_execution_fields": true
+  }
+}

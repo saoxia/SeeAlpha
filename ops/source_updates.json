@@ -1,0 +1,182 @@
+{
+  "pipeline/bar_features.py": {
+    "previous_sha256": "d3620e423da790e44e4acaa0d3a3d162670643022f684b9beaf0ab040079156e",
+    "sha256": "fcc80048611d24819fae117a19bf34fd9c7f5b913e628091b47027ccb9717a0d",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "pipeline/convert_binance_trades.py": {
+    "previous_sha256": "ec3f33d84b6e166242402220f56ce8fbabffa25688a37cc4bb0524e3a9430e60",
+    "sha256": "7f59c0f20ef094a1ecbac7ca8f8002ab657d5d805d870d68dd09f4da0875cf9c",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "pipeline/validate_data.py": {
+    "previous_sha256": "e56c2e6c69db8b6d8fefd09cab0527e0242a607cb7c0bbf02aa0c7c6947e48f2",
+    "sha256": "1c74201e0f106eec036500ca3c7997dbea4d6bb646bb25a10baae895e968741c",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "pipeline/convert_binance_bars.py": {
+    "previous_sha256": "c9e39f18bdd0a99ed2e76f091755b1a066f7def2319acd756b4c299ec0d7f381",
+    "sha256": "bcf50cb0a8b8d074fb158348f2f819d1013e84b7d5dfe8e853d68cf1f20abc20",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "pipeline/prepare_data.py": {
+    "previous_sha256": "aa299b8cdd63e2e01189402ff5dffc48301f7e02a931e70e77dbc4f86973d02c",
+    "sha256": "7d4c45fef7b182df34348d8b177b38ae9cd9ac61865148707b603bbeff71a0b1",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_backtesting.py": {
+    "previous_sha256": "78a2cff35a2a5ff5470cd28dd807c84a021714f786be934c6ff95ffa333fefb4",
+    "sha256": "0639c631128893c5962bee87f1f01e9c04f68d4cf327eb94f474f5198a027fe5",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_execution/__init__.py": {
+    "previous_sha256": "6bb88daded1f231a7d68e60ff86df031c58f69b615e9cbc914e4e9f4439f1f99",
+    "sha256": "ffc012538d7d6ee58fabbbbbccf45dad14a5216917be61a500c607956c3e1870",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_execution/entry_constraints.py": {
+    "previous_sha256": "5ca5aa4af87196d0dae5e1dee2ddc320fcc501397d118c5fca4a52332f6c45b9",
+    "sha256": "ce6efb5cd31b0034a37f8f670ebadb061748c39354a02e4e9f018f8c0a7b985c",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_execution/market.py": {
+    "previous_sha256": "6847291bc0e3e83c2c4237ff03cb269b4957a7e2de6c6fc5eb05b3c58cd801fc",
+    "sha256": "f8a5bdedcc50711d9fdebff7016416a6fce6b21f24949f97f263d8f57421df5a",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_indicator/bars.py": {
+    "previous_sha256": "2f6be8458b30e78fe356d547280b5a98bc58f5379ea531cbd6698042609ecbd0",
+    "sha256": "fed5b432f92296edace3f653b6c2ca940712ca9d6a2ae7ea57ab22f00e94fec7",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_mechanism/backtest.py": {
+    "previous_sha256": "e67cc24a8afea02d9dcf5869ac55c597d9ad757de8efd7934df61526b42e29f5",
+    "sha256": "c05257621aa74a991f82f20c8c898b6a503228b4e15b608a8d6be87db833a0aa",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_mechanism/factory.py": {
+    "previous_sha256": "d4084b4c0ca48ca9e113efa54b051e700cb9f6202e275b10b2c2a4a74c85465a",
+    "sha256": "28cd32f29a1ab5ae4f9fd5b5e02124980a195efeb5c5b0803e1c690d886e5106",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/_model/__init__.py": {
+    "previous_sha256": "4205ecd57a05933800cf107262c45be67b6c2ad9911bbafd56dfe78bd1260d85",
+    "sha256": "b94f9d9e0bd64948d4574995a62e64f586371bfa73da683da02b83393e5bea7b",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc.py": {
+    "previous_sha256": "c7de8ce73f1fc01c0bb959ace35f01520a5e9354b0a372ee288e4b4eac359310",
+    "sha256": "e27c0564bc79c840bb3f58d65aeccaa945ab87baad0ed1d524ccf6f18218bf09",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/__init__.py": {
+    "previous_sha256": "2f791c6866ec6c9cbaf60f8f4596d8381a2967dc6aa4540a8288dfb1366162a6",
+    "sha256": "358472b68f1d9cb200f58257b341d2934f172dfcb622b81e58040bcbc997b285",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/config.py": {
+    "previous_sha256": "548fee4bc85c9b5df87aca533a75c8e8d8b8bbc0577b6081ef521079ddbe7c77",
+    "sha256": "9b81eacda7ba26b77d23b70db3e15bcde48517913b494eccc25ebf0ead7a1dcf",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/execution.py": {
+    "previous_sha256": "7ebeab3b15b766e9f4bf887d00a348a9c057a33fc8d3b10832abf53337c1c43f",
+    "sha256": "07c3c8a8a69db66369576acbc04fd9af813d1e34e9e4ca0eeb0b3d39566e3b48",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/features.py": {
+    "previous_sha256": "04f93dc5de95e04d55fe94aff0ab35b2a00e431e280bb9454fb79b2646a8bdcd",
+    "sha256": "c6ad50858af513fb9f20d51bb37e793984a5190d11c3747099a934169c9fd64c",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/preset.py": {
+    "previous_sha256": "1b09f7b195daa065703b0ca24a265c102deb1475189be17aa3ca7fd6bbc8015e",
+    "sha256": "c122b24597773addd86188021d91a673c6bdc3b366af8061948fe0b364ac7b0d",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/strategy.py": {
+    "previous_sha256": "17d56cb81ec503b2412da987cc445c2fa80bdd18668705fc5802bc0b5fbda55c",
+    "sha256": "3d01d2324253e4633a5a14f314cc881a54d05f0e4da67ac6057b0f6a3c8e36e1",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/__init__.py": {
+    "previous_sha256": "2b05adaba459dc4180725dc7044ffe817296b19caf288b2a9a48ab4f082e26da",
+    "sha256": "ee9815a573c8949f5b7900ece63c9b010387e66bee585cf68cccf2acd7ca3935",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/config.py": {
+    "previous_sha256": "5bc1ea65cd770a354e5ae8e108cc2b8fc54555e4c3da951fb171349e473b5776",
+    "sha256": "0cd18448497c74bbda46786614e76ee613af3bee7408aeaeb0a85cdca911194f",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/execution.py": {
+    "previous_sha256": "7c4c6a2090de246069c7b98073adab499a7c582675c3b322fa9e746f0638f073",
+    "sha256": "f04f17592d9734031ca9b93c6fa6321fe33505fa01f136e53176c1b08fbfafea",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/preset.py": {
+    "previous_sha256": "21708b8534bd75a98f6e1c7ae74cc1a1028500887436a06e4f495af46353c6c9",
+    "sha256": "2d9ae408bc6201d4a87874e621e54d9a29cb28e64669cd8d0fdf4605728db25e",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/strategy.py": {
+    "previous_sha256": "0f9931f8e77f87bd7b35d66fb02424bc6e92d610919c1e7fcb6261a2c8acbf42",
+    "sha256": "9b374c43b3d16e8f25971b54b1caf4f0498534701a832b1fe5d117187f9c1995",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/__init__.py": {
+    "previous_sha256": "76322fe256709c96bfd993163632dc90bc3daaefe19f7d07cd183d5158e34668",
+    "sha256": "c506fbc558aa82e1a2a565d6b3a9fd97cb85fa6b3b3aea38f107df2133b5005d",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/config.py": {
+    "previous_sha256": "a26258e5b8349c291047ed7b83b62146e7cf2b76d1565e827cc3355b2d87bcc5",
+    "sha256": "372d26a07f96b0606239cf4b902a1075dba9a52ba6af9e6ea51e9a4a5e4bcd40",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/execution.py": {
+    "previous_sha256": "613f7e3e6fe965329189b789202ad2936bcda1670848a405b678ebbb679fb6a0",
+    "sha256": "b13bd90e80e4dc25099a1cadc990fcf6b872582ef3dd1eb72381b2fe5f4db52d",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/preset.py": {
+    "previous_sha256": "84907203e66e6f0dcc849f1f921d4b13c50d8f65a9450f6a49b27ee0eab2ab58",
+    "sha256": "899f8ed2c0d861d4270d2e2a534b88db8f6dcb5447816a5bfae01ed927e98bb7",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/strategy.py": {
+    "previous_sha256": "12e0f6560ec221fec38123fec09e696c86d0615ade00e2d59680cb3df033537f",
+    "sha256": "3bd5943ff4a2398b561d6ea2a70b5f4cd56b110680f0fe92f084d2e5d1107656",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "pipeline/rust_trade_converter.py": {
+    "previous_sha256": "7631705b343e91a0ffda01f762cca3ab93ed8a63d6c4dc7ad651559ec6822896",
+    "sha256": "fe4902381ae24424fbbb7cc1802f056a59547a998f754c76b00a2af499c56f0e",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_mrl_original/indicators.py": {
+    "previous_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174",
+    "sha256": "7bf899f6a1f70bb503a81a0c191ae8e8adc08019023cdbb8abc2d580ceb61b93",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/indicators.py": {
+    "previous_sha256": "7166a1d2c66b1aee467f0265df3f8b4cbe4f446375112a73807bc861e72b666b",
+    "sha256": "c2112f23826e56e073572ee5aabb732f973eb1b4052a1a3b9069a1effcdd9c79",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfs_original/risk.py": {
+    "previous_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6",
+    "sha256": "cdd2c8f2c2ab5cd880fb11ef12df2791c5ef85b4eb7c738f471ce4186be2ba70",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/indicators.py": {
+    "previous_sha256": "f18f01c7339ce83ddfc48312ff527f991565a8cd72e96b0de0ec949c5a059c3e",
+    "sha256": "473a8b67d38a97b4861ab9eafb03d9f763a2d5790c22efbe2f55d900efb4a66c",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  },
+  "strategy_python/btc_cycle_optimized_20260915_tfl_original/risk.py": {
+    "previous_sha256": "f622dc0c33091014915642cbe0cdae61e2ea4d2f8183e44ae5bd663fbf87fbe6",
+    "sha256": "cdd2c8f2c2ab5cd880fb11ef12df2791c5ef85b4eb7c738f471ce4186be2ba70",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+  }
+}

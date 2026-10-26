@@ -1,0 +1,48 @@
+{
+  "net_pnl": 0.0,
+  "return_pct": 0.0,
+  "max_drawdown_pct": 0.0,
+  "trades": 0,
+  "fees": 0.0,
+  "turnover": 0.0,
+  "profit_factor": null,
+  "payoff_ratio": null,
+  "win_rate_pct": null,
+  "top5_profit": 0.0,
+  "pnl_without_best5": 0.0,
+  "worst5_pnl": 0.0,
+  "annual_marked_pnl": {
+    "2022": 0.0
+  },
+  "review_marked_pnl": null,
+  "review_closed_trades": 0,
+  "expected_minutes": 44640,
+  "observed_minutes": 44576,
+  "missing_minutes": 64,
+  "first_bar": "2022-05-01 00:00:59.999000+00:00",
+  "last_bar": "2022-05-31 23:59:59.999000+00:00",
+  "cashflow_error": 0.0,
+  "invalid_entry_orders": 0,
+  "off_tick_fields": 0,
+  "limit_price_improvement_exceptions": 0,
+  "order_event_reasons": {},
+  "experiment": {
+    "id": "BTC_combined_fee0",
+    "asset": "BTC",
+    "variant": "combined",
+    "extra_fee_bp": 0
+  },
+  "holding_median_hours": null,
+  "holding_max_hours": null,
+  "holding_over_7d": 0,
+  "regime_checks": 47776,
+  "regime_blocked": 40288,
+  "elapsed_seconds": 19.230689465999603,
+  "exit_order_tags": {
+    "cycle_time_exit": 0,
+    "cycle_structure_exit": 0,
+    "cycle_exit_retry": 0,
+    "hard_stop": 0,
+    "take_profit": 0
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "slot": "MRL_original",
+    "variant": "flat",
+    "status": "development_pass",
+    "mechanism": "flat"
+  },
+  {
+    "slot": "MRL_optimized",
+    "variant": "flat",
+    "status": "development_pass",
+    "mechanism": "flat"
+  },
+  {
+    "slot": "TFL_original",
+    "variant": "cost5",
+    "status": "development_pass",
+    "mechanism": "cost"
+  },
+  {
+    "slot": "TFS_original",
+    "variant": "lock80",
+    "status": "development_pass",
+    "mechanism": "lock"
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "reward2",
+    "status": "development_pass",
+    "mechanism": "reward"
+  },
+  {
+    "slot": "PBS_original",
+    "variant": "falling_ma",
+    "status": "development_pass",
+    "mechanism": "falling_ma"
+  }
+]

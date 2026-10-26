@@ -1,0 +1,159 @@
+{
+  "completed_at": "2026-09-22T00:06:16.124050+00:00",
+  "runs": 16,
+  "frozen_inputs_verified": true,
+  "baseline_reconciliations": {
+    "BTC_baseline_fee0": {
+      "trade_and_fill_reconciliation": true,
+      "reference": "strategy_python/_optimization/btc_eth_signal_attribution_20260921/runs/BTC_MRL"
+    },
+    "ETH_baseline_fee0": {
+      "trade_and_fill_reconciliation": true,
+      "reference": "strategy_python/_optimization/btc_eth_signal_attribution_20260921/runs/ETH_MRL"
+    },
+    "BTC_baseline_fee5": {
+      "trade_and_fill_reconciliation": true,
+      "reference": "strategy_python/_optimization/btc_long_validation_20260921/runs/mean_reversion_long_fee5"
+    },
+    "ETH_baseline_fee5": null
+  },
+  "decision": {
+    "main_candidate": "combined",
+    "main_passed": false,
+    "variants": {
+      "regime": {
+        "passed": false,
+        "checks": [
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": true,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": true,
+            "execution_valid": true
+          }
+        ]
+      },
+      "bounded": {
+        "passed": false,
+        "checks": [
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          }
+        ]
+      },
+      "combined": {
+        "passed": false,
+        "checks": [
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": true,
+            "execution_valid": true
+          },
+          {
+            "asset": "BTC",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 0,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": true,
+            "execution_valid": true
+          },
+          {
+            "asset": "ETH",
+            "extra_fee_bp": 5,
+            "full_profit": false,
+            "recent_profit": false,
+            "enough_trades": true,
+            "drawdown_not_worse": false,
+            "execution_valid": true
+          }
+        ]
+      }
+    },
+    "default_strategy_changed": false,
+    "live_trading_authorized": false,
+    "decision": "主候选未通过，保留研究结果，不替换默认策略"
+  },
+  "outputs": {
+    "comparison.csv": "cc0e4753c7f9bcb73ab84d539c48311d843c74e4c393a3408ceb52c1f5a29f20",
+    "decision.json": "df250980975f09767693695936a25455cd879fb88a1274139b433f74ec98e334",
+    "RESULTS.md": "a7af1a93f3595b667f156eb885fd65928df6a01052a8a7d856b23308f8f67c4b",
+    "report.html": "633c9a236778103fe7e4fde5cccd0113e498c98bbb2d071ab02f983e4a820096",
+    "equity_comparison.png": "18877488d0f6525a16f6358326715fc62bb80d096454afba16fc2518dbfbb3da"
+  }
+}

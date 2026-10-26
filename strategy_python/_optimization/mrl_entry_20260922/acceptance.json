@@ -1,0 +1,276 @@
+{
+  "checked_at": "2026-09-22T00:48:28.090761+00:00",
+  "engineering_acceptance_passed": true,
+  "strategy_promoted": false,
+  "decision": {
+    "main_candidate": "reclaim",
+    "passed": false,
+    "consistent_improvement": false,
+    "checks": [
+      {
+        "id": "BTC_reclaim_fee0",
+        "strict": false,
+        "full_positive": false,
+        "recent_positive": true,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": false
+      },
+      {
+        "id": "ETH_reclaim_fee0",
+        "strict": false,
+        "full_positive": false,
+        "recent_positive": false,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": false
+      },
+      {
+        "id": "BTC_reclaim_fee5",
+        "strict": false,
+        "full_positive": false,
+        "recent_positive": false,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": true
+      },
+      {
+        "id": "ETH_reclaim_fee5",
+        "strict": false,
+        "full_positive": false,
+        "recent_positive": false,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": true
+      },
+      {
+        "id": "BTC_reclaim_fee5_strict",
+        "strict": true,
+        "full_positive": false,
+        "recent_positive": false,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": true
+      },
+      {
+        "id": "ETH_reclaim_fee5_strict",
+        "strict": true,
+        "full_positive": false,
+        "recent_positive": false,
+        "sufficient": true,
+        "diversified": false,
+        "drawdown_ok": true,
+        "execution_ok": true,
+        "improvement": true
+      }
+    ],
+    "decision": "未形成跨市场一致改进",
+    "historical_research_only": true,
+    "default_changed": false
+  },
+  "frozen_input_counts": {
+    "sources": 75,
+    "data_files": 4878,
+    "reference_runs": 8
+  },
+  "historical_sources": {
+    "historical_source_files": 69,
+    "style_baseline_files": 21,
+    "failures": []
+  },
+  "forward_source_verification": "Frozen sources verified",
+  "full_tests": {
+    "report": "data/project_checks/20260922T002550284776Z/results.json",
+    "sha256": "00f76cd93dfa83d1a6320f7edfa0e1f5e2bf2d99b9d5cbe789bf458ef2e50b47",
+    "passed": 1186,
+    "existing_warnings": 164
+  },
+  "formal_runs": {
+    "BTC_cost_fee0": {
+      "completion_sha256": "8446d1932320c0176e580ef5f690d875369884a70adefce44e45f291cbd67c78",
+      "execution_constraints_passed": true,
+      "cashflow_error": -1.1368683772161603e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 0,
+      "order_event_types": {
+        "OrderCancelRejected": 1221
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "ETH_cost_fee0": {
+      "completion_sha256": "4a4e85bf8eff69f9e917ea95b1c6d4c87c706c4a4a6aaeb5908c14f481a3f391",
+      "execution_constraints_passed": true,
+      "cashflow_error": -5.684341886080802e-14,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 0,
+      "order_event_types": {
+        "OrderCancelRejected": 2932
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "BTC_reclaim_fee0": {
+      "completion_sha256": "4a393aeb7ef97b86aeaf3c1b597766e280032575742dfac36a63e939130a0c1e",
+      "execution_constraints_passed": true,
+      "cashflow_error": 4.973799150320701e-14,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 633,
+      "order_event_types": {
+        "OrderCancelRejected": 430
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "ETH_reclaim_fee0": {
+      "completion_sha256": "c5af6085c9f4039b601850f7ec40c50e93fc5e8ee9d0765ec6a8276797534569",
+      "execution_constraints_passed": true,
+      "cashflow_error": 3.979039320256561e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 1436,
+      "order_event_types": {
+        "OrderCancelRejected": 952
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "BTC_cost_fee5": {
+      "completion_sha256": "5a1426b61b19f2c6b4d316f2ba34bd5b20da060ce8d5c3f90d5441adc2a1085d",
+      "execution_constraints_passed": true,
+      "cashflow_error": -6.252776074688882e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 0,
+      "order_event_types": {
+        "OrderCancelRejected": 655
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "ETH_cost_fee5": {
+      "completion_sha256": "f91764f94914d8b052f30cbb39321a826033f943397e36366c85ec190ac82e15",
+      "execution_constraints_passed": true,
+      "cashflow_error": 4.831690603168681e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 0,
+      "order_event_types": {
+        "OrderCancelRejected": 1751
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "BTC_reclaim_fee5": {
+      "completion_sha256": "ffd153529de09db35d7dae924e75bafa9130db7b3d79775919fa4d435b446dd3",
+      "execution_constraints_passed": true,
+      "cashflow_error": -1.4210854715202004e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 342,
+      "order_event_types": {
+        "OrderCancelRejected": 232
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "ETH_reclaim_fee5": {
+      "completion_sha256": "5d14f27131d330c33bf518a63ab8a18b95e2affa387e26b39e093a49607c9c4a",
+      "execution_constraints_passed": true,
+      "cashflow_error": -2.4158453015843406e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 818,
+      "order_event_types": {
+        "OrderCancelRejected": 542
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "BTC_reclaim_fee5_strict": {
+      "completion_sha256": "b18b22cd146675c52c0f1886454e4de924edef8fda8fe3235912facb8a19b3ba",
+      "execution_constraints_passed": true,
+      "cashflow_error": 1.4210854715202004e-14,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 341,
+      "order_event_types": {
+        "OrderCancelRejected": 231
+      },
+      "only_missing_cancel_target_rejections": true
+    },
+    "ETH_reclaim_fee5_strict": {
+      "completion_sha256": "4288a0edbc4f23ae73cea7040bf745a965d3bdafb367c993480a7e61a0c262ef",
+      "execution_constraints_passed": true,
+      "cashflow_error": 4.263256414560601e-13,
+      "all_positions_closed": true,
+      "gtd_entries_checked": 816,
+      "order_event_types": {
+        "OrderCancelRejected": 541
+      },
+      "only_missing_cancel_target_rejections": true
+    }
+  },
+  "forward_health_snapshot": {
+    "checked_at": "2026-09-22T00:48:28.079000+00:00",
+    "checked_ms": 1790038108079,
+    "state": "实时采集正常",
+    "healthy": true,
+    "problems": [],
+    "notices": [
+      {
+        "code": "coverage:BTCUSDT",
+        "text": "BTCUSDT 目前报价覆盖率偏低，缺失机会保留记录，不回填实时信号"
+      },
+      {
+        "code": "coverage:ETHUSDT",
+        "text": "ETHUSDT 目前报价覆盖率偏低，缺失机会保留记录，不回填实时信号"
+      }
+    ],
+    "heartbeat_age_seconds": 3.223,
+    "clock_roundtrip_ms": 1849,
+    "markets": [
+      {
+        "symbol": "BTCUSDT",
+        "trade_lag_seconds": 6.095,
+        "bar_lag_seconds": 33.363,
+        "expected_decisions": 297,
+        "prospective_quotes": 138,
+        "missed_decisions": 159,
+        "quote_coverage": 0.46464646464646464,
+        "maximum_final_coverage": 0.9938657407407407,
+        "eligible_strict_touches": 7,
+        "last_trade_id": 3460106208
+      },
+      {
+        "symbol": "ETHUSDT",
+        "trade_lag_seconds": 5.407,
+        "bar_lag_seconds": 33.363,
+        "expected_decisions": 297,
+        "prospective_quotes": 140,
+        "missed_decisions": 157,
+        "quote_coverage": 0.4713804713804714,
+        "maximum_final_coverage": 0.9939429012345679,
+        "eligible_strict_touches": 12,
+        "last_trade_id": 3095556377
+      }
+    ],
+    "incidents_total": 22,
+    "collector_errors_last_hour": 2,
+    "collector_pid": 4624,
+    "frozen_changes": [],
+    "start_ms": 1789949100000,
+    "end_ms": 1797725100000,
+    "review_ms": 1797815100000,
+    "study_dates_unchanged": true,
+    "assessment": "到期统一评估；健康检查不计算盈利，也不修改样本"
+  },
+  "health_note": "Current collector status is independent of historical strategy returns. Prior coverage gaps and recent collector errors remain recorded; this is not a seven-day stability acceptance.",
+  "artifact_sha256": {
+    "strategy_python/_optimization/mrl_entry_20260922/INTERPRETATION.md": "2f590546f4e92d98c27631034791d68ef8718aaa21d5bb81f794968de05b1432",
+    "strategy_python/_optimization/mrl_entry_20260922/README.md": "a2f2620583659e4704397782b317262639829c7ee28cb87a24fdcebb1f80e7c5",
+    "strategy_python/_optimization/mrl_entry_20260922/final_validation.json": "dfe93a40d699222542cb6d95535ce8bb42c4828031201da1faa1ec426f272364",
+    "strategy_python/_optimization/mrl_entry_20260922/diagnostics_validation.json": "20e4074b31897a27f41284434df5c3f5b52b696aca08e0d1e437426cd6e3bb70",
+    "strategy_python/_optimization/mrl_entry_20260922/engineering_validation.json": "86c31a68337c2cc4016c6e94e59f2c53b0c58512c8849254845344be13a0f06f",
+    "strategy_python/mean_reversion_long_entry_5min/README.md": "ada00af65911df4646af4ffa2e7b161759483165939dd2daaa85affef44f362c",
+    "README.md": "ce33234de9323b6d3ede778faa0c33fb6396f8dca9562994bdf103f09febafc7",
+    "PROJECT_STATUS.md": "8f35ac83a160ac2246e241430588fc2f7a56bda63eaa8246b88132249e594efd",
+    "strategy_python/BTC_STRATEGIES.md": "867fa5913ada4c79f4a2d9517ca16e63037c8a6de0713aed20a51345444dcffc"
+  }
+}

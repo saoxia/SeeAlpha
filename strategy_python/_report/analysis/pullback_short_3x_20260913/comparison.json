@@ -1,0 +1,270 @@
+{
+  "full": {
+    "baseline": {
+      "report": "strategy_python/_report/backtest/pullback_short_1h/20260912T223906371975Z_41f5949759a2451b8c75c6b66da188eb",
+      "start": "2021-01-01T00:00:00+00:00",
+      "end": "2026-09-01T00:00:00+00:00",
+      "initial_balance": 500,
+      "end_balance": 576.38840908,
+      "net_pnl": 76.38840907999997,
+      "return_pct": 15.277681816,
+      "trades": 132,
+      "profit_factor": 1.4362658210217703,
+      "win_rate_pct": 40.909090909090914,
+      "fees": 19.046280919999997,
+      "minute_close_max_drawdown_pct": 5.024271782151645,
+      "drawdown_trough": "2023-06-14 15:24:59.999000+00:00",
+      "annual_closed_pnl": {
+        "2021": -11.398647850000001,
+        "2022": 34.17880882,
+        "2023": -5.431426309999999,
+        "2024": 15.54159404,
+        "2025": 4.949054480000003,
+        "2026": 38.549025900000004
+      },
+      "annual_marked_pnl": {
+        "2021": -9.436878180000065,
+        "2022": 32.21703914999995,
+        "2023": -5.4314263099998925,
+        "2024": 15.541594040000064,
+        "2025": 4.949054480000086,
+        "2026": 38.54902589999983
+      },
+      "max_hold_hours": 24.0,
+      "exit_reasons": {
+        "['pullback_short_1h:stop']": 66,
+        "['pullback_short_1h:time_exit']": 49,
+        "['pullback_short_1h:target']": 17
+      },
+      "extra_slippage_stress": {
+        "2": {
+          "extra_slippage_bps_per_fill": 2,
+          "net_pnl": 68.41716976199996,
+          "minute_close_max_drawdown_pct": 5.289040478026208
+        },
+        "5": {
+          "extra_slippage_bps_per_fill": 5,
+          "net_pnl": 56.46031078499993,
+          "minute_close_max_drawdown_pct": 5.84240881841851
+        },
+        "10": {
+          "extra_slippage_bps_per_fill": 10,
+          "net_pnl": 36.532212490000006,
+          "minute_close_max_drawdown_pct": 6.83666538258394
+        }
+      },
+      "funding_mode": "not simulated; sensitivity is not historical funding",
+      "assumed_paying_1bp_each_8h_cost": 3.3226882060000005,
+      "2bp_slippage_plus_assumed_funding_net_pnl": 65.09448155599996,
+      "data_gap_count": 10,
+      "missing_minutes": 618,
+      "gaps": {
+        "2021-03-02 02:00:59.999000+00:00": 59,
+        "2022-05-01 22:55:59.999000+00:00": 29,
+        "2022-05-28 17:15:59.999000+00:00": 35,
+        "2022-10-26 00:00:59.999000+00:00": 67,
+        "2023-09-12 08:53:59.999000+00:00": 19,
+        "2023-11-21 08:51:59.999000+00:00": 367,
+        "2023-11-21 10:38:59.999000+00:00": 8,
+        "2024-10-28 16:35:59.999000+00:00": 14,
+        "2024-10-28 16:37:59.999000+00:00": 1,
+        "2025-08-29 06:37:59.999000+00:00": 19
+      },
+      "equity_method": "Minute closing mark, includes commissions and unrealized PnL; not intraminute worst equity. Slippage sensitivity does not re-execute orders."
+    },
+    "three_x": {
+      "report": "/home/lly/NautilusTrader/strategy_python/_report/backtest/pullback_short_1h_3x/20260912T225032746131Z_d1c14b3799694305aa70c8f619210951",
+      "start": "2021-01-01T00:00:00+00:00",
+      "end": "2026-09-01T00:00:00+00:00",
+      "initial_balance": 500,
+      "end_balance": 747.82566083,
+      "net_pnl": 247.82566082999995,
+      "return_pct": 49.565132165999984,
+      "trades": 132,
+      "profit_factor": 1.4280425671425718,
+      "win_rate_pct": 40.909090909090914,
+      "fees": 62.96590917,
+      "minute_close_max_drawdown_pct": 14.423898158566006,
+      "drawdown_trough": "2023-06-14 15:24:59.999000+00:00",
+      "annual_closed_pnl": {
+        "2021": -34.437831100000004,
+        "2022": 102.07234744,
+        "2023": -19.295145259999995,
+        "2024": 48.371535539999996,
+        "2025": 13.143592599999991,
+        "2026": 137.97116161
+      },
+      "annual_marked_pnl": {
+        "2021": -28.82311101000022,
+        "2022": 96.45762734999977,
+        "2023": -19.29514526000014,
+        "2024": 48.37153553999951,
+        "2025": 13.143592600000488,
+        "2026": 137.9711616100002
+      },
+      "max_hold_hours": 24.0,
+      "exit_reasons": {
+        "['pullback_short_1h:stop']": 66,
+        "['pullback_short_1h:time_exit']": 49,
+        "['pullback_short_1h:target']": 17
+      },
+      "extra_slippage_stress": {
+        "2": {
+          "extra_slippage_bps_per_fill": 2,
+          "net_pnl": 221.46711811199964,
+          "minute_close_max_drawdown_pct": 15.269988292766723
+        },
+        "5": {
+          "extra_slippage_bps_per_fill": 5,
+          "net_pnl": 181.92930403499963,
+          "minute_close_max_drawdown_pct": 17.082464273198905
+        },
+        "10": {
+          "extra_slippage_bps_per_fill": 10,
+          "net_pnl": 116.03294723999954,
+          "minute_close_max_drawdown_pct": 20.20719152311221
+        }
+      },
+      "funding_mode": "not simulated; sensitivity is not historical funding",
+      "assumed_paying_1bp_each_8h_cost": 10.997083074,
+      "2bp_slippage_plus_assumed_funding_net_pnl": 210.47003503799965,
+      "data_gap_count": 10,
+      "missing_minutes": 618,
+      "gaps": {
+        "2021-03-02 02:00:59.999000+00:00": 59,
+        "2022-05-01 22:55:59.999000+00:00": 29,
+        "2022-05-28 17:15:59.999000+00:00": 35,
+        "2022-10-26 00:00:59.999000+00:00": 67,
+        "2023-09-12 08:53:59.999000+00:00": 19,
+        "2023-11-21 08:51:59.999000+00:00": 367,
+        "2023-11-21 10:38:59.999000+00:00": 8,
+        "2024-10-28 16:35:59.999000+00:00": 14,
+        "2024-10-28 16:37:59.999000+00:00": 1,
+        "2025-08-29 06:37:59.999000+00:00": 19
+      },
+      "equity_method": "Minute closing mark, includes commissions and unrealized PnL; not intraminute worst equity. Slippage sensitivity does not re-execute orders."
+    },
+    "identical_fill_times_sides_prices": true,
+    "entry_notional_to_equity_min": 0.4738007776628525,
+    "entry_notional_to_equity_median": 0.7440009352288819,
+    "entry_notional_to_equity_max": 2.0332191372945263,
+    "first_quantity_ratio": 3.03125
+  },
+  "holdout": {
+    "baseline": {
+      "report": "strategy_python/_report/backtest/pullback_short_1h/20260912T223853677147Z_6f70310d620b47d98e776cfec1d107b7",
+      "start": "2025-01-01T00:00:00+00:00",
+      "end": "2026-09-01T00:00:00+00:00",
+      "initial_balance": 500,
+      "end_balance": 540.71552984,
+      "net_pnl": 40.715529840000045,
+      "return_pct": 8.143105968000008,
+      "trades": 43,
+      "profit_factor": 1.7918077500927498,
+      "win_rate_pct": 39.53488372093023,
+      "fees": 5.571780160000001,
+      "minute_close_max_drawdown_pct": 4.935241874023433,
+      "drawdown_trough": "2026-02-03 07:35:59.999000+00:00",
+      "annual_closed_pnl": {
+        "2025": 4.695436709999998,
+        "2026": 36.02009313
+      },
+      "annual_marked_pnl": {
+        "2025": 4.695436710000081,
+        "2026": 36.02009313000008
+      },
+      "max_hold_hours": 24.0,
+      "exit_reasons": {
+        "['pullback_short_1h:stop']": 19,
+        "['pullback_short_1h:time_exit']": 16,
+        "['pullback_short_1h:target']": 8
+      },
+      "extra_slippage_stress": {
+        "2": {
+          "extra_slippage_bps_per_fill": 2,
+          "net_pnl": 38.335489354000174,
+          "minute_close_max_drawdown_pct": 5.0698280266339495
+        },
+        "5": {
+          "extra_slippage_bps_per_fill": 5,
+          "net_pnl": 34.76542862500014,
+          "minute_close_max_drawdown_pct": 5.272575137648349
+        },
+        "10": {
+          "extra_slippage_bps_per_fill": 10,
+          "net_pnl": 28.815327410000123,
+          "minute_close_max_drawdown_pct": 5.620431233710377
+        }
+      },
+      "funding_mode": "not simulated; sensitivity is not historical funding",
+      "assumed_paying_1bp_each_8h_cost": 1.0133781320000002,
+      "2bp_slippage_plus_assumed_funding_net_pnl": 37.322111222000174,
+      "data_gap_count": 1,
+      "missing_minutes": 19,
+      "gaps": {
+        "2025-08-29 06:37:59.999000+00:00": 19
+      },
+      "equity_method": "Minute closing mark, includes commissions and unrealized PnL; not intraminute worst equity. Slippage sensitivity does not re-execute orders."
+    },
+    "three_x": {
+      "report": "/home/lly/NautilusTrader/strategy_python/_report/backtest/pullback_short_1h_3x/20260912T224752019125Z_f84aa4ca4a6e4df8a38be7b4ec2a5b97",
+      "start": "2025-01-01T00:00:00+00:00",
+      "end": "2026-09-01T00:00:00+00:00",
+      "initial_balance": 500,
+      "end_balance": 626.61663286,
+      "net_pnl": 126.61663285999998,
+      "return_pct": 25.323326572000006,
+      "trades": 43,
+      "profit_factor": 1.7614757579209073,
+      "win_rate_pct": 39.53488372093023,
+      "fees": 17.94299714,
+      "minute_close_max_drawdown_pct": 14.241890411640934,
+      "drawdown_trough": "2026-02-03 07:35:59.999000+00:00",
+      "annual_closed_pnl": {
+        "2025": 11.124171760000003,
+        "2026": 115.4924611
+      },
+      "annual_marked_pnl": {
+        "2025": 11.124171759999683,
+        "2026": 115.4924611000003
+      },
+      "max_hold_hours": 24.0,
+      "exit_reasons": {
+        "['pullback_short_1h:stop']": 19,
+        "['pullback_short_1h:time_exit']": 16,
+        "['pullback_short_1h:target']": 8
+      },
+      "extra_slippage_stress": {
+        "2": {
+          "extra_slippage_bps_per_fill": 2,
+          "net_pnl": 118.954075278,
+          "minute_close_max_drawdown_pct": 14.66761900031065
+        },
+        "5": {
+          "extra_slippage_bps_per_fill": 5,
+          "net_pnl": 107.46023890499998,
+          "minute_close_max_drawdown_pct": 15.314082935882888
+        },
+        "10": {
+          "extra_slippage_bps_per_fill": 10,
+          "net_pnl": 88.30384494999998,
+          "minute_close_max_drawdown_pct": 16.437903981305546
+        }
+      },
+      "funding_mode": "not simulated; sensitivity is not historical funding",
+      "assumed_paying_1bp_each_8h_cost": 3.254108538,
+      "2bp_slippage_plus_assumed_funding_net_pnl": 115.69996674000001,
+      "data_gap_count": 1,
+      "missing_minutes": 19,
+      "gaps": {
+        "2025-08-29 06:37:59.999000+00:00": 19
+      },
+      "equity_method": "Minute closing mark, includes commissions and unrealized PnL; not intraminute worst equity. Slippage sensitivity does not re-execute orders."
+    },
+    "identical_fill_times_sides_prices": true,
+    "entry_notional_to_equity_min": 0.47519975147637206,
+    "entry_notional_to_equity_median": 0.701348699832484,
+    "entry_notional_to_equity_max": 1.5870714203025265,
+    "first_quantity_ratio": 3.0
+  }
+}

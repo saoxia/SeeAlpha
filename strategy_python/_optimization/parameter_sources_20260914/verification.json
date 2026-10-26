@@ -1,0 +1,16 @@
+{
+  "scope": "four original and four optimized strategy packages",
+  "executable_ast_files_verified": 90,
+  "source_files_with_documentation_changes": 40,
+  "config_fields_with_inline_provenance_and_local_guide": 282,
+  "local_source_guides": 8,
+  "source_document_links_verified": 54,
+  "runtime_or_default_changes": false,
+  "historical_experiment_hashes": "preserved; describe historical snapshots, not current bytes",
+  "existing_test_run": {
+    "command": ".venv/bin/pytest tests/strategy_python/optimization/delivery_test.py tests/strategy_python/architecture_test.py -q",
+    "observed_result": "19 passed in 2.24s",
+    "note": "record of the observed implementation-time run; this script does not run pytest"
+  },
+  "lint": "ruff check passed on the 40 modified strategy Python files"
+}

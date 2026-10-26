@@ -1,0 +1,7 @@
+{
+  "fills_identical": true,
+  "fills": 201,
+  "metrics_identical": true,
+  "reference": "strategy_python/_optimization/mechanism_20260915/runs/stress/BTC_MRL_original/stream",
+  "replay": "strategy_python/_optimization/mechanism_full_20260915/runs/stress/BTC_MRL_original/stream"
+}

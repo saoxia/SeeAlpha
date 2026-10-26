@@ -1,0 +1,440 @@
+{
+  "2021": {
+    "BTC": {
+      "TFL": {
+        "stop_atr": 1.3317973992833483,
+        "activation_atr": 1.7952352945775591,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 187,
+        "recovered_n": 129,
+        "stop_pool_n": 129,
+        "activation_pool_n": 187,
+        "stop_neighbors": {
+          "0.7": 1.027567795796253,
+          "0.9": 1.922680453109245
+        },
+        "activation_neighbors": {
+          "0.4": 1.2641426630557795,
+          "0.6": 2.194515143890209
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.3319147474837645,
+        "activation_atr": 1.7797148475610127,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 39,
+        "recovered_n": 27,
+        "stop_pool_n": 156,
+        "activation_pool_n": 226,
+        "stop_neighbors": {
+          "0.7": 1.037632790814998,
+          "0.9": 1.899455035481585
+        },
+        "activation_neighbors": {
+          "0.4": 1.2739791979678803,
+          "0.6": 2.215342904997467
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.32836817617343556,
+          0.9876227146197276,
+          2.3698387907244842
+        ],
+        "n": 2657,
+        "recovered_n": 2436,
+        "recovery_probability": 0.9168234851336093,
+        "flat_risk_multiplier": 0.5254962332464774
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.34084406879252355,
+          0.9600661047601678,
+          2.314513668857104
+        ],
+        "n": 2350,
+        "recovered_n": 2140,
+        "recovery_probability": 0.9106382978723404,
+        "flat_risk_multiplier": 0.5201545475152963
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.0,
+        "min_stop_atr": 0.9545146909571696,
+        "max_stop_atr": 2.4237767077607897,
+        "n": 76,
+        "recovered_n": 61,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.0,
+          "0.9": 0.18380768090685842
+        }
+      }
+    },
+    "ETH": {
+      "TFL": {
+        "stop_atr": 1.386946225637793,
+        "activation_atr": 2.2051823731781544,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 192,
+        "recovered_n": 154,
+        "stop_pool_n": 154,
+        "activation_pool_n": 192,
+        "stop_neighbors": {
+          "0.7": 1.0835029142449824,
+          "0.9": 2.280371369979511
+        },
+        "activation_neighbors": {
+          "0.4": 1.6496573774302772,
+          "0.6": 2.647799670482228
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.3921144939030365,
+        "activation_atr": 2.2184749202053826,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 30,
+        "recovered_n": 21,
+        "stop_pool_n": 175,
+        "activation_pool_n": 222,
+        "stop_neighbors": {
+          "0.7": 1.1372389102031086,
+          "0.9": 2.2562798588782194
+        },
+        "activation_neighbors": {
+          "0.4": 1.6496573774302772,
+          "0.6": 2.7448336632983628
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.30215328446053086,
+          0.9411701411339717,
+          2.417189424418968
+        ],
+        "n": 2732,
+        "recovered_n": 2524,
+        "recovery_probability": 0.9238653001464129,
+        "flat_risk_multiplier": 0.4308428491236346
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.2839375257856529,
+          0.8804624598591811,
+          2.2315007757773673
+        ],
+        "n": 2443,
+        "recovered_n": 2242,
+        "recovery_probability": 0.9177241097011871,
+        "flat_risk_multiplier": 0.4297396641526429
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.0,
+        "min_stop_atr": 1.1065696341341824,
+        "max_stop_atr": 2.310802962102507,
+        "n": 61,
+        "recovered_n": 49,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.0,
+          "0.9": 1.439157551722728
+        }
+      }
+    }
+  },
+  "2022": {
+    "BTC": {
+      "TFL": {
+        "stop_atr": 1.3780818870289473,
+        "activation_atr": 2.102625047338864,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 214,
+        "recovered_n": 162,
+        "stop_pool_n": 162,
+        "activation_pool_n": 214,
+        "stop_neighbors": {
+          "0.7": 0.9948632031560504,
+          "0.9": 2.2397687017396994
+        },
+        "activation_neighbors": {
+          "0.4": 1.6682249533800444,
+          "0.6": 2.6263366847387335
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.338888132602646,
+        "activation_atr": 2.0922020888251804,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 15,
+        "recovered_n": 10,
+        "stop_pool_n": 172,
+        "activation_pool_n": 229,
+        "stop_neighbors": {
+          "0.7": 0.9575374359270173,
+          "0.9": 2.2397687017396994
+        },
+        "activation_neighbors": {
+          "0.4": 1.6592698440490325,
+          "0.6": 2.597139098953692
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.29230969258178835,
+          0.9317575671013179,
+          2.2541547370566133
+        ],
+        "n": 2279,
+        "recovered_n": 2121,
+        "recovery_probability": 0.9306713470820536,
+        "flat_risk_multiplier": 0.4230596892239985
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.29396046113619667,
+          0.885588871168937,
+          2.2110064020677593
+        ],
+        "n": 1979,
+        "recovered_n": 1836,
+        "recovery_probability": 0.9277412834765033,
+        "flat_risk_multiplier": 0.41714914493039035
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.0,
+        "min_stop_atr": 1.0167455405897197,
+        "max_stop_atr": 2.700089206065994,
+        "n": 41,
+        "recovered_n": 28,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.0,
+          "0.9": 0.9258336922196283
+        }
+      }
+    },
+    "ETH": {
+      "TFL": {
+        "stop_atr": 1.2066769657295393,
+        "activation_atr": 2.4085672488428695,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 191,
+        "recovered_n": 150,
+        "stop_pool_n": 150,
+        "activation_pool_n": 191,
+        "stop_neighbors": {
+          "0.7": 0.8393660302368672,
+          "0.9": 1.7704154647354509
+        },
+        "activation_neighbors": {
+          "0.4": 1.8505640560956294,
+          "0.6": 3.1144979910664263
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.1617008489087874,
+        "activation_atr": 2.395553530110409,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 17,
+        "recovered_n": 10,
+        "stop_pool_n": 160,
+        "activation_pool_n": 208,
+        "stop_neighbors": {
+          "0.7": 0.830591284235812,
+          "0.9": 1.748332539727071
+        },
+        "activation_neighbors": {
+          "0.4": 1.787351919741593,
+          "0.6": 3.129831684421309
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.3111681887905036,
+          0.9247123890352718,
+          2.3871090356652163
+        ],
+        "n": 2301,
+        "recovered_n": 2114,
+        "recovery_probability": 0.9187309865275967,
+        "flat_risk_multiplier": 0.4265531763678005
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.30106345384799227,
+          0.8910696599604053,
+          2.3281965299150764
+        ],
+        "n": 2028,
+        "recovered_n": 1850,
+        "recovery_probability": 0.9122287968441815,
+        "flat_risk_multiplier": 0.4229403500427685
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.0,
+        "min_stop_atr": 1.0869148847282308,
+        "max_stop_atr": 2.645447631446165,
+        "n": 56,
+        "recovered_n": 36,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.0,
+          "0.9": 0.44595204366546315
+        }
+      }
+    }
+  },
+  "2023": {
+    "BTC": {
+      "TFL": {
+        "stop_atr": 1.668595890283688,
+        "activation_atr": 2.6880131679416026,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 250,
+        "recovered_n": 197,
+        "stop_pool_n": 197,
+        "activation_pool_n": 250,
+        "stop_neighbors": {
+          "0.7": 1.0814791842906362,
+          "0.9": 2.5470433909950736
+        },
+        "activation_neighbors": {
+          "0.4": 1.9833672407327687,
+          "0.6": 3.362431383606784
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.6228083458524154,
+        "activation_atr": 2.655458754303302,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 12,
+        "recovered_n": 9,
+        "stop_pool_n": 206,
+        "activation_pool_n": 262,
+        "stop_neighbors": {
+          "0.7": 1.075173608420907,
+          "0.9": 2.5218845244517336
+        },
+        "activation_neighbors": {
+          "0.4": 1.9111259101764784,
+          "0.6": 3.3152019663347905
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.2977487807007946,
+          0.9558676143161993,
+          2.3440242244726894
+        ],
+        "n": 1339,
+        "recovered_n": 1247,
+        "recovery_probability": 0.9312920089619119,
+        "flat_risk_multiplier": 0.3774226013798624
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.31199354775213856,
+          0.9101949353683005,
+          2.22551831195562
+        ],
+        "n": 1158,
+        "recovered_n": 1072,
+        "recovery_probability": 0.92573402417962,
+        "flat_risk_multiplier": 0.3721715981307612
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.9176666814196051,
+        "min_stop_atr": 2.045295284211966,
+        "max_stop_atr": 3.6092355034351673,
+        "n": 37,
+        "recovered_n": 22,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.10917721723603105,
+          "0.9": 1.6453067972512043
+        }
+      }
+    },
+    "ETH": {
+      "TFL": {
+        "stop_atr": 1.3990217921017998,
+        "activation_atr": 2.4839957511049793,
+        "stop_pool": "direction",
+        "activation_pool": "direction",
+        "direction_n": 208,
+        "recovered_n": 156,
+        "stop_pool_n": 156,
+        "activation_pool_n": 208,
+        "stop_neighbors": {
+          "0.7": 1.0613269212720295,
+          "0.9": 2.367190858738428
+        },
+        "activation_neighbors": {
+          "0.4": 1.612782439659874,
+          "0.6": 3.3393838535953355
+        }
+      },
+      "TFS": {
+        "stop_atr": 1.3876455233904164,
+        "activation_atr": 2.4535041236117627,
+        "stop_pool": "both_directions_same_asset",
+        "activation_pool": "both_directions_same_asset",
+        "direction_n": 23,
+        "recovered_n": 16,
+        "stop_pool_n": 172,
+        "activation_pool_n": 231,
+        "stop_neighbors": {
+          "0.7": 1.059286972510577,
+          "0.9": 2.2497331649737045
+        },
+        "activation_neighbors": {
+          "0.4": 1.590648774805307,
+          "0.6": 3.229118749823323
+        }
+      },
+      "MRL_2.0": {
+        "add_band_multipliers": [
+          0.30315438152745977,
+          0.9538838469654123,
+          2.4311302314994983
+        ],
+        "n": 2237,
+        "recovered_n": 2090,
+        "recovery_probability": 0.9342869915064819,
+        "flat_risk_multiplier": 0.4020186785207319
+      },
+      "MRL_2.25": {
+        "add_band_multipliers": [
+          0.25923682921881686,
+          0.8895612262288267,
+          2.4167468053031667
+        ],
+        "n": 1976,
+        "recovered_n": 1843,
+        "recovery_probability": 0.9326923076923077,
+        "flat_risk_multiplier": 0.40488092539539855
+      },
+      "PBS": {
+        "stop_atr_buffer": 0.05659719802050946,
+        "min_stop_atr": 1.0714107799113277,
+        "max_stop_atr": 3.216630596294947,
+        "n": 51,
+        "recovered_n": 31,
+        "sample_warning": true,
+        "buffer_neighbors": {
+          "0.7": 0.0,
+          "0.9": 0.555787714166315
+        }
+      }
+    }
+  }
+}

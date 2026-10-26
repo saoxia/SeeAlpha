@@ -1,0 +1,16 @@
+{
+  "period": [
+    "2022-05-01",
+    "2022-06-01"
+  ],
+  "kind": "native_migration_smoke_not_full_history",
+  "report": "strategy_python/_report/backtest/btc_current_mean_reversion_short/20260920T193038367750Z_5c76dc75a3d6490f9028d1a4b4583f93",
+  "closed_positions": 41,
+  "open_positions": 0,
+  "net_pnl": 24.57625956,
+  "cashflow_error": 4.227729277772596e-13,
+  "all_fills_btc": true,
+  "formal_checks": "229 targeted and strategy behavior tests passed; 36 existing upstream Timestamp.utcnow deprecation warnings",
+  "model_revision": "before_opening_instrument_constraints",
+  "superseded_for_current_code": true
+}

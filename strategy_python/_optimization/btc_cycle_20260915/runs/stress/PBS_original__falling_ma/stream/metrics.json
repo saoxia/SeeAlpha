@@ -1,0 +1,48 @@
+{
+  "net_pnl": -11.773124099999961,
+  "return_pct": -2.3546248199999953,
+  "max_drawdown_pct": 2.556278248833377,
+  "trades": 2,
+  "fees": 0.33612410000000004,
+  "win_rate_pct": 0.0,
+  "profit_factor": 0.0,
+  "stress": {
+    "2": {
+      "net_pnl": -11.907573740000032,
+      "drawdown_pct": 2.578984099900117
+    },
+    "5": {
+      "net_pnl": -12.109248200000025,
+      "drawdown_pct": 2.613046485272086
+    },
+    "10": {
+      "net_pnl": -12.445372300000031,
+      "drawdown_pct": 2.669826752989779
+    }
+  },
+  "missing_minutes": 0,
+  "first_bar": "2024-08-01 00:00:59.999000+00:00",
+  "last_bar": "2024-08-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2024": -11.773124100000018
+  },
+  "cashflow_trades": 2,
+  "cashflow_win_rate_pct": 0.0,
+  "payoff_ratio": null,
+  "cashflow_profit_factor": 0.0,
+  "turnover_usdt": 672.2482000000001,
+  "cashflow_reconciliation_error": -7.105427357601002e-14,
+  "expected_minutes": 44640,
+  "observed_minutes": 44640,
+  "missing_minutes_including_edges": 0,
+  "order_status_counts": {
+    "14": 4,
+    "8": 2
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20240805-185959-001-PBS-3') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240807-145959-001-PBS-6') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 13.19
+}

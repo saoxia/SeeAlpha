@@ -1,0 +1,32 @@
+{
+  "MRL_original": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_mean_reversion_long_5min",
+    "prefix": "MechanismMeanReversionLong5Min",
+    "source": "mean_reversion_long_5min",
+    "warmup_days": 135
+  },
+  "MRL_optimized": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_mean_reversion_long_optimized_5min",
+    "prefix": "MechanismMeanReversionLongOptimized5Min",
+    "source": "mean_reversion_long_optimized_5min",
+    "warmup_days": 135
+  },
+  "TFL": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_trend_following_long_5min",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11
+  },
+  "TFS": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_trend_following_short_5min",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21
+  },
+  "PBS": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_pullback_short_1h",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "future_perturbation_preserves_past_signals": true,
+  "gaps_reset_features": true,
+  "one_minute_delay": true,
+  "horizons_exact": true,
+  "no_overlapping_positions": true,
+  "long_short_returns_and_fees_verified": true,
+  "research_provenance_verified": true,
+  "old_files_unchanged": 1517,
+  "event_rows_checked": 20027
+}

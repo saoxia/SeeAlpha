@@ -1,0 +1,39 @@
+{
+  "strategy_name": "mean_reversion_short_v2_5min",
+  "status": "native full-history profitable for 3x and 5x caps; later period negative; research-only evidence",
+  "train": [
+    "2021-01-01",
+    "2024-01-01"
+  ],
+  "validation": [
+    "2024-01-01",
+    "2025-01-01"
+  ],
+  "later": [
+    "2025-01-01",
+    "2026-09-01"
+  ],
+  "parameters": {
+    "boll_period": 20,
+    "boll_std": 3.0,
+    "atr_period": 14,
+    "entry_kind": "wick",
+    "regime": "down",
+    "weekend_only": true,
+    "min_mean_distance": 0.003,
+    "stop_atr": 4.0,
+    "min_stop_fraction": 0.004,
+    "max_stop_fraction": 0.03,
+    "max_holding_hours": 12,
+    "risk_fraction": 0.02,
+    "max_notional_fraction": 3.0,
+    "fee_buffer": 0.0007
+  },
+  "selection_reason": "Broad weekend regime found in session attribution. Prefer 0.3% mean distance (62 training,9 validation trades) over 0.5% (32/4) despite slightly lower training profit. Stop ATR neighbors 3 and 5 and 0.5% distance are positive in training/validation. 12h earns more than 4h, with a hard market time exit.",
+  "limitations": "Low frequency; many hypotheses screened. An earlier all-days candidate already failed on 2025+ so later data is not a pristine holdout for the research process. No guarantees of live profitability or every-year profits.",
+  "screen_costs": {
+    "market_fee": 0.0005,
+    "mean_limit_fee": 0.0002,
+    "slippage_each_side": 0.0001
+  }
+}

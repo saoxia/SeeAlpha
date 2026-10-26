@@ -1,0 +1,13 @@
+{
+  "family": "TFL",
+  "version": "original",
+  "source": "trend_following_long_5min",
+  "package": "btc_trend_following_long_5min",
+  "source_prefix": "TrendFollowingLong5Min",
+  "prefix": "BtcTrendFollowingLong5Min",
+  "warmup_days": 11,
+  "market": "BTCUSDT-PERP.BINANCE",
+  "signal_parameter_overrides": {},
+  "source_manifest": "../_optimization/btc_transfer_20260914/source_hashes.json",
+  "results": "../_optimization/btc_transfer_20260914/RESULTS.md"
+}

@@ -1,0 +1,56 @@
+{
+  "report": "/home/lly/NautilusTrader/strategy_python/_report/backtest/portfolio/four_strategies_optimized_20260914/20260914T111504386305Z_c7ccc32ccde34dbca8fb76e746685941",
+  "start": "2024-03-01",
+  "end": "2024-04-01",
+  "purpose": "integration smoke only; not selection or full portfolio performance",
+  "by_strategy": {
+    "MeanReversionLongOptimized5MinStrategy-MRL": {
+      "open_positions": 0,
+      "by_currency": {
+        "USDT": {
+          "closed_positions": 0,
+          "net_pnl": 0.0,
+          "win_rate": null,
+          "profit_factor": null,
+          "realized_pnl_drawdown": 0.0
+        }
+      }
+    },
+    "TrendFollowingLongOptimized5MinStrategy-TFL": {
+      "open_positions": 0,
+      "by_currency": {
+        "USDT": {
+          "closed_positions": 16,
+          "net_pnl": -2.77281162,
+          "win_rate": 12.5,
+          "profit_factor": 0.9322604651944002,
+          "realized_pnl_drawdown": 29.10989679
+        }
+      }
+    },
+    "TrendFollowingShortOptimized5MinStrategy-TFS": {
+      "open_positions": 0,
+      "by_currency": {
+        "USDT": {
+          "closed_positions": 1,
+          "net_pnl": -2.8568397,
+          "win_rate": 0.0,
+          "profit_factor": 0.0,
+          "realized_pnl_drawdown": 2.8568397
+        }
+      }
+    },
+    "PullbackShortOptimized1hStrategy-PBS": {
+      "open_positions": 0,
+      "by_currency": {
+        "USDT": {
+          "closed_positions": 1,
+          "net_pnl": 9.64880268,
+          "win_rate": 100.0,
+          "profit_factor": null,
+          "realized_pnl_drawdown": 0.0
+        }
+      }
+    }
+  }
+}

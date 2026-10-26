@@ -1,0 +1,53 @@
+{
+  "net_pnl": 21.44590753,
+  "return_pct": 4.289181505999999,
+  "max_drawdown_pct": 3.1084571533193883,
+  "trades": 82,
+  "fees": 27.234042469999995,
+  "turnover": 27234.04247,
+  "profit_factor": 1.216720555532288,
+  "payoff_ratio": 1.2775565833089026,
+  "win_rate_pct": 48.78048780487805,
+  "top5_profit": 20.309018040000055,
+  "pnl_without_best5": 1.1368894899999447,
+  "worst5_pnl": -16.07351820000008,
+  "annual_marked_pnl": {
+    "2021": 8.03748158999997,
+    "2022": -2.1977161599999704,
+    "2023": 8.522083300000133,
+    "2024": 11.691903900000057,
+    "2025": 5.4494901999999,
+    "2026": -10.057335299999977
+  },
+  "review_marked_pnl": -4.607845100000077,
+  "review_closed_trades": 35,
+  "expected_minutes": 2977920,
+  "observed_minutes": 2976982,
+  "missing_minutes": 938,
+  "first_bar": "2021-01-01 00:00:59.999000+00:00",
+  "last_bar": "2026-08-30 23:59:59.999000+00:00",
+  "cashflow_error": 1.6342482922482304e-13,
+  "order_status_counts": {
+    "14": 164,
+    "8": 15
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20210422-174959-001-TFS-6') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20210424-012959-001-TFS-9') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20210720-024959-001-TFS-22') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20211205-025459-001-TFS-35') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230512-171959-001-TFS-58') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230818-130459-001-TFS-67') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230819-013459-001-TFS-70') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240501-034459-001-TFS-81') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240618-105959-001-TFS-88') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250204-190959-001-TFS-105') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250225-070459-001-TFS-114') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250228-021459-001-TFS-121') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251115-100959-001-TFS-142') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251121-030959-001-TFS-145') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20260201-071459-001-TFS-156') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 290.74
+}

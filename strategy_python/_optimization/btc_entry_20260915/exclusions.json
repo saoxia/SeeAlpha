@@ -1,0 +1,434 @@
+[
+  {
+    "signal": "breakout_long",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 816,
+    "valid_before_overlap": 811,
+    "selected": 516
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 346,
+    "valid_before_overlap": 345,
+    "selected": 208
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 584,
+    "valid_before_overlap": 584,
+    "selected": 344
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 720,
+    "valid_before_overlap": 720,
+    "selected": 494
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 262,
+    "valid_before_overlap": 262,
+    "selected": 166
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 577,
+    "valid_before_overlap": 577,
+    "selected": 318
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 549,
+    "valid_before_overlap": 548,
+    "selected": 420
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 243,
+    "valid_before_overlap": 243,
+    "selected": 189
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 314,
+    "valid_before_overlap": 314,
+    "selected": 252
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 565,
+    "valid_before_overlap": 562,
+    "selected": 449
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 165,
+    "valid_before_overlap": 163,
+    "selected": 126
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 332,
+    "valid_before_overlap": 331,
+    "selected": 256
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 823,
+    "valid_before_overlap": 823,
+    "selected": 656
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 284,
+    "valid_before_overlap": 284,
+    "selected": 224
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 477,
+    "valid_before_overlap": 476,
+    "selected": 375
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 761,
+    "valid_before_overlap": 759,
+    "selected": 620
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 298,
+    "valid_before_overlap": 297,
+    "selected": 230
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 487,
+    "valid_before_overlap": 487,
+    "selected": 376
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 816,
+    "valid_before_overlap": 805,
+    "selected": 357
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 346,
+    "valid_before_overlap": 342,
+    "selected": 135
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 584,
+    "valid_before_overlap": 581,
+    "selected": 223
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 720,
+    "valid_before_overlap": 716,
+    "selected": 343
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 262,
+    "valid_before_overlap": 262,
+    "selected": 114
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 577,
+    "valid_before_overlap": 577,
+    "selected": 215
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 549,
+    "valid_before_overlap": 547,
+    "selected": 239
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 243,
+    "valid_before_overlap": 243,
+    "selected": 105
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 314,
+    "valid_before_overlap": 314,
+    "selected": 151
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 565,
+    "valid_before_overlap": 560,
+    "selected": 256
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 165,
+    "valid_before_overlap": 163,
+    "selected": 75
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 332,
+    "valid_before_overlap": 330,
+    "selected": 155
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 823,
+    "valid_before_overlap": 817,
+    "selected": 439
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 284,
+    "valid_before_overlap": 284,
+    "selected": 149
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 477,
+    "valid_before_overlap": 476,
+    "selected": 253
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 761,
+    "valid_before_overlap": 752,
+    "selected": 418
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 298,
+    "valid_before_overlap": 293,
+    "selected": 162
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 487,
+    "valid_before_overlap": 486,
+    "selected": 252
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 816,
+    "valid_before_overlap": 797,
+    "selected": 269
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 346,
+    "valid_before_overlap": 340,
+    "selected": 100
+  },
+  {
+    "signal": "breakout_long",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 584,
+    "valid_before_overlap": 580,
+    "selected": 155
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 720,
+    "valid_before_overlap": 713,
+    "selected": 258
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 262,
+    "valid_before_overlap": 260,
+    "selected": 86
+  },
+  {
+    "signal": "breakout_short",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 577,
+    "valid_before_overlap": 577,
+    "selected": 154
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 549,
+    "valid_before_overlap": 543,
+    "selected": 165
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 243,
+    "valid_before_overlap": 243,
+    "selected": 70
+  },
+  {
+    "signal": "pullback_long",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 314,
+    "valid_before_overlap": 314,
+    "selected": 105
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 565,
+    "valid_before_overlap": 555,
+    "selected": 179
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 165,
+    "valid_before_overlap": 159,
+    "selected": 47
+  },
+  {
+    "signal": "pullback_short",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 332,
+    "valid_before_overlap": 327,
+    "selected": 96
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 823,
+    "valid_before_overlap": 809,
+    "selected": 315
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 284,
+    "valid_before_overlap": 282,
+    "selected": 109
+  },
+  {
+    "signal": "reversion_long",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 477,
+    "valid_before_overlap": 476,
+    "selected": 176
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 761,
+    "valid_before_overlap": 749,
+    "selected": 303
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 298,
+    "valid_before_overlap": 291,
+    "selected": 108
+  },
+  {
+    "signal": "reversion_short",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 487,
+    "valid_before_overlap": 482,
+    "selected": 167
+  }
+]

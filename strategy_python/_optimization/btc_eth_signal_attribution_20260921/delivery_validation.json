@@ -1,0 +1,12 @@
+{
+  "completed_at": "2026-09-20T22:48:13.794706+00:00",
+  "html_local_links_checked": 15,
+  "zip_integrity_passed": true,
+  "statistical_functions_unchanged_except_nullable_exit_tag": true,
+  "unchanged_first_analysis_outputs": 27,
+  "all_trades": 2336,
+  "all_losses": 137,
+  "report_sha256": "40814920e96601bf08f2538271852d74ffd405605bea76f9c5d746cd6c2f3b7c",
+  "results_sha256": "fc35b7a9523971dc331d97b30ca3ba8edb0465178bbde5842b15ff2ccd4c112f",
+  "report_source_zip_sha256": "f520662082ba5896ac16dbd39db4f90771e614c79995c1abea17d0b25466d997"
+}

@@ -1,0 +1,84 @@
+{
+  "runs": [
+    {
+      "slot": "MRL_original",
+      "variant": "next_base",
+      "trades": 29,
+      "net_pnl": 8.008655289999979,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "MRL_optimized",
+      "variant": "next_base",
+      "trades": 2,
+      "net_pnl": -2.2554087199999913,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "TFL_original",
+      "variant": "next_base",
+      "trades": 10,
+      "net_pnl": 14.651432399999976,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "TFS_original",
+      "variant": "next_base",
+      "trades": 6,
+      "net_pnl": 8.863609750000023,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "PBS_original",
+      "variant": "next_base",
+      "trades": 3,
+      "net_pnl": -18.00433910000004,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "MRL_original",
+      "variant": "space_units1_same_risk",
+      "trades": 13,
+      "net_pnl": -5.924194390000025,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "MRL_optimized",
+      "variant": "space_units2_same_risk",
+      "trades": 7,
+      "net_pnl": -7.36490895999998,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "MRL_original",
+      "variant": "next_time24_rearm",
+      "trades": 61,
+      "net_pnl": 21.773956099999964,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "TFL_original",
+      "variant": "space_budget1.5",
+      "trades": 10,
+      "net_pnl": 19.41251495000006,
+      "account_leverage": 5.0
+    },
+    {
+      "slot": "TFS_original",
+      "variant": "space_margin10",
+      "trades": 6,
+      "net_pnl": 8.863609750000023,
+      "account_leverage": 10.0
+    },
+    {
+      "slot": "PBS_original",
+      "variant": "space_margin2",
+      "trades": 3,
+      "net_pnl": -18.00433910000004,
+      "account_leverage": 2.0
+    }
+  ],
+  "default_native_parity": true,
+  "one_two_layer_caps_exercised": true,
+  "time_exit_exercised": true
+}

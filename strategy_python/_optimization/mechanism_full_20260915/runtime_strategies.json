@@ -1,0 +1,47 @@
+{
+  "BTC_MRL_original": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_mean_reversion_long_5min",
+    "prefix": "MechanismMeanReversionLong5Min",
+    "source": "mean_reversion_long_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_original"
+  },
+  "BTC_MRL_optimized": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_mean_reversion_long_optimized_5min",
+    "prefix": "MechanismMeanReversionLongOptimized5Min",
+    "source": "mean_reversion_long_optimized_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_optimized"
+  },
+  "BTC_TFL": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_trend_following_long_5min",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFL"
+  },
+  "BTC_TFS": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_trend_following_short_5min",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFS"
+  },
+  "BTC_PBS": {
+    "package": "_optimization.mechanism_full_20260915.packages.mechanism_pullback_short_1h",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "PBS"
+  }
+}

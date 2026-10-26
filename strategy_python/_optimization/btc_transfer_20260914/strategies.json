@@ -1,0 +1,74 @@
+{
+  "MRL_original": {
+    "family": "MRL",
+    "version": "original",
+    "source": "mean_reversion_long_5min",
+    "package": "btc_mean_reversion_long_5min",
+    "source_prefix": "MeanReversionLong5Min",
+    "prefix": "BtcMeanReversionLong5Min",
+    "warmup_days": 135
+  },
+  "MRL_optimized": {
+    "family": "MRL",
+    "version": "optimized",
+    "source": "mean_reversion_long_optimized_5min",
+    "package": "btc_mean_reversion_long_optimized_5min",
+    "source_prefix": "MeanReversionLongOptimized5Min",
+    "prefix": "BtcMeanReversionLongOptimized5Min",
+    "warmup_days": 135
+  },
+  "TFL_original": {
+    "family": "TFL",
+    "version": "original",
+    "source": "trend_following_long_5min",
+    "package": "btc_trend_following_long_5min",
+    "source_prefix": "TrendFollowingLong5Min",
+    "prefix": "BtcTrendFollowingLong5Min",
+    "warmup_days": 11
+  },
+  "TFL_optimized": {
+    "family": "TFL",
+    "version": "optimized",
+    "source": "trend_following_long_optimized_5min",
+    "package": "btc_trend_following_long_optimized_5min",
+    "source_prefix": "TrendFollowingLongOptimized5Min",
+    "prefix": "BtcTrendFollowingLongOptimized5Min",
+    "warmup_days": 11
+  },
+  "TFS_original": {
+    "family": "TFS",
+    "version": "original",
+    "source": "trend_following_short_5min",
+    "package": "btc_trend_following_short_5min",
+    "source_prefix": "TrendFollowingShort5Min",
+    "prefix": "BtcTrendFollowingShort5Min",
+    "warmup_days": 21
+  },
+  "TFS_optimized": {
+    "family": "TFS",
+    "version": "optimized",
+    "source": "trend_following_short_optimized_5min",
+    "package": "btc_trend_following_short_optimized_5min",
+    "source_prefix": "TrendFollowingShortOptimized5Min",
+    "prefix": "BtcTrendFollowingShortOptimized5Min",
+    "warmup_days": 21
+  },
+  "PBS_original": {
+    "family": "PBS",
+    "version": "original",
+    "source": "pullback_short_1h",
+    "package": "btc_pullback_short_1h",
+    "source_prefix": "PullbackShort1h",
+    "prefix": "BtcPullbackShort1h",
+    "warmup_days": 30
+  },
+  "PBS_optimized": {
+    "family": "PBS",
+    "version": "optimized",
+    "source": "pullback_short_optimized_1h",
+    "package": "btc_pullback_short_optimized_1h",
+    "source_prefix": "PullbackShortOptimized1h",
+    "prefix": "BtcPullbackShortOptimized1h",
+    "warmup_days": 30
+  }
+}

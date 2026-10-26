@@ -1,0 +1,45 @@
+# 项目内的运行时和依赖状态
+.local/
+.venv/
+
+# Python 缓存和测试产物
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+
+# 密钥和本地配置
+.env
+*.pem
+*.key
+
+# 交易运行产物
+/data
+data/**
+!data/README.md
+logs/
+reports/
+
+# Rust 编译产物
+**/target/
+
+# 统一报告目录仅忽略回测产物，保留生成代码和模板
+/strategy_python/_report/backtest/
+
+# macOS 文件元数据
+.DS_Store
+._*
+
+# 历史研究的大体积生成产物留在本机；源码、摘要和冻结源码包继续版本管理。
+/strategy_python/_optimization/**/*.csv
+/strategy_python/_optimization/**/*.log
+/strategy_python/_optimization/**/*.png
+/strategy_python/_optimization/**/*.xlsx
+/strategy_python/_optimization/**/*.html
+/strategy_python/_optimization/**/.lock
+/strategy_python/_optimization/**/*.ok
+/strategy_python/_report/analysis/**/*.csv
+/strategy_python/_report/analysis/**/*.log
+/strategy_python/_report/analysis/**/*.png
+/strategy_python/_report/analysis/**/*.xlsx
+/strategy_python/_report/analysis/**/*.html

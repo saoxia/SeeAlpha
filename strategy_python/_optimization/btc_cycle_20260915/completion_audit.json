@@ -1,0 +1,13 @@
+{
+  "prior_files_unchanged": 1517,
+  "independent_packages": 8,
+  "native_full_verified": 8,
+  "comparison_rows": 16,
+  "annual_rows": 96,
+  "all_selected_return_higher_drawdown_lower": true,
+  "report_links_resolve": true,
+  "final_curves_visually_inspected": true,
+  "research_runs_audited": 181,
+  "maximum_annual_reconciliation_error_usdt": 1.1000057043020206e-07,
+  "accounting_tolerance_usdt": 0.0001
+}

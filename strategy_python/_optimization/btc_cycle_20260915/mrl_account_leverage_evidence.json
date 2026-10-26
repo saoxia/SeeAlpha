@@ -1,0 +1,20 @@
+[
+  {
+    "variant": "space_margin2",
+    "fills_equal_to_5x": true,
+    "net_pnl": -113.66370346000002,
+    "max_drawdown_pct": 41.59811017346446
+  },
+  {
+    "variant": "next_base",
+    "fills_equal_to_5x": true,
+    "net_pnl": -113.66370346000002,
+    "max_drawdown_pct": 41.59811017346446
+  },
+  {
+    "variant": "space_margin10",
+    "fills_equal_to_5x": true,
+    "net_pnl": -113.66370346000002,
+    "max_drawdown_pct": 41.59811017346446
+  }
+]

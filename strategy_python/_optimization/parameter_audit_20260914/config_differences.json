@@ -1,0 +1,32 @@
+[
+  {
+    "strategy": "MRL",
+    "parameter": "bollinger_std_multiplier",
+    "old": 2.0,
+    "new": 2.25
+  },
+  {
+    "strategy": "TFL",
+    "parameter": "take_profit_activation_return",
+    "old": 0.02,
+    "new": 0.03
+  },
+  {
+    "strategy": "TFS",
+    "parameter": "take_profit_activation_return",
+    "old": 0.02,
+    "new": 0.04
+  },
+  {
+    "strategy": "PBS",
+    "parameter": "risk_fraction",
+    "old": 0.005,
+    "new": 0.015
+  },
+  {
+    "strategy": "PBS",
+    "parameter": "max_notional_fraction",
+    "old": 1.0,
+    "new": 3.0
+  }
+]

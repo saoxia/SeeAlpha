@@ -1,0 +1,57 @@
+{
+  "created_at": "2026-09-22T01:24:30.904883+00:00",
+  "unchanged_domain_modules_after_namespace_normalization": [
+    "signal.py",
+    "risk.py",
+    "bars.py",
+    "position.py",
+    "indicators.py",
+    "features.py",
+    "state.py",
+    "execution.py"
+  ],
+  "short_checks": {
+    "BTC_recovery_fee0": {
+      "net_pnl": -2.0403541100000098,
+      "trades": 9,
+      "max_drawdown_pct": 0.7727819208807829,
+      "cashflow_error": -2.1316282072803006e-14,
+      "invalid_entry_orders": 0,
+      "off_tick_fields": 0,
+      "price_capped_entry_orders": 9
+    },
+    "BTC_control_fee0": {
+      "net_pnl": 1.1999722099999985,
+      "trades": 16,
+      "max_drawdown_pct": 0.8114078704202887,
+      "cashflow_error": 1.4210854715202004e-14,
+      "invalid_entry_orders": 0,
+      "off_tick_fields": 0,
+      "price_capped_entry_orders": 28,
+      "control_reconciliation": true
+    }
+  },
+  "full_tests_report": "data/project_checks/20260922T012214325998Z/results.json",
+  "full_tests_passed": 1203,
+  "upstream_deprecation_warnings": 180,
+  "engineering_revision": {
+    "draft_archive_sha256": "def4181239ee427822c799f2eb2d7be9c4efe7c84d88c662b3890e941175fbfb",
+    "reason": "Installed native stop-limit simulation can fill a gap at the old trigger below the observed minute low. Before formal freeze, replaced it with a subsequent completed minute close and a marketable capped limit. No parameters were selected from short-window returns.",
+    "synthetic_example": {
+      "buy_trigger": 2050.01,
+      "limit": 2050.5,
+      "next_bar_open_high_low_close": [
+        2050.5,
+        2050.5,
+        2050.5,
+        2050.5
+      ],
+      "strict_native_fill": 2050.02
+    },
+    "retained_draft_checks": [
+      "checks_before_audit_extension",
+      "checks_before_close_confirmation"
+    ],
+    "formal_runs_before_revision": 0
+  }
+}

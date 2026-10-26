@@ -1,0 +1,67 @@
+{
+  "cases": [
+    {
+      "slot": "MRL_original",
+      "variant": "main",
+      "trades": 29,
+      "net_pnl": 8.008655289999979
+    },
+    {
+      "slot": "MRL_optimized",
+      "variant": "main",
+      "trades": 2,
+      "net_pnl": -2.2554087199999913
+    },
+    {
+      "slot": "TFL_original",
+      "variant": "main",
+      "trades": 10,
+      "net_pnl": 14.651432399999976
+    },
+    {
+      "slot": "TFS_original",
+      "variant": "main",
+      "trades": 6,
+      "net_pnl": 8.863609750000023
+    },
+    {
+      "slot": "PBS_original",
+      "variant": "main",
+      "trades": 3,
+      "net_pnl": -18.00433910000004
+    },
+    {
+      "slot": "MRL_original",
+      "variant": "time24",
+      "trades": 61,
+      "net_pnl": 21.773956099999964
+    },
+    {
+      "slot": "MRL_original",
+      "variant": "band8",
+      "trades": 63,
+      "net_pnl": -25.995842979999964
+    },
+    {
+      "slot": "TFL_original",
+      "variant": "time24",
+      "trades": 13,
+      "net_pnl": 10.765888300000029
+    },
+    {
+      "slot": "TFS_original",
+      "variant": "clock15",
+      "trades": 1,
+      "net_pnl": -2.01583590000007
+    },
+    {
+      "slot": "PBS_original",
+      "variant": "falling_ma",
+      "trades": 2,
+      "net_pnl": -11.773124099999961
+    }
+  ],
+  "five_family_defaults_exact": true,
+  "mrl_time_exit_exercised_and_bounded": true,
+  "prior_files_unchanged": 1517
+}

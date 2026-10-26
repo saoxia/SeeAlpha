@@ -1,0 +1,36 @@
+{
+  "status": "holdout_underperformance",
+  "holdout": {
+    "strategy": "TFL",
+    "period": "holdout",
+    "candidate": "extend_3pct",
+    "baseline_pnl": 90.19493946,
+    "optimized_pnl": -30.44513119000004,
+    "baseline_return_pct": 18.038987892,
+    "optimized_return_pct": -6.089026238000006,
+    "baseline_dd_pct": 19.216603243394115,
+    "optimized_dd_pct": 26.456488352575967,
+    "baseline_trades": 323,
+    "optimized_trades": 312,
+    "baseline_stress_5bp_pnl": -85.56759056500005,
+    "optimized_stress_5bp_pnl": -182.98949168500104
+  },
+  "full": {
+    "strategy": "TFL",
+    "period": "full",
+    "candidate": "extend_3pct",
+    "baseline_pnl": 119.35159470000008,
+    "optimized_pnl": 179.5703509,
+    "baseline_return_pct": 23.870318940000026,
+    "optimized_return_pct": 35.91407017999999,
+    "baseline_dd_pct": 29.957592152067726,
+    "optimized_dd_pct": 33.34929535880142,
+    "baseline_trades": 1070,
+    "optimized_trades": 1029,
+    "baseline_stress_5bp_pnl": -443.07188861000145,
+    "optimized_stress_5bp_pnl": -495.9379060949982
+  },
+  "funding_replayed": false,
+  "live_execution_verified": false,
+  "parameters_reselected_after_holdout": false
+}

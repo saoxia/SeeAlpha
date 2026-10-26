@@ -1,0 +1,13 @@
+{
+  "parameter_rows_verified": 282,
+  "original_hashes.json": {
+    "verified_files": 49,
+    "mismatches": 0
+  },
+  "frozen_source_hashes.json": {
+    "verified_files": 45,
+    "mismatches": 0
+  },
+  "local_links_verified": 31,
+  "candidate_metric_rows_verified": 88
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "slot": "TFS_original",
+    "config_exact": true,
+    "fills_exact": true,
+    "daily_equity_exact": true
+  },
+  {
+    "slot": "TFS_optimized",
+    "config_exact": true,
+    "fills_exact": true,
+    "daily_equity_exact": true
+  }
+]

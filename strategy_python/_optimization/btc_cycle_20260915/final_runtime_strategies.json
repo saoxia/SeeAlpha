@@ -1,0 +1,74 @@
+{
+  "MRL_original": {
+    "package": "btc_cycle_optimized_20260915_mrl_original",
+    "prefix": "MechanismMeanReversionLong5Min",
+    "source": "mean_reversion_long_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_original"
+  },
+  "MRL_optimized": {
+    "package": "btc_cycle_optimized_20260915_mrl_optimized",
+    "prefix": "MechanismMeanReversionLongOptimized5Min",
+    "source": "mean_reversion_long_optimized_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_optimized"
+  },
+  "TFL_original": {
+    "package": "btc_cycle_optimized_20260915_tfl_original",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFL_original"
+  },
+  "TFL_optimized": {
+    "package": "btc_cycle_optimized_20260915_tfl_optimized",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFL_optimized"
+  },
+  "TFS_original": {
+    "package": "btc_cycle_optimized_20260915_tfs_original",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFS_original"
+  },
+  "TFS_optimized": {
+    "package": "btc_cycle_optimized_20260915_tfs_optimized",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFS_optimized"
+  },
+  "PBS_original": {
+    "package": "btc_cycle_optimized_20260915_pbs_original",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "PBS_original"
+  },
+  "PBS_optimized": {
+    "package": "btc_cycle_optimized_20260915_pbs_optimized",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "PBS_optimized"
+  }
+}

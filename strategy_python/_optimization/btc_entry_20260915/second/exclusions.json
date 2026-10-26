@@ -1,0 +1,290 @@
+[
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 191,
+    "valid_before_overlap": 191,
+    "selected": 162
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 90,
+    "valid_before_overlap": 90,
+    "selected": 70
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 124,
+    "valid_before_overlap": 124,
+    "selected": 98
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 188,
+    "valid_before_overlap": 188,
+    "selected": 163
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 61,
+    "valid_before_overlap": 61,
+    "selected": 48
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 110,
+    "valid_before_overlap": 110,
+    "selected": 87
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 1020,
+    "valid_before_overlap": 1020,
+    "selected": 657
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 382,
+    "valid_before_overlap": 382,
+    "selected": 235
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 592,
+    "valid_before_overlap": 589,
+    "selected": 381
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 6,
+    "period": "develop",
+    "raw_signals": 1023,
+    "valid_before_overlap": 1015,
+    "selected": 673
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 6,
+    "period": "validation",
+    "raw_signals": 402,
+    "valid_before_overlap": 400,
+    "selected": 253
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 6,
+    "period": "review",
+    "raw_signals": 630,
+    "valid_before_overlap": 630,
+    "selected": 405
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 191,
+    "valid_before_overlap": 190,
+    "selected": 125
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 90,
+    "valid_before_overlap": 90,
+    "selected": 53
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 124,
+    "valid_before_overlap": 124,
+    "selected": 71
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 188,
+    "valid_before_overlap": 185,
+    "selected": 127
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 61,
+    "valid_before_overlap": 61,
+    "selected": 38
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 110,
+    "valid_before_overlap": 110,
+    "selected": 67
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 1020,
+    "valid_before_overlap": 1015,
+    "selected": 430
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 382,
+    "valid_before_overlap": 382,
+    "selected": 143
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 592,
+    "valid_before_overlap": 589,
+    "selected": 244
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 24,
+    "period": "develop",
+    "raw_signals": 1023,
+    "valid_before_overlap": 1002,
+    "selected": 418
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 24,
+    "period": "validation",
+    "raw_signals": 402,
+    "valid_before_overlap": 395,
+    "selected": 159
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 24,
+    "period": "review",
+    "raw_signals": 630,
+    "valid_before_overlap": 626,
+    "selected": 245
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 191,
+    "valid_before_overlap": 190,
+    "selected": 106
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 90,
+    "valid_before_overlap": 90,
+    "selected": 44
+  },
+  {
+    "signal": "trend_reversion_long",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 124,
+    "valid_before_overlap": 124,
+    "selected": 61
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 188,
+    "valid_before_overlap": 184,
+    "selected": 105
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 61,
+    "valid_before_overlap": 59,
+    "selected": 29
+  },
+  {
+    "signal": "trend_reversion_short",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 110,
+    "valid_before_overlap": 108,
+    "selected": 53
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 1020,
+    "valid_before_overlap": 1006,
+    "selected": 309
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 382,
+    "valid_before_overlap": 380,
+    "selected": 104
+  },
+  {
+    "signal": "failed_breakout_long",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 592,
+    "valid_before_overlap": 589,
+    "selected": 174
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 48,
+    "period": "develop",
+    "raw_signals": 1023,
+    "valid_before_overlap": 995,
+    "selected": 292
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 48,
+    "period": "validation",
+    "raw_signals": 402,
+    "valid_before_overlap": 392,
+    "selected": 107
+  },
+  {
+    "signal": "failed_breakout_short",
+    "horizon": 48,
+    "period": "review",
+    "raw_signals": 630,
+    "valid_before_overlap": 623,
+    "selected": 169
+  }
+]

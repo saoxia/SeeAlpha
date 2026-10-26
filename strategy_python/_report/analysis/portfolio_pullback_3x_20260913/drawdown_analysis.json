@@ -1,0 +1,681 @@
+{
+  "peak": "2021-11-01 13:59:59.999000+00:00",
+  "trough": "2022-06-24 11:05:59.999000+00:00",
+  "peak_equity": 1055.161568349999,
+  "trough_equity": 594.4090150799992,
+  "loss": -460.7525532699998,
+  "drawdown_pct": 43.66654047024269,
+  "eth_peak": 4379.32,
+  "eth_trough": 1161.29,
+  "contribution": {
+    "MeanReversionLong5MinStrategy-MRL": {
+      "equity_change": -308.89185909999946,
+      "qty_peak": -1.5785983631388945e-16,
+      "qty_trough": -1.1102230246251565e-16,
+      "fees": 21.9677891,
+      "fills": 880,
+      "time_in_market_pct": 54.10319875326396
+    },
+    "PullbackShort1hStrategy-PBS": {
+      "equity_change": 31.14391551,
+      "qty_peak": 0.0,
+      "qty_trough": 0.0,
+      "fees": 12.70718449,
+      "fills": 48,
+      "time_in_market_pct": 5.424602928173691
+    },
+    "TrendFollowingLong5MinStrategy-TFL": {
+      "equity_change": -191.25390537000067,
+      "qty_peak": 0.241,
+      "qty_trough": 0.512,
+      "fees": 98.46088537,
+      "fills": 246,
+      "time_in_market_pct": 6.175424277641256
+    },
+    "TrendFollowingShort5MinStrategy-TFS": {
+      "equity_change": 8.249295690000508,
+      "qty_peak": 0.0,
+      "qty_trough": 0.0,
+      "fees": 18.68592431,
+      "fills": 48,
+      "time_in_market_pct": 0.6520524125939265
+    }
+  },
+  "worst_positions": [
+    {
+      "id": "BINANCE-1-1392",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "opened": "2021-12-09 08:12:59.999000+00:00",
+      "closed": "2022-01-07 04:17:59.999000+00:00",
+      "pnl": -209.43772362,
+      "peak_qty": 0.196,
+      "open_price": 4258.668836711554,
+      "close_price": 3670.6430409356726,
+      "exit_tags": "['ethusdt-mean-reversion-long:hard-stop:1']",
+      "fills": [
+        {
+          "time": "2021-12-09 08:12:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4346.71",
+          "tags": "['ethusdt-mean-reversion-long:initial:1']"
+        },
+        {
+          "time": "2021-12-09 08:36:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4324.98",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 09:33:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4292.49",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 12:15:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.073",
+          "avg_px": "4321.39",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2021-12-09 12:19:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.024",
+          "avg_px": "4291.31",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 13:23:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4270.89",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 13:42:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.073",
+          "avg_px": "4299.65",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2021-12-09 14:25:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.024",
+          "avg_px": "4278.15",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 14:32:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4251.44",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-09 15:21:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.049",
+          "avg_px": "4194.47",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-01-07 04:17:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.196",
+          "avg_px": "3194.0",
+          "tags": "['ethusdt-mean-reversion-long:hard-stop:1']"
+        }
+      ]
+    },
+    {
+      "id": "BINANCE-1-1710",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "opened": "2022-06-06 14:46:59.999000+00:00",
+      "closed": "2022-06-13 00:58:59.999000+00:00",
+      "pnl": -163.19910534,
+      "peak_qty": 0.352,
+      "open_price": 1846.5353125000004,
+      "close_price": 1656.694444444444,
+      "exit_tags": "['ethusdt-mean-reversion-long:hard-stop:1']",
+      "fills": [
+        {
+          "time": "2022-06-06 14:46:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1899.7",
+          "tags": "['ethusdt-mean-reversion-long:initial:1']"
+        },
+        {
+          "time": "2022-06-06 14:56:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1890.2",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-06 15:17:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1876.0",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-06 15:45:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.132",
+          "avg_px": "1888.63",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2022-06-06 16:03:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.044",
+          "avg_px": "1879.19",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-06 16:15:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1867.41",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-07 00:22:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1842.39",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-07 19:49:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.176",
+          "avg_px": "1870.59",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2022-06-07 19:53:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1851.88",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-07 20:06:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.132",
+          "avg_px": "1864.35",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2022-06-07 20:10:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.044",
+          "avg_px": "1855.03",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-07 20:33:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1843.4",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-07 22:47:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.088",
+          "avg_px": "1818.7",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-06-13 00:58:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.352",
+          "avg_px": "1384.9",
+          "tags": "['ethusdt-mean-reversion-long:hard-stop:1']"
+        }
+      ]
+    },
+    {
+      "id": "BINANCE-1-1380",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "opened": "2021-12-01 16:47:59.999000+00:00",
+      "closed": "2021-12-04 05:27:59.999000+00:00",
+      "pnl": -74.76709036,
+      "peak_qty": 0.064,
+      "open_price": 4662.235000000001,
+      "close_price": 3496.68,
+      "exit_tags": "['ethusdt-mean-reversion-long:hard-stop:1']",
+      "fills": [
+        {
+          "time": "2021-12-01 16:47:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.016",
+          "avg_px": "4713.12",
+          "tags": "['ethusdt-mean-reversion-long:initial:1']"
+        },
+        {
+          "time": "2021-12-01 17:28:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.016",
+          "avg_px": "4689.55",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-01 18:54:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.016",
+          "avg_px": "4654.32",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-01 20:24:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.016",
+          "avg_px": "4591.95",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2021-12-04 05:27:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.064",
+          "avg_px": "3496.68",
+          "tags": "['ethusdt-mean-reversion-long:hard-stop:1']"
+        }
+      ]
+    },
+    {
+      "id": "BINANCE-1-1652",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "opened": "2022-04-05 12:58:59.999000+00:00",
+      "closed": "2022-05-08 02:05:59.999000+00:00",
+      "pnl": -34.3884209,
+      "peak_qty": 0.04,
+      "open_price": 3426.098125,
+      "close_price": 2987.7946666666658,
+      "exit_tags": "['ethusdt-mean-reversion-long:hard-stop:1']",
+      "fills": [
+        {
+          "time": "2022-04-05 12:58:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3508.6",
+          "tags": "['ethusdt-mean-reversion-long:initial:1']"
+        },
+        {
+          "time": "2022-04-05 13:13:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3491.06",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-05 13:55:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3464.83",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-05 19:16:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3418.4",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-05 20:05:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.02",
+          "avg_px": "3470.72",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2022-04-05 20:33:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3436.02",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-05 22:44:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.015",
+          "avg_px": "3459.16",
+          "tags": "['ethusdt-mean-reversion-long:take-profit:1']"
+        },
+        {
+          "time": "2022-04-05 22:53:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.005",
+          "avg_px": "3441.86",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-05 23:48:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3420.28",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-04-06 00:04:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.01",
+          "avg_px": "3374.45",
+          "tags": "['ethusdt-mean-reversion-long:add:1']"
+        },
+        {
+          "time": "2022-05-08 02:05:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.04",
+          "avg_px": "2569.57",
+          "tags": "['ethusdt-mean-reversion-long:hard-stop:1']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211117-145959-001-PBS-25",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-11-17 14:59:59.999000+00:00",
+      "closed": "2021-11-17 23:48:59.999000+00:00",
+      "pnl": -14.01069411,
+      "peak_qty": 0.126,
+      "open_price": 4172.5,
+      "close_price": 4279.47,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-11-17 14:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.126",
+          "avg_px": "4172.5",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-11-17 23:48:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.126",
+          "avg_px": "4279.47",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211120-145959-001-PBS-32",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-11-20 14:59:59.999000+00:00",
+      "closed": "2021-11-20 18:23:59.999000+00:00",
+      "pnl": -14.00698166,
+      "peak_qty": 0.227,
+      "open_price": 4286.07,
+      "close_price": 4343.46,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-11-20 14:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.227",
+          "avg_px": "4286.07",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-11-20 18:23:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.227",
+          "avg_px": "4343.46",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211123-055959-001-PBS-35",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-11-23 05:59:59.999000+00:00",
+      "closed": "2021-11-23 10:24:59.999000+00:00",
+      "pnl": -13.52399189,
+      "peak_qty": 0.183,
+      "open_price": 4156.74,
+      "close_price": 4226.45,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-11-23 05:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.183",
+          "avg_px": "4156.74",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-11-23 10:24:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.183",
+          "avg_px": "4226.45",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211123-115959-001-PBS-38",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-11-23 11:59:59.999000+00:00",
+      "closed": "2021-11-23 14:50:59.999000+00:00",
+      "pnl": -13.44221978,
+      "peak_qty": 0.116,
+      "open_price": 4135.36,
+      "close_price": 4247.05,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-11-23 11:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.116",
+          "avg_px": "4135.36",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-11-23 14:50:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.116",
+          "avg_px": "4247.05",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211211-195959-001-PBS-49",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-12-11 19:59:59.999000+00:00",
+      "closed": "2021-12-12 18:03:59.999000+00:00",
+      "pnl": -12.93384164,
+      "peak_qty": 0.117,
+      "open_price": 4002.41,
+      "close_price": 4108.9,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-12-11 19:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.117",
+          "avg_px": "4002.41",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-12-12 18:03:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.117",
+          "avg_px": "4108.9",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20220220-235959-001-PBS-86",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2022-02-20 23:59:59.999000+00:00",
+      "closed": "2022-02-21 01:05:59.999000+00:00",
+      "pnl": -11.94193948,
+      "peak_qty": 0.184,
+      "open_price": 2620.72,
+      "close_price": 2682.97,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2022-02-20 23:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.184",
+          "avg_px": "2620.72",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2022-02-21 01:05:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.184",
+          "avg_px": "2682.97",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211214-095959-001-PBS-52",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-12-14 09:59:59.999000+00:00",
+      "closed": "2021-12-14 11:53:59.999000+00:00",
+      "pnl": -11.8254885,
+      "peak_qty": 0.147,
+      "open_price": 3767.18,
+      "close_price": 3843.82,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-12-14 09:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.147",
+          "avg_px": "3767.18",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-12-14 11:53:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.147",
+          "avg_px": "3843.82",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211214-155959-001-PBS-55",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "opened": "2021-12-14 15:59:59.999000+00:00",
+      "closed": "2021-12-14 21:42:59.999000+00:00",
+      "pnl": -11.71216981,
+      "peak_qty": 0.119,
+      "open_price": 3784.3,
+      "close_price": 3878.89,
+      "exit_tags": "['pullback_short_1h:stop']",
+      "fills": [
+        {
+          "time": "2021-12-14 15:59:59.999000+00:00",
+          "side": "SELL",
+          "filled_qty": "0.119",
+          "avg_px": "3784.3",
+          "tags": "['pullback_short_1h:entry']"
+        },
+        {
+          "time": "2021-12-14 21:42:59.999000+00:00",
+          "side": "BUY",
+          "filled_qty": "0.119",
+          "avg_px": "3878.89",
+          "tags": "['pullback_short_1h:stop']"
+        }
+      ]
+    }
+  ],
+  "worst_marked_positions": [
+    {
+      "id": "BINANCE-1-1392",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "change": -209.43772362000013
+    },
+    {
+      "id": "BINANCE-1-1710",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "change": -163.19910534000005
+    },
+    {
+      "id": "BINANCE-1-1380",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "change": -74.76709036000001
+    },
+    {
+      "id": "BINANCE-1-1652",
+      "strategy": "MeanReversionLong5MinStrategy-MRL",
+      "change": -34.3884209
+    },
+    {
+      "id": "BINANCE-1-1309",
+      "strategy": "TrendFollowingLong5MinStrategy-TFL",
+      "change": -22.293579679999993
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211117-145959-001-PBS-25",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -14.010694110000031
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211120-145959-001-PBS-32",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -14.006981660000065
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211123-055959-001-PBS-35",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -13.523991890000048
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211123-115959-001-PBS-38",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -13.442219780000073
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211211-195959-001-PBS-49",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -12.933841639999969
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20220220-235959-001-PBS-86",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -11.94193948000003
+    },
+    {
+      "id": "PullbackShort1hStrategy-PBS-O-20211214-095959-001-PBS-52",
+      "strategy": "PullbackShort1hStrategy-PBS",
+      "change": -11.825488500000006
+    }
+  ],
+  "closed_pnl_by_strategy": {
+    "MeanReversionLong5MinStrategy-MRL": {
+      "sum": -308.89185910000003,
+      "count": 259
+    },
+    "PullbackShort1hStrategy-PBS": {
+      "sum": 31.14391551,
+      "count": 24
+    },
+    "TrendFollowingLong5MinStrategy-TFL": {
+      "sum": -174.14492783,
+      "count": 123
+    },
+    "TrendFollowingShort5MinStrategy-TFS": {
+      "sum": 8.24929569,
+      "count": 24
+    }
+  }
+}

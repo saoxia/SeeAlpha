@@ -1,0 +1,12 @@
+{
+  "full": {
+    "native_entries_checked": 132,
+    "all_use_completed_hour_and_day": true,
+    "all_entry_fills_at_signal_close_not_earlier_intrabar_price": true
+  },
+  "holdout": {
+    "native_entries_checked": 43,
+    "all_use_completed_hour_and_day": true,
+    "all_entry_fills_at_signal_close_not_earlier_intrabar_price": true
+  }
+}

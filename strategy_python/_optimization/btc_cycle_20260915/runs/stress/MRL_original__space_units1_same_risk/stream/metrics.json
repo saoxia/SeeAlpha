@@ -1,0 +1,58 @@
+{
+  "net_pnl": -5.924194390000025,
+  "return_pct": -1.1848388780000052,
+  "max_drawdown_pct": 8.99895991482753,
+  "trades": 13,
+  "fees": 0.64499439,
+  "win_rate_pct": 92.3076923076923,
+  "profit_factor": 0.4434465683050316,
+  "stress": {
+    "2": {
+      "net_pnl": -6.514623670000049,
+      "drawdown_pct": 9.011595303642494
+    },
+    "5": {
+      "net_pnl": -7.400267589999999,
+      "drawdown_pct": 9.040656787887924
+    },
+    "10": {
+      "net_pnl": -8.876340790000029,
+      "drawdown_pct": 9.089177401173643
+    }
+  },
+  "missing_minutes": 0,
+  "first_bar": "2024-08-01 00:00:59.999000+00:00",
+  "last_bar": "2024-08-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2024": -5.924194390000025
+  },
+  "cashflow_trades": 13,
+  "cashflow_win_rate_pct": 92.3076923076923,
+  "payoff_ratio": 0.03695388069208563,
+  "cashflow_profit_factor": 0.4434465683050276,
+  "turnover_usdt": 2952.1464000000005,
+  "cashflow_reconciliation_error": -1.4210854715202004e-14,
+  "expected_minutes": 44640,
+  "observed_minutes": 44640,
+  "missing_minutes_including_edges": 0,
+  "order_status_counts": {
+    "14": 26,
+    "8": 15
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20240801-020459-001-000-2') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240802-021959-001-000-5') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240802-122159-001-000-8') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240802-124059-001-000-11') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240802-143659-001-000-14') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240823-225859-001-000-18') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240824-104159-001-000-21') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240824-175759-001-000-24') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240824-204459-001-000-27') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240825-013259-001-000-30') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240825-032159-001-000-33') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240825-060859-001-000-36') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 38.05
+}

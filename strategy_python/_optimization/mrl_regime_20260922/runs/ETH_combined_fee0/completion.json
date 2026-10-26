@@ -1,0 +1,10 @@
+{
+  "metrics.json": "6fff0b4e0e6ab8a027ccbb0f2820ce14a19ef8f205f62824ad75d0a511d40e81",
+  "positions.csv": "8d3bd0f12216725cfc59decc38c99665e10e5bd55f9f3080cf1bfe9e862cdbdf",
+  "account.csv": "bd43fb5132c085377be2a6ba6a01996bdb83e12ffb8016ce86969261fe0376a8",
+  "trades.csv": "77e2f362a4fbd5b0381aa89b64bc937664a66def626535c744581b1de0a2246f",
+  "annual.csv": "1586a104cc8850a009bda340055c5e5e3d45b5da005de35a96ce8ea2fee9ee04",
+  "parameters.json": "271a1c2649c0c61776a7bb8ffd7a4f0450f909aa264bf3de4d1797feb6671013",
+  "daily_equity.csv": "9837a22dc01f67e511aa3d5568792efc8162afc85b45c4e95417d22c365ea82b",
+  "fills.csv": "cd74ec10d32c61257d4307e5aaff3e830ca8d3d4451bb2258e8178d0b97e3355"
+}

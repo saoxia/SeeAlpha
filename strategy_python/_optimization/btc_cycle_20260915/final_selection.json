@@ -1,0 +1,58 @@
+[
+  {
+    "slot": "MRL_original",
+    "source_slot": "MRL_original",
+    "module": "next_run",
+    "variant": "space_units1_same_unit",
+    "reason": "选择单层及0.075总风险预算，完整历史回撤约15%，较两层同预算的39%—44%显著低，54活跃月；接受期末收益低于两层同预算的取舍。属于风险调整，仍亏损，不能宣称正期望。"
+  },
+  {
+    "slot": "MRL_optimized",
+    "source_slot": "MRL_optimized",
+    "module": "next_run",
+    "variant": "space_units1_same_unit",
+    "reason": "选择单层及0.075总风险预算，完整历史回撤约15%，较两层同预算的39%—44%显著低，54活跃月；接受期末收益低于两层同预算的取舍。属于风险调整，仍亏损，不能宣称正期望。"
+  },
+  {
+    "slot": "TFL_original",
+    "source_slot": "TFL_original",
+    "module": "fourth_run",
+    "variant": "fourth_clock40_budget_half",
+    "reason": "40分钟信号与半预算在完整历史收益和回撤均优于30分钟及费用过滤组合，68活跃月；20/30/40邻域已保留。仍亏损，且信号分布变化与历史选择偏差尚存。"
+  },
+  {
+    "slot": "TFL_optimized",
+    "source_slot": "TFL_original",
+    "module": "fourth_run",
+    "variant": "fourth_clock40_budget_half",
+    "reason": "40分钟信号与半预算在完整历史收益和回撤均优于30分钟及费用过滤组合，68活跃月；20/30/40邻域已保留。仍亏损，且信号分布变化与历史选择偏差尚存。"
+  },
+  {
+    "slot": "TFS_original",
+    "source_slot": "TFS_original",
+    "module": "third_run",
+    "variant": "third_slope_lock80",
+    "reason": "方向过滤加锁利的完整历史收益6.51%、回撤2.21%，优于单独持仓上限调整；额外5bp后仍盈利，去最佳五笔仍为正。仅82笔，2026亏损且近期收益不优于原基线，不能称各年皆优。"
+  },
+  {
+    "slot": "TFS_optimized",
+    "source_slot": "TFS_original",
+    "module": "third_run",
+    "variant": "third_slope_lock80",
+    "reason": "方向过滤加锁利的完整历史收益6.51%、回撤2.21%，优于单独持仓上限调整；额外5bp后仍盈利，去最佳五笔仍为正。仅82笔，2026亏损且近期收益不优于原基线，不能称各年皆优。"
+  },
+  {
+    "slot": "PBS_original",
+    "source_slot": "PBS_original",
+    "module": "third_run",
+    "variant": "third_risk_low_reward2.5",
+    "reason": "低风险0.005及2.5R目标的完整历史收益与回撤略优于2R，保留1.5/2/2.5分期邻域。额外2bp后转亏，去最佳五笔也转亏，属于脆弱的历史改善，不能称稳定盈利。"
+  },
+  {
+    "slot": "PBS_optimized",
+    "source_slot": "PBS_original",
+    "module": "third_run",
+    "variant": "third_risk_low_reward2.5",
+    "reason": "低风险0.005及2.5R目标的完整历史收益与回撤略优于2R，保留1.5/2/2.5分期邻域。额外2bp后转亏，去最佳五笔也转亏，属于脆弱的历史改善，不能称稳定盈利。"
+  }
+]

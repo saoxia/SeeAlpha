@@ -1,0 +1,310 @@
+{
+  "MRL_original": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "time72": {
+      "overrides": {
+        "cycle_time_exit_hours": 72
+      }
+    },
+    "band4": {
+      "overrides": {
+        "cycle_band_stop_multiple": 4
+      }
+    },
+    "band8": {
+      "overrides": {
+        "cycle_band_stop_multiple": 8
+      }
+    },
+    "flat": {
+      "base_variant": "flat_risk",
+      "overrides": {}
+    }
+  },
+  "MRL_optimized": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "time72": {
+      "overrides": {
+        "cycle_time_exit_hours": 72
+      }
+    },
+    "band4": {
+      "overrides": {
+        "cycle_band_stop_multiple": 4
+      }
+    },
+    "band8": {
+      "overrides": {
+        "cycle_band_stop_multiple": 8
+      }
+    },
+    "flat": {
+      "base_variant": "flat_risk",
+      "overrides": {}
+    }
+  },
+  "TFL_original": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "clock15": {
+      "overrides": {
+        "cycle_signal_minutes": 15
+      }
+    },
+    "clock30": {
+      "overrides": {
+        "cycle_signal_minutes": 30
+      }
+    },
+    "cost3": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 3
+      }
+    },
+    "cost5": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 5
+      }
+    },
+    "lock50": {
+      "overrides": {
+        "peak_profit_lock": 0.5
+      }
+    },
+    "lock80": {
+      "overrides": {
+        "peak_profit_lock": 0.8
+      }
+    }
+  },
+  "TFL_optimized": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "clock15": {
+      "overrides": {
+        "cycle_signal_minutes": 15
+      }
+    },
+    "clock30": {
+      "overrides": {
+        "cycle_signal_minutes": 30
+      }
+    },
+    "cost3": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 3
+      }
+    },
+    "cost5": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 5
+      }
+    },
+    "lock50": {
+      "overrides": {
+        "peak_profit_lock": 0.5
+      }
+    },
+    "lock80": {
+      "overrides": {
+        "peak_profit_lock": 0.8
+      }
+    }
+  },
+  "TFS_original": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "clock15": {
+      "overrides": {
+        "cycle_signal_minutes": 15
+      }
+    },
+    "clock30": {
+      "overrides": {
+        "cycle_signal_minutes": 30
+      }
+    },
+    "cost3": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 3
+      }
+    },
+    "cost5": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 5
+      }
+    },
+    "lock50": {
+      "overrides": {
+        "peak_profit_lock": 0.5
+      }
+    },
+    "lock80": {
+      "overrides": {
+        "peak_profit_lock": 0.8
+      }
+    }
+  },
+  "TFS_optimized": {
+    "main": {
+      "overrides": {}
+    },
+    "time24": {
+      "overrides": {
+        "cycle_time_exit_hours": 24
+      }
+    },
+    "time48": {
+      "overrides": {
+        "cycle_time_exit_hours": 48
+      }
+    },
+    "clock15": {
+      "overrides": {
+        "cycle_signal_minutes": 15
+      }
+    },
+    "clock30": {
+      "overrides": {
+        "cycle_signal_minutes": 30
+      }
+    },
+    "cost3": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 3
+      }
+    },
+    "cost5": {
+      "overrides": {
+        "cycle_min_reward_cost_ratio": 5
+      }
+    },
+    "lock50": {
+      "overrides": {
+        "peak_profit_lock": 0.5
+      }
+    },
+    "lock80": {
+      "overrides": {
+        "peak_profit_lock": 0.8
+      }
+    }
+  },
+  "PBS_original": {
+    "main": {
+      "overrides": {}
+    },
+    "time12": {
+      "overrides": {
+        "max_holding_hours": 12
+      }
+    },
+    "time48": {
+      "overrides": {
+        "max_holding_hours": 48
+      }
+    },
+    "reward2": {
+      "overrides": {
+        "reward_risk": 2
+      }
+    },
+    "reward3": {
+      "overrides": {
+        "reward_risk": 3
+      }
+    },
+    "falling_ma": {
+      "overrides": {
+        "cycle_require_falling_ma": true
+      }
+    }
+  },
+  "PBS_optimized": {
+    "main": {
+      "overrides": {}
+    },
+    "time12": {
+      "overrides": {
+        "max_holding_hours": 12
+      }
+    },
+    "time48": {
+      "overrides": {
+        "max_holding_hours": 48
+      }
+    },
+    "reward2": {
+      "overrides": {
+        "reward_risk": 2
+      }
+    },
+    "reward3": {
+      "overrides": {
+        "reward_risk": 3
+      }
+    },
+    "falling_ma": {
+      "overrides": {
+        "cycle_require_falling_ma": true
+      }
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "completed_at": "2026-09-20T21:23:18.263184+00:00",
+  "completed_runs": 106,
+  "failed_runs": 0,
+  "source_and_data_hashes_verified_by_report": true,
+  "input_inventory": {
+    "source_files": 51,
+    "data_files": 4878,
+    "unchanged": true
+  },
+  "off_tick_order_prices": 0,
+  "entry_fills_below_snapshot_min_notional": 0,
+  "maximum_account_cashflow_error": 4.092726157978177e-12,
+  "reporting_sources": {
+    "strategy_python/_optimization/tfs_stability_20260921/report.py": "ca6a89319562aaa251dabaa741cdb9896558fad82e82a0a6d2271707b2b2f276",
+    "strategy_python/_optimization/tfs_stability_20260921/run_all.py": "7726cef1612c5ee67e458d11e5575321324f89d117001dc1496596e9c4316b66"
+  },
+  "reporting_source_archive_sha256": "4662082dbd317235c6de9725aed6a5f6c4fb682cf00cbc71a561da7d910a8314",
+  "decision": {
+    "passed": false,
+    "eligible_counts": {
+      "BTC": 0,
+      "ETH": 0
+    },
+    "common_eligible_count": 0,
+    "center_component_count": 0,
+    "center_component": [],
+    "common_mask": [
+      [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      [
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    ],
+    "asset_masks": {
+      "BTC": [
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "ETH": [
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "net_pnl": -75.40660450000001,
+  "return_pct": -15.081320900000005,
+  "max_drawdown_pct": 21.222834624254784,
+  "trades": 29,
+  "fees": 2.0643045,
+  "win_rate_pct": 96.55172413793103,
+  "profit_factor": 0.13522202929087007,
+  "stress": {
+    "2": {
+      "net_pnl": -77.27418616000006,
+      "drawdown_pct": 21.35739442164081
+    },
+    "5": {
+      "net_pnl": -80.07555865000006,
+      "drawdown_pct": 21.56472302933341
+    },
+    "10": {
+      "net_pnl": -84.74451280000005,
+      "drawdown_pct": 21.92100027606666
+    }
+  },
+  "missing_minutes": 64,
+  "first_bar": "2022-05-01 00:00:59.999000+00:00",
+  "last_bar": "2022-05-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2022": -75.40660450000007
+  },
+  "cashflow_trades": 29,
+  "cashflow_win_rate_pct": 96.55172413793103,
+  "payoff_ratio": 0.004829358188959743,
+  "cashflow_profit_factor": 0.13522202929087282,
+  "turnover_usdt": 9337.908300000001,
+  "cashflow_reconciliation_error": 2.4158453015843406e-13,
+  "expected_minutes": 44640,
+  "observed_minutes": 44576,
+  "missing_minutes_including_edges": 64,
+  "order_status_counts": {
+    "14": 88,
+    "8": 61
+  },
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20220502-075759-001-000-2') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220502-094859-001-000-7') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220504-123259-001-000-14') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220504-135459-001-000-18') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220504-182059-001-000-23') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220504-183559-001-000-27') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220504-214459-001-000-32') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220505-053159-001-000-38') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-081659-001-000-43') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-113659-001-000-48') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-125659-001-000-52') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-133059-001-000-56') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-133959-001-000-59') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-140059-001-000-62') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220523-164859-001-000-67') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220525-043859-001-000-75') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220525-153559-001-000-88') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220525-162159-001-000-92') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220525-195059-001-000-97') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220525-225159-001-000-101') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220528-144759-001-000-106') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220528-171559-001-000-110') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220528-172459-001-000-113') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220528-220059-001-000-117') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220529-013159-001-000-121') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220529-145959-001-000-126') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220529-175159-001-000-131') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220530-000759-001-000-136') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20220531-140659-001-000-146') not found": 1
+  },
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 41.66
+}

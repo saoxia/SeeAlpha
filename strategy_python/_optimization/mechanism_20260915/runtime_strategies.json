@@ -1,0 +1,316 @@
+{
+  "ETH_MRL_original": {
+    "package": "mechanism_mean_reversion_long_5min",
+    "prefix": "MechanismMeanReversionLong5Min",
+    "source": "mean_reversion_long_5min",
+    "warmup_days": 135,
+    "asset": "ETH",
+    "kind": "mechanism",
+    "slot": "MRL_original"
+  },
+  "ETH_MRL_optimized": {
+    "package": "mechanism_mean_reversion_long_optimized_5min",
+    "prefix": "MechanismMeanReversionLongOptimized5Min",
+    "source": "mean_reversion_long_optimized_5min",
+    "warmup_days": 135,
+    "asset": "ETH",
+    "kind": "mechanism",
+    "slot": "MRL_optimized"
+  },
+  "ETH_TFL": {
+    "package": "mechanism_trend_following_long_5min",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11,
+    "asset": "ETH",
+    "kind": "mechanism",
+    "slot": "TFL"
+  },
+  "ETH_TFS": {
+    "package": "mechanism_trend_following_short_5min",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21,
+    "asset": "ETH",
+    "kind": "mechanism",
+    "slot": "TFS"
+  },
+  "ETH_PBS": {
+    "package": "mechanism_pullback_short_1h",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30,
+    "asset": "ETH",
+    "kind": "mechanism",
+    "slot": "PBS"
+  },
+  "fixed_ETH_MRL_original": {
+    "package": "mean_reversion_long_5min",
+    "prefix": "MeanReversionLong5Min",
+    "warmup_days": 135,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "MRL_original"
+  },
+  "fixed_ETH_MRL_optimized": {
+    "package": "mean_reversion_long_optimized_5min",
+    "prefix": "MeanReversionLongOptimized5Min",
+    "warmup_days": 135,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "MRL_optimized"
+  },
+  "fixed_ETH_TFL_original": {
+    "package": "trend_following_long_5min",
+    "prefix": "TrendFollowingLong5Min",
+    "warmup_days": 11,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "TFL_original"
+  },
+  "fixed_ETH_TFL_optimized": {
+    "package": "trend_following_long_optimized_5min",
+    "prefix": "TrendFollowingLongOptimized5Min",
+    "warmup_days": 11,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "TFL_optimized"
+  },
+  "fixed_ETH_TFS_original": {
+    "package": "trend_following_short_5min",
+    "prefix": "TrendFollowingShort5Min",
+    "warmup_days": 21,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "TFS_original"
+  },
+  "fixed_ETH_TFS_optimized": {
+    "package": "trend_following_short_optimized_5min",
+    "prefix": "TrendFollowingShortOptimized5Min",
+    "warmup_days": 21,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "TFS_optimized"
+  },
+  "fixed_ETH_PBS_original": {
+    "package": "pullback_short_1h",
+    "prefix": "PullbackShort1h",
+    "warmup_days": 30,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "PBS_original"
+  },
+  "fixed_ETH_PBS_optimized": {
+    "package": "pullback_short_optimized_1h",
+    "prefix": "PullbackShortOptimized1h",
+    "warmup_days": 30,
+    "asset": "ETH",
+    "kind": "fixed",
+    "slot": "PBS_optimized"
+  },
+  "BTC_MRL_original": {
+    "package": "mechanism_mean_reversion_long_5min",
+    "prefix": "MechanismMeanReversionLong5Min",
+    "source": "mean_reversion_long_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_original"
+  },
+  "BTC_MRL_optimized": {
+    "package": "mechanism_mean_reversion_long_optimized_5min",
+    "prefix": "MechanismMeanReversionLongOptimized5Min",
+    "source": "mean_reversion_long_optimized_5min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "MRL_optimized"
+  },
+  "BTC_TFL": {
+    "package": "mechanism_trend_following_long_5min",
+    "prefix": "MechanismTrendFollowingLong5Min",
+    "source": "trend_following_long_5min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFL"
+  },
+  "BTC_TFS": {
+    "package": "mechanism_trend_following_short_5min",
+    "prefix": "MechanismTrendFollowingShort5Min",
+    "source": "trend_following_short_5min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "TFS"
+  },
+  "BTC_PBS": {
+    "package": "mechanism_pullback_short_1h",
+    "prefix": "MechanismPullbackShort1h",
+    "source": "pullback_short_1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "mechanism",
+    "slot": "PBS"
+  },
+  "fixed_BTC_MRL_original": {
+    "package": "btc_mean_reversion_long_5min",
+    "prefix": "BtcMeanReversionLong5Min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "MRL_original"
+  },
+  "fixed_BTC_MRL_optimized": {
+    "package": "btc_mean_reversion_long_optimized_5min",
+    "prefix": "BtcMeanReversionLongOptimized5Min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "MRL_optimized"
+  },
+  "fixed_BTC_TFL_original": {
+    "package": "btc_trend_following_long_5min",
+    "prefix": "BtcTrendFollowingLong5Min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "TFL_original"
+  },
+  "fixed_BTC_TFL_optimized": {
+    "package": "btc_trend_following_long_optimized_5min",
+    "prefix": "BtcTrendFollowingLongOptimized5Min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "TFL_optimized"
+  },
+  "fixed_BTC_TFS_original": {
+    "package": "btc_trend_following_short_5min",
+    "prefix": "BtcTrendFollowingShort5Min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "TFS_original"
+  },
+  "fixed_BTC_TFS_optimized": {
+    "package": "btc_trend_following_short_optimized_5min",
+    "prefix": "BtcTrendFollowingShortOptimized5Min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "TFS_optimized"
+  },
+  "fixed_BTC_PBS_original": {
+    "package": "btc_pullback_short_1h",
+    "prefix": "BtcPullbackShort1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "PBS_original"
+  },
+  "fixed_BTC_PBS_optimized": {
+    "package": "btc_pullback_short_optimized_1h",
+    "prefix": "BtcPullbackShortOptimized1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "fixed",
+    "slot": "PBS_optimized"
+  },
+  "scaled_BTC_MRL_original": {
+    "family": "MRL",
+    "version": "original",
+    "source": "mean_reversion_long_5min",
+    "package": "btc_scaled_mean_reversion_long_5min",
+    "source_prefix": "MeanReversionLong5Min",
+    "prefix": "BtcScaledMeanReversionLong5Min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "MRL_original"
+  },
+  "scaled_BTC_MRL_optimized": {
+    "family": "MRL",
+    "version": "optimized",
+    "source": "mean_reversion_long_optimized_5min",
+    "package": "btc_scaled_mean_reversion_long_optimized_5min",
+    "source_prefix": "MeanReversionLongOptimized5Min",
+    "prefix": "BtcScaledMeanReversionLongOptimized5Min",
+    "warmup_days": 135,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "MRL_optimized"
+  },
+  "scaled_BTC_TFL_original": {
+    "family": "TFL",
+    "version": "original",
+    "source": "trend_following_long_5min",
+    "package": "btc_scaled_trend_following_long_5min",
+    "source_prefix": "TrendFollowingLong5Min",
+    "prefix": "BtcScaledTrendFollowingLong5Min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "TFL_original"
+  },
+  "scaled_BTC_TFL_optimized": {
+    "family": "TFL",
+    "version": "optimized",
+    "source": "trend_following_long_optimized_5min",
+    "package": "btc_scaled_trend_following_long_optimized_5min",
+    "source_prefix": "TrendFollowingLongOptimized5Min",
+    "prefix": "BtcScaledTrendFollowingLongOptimized5Min",
+    "warmup_days": 11,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "TFL_optimized"
+  },
+  "scaled_BTC_TFS_original": {
+    "family": "TFS",
+    "version": "original",
+    "source": "trend_following_short_5min",
+    "package": "btc_scaled_trend_following_short_5min",
+    "source_prefix": "TrendFollowingShort5Min",
+    "prefix": "BtcScaledTrendFollowingShort5Min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "TFS_original"
+  },
+  "scaled_BTC_TFS_optimized": {
+    "family": "TFS",
+    "version": "optimized",
+    "source": "trend_following_short_optimized_5min",
+    "package": "btc_scaled_trend_following_short_optimized_5min",
+    "source_prefix": "TrendFollowingShortOptimized5Min",
+    "prefix": "BtcScaledTrendFollowingShortOptimized5Min",
+    "warmup_days": 21,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "TFS_optimized"
+  },
+  "scaled_BTC_PBS_original": {
+    "family": "PBS",
+    "version": "original",
+    "source": "pullback_short_1h",
+    "package": "btc_scaled_pullback_short_1h",
+    "source_prefix": "PullbackShort1h",
+    "prefix": "BtcScaledPullbackShort1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "PBS_original"
+  },
+  "scaled_BTC_PBS_optimized": {
+    "family": "PBS",
+    "version": "optimized",
+    "source": "pullback_short_optimized_1h",
+    "package": "btc_scaled_pullback_short_optimized_1h",
+    "source_prefix": "PullbackShortOptimized1h",
+    "prefix": "BtcScaledPullbackShortOptimized1h",
+    "warmup_days": 30,
+    "asset": "BTC",
+    "kind": "scaled",
+    "slot": "PBS_optimized"
+  }
+}

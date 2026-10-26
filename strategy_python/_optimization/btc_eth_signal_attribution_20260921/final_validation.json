@@ -1,0 +1,32 @@
+{
+  "completed_at": "2026-09-20T22:47:30.225599+00:00",
+  "native_runs": 4,
+  "existing_baselines_reconciled": 3,
+  "frozen_source_data_references_environment_verified": true,
+  "same_parameters_across_markets": true,
+  "same_entry_cohort_exit_and_size_arithmetic_verified": true,
+  "max_cashflow_error": 3.907985046680551e-13,
+  "invalid_openings": 0,
+  "off_tick_prices": 0,
+  "price_improved_limit_fills_below_minimum": 2,
+  "audit_only_eth_replay_unchanged": true,
+  "core_tests_passed": 7,
+  "nullable_exit_tag_compatibility_fix": true,
+  "unchanged_first_analysis_outputs": 27,
+  "signal_evidence": {
+    "MRL": {
+      "common_passed_horizons": [],
+      "signal_evidence_gate_passed": false,
+      "out_of_sample": false,
+      "live_approval": false
+    },
+    "TFS": {
+      "common_passed_horizons": [],
+      "signal_evidence_gate_passed": false,
+      "out_of_sample": false,
+      "live_approval": false
+    }
+  },
+  "out_of_sample": false,
+  "report_source_sha256": "bc8b56c258b3aab935ac6b1aedfbfc10d440b0e0d809822bbebb7c07a85050e6"
+}

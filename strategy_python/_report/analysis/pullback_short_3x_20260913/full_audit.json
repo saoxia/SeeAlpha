@@ -1,0 +1,72 @@
+{
+  "report": "/home/lly/NautilusTrader/strategy_python/_report/backtest/pullback_short_1h_3x/20260912T225032746131Z_d1c14b3799694305aa70c8f619210951",
+  "start": "2021-01-01T00:00:00+00:00",
+  "end": "2026-09-01T00:00:00+00:00",
+  "initial_balance": 500,
+  "end_balance": 747.82566083,
+  "net_pnl": 247.82566082999995,
+  "return_pct": 49.565132165999984,
+  "trades": 132,
+  "profit_factor": 1.4280425671425718,
+  "win_rate_pct": 40.909090909090914,
+  "fees": 62.96590917,
+  "minute_close_max_drawdown_pct": 14.423898158566006,
+  "drawdown_trough": "2023-06-14 15:24:59.999000+00:00",
+  "annual_closed_pnl": {
+    "2021": -34.437831100000004,
+    "2022": 102.07234744,
+    "2023": -19.295145259999995,
+    "2024": 48.371535539999996,
+    "2025": 13.143592599999991,
+    "2026": 137.97116161
+  },
+  "annual_marked_pnl": {
+    "2021": -28.82311101000022,
+    "2022": 96.45762734999977,
+    "2023": -19.29514526000014,
+    "2024": 48.37153553999951,
+    "2025": 13.143592600000488,
+    "2026": 137.9711616100002
+  },
+  "max_hold_hours": 24.0,
+  "exit_reasons": {
+    "['pullback_short_1h:stop']": 66,
+    "['pullback_short_1h:time_exit']": 49,
+    "['pullback_short_1h:target']": 17
+  },
+  "extra_slippage_stress": {
+    "2": {
+      "extra_slippage_bps_per_fill": 2,
+      "net_pnl": 221.46711811199964,
+      "minute_close_max_drawdown_pct": 15.269988292766723
+    },
+    "5": {
+      "extra_slippage_bps_per_fill": 5,
+      "net_pnl": 181.92930403499963,
+      "minute_close_max_drawdown_pct": 17.082464273198905
+    },
+    "10": {
+      "extra_slippage_bps_per_fill": 10,
+      "net_pnl": 116.03294723999954,
+      "minute_close_max_drawdown_pct": 20.20719152311221
+    }
+  },
+  "funding_mode": "not simulated; sensitivity is not historical funding",
+  "assumed_paying_1bp_each_8h_cost": 10.997083074,
+  "2bp_slippage_plus_assumed_funding_net_pnl": 210.47003503799965,
+  "data_gap_count": 10,
+  "missing_minutes": 618,
+  "gaps": {
+    "2021-03-02 02:00:59.999000+00:00": 59,
+    "2022-05-01 22:55:59.999000+00:00": 29,
+    "2022-05-28 17:15:59.999000+00:00": 35,
+    "2022-10-26 00:00:59.999000+00:00": 67,
+    "2023-09-12 08:53:59.999000+00:00": 19,
+    "2023-11-21 08:51:59.999000+00:00": 367,
+    "2023-11-21 10:38:59.999000+00:00": 8,
+    "2024-10-28 16:35:59.999000+00:00": 14,
+    "2024-10-28 16:37:59.999000+00:00": 1,
+    "2025-08-29 06:37:59.999000+00:00": 19
+  },
+  "equity_method": "Minute closing mark, includes commissions and unrealized PnL; not intraminute worst equity. Slippage sensitivity does not re-execute orders."
+}

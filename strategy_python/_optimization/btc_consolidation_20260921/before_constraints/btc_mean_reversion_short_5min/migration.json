@@ -1,0 +1,39 @@
+{
+  "source": "strategy_python/mean_reversion_short_5min",
+  "target": "strategy_python/btc_mean_reversion_short_5min",
+  "source_sha256": {
+    "__init__.py": "c57e44798514b343339fe0938b97e870c5aa0de63f3836da5714bca8922f484b",
+    "backtest.py": "d271d90c4b1a0733c88482c19381ffddb419260f29858d421feae175b808b7a8",
+    "bars.py": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03",
+    "config.py": "d14af65045effe39ba3c49e76e91ba10569400ab659aa11ffa36f0093ab2c145",
+    "execution.py": "d799af5456db70badcdf289ca4ce71bf6afbe2b6d261c9ba15dd4bf6875512f8",
+    "features.py": "a5902218d004d74d3d47607287ba9b0a2b81a2aa47a2a3c19d50f939fbf1135d",
+    "indicators.py": "d1098f15a1580a3150b3ae5f9fb1747d98e791ddd844e44e91f8b7364074754b",
+    "position.py": "8080925dbe01616a7c69e7553d27c80e673b80fe99b9e2d0ca2a881a8e9001ed",
+    "risk.py": "e1f74ebb382f191969d94f5184b43f8188a575374d47b520dd7b89387dbb335a",
+    "signal.py": "8337a43c34e6fc10449291e5786dab315ec2975f8aebbced10cab5fce232c4b8",
+    "state.py": "46a407d4aafb5b0425c1135f919a8ed184bc10eb591ecad0d5b42a0204fe65cf",
+    "strategy.py": "815f6f98e6e80cd12507708bf987241272729ea3cc9374ab7b528d37b5ee68c7"
+  },
+  "mapping": {
+    "package": "mean_reversion_short_5min -> btc_mean_reversion_short_5min",
+    "class": "MeanReversionShort5Min -> BtcMeanReversionShort5Min",
+    "instrument": "ETHUSDT -> BTCUSDT"
+  },
+  "status": "migration_requires_validation",
+  "profit_optimization": false,
+  "target_sha256": {
+    "__init__.py": "41c175da0a6a6fcdcaf64c150409719311025813b1ce320fc47e4f80d76810bd",
+    "backtest.py": "c567e7144087c6a0477a0f627dcbe93ceab75d1f4bbd9d9d33f6820b27bf2568",
+    "bars.py": "601c897fc420121b7e36f8897ba6c608e3ab483085cd5717341e8e2e3dec8a03",
+    "config.py": "d2a52f47da27980e07d710bb8a247f13c7008b97a763947a01b463aad704d8d7",
+    "execution.py": "66b2c61cd540a8d8fdce7170983d3ff0dd612cb54cf0f290c3948b3567c08906",
+    "features.py": "1932bd4d86c10e990389a80dcf4fb621ca53913d76aa80a4e23faef286b02b28",
+    "indicators.py": "07e7249cddf9f41f7c4161aba53674c078771abe521cc67b6df40486e552a4bc",
+    "position.py": "b69d286f07813b0c070844f1cc6e2c6af2f18caa34cb2f228f8e35a0efe0db14",
+    "risk.py": "26ff5e14b8f50c02171738338ed33b60fff35bb4aa7f730168ad27a4e8fa348a",
+    "signal.py": "ba2c62bcf9a9e03e9efe915c792f5207e2665a9af5bb4ac04027e335bb313833",
+    "state.py": "cb398d6a46ee138020b95e92025817dc499c9d2f949be6f7b681d853190e7f7b",
+    "strategy.py": "1c63b18642b457e9f49482bf9ef3a75bd7323994cac8487f61ce70c46b9fe55b"
+  }
+}

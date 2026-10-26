@@ -1,0 +1,44 @@
+{
+  "net_pnl": 6.283830249999994,
+  "return_pct": 1.2567660500000022,
+  "max_drawdown_pct": 2.5831945736926154,
+  "trades": 19,
+  "fees": 1.52566975,
+  "win_rate_pct": 47.368421052631575,
+  "profit_factor": 1.3209766728932835,
+  "stress": {
+    "2": {
+      "net_pnl": 5.673562350000054,
+      "drawdown_pct": 2.664810200949186
+    },
+    "5": {
+      "net_pnl": 4.758160500000031,
+      "drawdown_pct": 2.7872497789765416
+    },
+    "10": {
+      "net_pnl": 3.2324907500000677,
+      "drawdown_pct": 2.9913587860815327
+    }
+  },
+  "missing_minutes": 15,
+  "first_bar": "2024-01-01 00:00:59.999000+00:00",
+  "last_bar": "2024-12-31 23:59:59.999000+00:00",
+  "annual_marked_pnl": {
+    "2024": 6.283830250000051
+  },
+  "cashflow_trades": 19,
+  "cashflow_win_rate_pct": 47.368421052631575,
+  "payoff_ratio": 1.4677518587703169,
+  "cashflow_profit_factor": 1.3209766728932855,
+  "turnover_usdt": 3051.3394999999996,
+  "cashflow_reconciliation_error": 2.842170943040401e-14,
+  "expected_minutes": 527040,
+  "observed_minutes": 527025,
+  "missing_minutes_including_edges": 15,
+  "order_status_counts": {
+    "14": 38
+  },
+  "order_event_reasons": {},
+  "off_tick_order_price_fields": 0,
+  "elapsed_seconds": 55.38
+}

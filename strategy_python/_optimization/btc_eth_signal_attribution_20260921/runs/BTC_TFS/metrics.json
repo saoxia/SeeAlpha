@@ -1,0 +1,43 @@
+{
+  "net_pnl": 26.025600240000017,
+  "return_pct": 5.205120048000003,
+  "max_drawdown_pct": 2.2418753052329654,
+  "trades": 76,
+  "fees": 11.777259759999998,
+  "turnover": 23554.51948,
+  "profit_factor": 1.3111135215002583,
+  "payoff_ratio": 1.3111135215002583,
+  "win_rate_pct": 50.0,
+  "top5_profit": 23.55885155000007,
+  "pnl_without_best5": 2.466748689999946,
+  "worst5_pnl": -14.197196629999866,
+  "annual_marked_pnl": {
+    "2021": 8.11651482000002,
+    "2022": -3.0672575799998754,
+    "2023": 7.419574350000119,
+    "2024": 13.311135900000068,
+    "2025": 7.275190299999849,
+    "2026": -7.02955755000005
+  },
+  "review_marked_pnl": 0.24563274999979967,
+  "review_closed_trades": 32,
+  "expected_minutes": 2977920,
+  "observed_minutes": 2976982,
+  "missing_minutes": 938,
+  "first_bar": "2021-01-01 00:00:59.999000+00:00",
+  "last_bar": "2026-08-30 23:59:59.999000+00:00",
+  "cashflow_error": 1.8474111129762605e-13,
+  "baseline_trade_and_fill_reconciliation": true,
+  "entry_fills_outside_constraints": 0,
+  "off_tick_order_price_fields": 0,
+  "order_event_reasons": {
+    "OrderCancelRejected: ClientOrderId('O-20210720-024959-001-TFS-14') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20211205-025459-001-TFS-27') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20230819-013459-001-TFS-60') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20240803-111459-001-TFS-81') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20250225-070459-001-TFS-102') not found": 1,
+    "OrderCancelRejected: ClientOrderId('O-20251121-030959-001-TFS-131') not found": 1
+  },
+  "observations": 108,
+  "elapsed_seconds": 269.33192282899836
+}

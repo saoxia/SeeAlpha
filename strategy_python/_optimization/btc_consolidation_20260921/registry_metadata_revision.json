@@ -1,0 +1,18 @@
+{
+  "file": "strategy_python/btc.py",
+  "original_source_archive": "frozen_sources.zip",
+  "before_sha256": "390aced6af1199377098b084f5a6501cf68fafce339d1518a223a666a524293a",
+  "after_sha256": "c7de8ce73f1fc01c0bb959ace35f01520a5e9354b0a372ee288e4b4eac359310",
+  "only_status_literals_changed": true,
+  "trade_logic_changed": false,
+  "changes": {
+    "trend_following_short": [
+      "stability_study_in_progress",
+      "stability_screen_failed"
+    ],
+    "mean_reversion_short": [
+      "new_fixed_parameter_migration",
+      "fixed_migration_validation_failed"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "exit_config": {
+    "name": "time48",
+    "hours": 48,
+    "stop": "none",
+    "atr_multiple": 2.0,
+    "reward": 0.0
+  },
+  "cap": 0.2,
+  "fee_per_side": 0.0005,
+  "size_increment": 0.001,
+  "min_notional": 50,
+  "starting_balance": 500,
+  "development_gate_pass": true,
+  "live_ready": false,
+  "selection_uses": "2021-2023 only; all history previously viewed"
+}
