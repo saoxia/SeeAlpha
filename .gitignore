@@ -2,11 +2,24 @@
 .local/
 .venv/
 
+# 独立前端依赖和构建产物
+/web/node_modules/
+/web/.next/
+/web/out/
+/web/coverage/
+/web/*.tsbuildinfo
+/web/.env*
+!/web/.env.example
+
 # Python 缓存和测试产物
 __pycache__/
 *.py[cod]
 .coverage
 htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
 
 # 密钥和本地配置
 .env

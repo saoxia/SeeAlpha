@@ -134,6 +134,6 @@ rc7 已有 BinanceDataClientConfig / Factory 和 LiveNode 接入能力，策略�
 
 - [微基准结果](validation/native_capability_benchmarks.json)：当前机器、引擎版本、样本数量、耗时与误差。
 - [行为对照结果](validation/native_capability_behavior.json)：原生最小名义金额拒单、策略限定撤单、Catalog 区间、自定义数据往返、缺口聚合及转换器发现路径。
-- 探针脚本保存在 `.local/tmp/native-review/`，仅为本次评估；未作为生产代码接入。
+- 一次性探针脚本与临时运行日志已清理；评估结果保留在上述 `validation/` 文件中，未将探针作为生产代码接入。
 - 已安装接口：`.venv/lib/python3.14/site-packages/nautilus_trader/{persistence,indicators,backtest,trading,common,risk,adapters/binance}/__init__.pyi`。
 - 官方参考：[数据与 Arrow Wrangler](https://nautilustrader.io/docs/nightly/concepts/data/)、[回测流式 API](https://nautilustrader.io/docs/nightly/concepts/backtesting/apis-and-runs/)、[聚合概念](https://nautilustrader.io/docs/latest/concepts/data/)。nightly 文档可能领先于发行版，本报告列为可用的接口均已核对本机 rc7。

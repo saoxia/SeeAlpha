@@ -1,0 +1,37 @@
+/* LIVE account switcher and chart chrome. Keep this file loaded after globals.css. */
+.ticker{height:47px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.ticker>.venue-tabs{max-width:70vw;scrollbar-width:none}
+.ticker>.venue-tabs::-webkit-scrollbar{display:none}
+.venue-tabs>.venue-tab{position:relative;min-width:142px;max-width:210px;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:1px 16px;background:#f8f9fa;text-align:center}
+.venue-tabs>.venue-tab:hover{background:#eef0f1}
+.venue-tabs>.venue-tab.on{z-index:1;background:#eceeef;color:var(--ink);box-shadow:none}
+.venue-tabs>.venue-tab.on:after{position:absolute;right:0;bottom:-2px;left:0;height:2px;background:#eceeef;content:""}
+.venue-tab-title{display:flex!important;min-width:0;align-items:center;justify-content:center;gap:7px;color:#31343a;font-size:12px;font-weight:700;line-height:15px;white-space:nowrap;transform:translateY(-1px)}
+.venue-tab-title>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.venue-tab-title .exchange-icon{width:15px;height:15px;flex:0 0 auto}
+.venue-overview-icon{display:grid!important;width:15px;height:15px;flex:0 0 auto;place-items:center;border-radius:50%;background:#17191d;color:#fff!important;font-size:9px!important;line-height:1!important}
+.venue-equity{display:block;overflow:hidden;color:#0c1d34;font-size:12px;line-height:15px;text-align:center;text-overflow:ellipsis;white-space:nowrap;transform:translateY(1px)}
+.ticker>.ticker-health{display:flex;width:auto;flex:0 0 auto;align-items:center;gap:8px;margin-left:auto;border:0;padding:0 22px;color:var(--green);font-size:10px;font-weight:700;white-space:nowrap}
+.ticker-health .monitor-dot{display:block;flex:0 0 auto}
+.ticker>.ticker-health span{display:inline;color:var(--green);font-size:10px}
+.chart-status{color:#777;font-size:8px;letter-spacing:.2px}
+.equity-chart{position:relative;width:100%;height:100%;overflow:hidden;background:#f8f8f6;color:#17191d}
+.equity-chart-canvas{position:absolute;inset:0}
+.equity-chart-head{position:absolute;z-index:4;top:14px;right:72px;left:20px;display:grid;grid-template-columns:minmax(100px,1fr) auto minmax(130px,1fr);align-items:start;gap:16px;pointer-events:none}
+.equity-chart-title span,.equity-chart-title b,.equity-chart-price strong,.equity-chart-price em{display:block}
+.equity-chart-title span{margin-bottom:4px;color:#777a80;font-size:8px;letter-spacing:.8px;text-transform:uppercase}
+.equity-chart-title b{font-size:12px}
+.equity-chart-toolbar{display:flex;overflow:hidden;border:1px solid #c9cbce;background:rgba(248,248,246,.92);pointer-events:auto}
+.equity-chart-toolbar button{min-width:38px;padding:5px 8px;border:0;border-right:1px solid #d7d9dc;background:transparent;color:#666;font:700 8px "Courier New",monospace;cursor:pointer}
+.equity-chart-toolbar button:last-child{border-right:0}
+.equity-chart-toolbar button:hover,.equity-chart-toolbar button.on{background:#17191d;color:#fff}
+.equity-chart-price{text-align:right}
+.equity-chart-price strong{font:700 18px/1.1 Georgia,serif}
+.equity-chart-price em{margin-top:5px;font-size:8px;font-style:normal}
+.equity-chart-price .positive{color:var(--green)}
+.equity-chart-price .negative{color:var(--red)}
+.equity-chart-state{position:absolute;z-index:3;top:50%;left:50%;width:min(420px,80%);margin:0;transform:translate(-50%,-50%);color:#777a80;font-size:10px;line-height:1.7;text-align:center}
+.equity-chart-state.error{color:var(--red)}
+.equity-chart-warning{position:absolute;z-index:4;right:72px;bottom:30px;color:#9b6f1e;font-size:7px}
+@media(max-width:1000px){.ticker>.venue-tabs{max-width:100%}}
+@media(max-width:620px){.ticker{height:47px}.ticker>.venue-tabs{max-width:calc(100% - 64px)}.ticker>.ticker-health{padding:0 12px}.venue-tabs>.venue-tab{min-width:128px;padding:1px 13px}.venue-tab-title,.venue-equity{font-size:11px}.equity-chart-head{top:10px;right:58px;left:10px;grid-template-columns:1fr auto}.equity-chart-toolbar{grid-column:1/-1;grid-row:2;justify-self:start}.equity-chart-price strong{font-size:15px}.equity-chart-title b{font-size:10px}.equity-chart-price{grid-column:2;grid-row:1}.equity-chart-toolbar button{min-width:34px;padding:4px 6px}}

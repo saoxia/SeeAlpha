@@ -2,7 +2,6 @@
 
 import argparse
 import base64
-import fcntl
 import hmac
 import ipaddress
 import json
@@ -19,8 +18,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
-from .artifacts import BACKTESTS, artifact_path
+from api.db.errors import StorageUnavailable
+
+from .artifacts import BACKTESTS, CHECKS, artifact_path
 from .jobs import ACTIONS, STRATEGIES, BusyError, JobManager
+from .storage import WebPaths, migrate_legacy, runtime_lock
 
 PROJECT = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).with_name("static")
@@ -96,6 +98,9 @@ class Console:
                     )
                 except (OSError, ValueError):
                     continue
+            repository = getattr(self.jobs, "repository", None)
+            if repository is not None:
+                repository.refresh_reports(items)
             self._reports = sorted(items, key=lambda item: item["modified_at"], reverse=True)
             self._reports_at = time.monotonic()
             return self._reports
@@ -105,7 +110,7 @@ class Console:
         return {
             "server_time": datetime.now(UTC).isoformat(),
             "csrf_token": self.token,
-            "checks": snapshot(self.project, Path("data/project_checks/latest.json"), 86400),
+            "checks": snapshot(self.project, CHECKS / "latest.json", 86400),
             "strategies": STRATEGIES,
             "actions": ACTIONS,
             "jobs": self.jobs.list_jobs(),
@@ -250,7 +255,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": "文件或任务不存在"})
         except (BrokenPipeError, ConnectionResetError):
             pass
-        except OSError:
+        except (OSError, StorageUnavailable):
             self._json(503, {"error": "暂时无法读取，请稍后重试"})
 
     def do_POST(self):
@@ -300,7 +305,7 @@ class ConsoleHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(exc) or "参数无效"})
         except (BrokenPipeError, ConnectionResetError):
             pass
-        except OSError:
+        except (OSError, StorageUnavailable):
             self._json(503, {"error": "暂时无法执行，请稍后重试"})
 
 
@@ -313,56 +318,59 @@ def main():
     parser.add_argument(
         "--password-file",
         type=Path,
-        default=PROJECT / "data/web_console/access_password",
+        default=WebPaths(PROJECT).password,
         help="网络访问的登录口令文件；不存在时自动生成",
     )
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("端口范围为 1–65535")
-    runtime = PROJECT / "data/web_console"
-    runtime.mkdir(parents=True, exist_ok=True)
-    # A second instance must not mark the first instance's running jobs interrupted.
-    with (runtime / "server.lock").open("a") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            parser.exit(1, "Web 管理端已在运行。\n")
-        console = Console()
-        try:
-            password = None
-            if args.host not in {"127.0.0.1", "localhost"}:
-                password_path = args.password_file
-                try:
-                    descriptor = os.open(password_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-                except FileExistsError:
-                    if password_path.is_symlink():
-                        raise ValueError("口令文件不能为符号链接") from None
-                else:
-                    with os.fdopen(descriptor, "w") as output:
-                        output.write(secrets.token_urlsafe(24) + "\n")
-                password = password_path.read_text().strip()
-                if len(password) < 16:
-                    raise ValueError("网络访问口令至少需要 16 个字符")
-            server = ConsoleServer((args.host, args.port), console, password=password)
-        except (OSError, ValueError) as exc:
-            console.jobs.close()
-            parser.exit(1, f"无法启动管理端：{exc}\n")
+    paths = WebPaths(PROJECT)
+    try:
+        with runtime_lock(paths):
+            migrate_legacy(paths)
+            return _serve(args, parser)
+    except (OSError, ValueError, StorageUnavailable) as exc:
+        parser.exit(1, f"无法启动管理端：{exc}\n")
 
-        def stop(_signum, _frame):
-            threading.Thread(target=server.shutdown, daemon=True).start()
 
-        signal.signal(signal.SIGTERM, stop)
-        signal.signal(signal.SIGINT, stop)
-        print(f"Web 管理端监听 {args.host}:{args.port}（按 Ctrl+C 停止）", flush=True)
-        if args.host == "0.0.0.0":
-            print(f"其他设备访问：http://<本机网络 IP>:{args.port}", flush=True)
-        if password:
-            print(f"登录用户：admin；口令文件：{args.password_file}", flush=True)
-        try:
-            server.serve_forever()
-        finally:
-            server.server_close()
-            console.jobs.close()
+def _serve(args, parser):
+    console = Console()
+    try:
+        password = None
+        if args.host not in {"127.0.0.1", "localhost"}:
+            password_path = args.password_file
+            password_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            try:
+                descriptor = os.open(password_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                if password_path.is_symlink():
+                    raise ValueError("口令文件不能为符号链接") from None
+            else:
+                with os.fdopen(descriptor, "w") as output:
+                    output.write(secrets.token_urlsafe(24) + "\n")
+            password = password_path.read_text().strip()
+            if len(password) < 16:
+                raise ValueError("网络访问口令至少需要 16 个字符")
+        server = ConsoleServer((args.host, args.port), console, password=password)
+    except (OSError, ValueError) as exc:
+        console.jobs.close()
+        parser.exit(1, f"无法启动管理端：{exc}\n")
+
+    def stop(_signum, _frame):
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    print(f"Web 管理端监听 {args.host}:{args.port}（按 Ctrl+C 停止）", flush=True)
+    if args.host == "0.0.0.0":
+        print(f"其他设备访问：http://<本机网络 IP>:{args.port}", flush=True)
+    if password:
+        print(f"登录用户：admin；口令文件：{args.password_file}", flush=True)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+        console.jobs.close()
     return 0
 
 

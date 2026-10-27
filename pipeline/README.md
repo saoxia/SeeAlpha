@@ -53,11 +53,12 @@ Binance `klines` 归档。
 | `validate_data.py` | 校验 trades/klines CSV、时间、Trade ID、价格数量、OHLCV 和 Catalog 范围。 |
 | `rust_trade_converter.py` | 调用并校验 Rust 转换器，管理 Python/Rust 边界和 staging manifest。 |
 | `convert_binance_trades.py` | 调度 Rust 流式转换并原子安装结果；Rust 不可用时保留 Python 分块回退。 |
-| `convert_binance_bars.py` | 保留旧 kline 归档转换及共享状态工具；统一准备入口不再调用它下载或生成 K 线。 |
+| `convert_binance_bars.py` | 保留单个旧 kline 归档转换及共享状态工具；闲置的批量封装已移除，统一准备入口不再调用它下载或生成 K 线。 |
 | `bar_features.py` | 从 trades 补建扩展行情和滚动指标，按 UTC 日保存，自带续算状态、失效检查和按列读取。 |
 | `prepare_data.py` | 对外统一入口；按顺序执行同步、合约定义准备、转换和最终验证。 |
 
-当前目录没有功能性子目录，避免在管道规模较小时过度拆分。Python 运行产生的
+`rust_converter/` 保存 Rust trades 转换器的源码、依赖声明和锁文件，Python 管道通过
+`rust_trade_converter.py` 调用它。Python 运行产生的
 `__pycache__/` 只是解释器缓存，已被 Git 忽略，不属于项目模块。
 
 ## 运行时数据目录
@@ -78,7 +79,8 @@ data/
 
 ### 数据职责
 
-- `data/raw/binance/` 是可重新生成派生数据的原始来源。
+- `data/raw/binance/` 是可重新生成派生数据的原始来源，保存下载的 ZIP 与配套 CHECKSUM，
+  转换后继续保留。下载中的隐藏 `.part` 文件放在正式归档同一目录，无需独立暂存目录。
 - `data/catalog/` 是回测和策略读取的物化结果。
 - `data/pipeline_state/binance/` 只记录管道幂等状态，不作为行情事实来源；它必须与
   Catalog 一起保留或一起清空。

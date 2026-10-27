@@ -134,23 +134,19 @@ def test_exiting_group_permission_query_is_retried(manager, monkeypatch):
     assert signals == [signal.SIGTERM, 0, 0]
 
 
-def test_project_check_report_links_follow_only_the_configured_data_root(manager):
-    external = manager.project.parent / (manager.project.name + "-external")
-    (manager.project / "data").rename(external)
-    (manager.project / "data").symlink_to(external, target_is_directory=True)
-    report = external / "project_checks/run/results.json"
+def test_project_check_report_links_stay_in_local_check_logs(manager):
+    report = manager.project / "logs/web/checks/run/results.json"
     report.parent.mkdir(parents=True)
     report.write_text("{}")
     log = json.dumps({"artifact_directory": str(report.parent)}, indent=2)
     assert manager._reports("check_quick", None, log) == [
-        "/artifacts/data/project_checks/run/results.json"
+        "/artifacts/logs/web/checks/run/results.json"
     ]
-    assert (
-        manager._reports(
-            "check_quick", None, json.dumps({"artifact_directory": str(external)}, indent=2)
-        )
-        == []
-    )
+    outside = manager.project.parent / (manager.project.name + "-external")
+    outside.mkdir()
+    assert manager._reports(
+        "check_quick", None, json.dumps({"artifact_directory": str(outside)}, indent=2)
+    ) == []
 
 
 def test_shutdown_kills_entire_child_group(manager):
@@ -234,6 +230,7 @@ print('指定时间范围内没有已有 K 线，跳过本次回测')
 def test_zero_trade_report_is_success_and_links_only_announced_report(manager, external_data):
     if external_data:
         external = manager.project.parent / (manager.project.name + "-external")
+        (manager.project / "data").mkdir(exist_ok=True)
         (manager.project / "data").rename(external)
         (manager.project / "data").symlink_to(external, target_is_directory=True)
     module(
@@ -269,7 +266,7 @@ def test_nonzero_exit_preserves_error_and_logs(manager):
 
 def test_startup_interrupts_stale_job_without_signalling_pid(tmp_path, monkeypatch):
     identity = "f" * 32
-    directory = tmp_path / "data/web_console/jobs"
+    directory = tmp_path / ".local/state/web/jobs"
     directory.mkdir(parents=True)
     (directory / f"{identity}.json").write_text(
         json.dumps(

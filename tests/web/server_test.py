@@ -176,12 +176,12 @@ def test_unknown_routes_and_cancel_parameters_do_not_mutate_jobs(web):
         "/artifacts/../secret.txt",
         "/artifacts/%2e%2e/secret.txt",
         "/artifacts/%2Fetc/passwd",
-        "/artifacts/data/project_checks/run/observations.sqlite",
-        "/artifacts/data/project_checks/run/raw/evidence.json",
+        "/artifacts/logs/web/checks/run/observations.sqlite",
+        "/artifacts/logs/web/checks/run/raw/evidence.json",
     ],
 )
 def test_artifacts_refuse_traversal_absolute_and_private_data(web, path):
-    study = web.root / "data/project_checks/run"
+    study = web.root / "logs/web/checks/run"
     study.mkdir(parents=True)
     (study / "observations.sqlite").write_text("private observation database")
     (study / "raw").mkdir()
@@ -191,12 +191,12 @@ def test_artifacts_refuse_traversal_absolute_and_private_data(web, path):
 
 
 def test_artifact_symlinks_are_refused_even_for_allowed_report_names(web):
-    study = web.root / "data/project_checks/run"
+    study = web.root / "logs/web/checks/run"
     study.mkdir(parents=True)
     secret = web.root / "secret.txt"
     secret.write_text("private")
     (study / "results.json").symlink_to(secret)
-    assert web.request("GET", "/artifacts/data/project_checks/run/results.json")[0] == 404
+    assert web.request("GET", "/artifacts/logs/web/checks/run/results.json")[0] == 404
     runs = web.root / "data/reports/backtest"
     runs.mkdir(parents=True)
     outside = web.root / "private_run"
@@ -211,24 +211,29 @@ def test_external_data_root_serves_published_files_but_refuses_nested_links(web)
     external = web.root.parent / (web.root.name + "-external")
     external.mkdir()
     (web.root / "data").symlink_to(external, target_is_directory=True)
-    study = web.root / "data/project_checks/run"
+    study = web.root / "data/reports/backtest/example/run"
     study.mkdir(parents=True)
-    (study / "results.json").write_text("published health")
-    assert web.request("GET", "/artifacts/data/project_checks/run/results.json")[0] == 200
+    (study / "report.html").write_text("published report")
+    assert web.request("GET", "/artifacts/data/reports/backtest/example/run/report.html")[0] == 200
     secret = external / "secret.html"
     secret.write_text("private")
-    (study / "lint.log").symlink_to(secret)
-    assert web.request("GET", "/artifacts/data/project_checks/run/lint.log")[0] == 404
-    checks = external / "project_checks/run"
-    checks.mkdir(parents=True, exist_ok=True)
-    (checks / "results.json").write_text("{}")
-    assert web.request("GET", "/artifacts/data/project_checks/run/results.json")[0] == 200
+    (study / "summary.json").symlink_to(secret)
+    assert web.request("GET", "/artifacts/data/reports/backtest/example/run/summary.json")[0] == 404
+
+
+def test_local_check_logs_cannot_redirect_to_external_files(web):
+    external = web.root.parent / (web.root.name + "-checks")
+    (external / "run").mkdir(parents=True)
+    (external / "run/results.json").write_text("private")
+    (web.root / "logs/web").mkdir(parents=True)
+    (web.root / "logs/web/checks").symlink_to(external, target_is_directory=True)
+    assert web.request("GET", "/artifacts/logs/web/checks/run/results.json")[0] == 404
 
 
 @pytest.mark.parametrize(
     "relative",
     [
-        "data/project_checks/run/results.json",
+        "logs/web/checks/run/results.json",
         "data/reports/backtest/example/run-1/report.html",
         "data/reports/backtest/portfolio/example/run-1/report.html",
     ],
@@ -253,7 +258,7 @@ def test_published_reports_are_served_with_isolated_content_policy(web, relative
     ["not json", "[]", '{"checked_ms":{}}', '{"checked_ms":NaN}', '{"checked_ms":Infinity}'],
 )
 def test_invalid_snapshot_is_reported_without_hiding_other_state(web, content):
-    checks = web.root / "data/project_checks"
+    checks = web.root / "logs/web/checks"
     checks.mkdir(parents=True)
     (checks / "latest.json").write_text(content)
     status, _, body = web.request("GET", "/api/state")

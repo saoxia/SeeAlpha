@@ -14,6 +14,13 @@
 
 ## 日常使用
 
+独立前端与 API 已完成第一阶段拆分：用户鉴权运行于根目录 `api/`，Next.js
+前端运行于 `web/`。安装 API 依赖使用 `uv sync --locked --group api`，启动和
+迁移说明见 [API 说明](api/README.md) 与 [前端说明](web/README.md)。
+业务存储使用 ORM 对接 PostgreSQL 或 SQLite；数据库连接需显式配置，离线测试使用临时 SQLite。
+云端连接失败不会自动退回 SQLite。旧历史业务和大体积行情文件仍保留本地。
+下文 `python -m web.server` 仍指兼容保留的旧 Python 管理端。
+
 在项目根目录执行：
 
 ```bash
@@ -96,5 +103,19 @@ NAUTILUS_RUST_CONVERTER=off python -m pytest tests/pipeline -q
 
 当前依赖版本以 `uv.lock`、`rust-toolchain.toml` 和转换器 `Cargo.lock` 为准。
 开发检查使用 `python -m ruff check .` 与 `python -m pytest -q`。
-Web 发起的检查保存报告到 `data/project_checks/latest.json`；直接运行标准命令时结果显示在终端。
+Web 任务记录位于 `.local/state/web/jobs/`，日志位于 `logs/web/`，登录口令位于
+`.local/config/web/access_password`，服务锁位于 `.local/run/web/server.lock`。
+这些目录不依赖外置数据盘，旧 Web 运行文件的迁移规则见 [Web 管理端说明](web/README.md#运行文件布局与迁移)。
+
+Web 发起的检查保存报告到 `logs/web/checks/latest.json`；直接运行标准命令时结果显示在终端。
 当前策略源码基线位于 `tests/baselines/current_source_baselines.json`。
+
+## 临时产物清理
+
+迁移与引擎改造的一次性探针、旧验收日志和测试临时目录已清理；
+长期技术证据保留在 `docs/validation/`，源码及授权更新基线保留在 `tests/baselines/`。
+
+`.local/tmp/`、`.local/cache/` 与源码目录中的 `__pycache__/` 为可再生成的临时产物。
+清理前应停止正在使用这些目录的测试或构建任务。正常运行会重新生成所需缓存。
+`.local/state/web/`、`.local/config/`、服务锁、Python/Rust 环境及转换器不按缓存清理。
+历史研究的运行结果、冻结源码包与来源清单保留，用于复现和核验；它们不属于临时目录。

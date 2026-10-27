@@ -20,8 +20,9 @@ def test_project_check_only_runs_source_style_and_requested_tests(tmp_path, monk
     assert check_project.run_checks(quick=True) == 0
     assert len(commands) == 2
     assert commands[0][2] == "ruff"
-    report = json.loads((tmp_path / "data/project_checks/latest.json").read_text())
+    report = json.loads((tmp_path / "logs/web/checks/latest.json").read_text())
     assert report["passed"] is True and report["full_tests"] is False
+    assert not (tmp_path / "data").exists()
 
 
 def test_lint_excludes_runtime_and_history_without_hiding_source_errors(tmp_path, monkeypatch):
@@ -53,7 +54,7 @@ def test_lint_excludes_runtime_and_history_without_hiding_source_errors(tmp_path
 
     monkeypatch.setattr(check_project.subprocess, "run", run_check)
     assert check_project.run_checks(quick=True) == 1
-    result = json.loads((tmp_path / "data/project_checks/latest.json").read_text())
+    result = json.loads((tmp_path / "logs/web/checks/latest.json").read_text())
     lint = next(step for step in result["steps"] if step["name"] == "lint")
     diagnostics = json.loads((tmp_path / lint["log"]).read_text())
     assert lint["passed"] is False

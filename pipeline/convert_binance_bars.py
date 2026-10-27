@@ -243,30 +243,3 @@ def convert_archive(
     clear_failure_record(synced.path, raw_dir, state_dir)
     print(f"已写入 {len(bars)} 根 Bar：{expected_bar_type}")
     return len(bars)
-
-
-def convert_archives(
-    archives: list[SyncedArchive],
-    instruments: dict[str, Instrument],
-    catalog: ParquetDataCatalog,
-    *,
-    raw_dir: Path,
-    state_dir: Path,
-    force: bool = False,
-) -> int:
-    """转换一批归档并返回处理的 Bar 总数。"""
-    total = 0
-    for archive in archives:
-        try:
-            instrument = instruments[archive.spec.symbol]
-        except KeyError as exc:
-            raise ConversionError(f"缺少合约定义：{archive.spec.symbol}") from exc
-        total += convert_archive(
-            archive,
-            instrument,
-            catalog,
-            raw_dir=raw_dir,
-            state_dir=state_dir,
-            force=force,
-        )
-    return total

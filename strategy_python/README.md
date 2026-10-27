@@ -34,8 +34,7 @@ strategy_python/
 ├── portfolio_backtest.py      # 组合回测启动入口
 ├── PORTFOLIO.md               # 组合使用说明与实盘入口设计
 ├── _backtesting.py            # 回测环境组装，不导入具体策略
-├── _report/                  # 报告生成模块与统一产物目录
-│   └── backtest/              # 单策略按名称分目录，多策略放在 portfolio/ 下
+├── _report/                  # 报告生成代码；产物位于 data/reports/backtest/
 ├── _indicator/               # 至少被两个策略使用的指标
 ├── _model/                   # Signal、PositionTarget 等共享领域值对象
 ├── _risk/                     # 至少被两个策略使用的风险覆盖层
@@ -55,6 +54,9 @@ strategy_python/
     ├── strategy.py            # Nautilus 生命周期、事件路由、模块编排
     └── backtest.py            # 当前项目约定的独立回测入口
 ```
+
+报告产物位于项目根目录下的 `data/reports/backtest/<策略>/<run_id>/`，
+组合报告位于 `data/reports/backtest/portfolio/<清单名称>/` 下的独立运行目录。
 
 测试集中在项目根目录的 `tests/strategy_python/`，按相同的策略或共享组件名称分组。
 测试文件按关键行为组织，可覆盖多个实现文件。

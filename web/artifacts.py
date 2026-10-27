@@ -3,6 +3,7 @@
 from pathlib import Path
 
 BACKTESTS = Path("data/reports/backtest")
+CHECKS = Path("logs/web/checks")
 REPORT_FILES = {
     "report.html",
     "summary.json",
@@ -42,7 +43,7 @@ def artifact_path(project, relative):
             )
         )
     ) or (
-        relative.parent.parent == Path("data/project_checks")
+        relative.parent.parent == CHECKS
         and relative.name in {"results.json", "lint.log", "tests.log", "sources.log"}
     )
     if not allowed or not resolved.is_file():

@@ -37,6 +37,6 @@ uv run pytest tests/strategy_python/mean_reversion_long_5min
 `python -m ruff check .` 独立检查代码规范。Web 管理端可顺序运行两者并保存报告。
 
 
-代码检查排除历史研究目录 `_optimization/` 和报告历史 `analysis/`，保留快照原始字节。现行报告生成器、管线、全部策略、运维和测试仍在检查范围内。21 个已有策略文件的导入排序或公共导出提示按精确文件登记在 `tests/baselines/lint_baseline.json`，不批量改动冻结实现；源码基线测试同时验证这些文件的内容哈希，源码变化须重新审查例外。测试文件本轮的样式问题已修复。
+代码检查排除历史研究目录 `_optimization/` 和报告历史 `analysis/`，保留快照原始字节。现行报告生成器、管线、全部策略、运维和测试仍在检查范围内。`tests/baselines/lint_baseline.json` 当前没有逐文件样式例外；历史研究来源仍由源码基线测试核验，已授权的源码变更登记在 `tests/baselines/source_updates.json`，历史归档保留原始字节。
 `tests/__init__.py` 固定本项目测试包的来源，测试间引用辅助函数时使用 `tests.` 前缀。
 完整测试约定见 [Python 策略工程约定](../strategy_python/README.md#文件和测试命名)。

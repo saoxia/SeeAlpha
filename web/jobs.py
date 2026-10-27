@@ -18,7 +18,8 @@ from uuid import uuid4
 
 from core.paths import PROJECT_ROOT as PROJECT
 
-from .artifacts import BACKTESTS, artifact_path
+from .artifacts import BACKTESTS, CHECKS, artifact_path
+from .storage import WebPaths
 
 _FAMILIES = (
     ("trend_following_long", "趋势跟随多头"),
@@ -135,11 +136,30 @@ def _atomic_json(path, value):
 class JobManager:
     """Run at most one fixed command, retaining history across server restarts."""
 
-    def __init__(self, project: Path, python: str = sys.executable):
+    def __init__(self, project: Path, python: str = sys.executable, *, orm_database=None):
         self.project = Path(project).resolve()
         self.python = str(python)
-        self.directory = self.project / "data/web_console/jobs"
+        paths = WebPaths(self.project)
+        self.directory = paths.jobs
+        self.log_directory = paths.logs
+        self.log_directory.mkdir(parents=True, exist_ok=True)
         self.directory.mkdir(parents=True, exist_ok=True)
+        self._database = orm_database
+        self._owns_database = False
+        if self._database is None and self.project == PROJECT.resolve():
+            from api.config import Settings
+            from api.db.database import create_database
+
+            settings = Settings.from_environment()
+            if settings.database_url:
+                self._database = create_database(settings)
+                self._owns_database = True
+        self.repository = None
+        if self._database is not None:
+            from api.db.management_repository import ManagementRepository
+
+            self._database.initialize()
+            self.repository = ManagementRepository(self._database)
         self._lock = threading.RLock()
         self._stop_lock = threading.Lock()
         self._jobs = {}
@@ -151,6 +171,7 @@ class JobManager:
         self._restore()
 
     def _restore(self):
+        legacy = []
         for path in self.directory.glob("*.json"):
             try:
                 job = json.loads(path.read_text(encoding="utf-8"))
@@ -162,19 +183,37 @@ class JobManager:
                     or job.get("action") not in _LABELS
                 ):
                     continue
-                if job["status"] == "running":
-                    job.update(
-                        status="interrupted",
-                        finished_at=_now(),
-                        error="管理端已重启，先前任务状态无法确认；未操作历史进程。",
-                    )
-                    _atomic_json(path, job)
-                self._jobs[job["id"]] = job
+                legacy.append(job)
             except (OSError, ValueError, TypeError):
                 continue
+        if self.repository is not None:
+            self.repository.import_jobs(legacy)
+            restored = self.repository.list_jobs()
+        else:
+            restored = legacy
+        for job in restored:
+            identity = job.get("id")
+            if (
+                not isinstance(identity, str)
+                or not re.fullmatch(r"[0-9a-f]{32}", identity)
+                or job.get("status") not in _STATUSES
+                or job.get("action") not in _LABELS
+            ):
+                continue
+            if job["status"] == "running":
+                job.update(
+                    status="interrupted",
+                    finished_at=_now(),
+                    error="管理端已重启，先前任务状态无法确认；未操作历史进程。",
+                )
+                self._save(job)
+            self._jobs[identity] = job
 
     def _save(self, job):
-        _atomic_json(self.directory / f"{job['id']}.json", job)
+        if self.repository is not None:
+            self.repository.save_job(job)
+        else:
+            _atomic_json(self.directory / f"{job['id']}.json", job)
 
     def list_jobs(self):
         with self._lock:
@@ -186,7 +225,7 @@ class JobManager:
 
     def _log_tail(self, identity):
         try:
-            with (self.directory / f"{identity}.log").open("rb") as source:
+            with (self.log_directory / f"{identity}.log").open("rb") as source:
                 size = source.seek(0, os.SEEK_END)
                 source.seek(max(0, size - LOG_TAIL_BYTES))
                 return source.read(LOG_TAIL_BYTES).decode(
@@ -223,7 +262,7 @@ class JobManager:
             self._save(job)
             self._jobs[job["id"]] = job
             try:
-                with (self.directory / f"{job['id']}.log").open("ab", buffering=0) as output:
+                with (self.log_directory / f"{job['id']}.log").open("ab", buffering=0) as output:
                     process = subprocess.Popen(
                         command,
                         cwd=self.project,
@@ -365,11 +404,9 @@ class JobManager:
                 match = re.fullmatch(r'\s*"artifact_directory":\s*(".*")\s*,?', line)
                 if match:
                     path = Path(json.loads(match[1])).resolve() / "results.json"
-                    if (
-                        path.parent.parent == (self.project / "data/project_checks").resolve()
-                        and path.is_file()
-                    ):
-                        relative = Path("data/project_checks") / path.parent.name / path.name
+                    if path.parent.parent == (self.project / CHECKS).resolve() and path.is_file():
+                        relative = CHECKS / path.parent.name / path.name
+                        artifact_path(self.project, relative)
                         reports.append("/artifacts/" + quote(relative.as_posix(), safe="/"))
         return list(dict.fromkeys(reports))
 
@@ -394,11 +431,13 @@ class JobManager:
             self._stop_group(process)
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=STOP_GRACE + 8)
+        if self._owns_database:
+            self._database.close()
 
 
 def run_checks(*, quick=False):
     identity = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    output = PROJECT / "data/project_checks" / identity
+    output = PROJECT / CHECKS / identity
     output.mkdir(parents=True)
     steps = []
     commands = [

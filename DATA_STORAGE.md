@@ -1,11 +1,23 @@
 # 本机外置数据盘
 
+业务数据使用可配置的 PostgreSQL 或 SQLite ORM 存储。原有云端数据保留；
+本机已配置 PostgreSQL 连接并完成 ORM 迁移，连接文件位于 `.local/config/api/database_url`。
+加密主密钥保留在 `.local/config/api/credential_key`，须随业务数据备份。
+迁移前业务数据快照位于 `.local/state/api/backups/`，是本地记录快照而非完整数据库备份。
+详情见 [API 持久化说明](api/README.md#通用-orm-业务持久化)。
+
 配置日期：2026-10-26。外置 USB 硬盘约 500 GB，卷名 `ssd1`，APFS 文件系统、GUID 分区表。
 
 项目 `data` 是指向 `/Volumes/ssd1/NautilusTrader/data` 的符号链接。
 原始下载、Catalog、转换状态、分钟行情数据库等写入该目录的文件均存储在外置盘。
+Web 任务记录在启用 ORM 后存于业务数据库，旧 JSON 保存在本机 `.local/state/web/`；
+登录口令和服务锁分别保存在本机
+`.local/config/web/` 和 `.local/run/web/`，任务日志保存在本机 `logs/web/`。
 代码、`.venv`、`.local`、Rust 构建目录 `pipeline/rust_converter/target/` 和报告生成源码仍在本机。
 回测报告及账户、成交、持仓明细统一写入 `data/reports/backtest/`。
+
+上述 Web 运行文件不跟随外置数据盘迁移，备份时应另外保留。
+旧 `data/web_console/` 的自动迁移规则见 [Web 管理端说明](web/README.md#运行文件布局与迁移)。
 
 数据映射由 macOS 符号链接完成，程序不识别卷名、不检查挂载，也不从数据位置推导构建路径。
 
@@ -20,7 +32,7 @@
 
 # 运行时数据目录
 
-`data/` 只存放数据管道产生或管理的运行时数据。除本说明外，目录内容均被
+`data/` 存放原始行情、标准化行情、数据准备状态和回测报告；Web 运行状态、检查结果、日志与凭证单独存放。除本说明外，目录内容均被
 Git 忽略。
 
 ```text
@@ -30,7 +42,6 @@ data/
 ├── catalog/               # Nautilus TradeTick 和由 trades 聚合的多周期 Bar
 ├── reports/
 │   └── backtest/          # 单策略及组合回测报告、账户、成交和持仓明细
-├── project_checks/        # 项目检查日志和结果，不包含研究收益
 └── pipeline_state/
     └── binance/
         ├── converted/     # 原始归档到 Catalog 的转换状态
@@ -49,7 +60,11 @@ data/
 - `pipeline_state/binance/failures/` 只保存轻量 JSON，不复制失败 ZIP。记录包含源路径、
   Checksum、转换器版本、失败时间、错误类型和错误信息；转换成功后会自动清除。
 
-- `project_checks/` 保存各次源码、样式和全量测试结果；`latest.json` 保存最近一次检查内容。健康页和计数明细不代表收益验证通过。
+- `raw/binance/` 保留已下载的原始 ZIP 和配套 CHECKSUM，转换成功后也不会自动删除。
+  下载中的文件以 `.<文件名>.part` 暂存在目标归档同一目录，可用于续传；校验通过后才
+  替换正式文件，不另建独立下载暂存目录。此目录会在下载时按需创建。
+- 旧 `project_checks/` 与 `dev_checks/` 已清理。Web 项目检查后续写入本机
+  `logs/web/checks/`，不会重新创建这两个数据目录；检查功能保留。
 
 行情管线目录由 `pipeline.prepare_data` 按需创建，具体命令和失败规则见
-[`pipeline/README.md`](../pipeline/README.md)。
+[`pipeline/README.md`](pipeline/README.md)。

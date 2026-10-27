@@ -16,8 +16,8 @@
   },
   "pipeline/convert_binance_bars.py": {
     "previous_sha256": "c9e39f18bdd0a99ed2e76f091755b1a066f7def2319acd756b4c299ec0d7f381",
-    "sha256": "bcf50cb0a8b8d074fb158348f2f819d1013e84b7d5dfe8e853d68cf1f20abc20",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "b5d5001fb778c01dbba6f5451d7a58cbe333a80490c260d76e11899eaae47da3",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-10-27 用户明确授权处理技术债审计 A 类、B2、B4：移除闲置的 convert_archives 批量封装，保留单归档转换和新链路使用的共享工具；历史归档不变。"
   },
   "pipeline/prepare_data.py": {
     "previous_sha256": "aa299b8cdd63e2e01189402ff5dffc48301f7e02a931e70e77dbc4f86973d02c",
