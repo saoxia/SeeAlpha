@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from decimal import Decimal
+from traceback import clear_frames
 
 from nautilus_trader.adapters.binance import (
     BinanceDataClientConfig,
@@ -77,6 +78,46 @@ async def account_snapshot(
     operation_records=None,
     reconciliation_lookback_minutes=1,
 ):
+    """Keep the native node's entire lifetime on a worker thread with its own loop."""
+    def read():
+        try:
+            return asyncio.run(_account_snapshot(
+                account,
+                http_url=http_url,
+                websocket_url=websocket_url,
+                timeout=timeout,
+                log_level=log_level,
+                operation_records=operation_records,
+                reconciliation_lookback_minutes=reconciliation_lookback_minutes,
+            ))
+        except Exception as exc:  # noqa: BLE001 - Native tracebacks must stay on this thread.
+            message = str(exc) if isinstance(exc, QueryError) else None
+            # Failed tasks retain native objects through exception frame locals.
+            # Release those references here, before another thread can collect them.
+            error = exc
+            while error is not None:
+                clear_frames(error.__traceback__)
+                error = error.__context__
+            if message is not None:
+                return message
+            return "Binance 账户查询失败，请检查凭证、权限、环境和网络。"
+
+    result = await asyncio.to_thread(read)
+    if isinstance(result, str):
+        raise QueryError(result)
+    return result
+
+
+async def _account_snapshot(
+    account,
+    *,
+    http_url=None,
+    websocket_url=None,
+    timeout=30,
+    log_level=LogLevel.OFF,
+    operation_records=None,
+    reconciliation_lookback_minutes=1,
+):
     """Bounded native node; snapshots are single-flight/cached by the owning service.
 
     Reconciliation loads the complete USD-M instrument scope, not just UI watchlist symbols.
@@ -84,6 +125,11 @@ async def account_snapshot(
     """
     account_id = AccountId(f"BINANCE-{account['id']}")
     credentials = account["credentials"]
+    if credentials["apiKey"] == credentials["secret"]:
+        raise QueryError(
+            "已保存的 API Key 与 Secret Key 相同，无法生成有效签名。"
+            "请编辑账户，填写同一组 API 对应的 Key 和 Secret Key。"
+        )
     config = BinanceExecutionClientConfig(
         account_id=account_id,
         product_type=BinanceProductType.USD_M,

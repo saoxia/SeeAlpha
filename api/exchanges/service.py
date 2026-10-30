@@ -65,7 +65,6 @@ class ExchangeService:
                 for key in (
                     "environment",
                     "credentials_encrypted",
-                    "market_symbols_json",
                     "updated_at",
                 )
             )
@@ -80,7 +79,6 @@ class ExchangeService:
                 for key in (
                     "environment",
                     "credentials_encrypted",
-                    "market_symbols_json",
                     "updated_at",
                 )
             ):
@@ -88,25 +86,37 @@ class ExchangeService:
             self.cache[account_id] = (time.monotonic() + 10, value, identity)
             return value
 
-    async def catalog(self, env):
-        async with self.catalog_locks.setdefault(env, asyncio.Lock()):
-            cached = self.catalog_cache.get(env)
+    async def catalog(self, env, product="futures_um"):
+        key = (env, product)
+        async with self.catalog_locks.setdefault(key, asyncio.Lock()):
+            cached = self.catalog_cache.get(key)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
+            if product == "options":
+                if env != "production":
+                    raise ValueError("期权数据仅使用正式公开行情")
+                from connectors.binance.options import markets
+                values = await asyncio.to_thread(markets)
+                self.catalog_cache[key] = (time.monotonic() + 300, values)
+                return values
+            if product != "futures_um":
+                raise ValueError("不支持的行情产品")
             instruments = await queries.instruments(env)
-            values = [
-                {
-                    "symbol": f"{i.base_currency}/{i.quote_currency}:{i.settlement_currency}",
-                    "market_type": "linear",
-                    "base": str(i.base_currency),
-                    "quote": str(i.quote_currency),
-                    "expiry": None,
-                }
-                for i in instruments
-                if str(i.settlement_currency) == "USDT"
-            ]
+            values = []
+            for instrument in instruments:
+                quote = str(instrument.quote_currency)
+                symbol = str(instrument.id.symbol).removesuffix("-PERP")
+                if (quote not in {"USDT", "USDC"} or str(instrument.settlement_currency) != quote
+                        or not symbol.endswith(quote)):
+                    continue
+                # The native identifier retains Binance's exact contract name even
+                # when its base currency is missing or aliases a quantity prefix.
+                base = symbol[:-len(quote)]
+                values.append({"symbol": f"{base}/{quote}:{instrument.settlement_currency}",
+                               "market_type": "linear", "base": base, "quote": quote,
+                               "expiry": None})
             values.sort(key=lambda item: item["symbol"])
-            self.catalog_cache[env] = (time.monotonic() + 300, values)
+            self.catalog_cache[key] = (time.monotonic() + 300, values)
             return values
 
     async def portfolio(self, account_id):

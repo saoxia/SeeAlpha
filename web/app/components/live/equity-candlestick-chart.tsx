@@ -11,6 +11,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { EquityCandleSeries } from "../types";
+import { subscribeTheme } from "@/app/features/appearance/theme";
 
 type Props = { accountId: number | null; accountName: string };
 type Interval = "5m" | "15m" | "1h" | "4h" | "1d";
@@ -56,16 +57,13 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#f8f8f6" },
-        textColor: "#777a80",
-        fontFamily: '"Courier New", monospace',
         fontSize: 10,
         attributionLogo: true,
       },
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "#c9cbce", scaleMargins: { top: 0.18, bottom: 0.08 } },
-      timeScale: { borderColor: "#c9cbce", timeVisible: true, secondsVisible: false, rightOffset: 3, barSpacing: 8, minBarSpacing: 2 },
+      rightPriceScale: { scaleMargins: { top: 0.18, bottom: 0.08 } },
+      timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 3, barSpacing: 8, minBarSpacing: 2 },
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       handleScale: {
         axisPressedMouseMove: { time: true, price: true },
@@ -84,7 +82,23 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
     });
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
+    function applyAppearance() {
+      if (!containerRef.current) return;
+      const style = getComputedStyle(containerRef.current);
+      chart.applyOptions({
+        layout: {
+          background: { type: ColorType.Solid, color: style.getPropertyValue("--chart-background").trim() },
+          textColor: style.getPropertyValue("--chart-text").trim(),
+          fontFamily: style.getPropertyValue("--chart-font").trim(),
+        },
+        rightPriceScale: { borderColor: style.getPropertyValue("--chart-border").trim() },
+        timeScale: { borderColor: style.getPropertyValue("--chart-border").trim() },
+      });
+    }
+    applyAppearance();
+    const unsubscribe = subscribeTheme(applyAppearance);
     return () => {
+      unsubscribe();
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;

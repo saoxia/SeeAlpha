@@ -14,6 +14,17 @@ from api.main import app
 
 OUTPUT_PATH = WEB_ROOT / "app" / "api" / "generated" / "schema.ts"
 SCHEMA_NAMES = (
+    "ExchangeAccountCreateRequest",
+    "ExchangeAccountUpdateRequest",
+    "ExchangeAccountResponse",
+    "DataCapabilities",
+    "DataPolicy",
+    "DataPolicySave",
+    "PairDeletePlanRequest",
+    "PairDeleteRequest",
+    "DataMarket",
+    "DataDeletionPlan",
+    "DataJobResponse",
     "EquityCandleResponse",
     "EquityCandleSeriesResponse",
     "ExchangeAccountNavigationResponse",
@@ -43,7 +54,8 @@ def _typescript_type(schema: dict[str, Any]) -> str:
     if isinstance(schema_type, list):
         return " | ".join(PRIMITIVES.get(item, "unknown") for item in schema_type)
     if schema_type == "array":
-        return f"{_typescript_type(schema.get('items', {}))}[]"
+        item = _typescript_type(schema.get("items", {}))
+        return f"({item})[]" if " | " in item else f"{item}[]"
     if schema_type == "object":
         additional = schema.get("additionalProperties")
         if isinstance(additional, dict):

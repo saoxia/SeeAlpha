@@ -68,3 +68,14 @@ data/
 
 行情管线目录由 `pipeline.prepare_data` 按需创建，具体命令和失败规则见
 [`pipeline/README.md`](pipeline/README.md)。
+
+
+## 2026-10-29 行情服务干净切换
+
+用户明确授权清除旧行情与参数后，已执行 `83b07b30f140` 配置表迁移，
+将当前 ETHUSDC 的有效配置导入 `market_data_policies`，移除旧 JSON 参数文件。
+本次显式清理旧 Catalog、`raw/binance`、`pipeline_state/binance`、
+`market_data/binance_um_1m`、旧行情任务状态与日志；这是一次授权清理，不改变上面的默认保留规则。
+数据挂载链接、用户、加密账户、操作账本、研究报告与凭据保持原位。
+新行情服务重新生成来源与派生数据，监控与进度只写文件，不回填业务任务表。
+清理清单位于 `.local/state/api/deployments/20261029-market-services-cleanup.json`。

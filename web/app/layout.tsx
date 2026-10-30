@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./styles/features/live.css";
+import "./styles/appearance.css";
+import { themeBootstrap } from "./features/appearance/theme";
 
 export const metadata: Metadata = {
   title: "SeeAlpha — AI 交易系统",
@@ -8,5 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body>{children}</body></html>;
+  return <html lang="zh-CN" suppressHydrationWarning><head>
+    <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
+  </head><body>{children}</body></html>;
 }

@@ -10,19 +10,3 @@ export async function exchangeRequest<T>(path = "", init?: RequestInit): Promise
   if (!response.ok) throw new Error(payload?.detail || "交易所账户操作失败。");
   return payload as T;
 }
-
-export async function exchangeMarketRequest<T>(
-  query: URLSearchParams,
-  signal?: AbortSignal,
-): Promise<T> {
-  const response = await fetch(`/api/system/exchange-markets?${query}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-    signal,
-  });
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(payload?.detail || "无法读取交易所市场列表。");
-  }
-  return payload as T;
-}

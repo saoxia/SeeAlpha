@@ -85,6 +85,8 @@ def list_operations(
         result["warnings"].append("尚无交易所同步覆盖记录；空列表不代表账户没有历史操作。")
     elif any(not s["complete"] for s in result["sync"]):
         result["warnings"].append("交易所历史覆盖不完整，详见同步状态。")
+    if any(s.get("cashflows", {}).get("status") == "failed" for s in result["sync"]):
+        result["warnings"].append("部分账户资金流水同步失败，不能据此判断资金历史完整。")
     return result
 
 
@@ -116,6 +118,10 @@ def export_operations(request: Request, _: CurrentUser, query: Annotated[dict, D
         "fee_currency",
         "status",
         "confirmed",
+        "asset",
+        "income_type",
+        "transaction_id",
+        "info",
     ]
 
     def chunks():

@@ -1,7 +1,6 @@
 """Account configuration and encrypted credentials; no exchange network access."""
 
 import json
-import re
 import sqlite3
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -95,15 +94,14 @@ class Accounts:
         exchange = old["exchange"] if old else payload.exchange
         if exchange != "binance":
             raise HTTPException(422, "当前原生账户接入仅支持 Binance USD-M。")
-        symbols = list(dict.fromkeys(symbol.strip().upper() for symbol in payload.market_symbols))
-        if any(not re.fullmatch(r"[A-Z0-9]+/USDT:USDT", s) for s in symbols):
-            raise HTTPException(422, "请选择 Binance USD-M 永续交易对，例如 BTC/USDT:USDT。")
         supplied = bool(payload.api_key or payload.secret)
         if old and old["environment"] != payload.environment and not supplied:
             raise HTTPException(422, "切换环境时需要重新填写完整凭据。")
         if not old or supplied:
             if not payload.api_key or not payload.secret:
                 raise HTTPException(422, "必须同时填写 API Key 和 Secret。")
+            if payload.api_key == payload.secret:
+                raise HTTPException(422, "API Key 与 Secret Key 不能相同，请填写同一组 API 的两个不同值。")
             encrypted = (
                 self.cipher()
                 .encrypt(
@@ -123,7 +121,8 @@ class Accounts:
             "account_name": payload.account_name,
             "environment": payload.environment,
             "credentials_encrypted": encrypted,
-            "market_symbols_json": json.dumps(symbols),
+            # Preserve historical metadata when editing; it no longer configures queries.
+            "market_symbols_json": old["market_symbols_json"] if old else "[]",
         }
         try:
             if old:

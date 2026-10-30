@@ -8,12 +8,12 @@ dependencies = [
     "numpy>=2.5.4",
     "pandas>=3.1.0",
     "pyarrow>=26.0.0",
+    "websockets>=17.3",
 ]
 
 [dependency-groups]
 dev = [
     "httpx==0.28.1",
-    "websockets>=17.3",
     "pytest>=9.1.1",
     "ruff>=0.17.2",
 ]

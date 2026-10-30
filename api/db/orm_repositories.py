@@ -70,8 +70,7 @@ class ORMAuthRepository:
 
     def get_user_for_session(self, token_hash):
         now = int(time.time())
-        with self.database.session(write=True) as session:
-            session.execute(delete(Session).where(Session.expires_at <= now))
+        with self.database.session() as session:
             result = (
                 session.execute(
                     select(User.id, User.username, User.created_at, Session.expires_at)

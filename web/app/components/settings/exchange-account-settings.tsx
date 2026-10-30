@@ -2,10 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { exchangeRequest } from "./exchange-account-api";
-import type { BalanceResponse, ExchangeAccount, ExchangeEnvironment, ExchangeId, MarketType } from "./exchange-account-types";
-import { ExchangeMarketSelector } from "./exchange-market-selector";
+import type { BalanceResponse, ExchangeAccount, ExchangeEnvironment, ExchangeId, ExchangeAccountCreateRequest, ExchangeAccountUpdateRequest } from "./exchange-account-types";
 import { ExchangeIcon } from "../brand/exchange-icon";
-import { useExchangeMarketCatalog } from "@/app/features/settings/use-exchange-market-catalog";
 
 function exchangeName(exchange: ExchangeId) {
   return exchange === "binance" ? "Binance" : "OKX";
@@ -30,20 +28,6 @@ export function ExchangeAccountSettings() {
   const [apiKey, setApiKey] = useState("");
   const [secret, setSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
-  const [marketType, setMarketType] = useState<MarketType>("linear");
-  const [marketSearch, setMarketSearch] = useState("");
-  const [marketSymbols, setMarketSymbols] = useState<string[]>([]);
-  const {
-    markets,
-    loading: marketLoading,
-    error: marketError,
-  } = useExchangeMarketCatalog({
-    enabled: formOpen,
-    exchange,
-    environment,
-    marketType,
-    search: marketSearch,
-  });
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -72,9 +56,6 @@ export function ExchangeAccountSettings() {
     setExchange("binance");
     setAccountName("");
     setEnvironment("production");
-    setMarketType("linear");
-    setMarketSearch("");
-    setMarketSymbols([]);
     resetSecrets();
     setMessage("");
     setError("");
@@ -86,9 +67,6 @@ export function ExchangeAccountSettings() {
     setExchange(account.exchange);
     setAccountName(account.account_name);
     setEnvironment(account.environment);
-    setMarketType("linear");
-    setMarketSearch("");
-    setMarketSymbols(account.market_symbols);
     resetSecrets();
     setMessage("");
     setError("");
@@ -100,12 +78,10 @@ export function ExchangeAccountSettings() {
     setBusyId("form");
     setMessage("");
     setError("");
-    if (marketSymbols.length === 0) {
-      setError("请至少选择一个交易对。");
-      setBusyId(null);
-      return;
-    }
     try {
+      if (apiKey.trim() && apiKey.trim() === secret.trim()) {
+        throw new Error("API Key 与 Secret Key 不能相同，请填写同一组 API 的两个不同值。");
+      }
       if (editing) {
         await exchangeRequest<ExchangeAccount>(`/${editing.id}`, {
           method: "PUT",
@@ -115,8 +91,7 @@ export function ExchangeAccountSettings() {
             api_key: apiKey || null,
             secret: secret || null,
             passphrase: passphrase || null,
-            market_symbols: marketSymbols,
-          }),
+          } satisfies ExchangeAccountUpdateRequest),
         });
         setMessage(`${exchangeName(editing.exchange)} 账户已更新。`);
       } else {
@@ -129,8 +104,7 @@ export function ExchangeAccountSettings() {
             api_key: apiKey,
             secret,
             passphrase: passphrase || null,
-            market_symbols: marketSymbols,
-          }),
+          } satisfies ExchangeAccountCreateRequest),
         });
         setMessage(`${exchangeName(exchange)} 账户已加密保存。`);
       }
@@ -194,12 +168,6 @@ export function ExchangeAccountSettings() {
 
   const balanceByAccount = new Map(balances?.items.map((item) => [item.account.id, item]));
 
-  function toggleMarket(symbol: string) {
-    setMarketSymbols((current) => current.includes(symbol)
-      ? current.filter((item) => item !== symbol)
-      : current.length >= 30 ? current : [...current, symbol]);
-  }
-
   return (
     <section className="settings-card exchange-settings-card">
       <div className="settings-card-head">
@@ -235,7 +203,7 @@ export function ExchangeAccountSettings() {
                 <small>{exchangeName(account.exchange)} · {environmentName(account.environment)}</small>
                 <b>{account.account_name}</b>
                 <span>Key {account.key_hint}</span>
-                <span>{account.market_symbols.length} 个交易对</span>
+                <span>USD-M 永续 · 自动读取账户仓位</span>
               </div>
               <div className="exchange-account-status">
                 <small>连接状态</small>
@@ -275,24 +243,14 @@ export function ExchangeAccountSettings() {
               <button type="button" aria-label="关闭" onClick={() => setFormOpen(false)}>×</button>
             </div>
             <div className="form-grid">
-              <label className="field"><span>交易所</span><select value={exchange} disabled={Boolean(editing)} onChange={(event) => { setExchange(event.target.value as ExchangeId); setMarketSymbols([]); }}><option value="binance">Binance</option><option value="okx" disabled>OKX（待接入）</option></select></label>
-              <label className="field"><span>环境</span><select value={environment} onChange={(event) => { setEnvironment(event.target.value as ExchangeEnvironment); setMarketSymbols([]); }}><option value="production">正式环境</option><option value="sandbox">测试环境</option></select></label>
+              <label className="field"><span>交易所</span><select value={exchange} disabled={Boolean(editing)} onChange={(event) => setExchange(event.target.value as ExchangeId)}><option value="binance">Binance</option><option value="okx" disabled>OKX（待接入）</option></select></label>
+              <label className="field"><span>环境</span><select value={environment} onChange={(event) => setEnvironment(event.target.value as ExchangeEnvironment)}><option value="production">正式环境</option><option value="sandbox">测试环境</option></select></label>
               <label className="field field-wide"><span>账户名称</span><input value={accountName} onChange={(event) => setAccountName(event.target.value)} maxLength={100} required placeholder="例如：主账户 / 策略账户 A" /></label>
-              <label className="field field-wide"><span>API Key</span><input type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} required={!editing} placeholder={editing ? "留空则保持现有整组凭据" : "API Key"} /></label>
-              <label className="field field-wide"><span>Secret Key</span><input type="password" autoComplete="new-password" value={secret} onChange={(event) => setSecret(event.target.value)} required={!editing} placeholder={editing ? "更换凭据时必须整组填写" : "Secret Key"} /></label>
+              <label className="field field-wide"><span>API Key</span><input type="password" name="exchange-api-key" autoComplete="off" spellCheck={false} value={apiKey} onChange={(event) => setApiKey(event.target.value)} required={!editing} placeholder={editing ? "留空则保持现有整组凭据" : "API Key"} /></label>
+              <label className="field field-wide"><span>Secret Key</span><input type="password" name="exchange-api-secret" autoComplete="off" spellCheck={false} value={secret} onChange={(event) => setSecret(event.target.value)} required={!editing} placeholder={editing ? "更换凭据时必须整组填写" : "Secret Key（与 API Key 不同）"} /></label>
               {exchange === "okx" && <label className="field field-wide"><span>Passphrase</span><input type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} required={!editing} placeholder={editing ? "更换凭据时必须整组填写" : "OKX Passphrase"} /></label>}
-              <ExchangeMarketSelector
-                markets={markets}
-                marketType={marketType}
-                search={marketSearch}
-                selectedSymbols={marketSymbols}
-                loading={marketLoading}
-                error={marketError}
-                onMarketTypeChange={setMarketType}
-                onSearchChange={setMarketSearch}
-                onToggleSymbol={toggleMarket}
-              />
             </div>
+            <p className="github-key-note">账户余额与仓位由交易所自动读取，无需选择交易对。行情采集与策略品种另行配置。</p>
             {editing && <p className="github-key-note">不填写凭据时只修改账户名称；切换环境或更换 Key 时，请完整填写全部凭据。</p>}
             <div className="monitor-modal-actions">
               <button type="button" disabled={busyId === "form"} onClick={() => setFormOpen(false)}>取消</button>

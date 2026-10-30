@@ -14,13 +14,17 @@ export type ExchangeAccountSummary = ApiSchema<"ExchangeAccountSummaryResponse">
 
 export type ExchangeTrade = Omit<ApiSchema<"ExchangeTradeResponse">, "exchange" | "event_type" | "source"> & {
   exchange: ExchangeId;
-  event_type: "place" | "amend" | "cancel" | "fill" | "reject" | "expire" | "correction";
+  event_type: "place" | "amend" | "cancel" | "fill" | "reject" | "expire" | "correction" | "cashflow";
   source: string;
   strategy_id?: string | null;
   environment?: "production" | "sandbox";
   confirmed?: boolean;
   client_order_id?: string | null;
   trade_id?: string | null;
+  asset?: string | null;
+  income_type?: string | null;
+  transaction_id?: string | null;
+  info?: string | null;
 };
 
 export type EquityCandle = ApiSchema<"EquityCandleResponse">;

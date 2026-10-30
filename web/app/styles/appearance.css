@@ -1,0 +1,370 @@
+/* Shared controls. The pixel theme keeps the existing page surfaces and typography. */
+.interface-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #c5c9d1;
+  background: #f0f1ef;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.interface-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 5px 9px;
+  color: #4c5668;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.interface-switch button[aria-pressed="true"] { background: #202733; color: #fff; }
+.interface-switch button:hover { box-shadow: inset 0 0 0 1px #8a95a7; }
+.glass-symbol {
+  width: 11px;
+  height: 13px;
+  border: 1px solid currentColor;
+  border-radius: 60% 60% 55% 55%;
+  box-shadow: inset 2px 1px 0 #ffffff70;
+  transform: rotate(25deg);
+}
+.topbar .links { align-items: center; text-decoration: none; }
+main > .data-management-page { flex: 1; min-height: 0; }
+.appearance-choice { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; margin: 26px 0; }
+.appearance-settings h3 { margin: 0 0 8px; font-size: 14px; }
+.appearance-settings p { margin: 0; font-size: 12px; line-height: 1.8; color: #59667a; }
+.appearance-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.appearance-previews article { min-width: 0; padding: 22px; border: 1px solid #c4cad4; }
+.appearance-preview-pixel { background: #f5f5ef; }
+.appearance-preview-pixel h3 { font-family: Georgia, serif; }
+.appearance-preview-glass { background: linear-gradient(135deg, #dcecff, #ebe8f6 60%, #f7ece6); border-radius: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.appearance-swatch { display: flex; gap: 9px; margin-bottom: 24px; }
+.appearance-swatch i { height: 36px; flex: 1; border: 1px solid #8d97a6; background: #fdfdf9; }
+.appearance-preview-glass .appearance-swatch i { border-color: #fff; background: #ffffffb8; border-radius: 10px; box-shadow: 0 5px 14px #596c8e14; }
+.appearance-settings .appearance-note { margin-top: 24px; }
+
+/* Liquid glass across the application. Financial colors stay unchanged. */
+html[data-interface-theme="glass"] {
+  --glass-ink: #1c2d49;
+  --glass-muted: #4b5d77;
+  --glass-surface: #f5f8ff;
+  --glass-panel: #ffffff;
+  --glass-accent: #1e57ae;
+  --glass-shadow: 0 10px 32px #3355870c, inset 0 1px 0 #ffffff;
+  --glass-radius: 22px;
+}
+html[data-interface-theme="glass"] .topbar {
+  z-index: 20;
+  position: relative;
+  height: 66px;
+  margin: 14px 24px 0;
+  padding: 0 20px;
+  grid-template-columns: 170px minmax(0, 1fr) 170px;
+  border: 1px solid #fff;
+  border-radius: 24px;
+  background: var(--glass-surface);
+  box-shadow: 0 8px 28px #233f6c0c, inset 0 1px 0 #fff;
+  color: var(--glass-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html[data-interface-theme="glass"] .topbar .brand { padding-top: 0; }
+html[data-interface-theme="glass"] .topbar nav { gap: 4px; padding: 4px; justify-self: center; border: 1px solid #d2deef; border-radius: 18px; background: #e8eef8; letter-spacing: .5px; }
+html[data-interface-theme="glass"] .topbar nav button { height: 34px; padding: 0 16px; border: 0; border-radius: 14px; color: #4c5c76; font-size: 10px; transition: background-color 160ms ease, color 160ms ease; }
+html[data-interface-theme="glass"] .topbar nav button:hover { background: #ffffff90; }
+html[data-interface-theme="glass"] .topbar nav button.active { background: #fff; color: #174c9b; box-shadow: 0 2px 8px #385d8a12, inset 0 1px 0 #fff; }
+html[data-interface-theme="glass"] .links { gap: 12px; text-decoration: none; }
+html[data-interface-theme="glass"] .interface-switch { border-color: #cbd8ea; border-radius: 13px; background: #e8eef8; }
+html[data-interface-theme="glass"] .interface-switch button { border-radius: 9px; }
+html[data-interface-theme="glass"] .interface-switch button[aria-pressed="true"] { color: #174c9b; background: #fff; box-shadow: 0 2px 6px #385d8a12; }
+html[data-interface-theme="glass"] .data-management-page {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin-top: -82px;
+  padding: 118px clamp(20px, 4vw, 64px) 48px;
+  background: radial-gradient(ellipse at 5% 8%, #d9e7fa 0, transparent 52%), radial-gradient(ellipse at 90% 25%, #e6e2f7 0, transparent 50%), radial-gradient(ellipse at 72% 80%, #e0eeeb 0, transparent 55%), #f0f4fa;
+  color: var(--glass-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+html[data-interface-theme="glass"] .data-management-tabs { width: fit-content; max-width: 100%; gap: 4px; padding: 5px; border: 1px solid #fff; border-radius: 18px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .data-management-tabs button { height: 36px; padding: 0 24px; border: 0; border-radius: 13px; color: #52627c; font-size: 12px; }
+html[data-interface-theme="glass"] .data-management-tabs button.active { background: #fff; color: var(--glass-accent); box-shadow: 0 2px 8px #385d8a12; }
+html[data-interface-theme="glass"] .market-data-panel { padding-top: 12px; color: var(--glass-ink); }
+html[data-interface-theme="glass"] .market-data-panel p { color: var(--glass-muted); }
+html[data-interface-theme="glass"] .data-filter-bar label > span { color: var(--glass-muted); }
+html[data-interface-theme="glass"] .market-data-panel button { min-height: 38px; border: 1px solid #c0cee3; border-radius: 11px; background: #f8faff; color: #244a82; font-weight: 550; transition: background-color 160ms ease, box-shadow 160ms ease; }
+html[data-interface-theme="glass"] .market-data-panel button:hover:not(:disabled) { background: #fff; box-shadow: 0 3px 9px #31578114; }
+html[data-interface-theme="glass"] .tick-table-wrap { border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; }
+html[data-interface-theme="glass"] .tick-table-wrap th { padding: 12px; background: #edf2f9; color: #3c506e; font-weight: 600; }
+html[data-interface-theme="glass"] .tick-table-wrap td { padding: 12px; color: #233951; font-variant-numeric: tabular-nums; }
+html[data-interface-theme="glass"] .data-management-message { padding: 12px 16px; border-radius: 10px; background: #edf3ff; color: #31547f; font-size: 12px; }
+html[data-interface-theme="glass"] .data-record-list { border: 1px solid #d8e2f0; border-radius: 18px; background: #fff; padding: 10px 18px; }
+
+html[data-interface-theme="glass"] .appearance-settings { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+html[data-interface-theme="glass"] :is(button, input, select, a):focus-visible { outline: 3px solid #265cb5; outline-offset: 3px; }
+
+/* Blur is progressive enhancement; opaque surfaces above are the default fallback. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-interface-theme="glass"] { --glass-surface: #ffffffa8; }
+  html[data-interface-theme="glass"] :is(.topbar, .data-management-tabs) { -webkit-backdrop-filter: blur(22px) saturate(135%); backdrop-filter: blur(22px) saturate(135%); }
+}
+@media (max-width: 1100px) {
+  html[data-interface-theme="glass"] .topbar { grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; margin-inline: 16px; padding-inline: 16px; }
+  html[data-interface-theme="glass"] .topbar nav button { padding-inline: 11px; }
+}
+@media (max-width: 760px) {
+  .topbar,
+  html[data-interface-theme="glass"] .topbar { height: auto; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 14px; }
+  .topbar nav { grid-column: 1 / -1; grid-row: 2; gap: 24px; }
+  .topbar nav button { height: 36px; }
+  .topbar .links { gap: 10px; }
+  html[data-interface-theme="glass"] .topbar { margin: 10px 10px 0; border-radius: 20px; }
+  html[data-interface-theme="glass"] .topbar nav { width: 100%; justify-content: space-around; }
+  html[data-interface-theme="glass"] .topbar nav button { flex: 1; padding-inline: 8px; }
+  html[data-interface-theme="glass"] .data-management-page { margin-top: -122px; padding: 150px 16px 32px; }
+  html[data-interface-theme="glass"] .data-management-tabs { width: 100%; }
+  html[data-interface-theme="glass"] .data-management-tabs button { flex: 1; min-width: 0; padding-inline: 12px; }
+  .appearance-previews { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .topbar .brand { width: 70px; }
+  .interface-switch button { padding-inline: 7px; font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-interface-theme="glass"] *, html[data-interface-theme="glass"] *::before, html[data-interface-theme="glass"] *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-interface-theme="glass"] { --glass-surface: #f5f8ff; }
+  html[data-interface-theme="glass"] :is(.topbar, .data-management-tabs) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .interface-switch button[aria-pressed="true"] { outline: 2px solid Highlight; }
+  html[data-interface-theme="glass"] { --glass-surface: Canvas; --glass-panel: Canvas; --glass-ink: CanvasText; --glass-muted: CanvasText; --glass-accent: Highlight; }
+  html[data-interface-theme="glass"] :is(.topbar, .data-management-tabs) { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+}
+
+/* Account disclosure: theme and session actions share one keyboard-accessible panel. */
+.topbar { position: relative; z-index: 30; }
+.user-menu { position: relative; text-align: left; }
+.user-menu summary { display: flex; align-items: center; gap: 9px; padding: 5px 8px 5px 5px; list-style: none; cursor: pointer; font-size: 12px; border: 1px solid #c5c9d1; background: #fafaf7; }
+.user-menu summary::-webkit-details-marker { display: none; }
+.user-menu summary:focus-visible { outline: 2px solid #536d9e; outline-offset: 3px; }
+.user-menu summary > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform 150ms ease; }
+.user-menu[open] summary > svg { transform: rotate(180deg); }
+.user-avatar { display: grid; place-items: center; width: 26px; height: 26px; background: #e4e8ed; color: #304057; font-size: 12px; font-weight: 700; }
+.user-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-menu-panel { position: absolute; z-index: 40; right: 0; top: calc(100% + 12px); width: min(280px, calc(100vw - 48px)); padding: 16px; border: 1px solid #c5c9d1; background: #fff; box-shadow: 0 14px 38px #1d315025; color: #24334c; text-decoration: none; }
+.user-menu-heading { padding-bottom: 14px; border-bottom: 1px solid #dce1e8; }
+.user-menu-heading b, .user-menu-heading span { display: block; overflow-wrap: anywhere; }
+.user-menu-heading b { font-size: 14px; }
+.user-menu-heading span { margin-top: 4px; color: #5a687e; font-size: 11px; }
+.user-menu-appearance { padding-block: 14px; }
+.user-menu-appearance h2 { margin: 0 0 10px; font-size: 12px; }
+.user-menu-appearance .interface-switch { display: flex; }
+.user-menu-appearance .interface-switch button { flex: 1; min-height: 32px; }
+.user-menu-logout { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 10px; border-top: 1px solid #dce1e8; color: #9d3835; text-align: left; font-size: 12px; cursor: pointer; }
+.user-menu-logout:hover { background: #fff2f0; }
+.user-menu-logout:disabled { opacity: .5; cursor: wait; }
+.user-menu-logout svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+.user-menu-error { margin: 0 0 12px; color: #9d3835; font-size: 12px; line-height: 1.6; }
+html[data-interface-theme="glass"] .user-menu summary { border-color: #ffffffc9; border-radius: 15px; background: #ffffff8c; box-shadow: inset 0 1px 0 #fff; }
+html[data-interface-theme="glass"] .user-avatar { border-radius: 10px; background: #dbe7fc; color: #2454a1; }
+html[data-interface-theme="glass"] .user-menu-panel { border-color: #fff; border-radius: 22px; background: #f8fafff7; box-shadow: 0 16px 50px #294b7524, inset 0 1px 0 #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+html[data-interface-theme="glass"] .user-menu-logout { border-radius: 10px; }
+
+/* Application surfaces share one palette; numeric and chart surfaces remain solid. */
+.equity-chart { --chart-background: #f8f8f6; --chart-text: #777a80; --chart-font: "Courier New", monospace; --chart-border: #c9cbce; }
+html[data-interface-theme="glass"] body { background: radial-gradient(ellipse at 5% 8%, #d9e7fa, transparent 55%), radial-gradient(ellipse at 90% 25%, #e6e2f7, transparent 55%), #edf3fa; }
+html[data-interface-theme="glass"] :is(.workspace, .ticker, .chart-status, .settings-page, .dataops-page, .monitor-modal, .login-page, .auth-loading) { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--glass-ink); }
+html[data-interface-theme="glass"] .ticker { height: 58px; margin: 16px 24px 0; border: 1px solid #fff; border-radius: 18px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .ticker > .venue-tabs { padding: 4px; border: 0; background: transparent; }
+html[data-interface-theme="glass"] .venue-tabs > .venue-tab { min-width: 138px; padding-inline: 18px; margin-right: 4px; border: 0; border-radius: 13px; background: transparent; }
+html[data-interface-theme="glass"] .venue-tabs > .venue-tab.on { background: #fff; color: var(--glass-ink); box-shadow: 0 2px 8px #385d8a12; }
+html[data-interface-theme="glass"] .venue-tabs > .venue-tab.on:after { display: none; }
+html[data-interface-theme="glass"] .workspace { margin: 16px 24px; gap: 18px; }
+html[data-interface-theme="glass"] :is(.arena, .workspace > aside) { border: 1px solid #d9e3f1; border-radius: 22px; background: #fff; box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .workspace > aside { background: var(--glass-surface); }
+html[data-interface-theme="glass"] .chart-wrap { background: #fff; }
+html[data-interface-theme="glass"] .equity-chart { --chart-background: #ffffff; --chart-text: #53657c; --chart-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; --chart-border: #dce5f1; background: #fff; color: var(--glass-ink); }
+html[data-interface-theme="glass"] .equity-chart-title span { color: var(--glass-muted); font-size: 10px; }
+html[data-interface-theme="glass"] .equity-chart-title b { font-size: 13px; }
+html[data-interface-theme="glass"] .equity-chart-price strong { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 22px; }
+html[data-interface-theme="glass"] .equity-chart-price em { font-size: 10px; }
+html[data-interface-theme="glass"] .equity-chart-toolbar { gap: 2px; padding: 3px; border-color: #d8e2f0; border-radius: 12px; background: #edf2f9; }
+html[data-interface-theme="glass"] .equity-chart-toolbar button { border: 0; border-radius: 8px; color: #4b5d77; font-family: inherit; font-size: 10px; }
+html[data-interface-theme="glass"] .equity-chart-toolbar button.on,
+html[data-interface-theme="glass"] .equity-chart-toolbar button:hover { background: #fff; color: var(--glass-accent); box-shadow: 0 1px 4px #385d8a12; }
+html[data-interface-theme="glass"] .chart-status { margin: 0 24px 12px; padding: 0; border: 0; background: transparent; font-size: 10px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .tabs { height: 44px; flex-basis: 44px; padding: 5px; gap: 3px; border-bottom-color: #d8e2f0; background: transparent; }
+html[data-interface-theme="glass"] .tabs button { border: 0; border-radius: 11px; font-size: 12px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .tabs button.on { background: #fff; color: var(--glass-accent); box-shadow: 0 2px 8px #385d8a12; }
+html[data-interface-theme="glass"] .panel-content { padding: 22px 18px; background: transparent; line-height: 1.7; }
+html[data-interface-theme="glass"] .panel-content h2 { font-size: 16px; }
+html[data-interface-theme="glass"] :is(.account-balance-block, .account-risk-block) { margin-bottom: 16px; padding: 16px; border: 1px solid #dce5f1; border-radius: 17px; background: #ffffffed; }
+html[data-interface-theme="glass"] .account-section-head h3 { font-size: 11px; color: #3f5677; }
+html[data-interface-theme="glass"] .account-section-head span { font-size: 10px; color: #63748c; }
+html[data-interface-theme="glass"] .account-balance-grid { border: 0; background: transparent; gap: 14px; }
+html[data-interface-theme="glass"] .account-balance-grid small { font-size: 11px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .account-balance-grid span { font-size: 10px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .account-balance-grid b { font-size: 22px; }
+html[data-interface-theme="glass"] .account-risk-hero { border-radius: 12px; background: #eff4fc; }
+html[data-interface-theme="glass"] .account-risk-hero :is(small, span) { font-size: 11px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .account-metric-cards { gap: 8px; }
+html[data-interface-theme="glass"] .account-metric-cards > div { padding: 12px 0; }
+html[data-interface-theme="glass"] .account-metric-cards :is(small, span) { font-size: 10px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .account-metric-cards b { font-size: 14px; }
+html[data-interface-theme="glass"] :is(.portfolio-position, .portfolio-trade) { margin-bottom: 10px; padding: 14px; border: 1px solid #dce5f1; border-radius: 14px; background: #fff; }
+html[data-interface-theme="glass"] .position-compact-head b { font-size: 13px; }
+html[data-interface-theme="glass"] :is(.position-compact-head span, .position-compact-meta, .position-pnl small, .position-metrics dt) { font-size: 10px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .position-metrics dd { font-size: 12px; }
+html[data-interface-theme="glass"] .portfolio-state { border-radius: 12px; background: #edf3fb; color: var(--glass-muted); font-size: 12px; }
+html[data-interface-theme="glass"] .portfolio-state.error { background: #fff1ef; color: #9b4035; }
+html[data-interface-theme="glass"] .portfolio-warning { border-radius: 10px; font-size: 11px; }
+html[data-interface-theme="glass"] .portfolio-trade :is(small, .log-time) { font-size: 10px; }
+html[data-interface-theme="glass"] .portfolio-trade b { font-size: 12px; }
+
+/* Settings, account forms and data-health views. */
+html[data-interface-theme="glass"] :is(.settings-page, .dataops-page) { padding: 24px; background: transparent; }
+html[data-interface-theme="glass"] .settings-page { display: flex; min-height: 0; }
+html[data-interface-theme="glass"] .settings-layout { width: 100%; height: auto; min-height: 0; flex: 1; gap: 18px; border: 0; background: transparent; grid-template-columns: 220px minmax(0, 1fr); }
+html[data-interface-theme="glass"] .settings-sidebar { padding: 18px; border: 1px solid #fff; border-radius: 22px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .settings-sidebar-head { border-bottom-color: #cbd8e9; }
+html[data-interface-theme="glass"] .settings-sidebar-head b { font-family: inherit; font-size: 18px; }
+html[data-interface-theme="glass"] .settings-sidebar button { border-radius: 13px; min-height: 68px; }
+html[data-interface-theme="glass"] .settings-sidebar button.active { border-color: #fff; background: #fff; color: var(--glass-accent); box-shadow: 0 2px 8px #385d8a12; }
+html[data-interface-theme="glass"] .settings-sidebar button small { color: var(--glass-muted); font-size: 10px; }
+html[data-interface-theme="glass"] .settings-sidebar button b { font-size: 12px; }
+html[data-interface-theme="glass"] .settings-content { height: auto; min-height: 0; background: #ffffffeb; border: 1px solid #fff; border-radius: 22px; box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .settings-card { min-height: 100%; padding: 28px; background: transparent; }
+html[data-interface-theme="glass"] .settings-card-head { padding-bottom: 22px; border-bottom-color: #d8e2f0; }
+html[data-interface-theme="glass"] .settings-card-head > span,
+html[data-interface-theme="glass"] .monitor-list-head > div > span { border-radius: 9px; background: #e3edfc; color: var(--glass-accent); }
+html[data-interface-theme="glass"] .settings-card-head h2 { font-size: 20px; font-weight: 600; }
+html[data-interface-theme="glass"] .settings-card-head p { color: var(--glass-muted); font-size: 12px; }
+html[data-interface-theme="glass"] :is(.field, .monitor-fields label, .clickhouse-add-field) > span { font-size: 12px; }
+html[data-interface-theme="glass"] :is(.field input, .field select, .monitor-fields input, .clickhouse-add-field select) { height: 42px; border: 1px solid #c5d3e7; border-radius: 11px; background: #fff; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--glass-ink); }
+html[data-interface-theme="glass"] :is(.settings-head-actions button, .exchange-toolbar button, .exchange-account-actions button, .monitor-add-button, .monitor-settings-button, .monitor-icon-button, .monitor-actions button, .monitor-modal-actions button, .monitor-modal-head > button) { min-height: 34px; border-color: #c5d3e7; border-radius: 10px; background: #f5f8fd; color: #244a82; font-size: 12px; }
+html[data-interface-theme="glass"] :is(.settings-head-actions .primary, .exchange-toolbar .primary, .monitor-modal-actions .primary) { border-color: var(--glass-accent); background: var(--glass-accent); color: #fff; }
+html[data-interface-theme="glass"] :is(.settings-head-actions button, .exchange-toolbar button, .monitor-add-button, .monitor-settings-button):hover:not(:disabled) { background: #e3ecfa; color: #244a82; }
+html[data-interface-theme="glass"] :is(.exchange-account-actions .remove, .monitor-actions .remove) { border-color: #e7c9c5; background: #fff6f4; color: #9a4036; }
+html[data-interface-theme="glass"] .exchange-toolbar :is(b, small) { font-size: 12px; }
+html[data-interface-theme="glass"] .exchange-empty { padding: 22px; border: 1px dashed #c3d2e6; border-radius: 16px; background: #f7faff; color: var(--glass-muted); font-size: 12px; }
+html[data-interface-theme="glass"] :is(.github-key-note, .exchange-balance-time, .clickhouse-checked-at) { font-size: 11px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .github-connection-state { border-color: #d6e1ef; border-radius: 12px; background: #f2f6fc; }
+html[data-interface-theme="glass"] .github-connection-state b { font-size: 12px; }
+html[data-interface-theme="glass"] .github-connection-state :is(span, small) { font-size: 11px; }
+html[data-interface-theme="glass"] .settings-feedback { border-radius: 11px; font-size: 12px; }
+html[data-interface-theme="glass"] .exchange-account-row { margin-top: 12px; padding: 18px; border: 1px solid #d8e2f0; border-radius: 15px; background: #fff; }
+html[data-interface-theme="glass"] .exchange-account-row small { font-size: 10px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .exchange-account-row b { font-size: 12px; }
+html[data-interface-theme="glass"] .exchange-account-row span { font-size: 11px; }
+html[data-interface-theme="glass"] .dataops-heading { max-width: none; margin: 4px 0 26px; }
+html[data-interface-theme="glass"] .dataops-heading h1 { font-family: inherit; font-weight: 650; font-size: 32px; }
+html[data-interface-theme="glass"] .dataops-heading p { font-size: 12px; color: var(--glass-muted); }
+html[data-interface-theme="glass"] .clickhouse-monitor { max-width: none; padding: 24px; border: 1px solid #fff; border-radius: 22px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .monitor-list-head { border-bottom-color: #cbd8e9; }
+html[data-interface-theme="glass"] .monitor-list-head h2 { font-size: 18px; }
+html[data-interface-theme="glass"] :is(.monitor-list-head small, .monitor-empty, .clickhouse-table-row small, .clickhouse-table-name span) { color: var(--glass-muted); font-size: 11px; }
+html[data-interface-theme="glass"] .monitor-empty { margin: 22px 0; line-height: 1.8; }
+html[data-interface-theme="glass"] .clickhouse-table-row { margin-top: 12px; padding: 16px; border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; }
+html[data-interface-theme="glass"] .clickhouse-table-row b { font-size: 12px; }
+html[data-interface-theme="glass"] .clickhouse-table-name > b { font-size: 14px; }
+html[data-interface-theme="glass"] .clickhouse-table-row > p { font-size: 11px; }
+html[data-interface-theme="glass"] .clickhouse-monitor-error { border-radius: 12px; font-size: 12px; }
+html[data-interface-theme="glass"] .monitor-modal-backdrop { background: #20365450; }
+html[data-interface-theme="glass"] .monitor-modal { border: 1px solid #fff; border-radius: 24px; background: #f8faff; box-shadow: 0 24px 80px #17335738; }
+html[data-interface-theme="glass"] .monitor-modal-head { border-bottom-color: #d1def0; }
+html[data-interface-theme="glass"] .monitor-modal-head h2 { font-family: inherit; font-size: 24px; }
+html[data-interface-theme="glass"] .monitor-modal-head span { color: var(--glass-muted); font-size: 10px; }
+html[data-interface-theme="glass"] .clickhouse-monitor-rules span { color: var(--glass-muted); font-size: 12px; }
+html[data-interface-theme="glass"] .clickhouse-monitor-rules b { font-size: 13px; }
+html[data-interface-theme="glass"] .clickhouse-utc-note { border-radius: 10px; background: #edf2fa; color: #445b7a; font-size: 12px; }
+html[data-interface-theme="glass"] .monitor-logs-error { border-radius: 12px; font-size: 12px; }
+
+/* Login and loading share the selected material without changing authentication. */
+.login-page { position: relative; }
+.login-appearance { position: absolute; z-index: 2; top: 24px; right: 28px; }
+html[data-interface-theme="glass"] .login-page { min-height: 100dvh; padding: 28px; gap: 24px; background: transparent; }
+html[data-interface-theme="glass"] .login-intro { min-height: 0; border: 1px solid #fff; border-radius: 28px; background: linear-gradient(150deg, #e0ebfc99, #e9e6fa99 60%, #deeeed99); box-shadow: var(--glass-shadow); color: var(--glass-ink); }
+html[data-interface-theme="glass"] .login-intro h1 { font-family: inherit; font-weight: 650; font-size: clamp(38px, 4vw, 62px); line-height: 1.2; letter-spacing: -1px; }
+html[data-interface-theme="glass"] .login-intro :is(.login-kicker, .login-description, small) { color: var(--glass-muted); }
+html[data-interface-theme="glass"] .login-brand.inverse { color: var(--glass-ink); }
+html[data-interface-theme="glass"] .login-panel { padding: 68px 32px 32px; background: transparent; }
+html[data-interface-theme="glass"] .login-form { padding: 32px; border: 1px solid #fff; border-radius: 24px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+html[data-interface-theme="glass"] .login-form-heading h2 { font-family: inherit; font-size: 28px; }
+html[data-interface-theme="glass"] .login-form-heading p { color: var(--glass-muted); font-size: 12px; }
+html[data-interface-theme="glass"] .login-form input { height: 46px; border: 1px solid #c4d2e6; border-radius: 12px; background: #fff; font-family: inherit; font-size: 14px; color: var(--glass-ink); }
+html[data-interface-theme="glass"] .login-form label > span { color: var(--glass-ink); font-size: 12px; }
+html[data-interface-theme="glass"] .login-form > button { border: 1px solid var(--glass-accent); border-radius: 12px; background: var(--glass-accent); color: #fff; font-size: 13px; }
+html[data-interface-theme="glass"] .login-message { font-size: 12px; }
+html[data-interface-theme="glass"] .auth-loading { background: transparent; }
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: blur(22px) saturate(135%); backdrop-filter: blur(22px) saturate(135%); }
+}
+@media (max-width: 1000px) {
+  html[data-interface-theme="glass"] .workspace { grid-template-columns: 1fr; height: auto; overflow: visible; }
+  html[data-interface-theme="glass"] :is(.arena, .workspace > aside) { height: auto; overflow: hidden; }
+  html[data-interface-theme="glass"] .settings-page { display: block; overflow: auto; }
+  html[data-interface-theme="glass"] .settings-layout { min-height: calc(100dvh - 130px); align-items: stretch; overflow: visible; }
+}
+@media (max-width: 760px) {
+  html[data-interface-theme="glass"] .workspace { margin: 14px 12px; gap: 14px; }
+  html[data-interface-theme="glass"] .ticker { margin: 14px 12px 0; }
+  html[data-interface-theme="glass"] .chart-status { margin: 0 12px 12px; }
+  html[data-interface-theme="glass"] .equity-chart-head { grid-template-columns: 1fr auto; }
+  html[data-interface-theme="glass"] .equity-chart-toolbar { grid-row: 2; grid-column: 1 / -1; justify-self: start; }
+  html[data-interface-theme="glass"] .equity-chart-price { grid-row: 1; grid-column: 2; }
+  html[data-interface-theme="glass"] :is(.settings-page, .dataops-page) { padding: 16px 12px; }
+  html[data-interface-theme="glass"] .settings-layout { grid-template-columns: 1fr; gap: 14px; min-height: 0; }
+  html[data-interface-theme="glass"] .settings-sidebar { padding: 10px; }
+  html[data-interface-theme="glass"] .settings-sidebar nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
+  html[data-interface-theme="glass"] .settings-sidebar button { display: flex; min-height: 54px; justify-content: center; padding: 8px 4px; }
+  html[data-interface-theme="glass"] .settings-sidebar button > span { display: none; }
+  html[data-interface-theme="glass"] .settings-card { min-height: 0; padding: 20px 16px; }
+  html[data-interface-theme="glass"] .clickhouse-monitor { padding: 18px; }
+  html[data-interface-theme="glass"] .monitor-list-head-actions { flex-wrap: wrap; }
+  html[data-interface-theme="glass"] .login-page { padding: 14px; gap: 14px; }
+  html[data-interface-theme="glass"] .login-intro { padding: 90px 28px 28px; }
+  html[data-interface-theme="glass"] .login-panel { padding: 10px 0 14px; }
+  html[data-interface-theme="glass"] .login-form { padding: 24px; }
+  .login-appearance { top: 26px; right: 28px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-surface); }
+  html[data-interface-theme="glass"] .login-intro { background: #e8effa; }
+}
+@media (forced-colors: active) {
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+}
+
+html[data-interface-theme="glass"] .login-intro:before { border-color: #ffffffb0; border-radius: 20px; }
+html[data-interface-theme="glass"] .login-form input:focus { border-color: var(--glass-accent); box-shadow: inset 0 0 0 1px var(--glass-accent); }
+html[data-interface-theme="glass"] .data-filter-bar :is(input, select) { font-size: 12px; }
+html[data-interface-theme="glass"] .data-filter-bar label > span { font-size: 11px; }
+html[data-interface-theme="glass"] :is(.data-filter-bar button, .operation-backfill-bar button, .data-load-more) { height: 40px; border: 1px solid var(--glass-accent); border-radius: 11px; background: var(--glass-accent); color: #fff; font-size: 12px; }
+html[data-interface-theme="glass"] .data-record-head { height: 40px; color: var(--glass-muted); font-size: 11px; }
+html[data-interface-theme="glass"] .data-record-row b { font-size: 12px; }
+html[data-interface-theme="glass"] .data-record-row small { color: var(--glass-muted); font-size: 11px; }
+html[data-interface-theme="glass"] .operation-backfill-bar b { font-family: inherit; font-size: 16px; }
+html[data-interface-theme="glass"] .operation-backfill-bar small { color: var(--glass-muted); font-size: 11px; line-height: 1.7; }
+
+html[data-interface-theme="glass"] .tick-delete-confirm input[type=text]{border-radius:12px;background:var(--glass-surface)}
+html[data-interface-theme="glass"] .market-data-panel .tick-primary{background:var(--glass-accent);border-color:var(--glass-accent);color:#fff;min-width:160px}
+
+html[data-interface-theme="glass"] .data-overview-stats article{border-color:#fff;border-radius:18px;background:var(--glass-surface);box-shadow:var(--glass-shadow)}
+html[data-interface-theme="glass"] .data-inventory-filters select{border-radius:10px;background:#ffffffd9;border-color:#c5d2e6}
+html[data-interface-theme="glass"] .data-state-badge{border-radius:8px}
+html[data-interface-theme="glass"] .data-inventory-table .data-item-name{min-height:0;border:0;background:transparent;box-shadow:none;padding:0}
+html[data-interface-theme="glass"] .data-row-menu>summary,html[data-interface-theme="glass"] .data-row-menu>div{border-radius:10px;border-color:#d0dced}
+html[data-interface-theme="glass"] .data-row-menu>div>button{background:transparent;border:0;color:#263b57;min-height:34px}
+html[data-interface-theme="glass"] .data-row-menu>div>button.data-danger-text{color:#9b3d37}
+html[data-interface-theme="glass"] .data-dialog{border-color:#edf3fc;border-radius:22px;background:var(--glass-panel);color:var(--glass-ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+html[data-interface-theme="glass"] .data-dialog :is(input:not([type=checkbox]),select){border-radius:10px;background:#f9fbff;border-color:#c5d2e6}
+html[data-interface-theme="glass"] .data-dialog-scope>span{border-radius:8px}
+html[data-interface-theme="glass"] .data-dialog-inner>header{border-color:#e0e8f3}
+html[data-interface-theme="glass"] .market-data-panel .data-danger-button{background:#a13732;border-color:#a13732;color:#fff}
+html[data-interface-theme="glass"] .data-filter-bar :is(input,select){min-height:40px;border:1px solid #c2cee1;border-radius:11px;background:#fffffff2;color:var(--glass-ink);padding:0 11px;font-family:inherit}

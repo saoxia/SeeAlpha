@@ -1,6 +1,7 @@
 """Independent API entry point; no legacy business workers are started here."""
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
@@ -19,6 +20,8 @@ from .exchanges.accounts import Accounts
 from .exchanges.equity_sample import router as equity_sample_router
 from .exchanges.router import router as exchanges_router
 from .exchanges.service import ExchangeService
+from .market_data.router import router as market_data_router
+from .market_data.service import DataService
 from .olap.repository import olap_repository
 from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
@@ -34,10 +37,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app):
         task = None
         olap_task = None
+        configuration_task = None
+        monitor_task = None
         try:
             database.initialize()
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
+            await asyncio.to_thread(app.state.market_data.subscriptions.restore)
+
+            async def reconcile_configuration():
+                while True:
+                    await asyncio.sleep(15)
+                    await asyncio.to_thread(app.state.market_data.subscriptions.restore)
+
+            async def monitor_services():
+                while True:
+                    try:
+                        await asyncio.to_thread(app.state.market_data.monitor.sample)
+                    except OSError:
+                        logging.getLogger(__name__).warning("行情监控快照写入失败，将稍后重试。")
+                    await asyncio.sleep(5)
+
+            configuration_task = asyncio.create_task(reconcile_configuration())
+            monitor_task = asyncio.create_task(monitor_services())
 
             async def refresh_olap():
                 while True:
@@ -51,6 +73,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             yield
         finally:
+            for background in (configuration_task, monitor_task):
+                if background is not None:
+                    background.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await background
+            await asyncio.to_thread(app.state.market_data.close)
             if olap_task is not None:
                 olap_task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -69,6 +97,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
     app.state.exchanges = ExchangeService(app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
+    app.state.market_data = DataService(database)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
 
     @app.middleware("http")
@@ -117,6 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(equity_sample_router, prefix="/api")
     app.include_router(operations_router, prefix="/api")
     app.include_router(olap_router, prefix="/api")
+    app.include_router(market_data_router, prefix="/api")
     return app
 
 

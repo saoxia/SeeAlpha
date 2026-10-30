@@ -52,7 +52,6 @@ class AuthRepository:
     def get_user_for_session(self, token_hash: str) -> sqlite3.Row | None:
         now = int(time.time())
         with self.database.connect() as connection:
-            connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (now,))
             return connection.execute(
                 """
                 SELECT users.id, users.username, users.created_at, sessions.expires_at

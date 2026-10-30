@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import type { AuthUser } from "./auth-gate";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
+import { ThemeSwitch } from "../appearance/theme-switch";
 
 type LoginPageProps = {
   onAuthenticated: (user: AuthUser) => void;
@@ -48,6 +49,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
 
   return (
     <main className="login-page">
+      <div className="login-appearance"><ThemeSwitch /></div>
       <section className="login-intro" aria-label="SeeAlpha 产品介绍">
         <SeeAlphaLogo className="login-brand" inverse />
         <p className="login-kicker">AI-NATIVE TRADING INTELLIGENCE</p>

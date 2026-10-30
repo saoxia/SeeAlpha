@@ -6,7 +6,7 @@ import type {
   ExchangeAccount,
   ExchangeTrade,
 } from "../types";
-import { operationLabels, operationSourceLabel, operationsPath, mergeLatestOperations, type OperationPage } from "@/app/features/live/operations";
+import { cashflowLabel, operationLabels, operationSourceLabel, operationsPath, mergeLatestOperations, type OperationPage } from "@/app/features/live/operations";
 import { decimal } from "./portfolio-panel-shared";
 
 const TRADE_PAGE_SIZE = 50;
@@ -187,16 +187,20 @@ export function TradesPanel({
               ? trades.map((trade) => (
                   <div className="trade-row portfolio-trade" key={trade.id}>
                     <span>
-                      <b>{trade.symbol} · {operationLabels[trade.event_type] ?? "操作"} · {sideLabel(trade.side)}</b>
+                      <b>{trade.event_type === "cashflow"
+                        ? `${trade.symbol || "账户资金"} · ${cashflowLabel(trade.income_type)}`
+                        : `${trade.symbol} · ${operationLabels[trade.event_type] ?? "操作"} · ${sideLabel(trade.side)}`}</b>
                       <small>{operationSourceLabel(trade)}</small>
                       <small>{trade.timestamp ? new Date(trade.timestamp).toLocaleString("zh-CN", { hour12: false }) : "时间未知"}</small>
                       {overview && <small className="portfolio-source">{trade.account_name} · {trade.exchange.toUpperCase()}</small>}
                     </span>
                     <span>
-                      <b>{decimal(trade.amount)} @ {decimal(trade.price)}</b>
+                      <b>{trade.event_type === "cashflow" ? `${trade.amount} ${trade.asset || ""}` : `${decimal(trade.amount)} @ ${decimal(trade.price)}`}</b>
                       <small>{trade.event_type === "fill"
                         ? `成交额 ${decimal(trade.cost)}${trade.fee_cost ? ` · 手续费 ${decimal(trade.fee_cost)} ${trade.fee_currency}` : ""}`
-                        : `状态 ${(trade.status || "--").toUpperCase()}${trade.filled ? ` · 已成交 ${decimal(trade.filled)}` : ""}`}</small>
+                        : trade.event_type === "cashflow"
+                          ? `流水号 ${trade.transaction_id || "--"}`
+                          : `状态 ${(trade.status || "--").toUpperCase()}${trade.filled ? ` · 已成交 ${decimal(trade.filled)}` : ""}`}</small>
                     </span>
                   </div>
                 ))

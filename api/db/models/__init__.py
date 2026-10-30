@@ -88,6 +88,10 @@ class LedgerOperation(Base):
     strategy_id: Mapped[str | None] = mapped_column(Text)
     body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
     __table_args__ = (
+        CheckConstraint(
+            "event_type in ('place','amend','cancel','fill','reject','expire','correction','cashflow')",
+            name="ledger_operations_event_type_check",
+        ),
         Index("orm_ledger_time", timestamp.desc(), id.desc()),
         Index("orm_ledger_account_time", account_id, environment, timestamp.desc(), id.desc()),
         Index("orm_ledger_order", account_id, environment, exchange, symbol, order_id),
@@ -142,6 +146,13 @@ class ManagementJob(Base):
     id: Mapped[str] = mapped_column(Text, primary_key=True)
     created_at: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+
+
+class MarketDataPolicy(Base):
+    __tablename__ = "market_data_policies"
+    product: Mapped[str] = mapped_column(Text, primary_key=True)
+    symbol: Mapped[str] = mapped_column(Text, primary_key=True)
+    parameters: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
 
 
 class BacktestReport(Base):

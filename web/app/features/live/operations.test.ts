@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { operationsPath, operationSourceLabel, mergeLatestOperations, type OperationPage } from './operations.ts';
+import { cashflowLabel, operationsPath, operationSourceLabel, mergeLatestOperations, type OperationPage } from './operations.ts';
 import type { ExchangeTrade } from '../../components/types.ts';
 
 const row = (id: string, timestamp: number, source = 'external') => ({ id, timestamp, source } as ExchangeTrade);
@@ -15,6 +15,12 @@ test('external orders are never labelled manual and corrections are separate', (
   assert.match(operationSourceLabel(row('a', 1)), /外部/);
   assert.match(operationSourceLabel(row('a', 1, 'reconciliation')), /非真实成交/);
   assert.equal(operationSourceLabel({source: 'project', strategy_id: 's1'}), '项目策略 · s1');
+});
+
+test('cashflows retain their venue category without becoming trades or strategy operations', () => {
+  assert.equal(cashflowLabel('FUNDING_FEE'), '资金费');
+  assert.equal(cashflowLabel('NEW_VENUE_TYPE'), 'NEW_VENUE_TYPE');
+  assert.equal(operationSourceLabel({ source: 'external', event_type: 'cashflow' }), '交易所资金流水');
 });
 
 test('polling replaces promoted records and removes merged identities while keeping older pages', () => {

@@ -1,5 +1,6 @@
 """SQLAlchemy sessions shared by portable business repositories."""
 
+import logging
 import re
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,10 +11,13 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError, DBAPIError, IntegrityError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from sqlalchemy.orm import sessionmaker
 
 from .errors import StorageConflict, StorageUnavailable
 from .models import Base
+
+logger = logging.getLogger(__name__)
 
 
 class ORMDatabase:
@@ -36,7 +40,13 @@ class ORMDatabase:
         if parsed.get_backend_name() == "sqlite":
             options["connect_args"] = {"timeout": 10, "check_same_thread": False}
         else:
-            options.update(pool_size=4, max_overflow=0)
+            options.update(
+                pool_size=4, max_overflow=0, pool_timeout=5, pool_recycle=300,
+                connect_args={
+                    "connect_timeout": 5, "keepalives": 1, "keepalives_idle": 30,
+                    "keepalives_interval": 10, "keepalives_count": 3,
+                },
+            )
         self.engine = create_engine(parsed, **options)
         if parsed.get_backend_name() == "sqlite":
 
@@ -91,7 +101,14 @@ class ORMDatabase:
             except IntegrityError:
                 session.rollback()
                 raise StorageConflict("业务记录冲突") from None
-            except DBAPIError:
+            except (DBAPIError, SQLAlchemyTimeoutError) as exc:
+                # Driver messages and SQL parameters may contain private connection
+                # or account data. Record only the category and pool counters.
+                logger.warning(
+                    "Business database unavailable: error=%s sqlstate=%s pool=%s",
+                    type(exc).__name__, getattr(getattr(exc, "orig", None), "sqlstate", None),
+                    self.engine.pool.status(),
+                )
                 session.rollback()
                 raise StorageUnavailable("业务数据库暂不可用，请稍后重试。") from None
             except Exception:

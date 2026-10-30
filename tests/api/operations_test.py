@@ -264,6 +264,10 @@ def test_sync_uses_native_reports_and_retains_previous_records(tmp_path, monkeyp
         return [event(timestamp=now, evidence="venue", strategy_id=None)]
 
     monkeypatch.setattr(module, "operation_history", reports)
+    async def incomes(*args):
+        yield {"start_ms": args[1], "end_ms": args[2], "records": []}
+
+    monkeypatch.setattr(module, "income_history", incomes)
     result = asyncio.run(service.sync())
     assert result["records_added"] == 1 and result["sync"][0]["status"] == "partial"
     assert asyncio.run(service.sync())["records_added"] == 0
@@ -380,3 +384,188 @@ def test_distinct_venue_order_ids_are_not_merged_by_reused_client_id(ledger):
         )
     records = ledger.list()["records"]
     assert len(records) == 2 and {r["order_id"] for r in records} == {"42", "43"}
+
+
+def cash_event(**values):
+    return {"event_id": "income-1", "account_id": 1, "account_name": "main",
+            "exchange": "binance", "environment": "production", "symbol": "",
+            "event_type": "cashflow", "timestamp": 1000, "evidence": "venue",
+            "amount": "-0.0000000123456789", "asset": "USDC", "income_type": "FUNDING_FEE",
+            "transaction_id": "9007199254740993", "info": "", "status": "confirmed", **values}
+
+
+def test_cashflows_keep_sign_currency_identity_and_never_merge_into_orders(ledger):
+    first = ledger.ingest(cash_event())
+    assert not ledger.ingest(cash_event())["created"]
+    assert not ledger.ingest(cash_event(account_name="renamed"))["created"]
+    for change in ({"amount": "1"}, {"asset": "USDT"}, {"symbol": "ETHUSDC"}, {"timestamp": 1001}):
+        with pytest.raises(ValueError):
+            ledger.ingest(cash_event(**change))
+    ledger.ingest(cash_event(income_type="COMMISSION", trade_id="17"))
+    ledger.ingest(cash_event(account_id=2))
+    ledger.ingest(cash_event(environment="sandbox"))
+    ledger.ingest(event(event_type="fill", trade_id="17", evidence="venue", strategy_id=None))
+    records = ledger.list()["records"]
+    assert len(records) == 5
+    original = ledger.detail(first["operation_id"])
+    assert len(original["observations"]) == 1
+    assert original["operation"]["amount"] == "-0.0000000123456789"
+    assert original["operation"]["asset"] == "USDC"
+    assert original["operation"]["source"] == "external"
+    assert "asset" not in next(item for item in records if item["event_type"] == "fill")
+
+
+def test_concurrent_cashflow_replays_are_idempotent(ledger):
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: ledger.ingest(cash_event()), range(10)))
+    assert sum(item["created"] for item in results) == 1
+    assert len(ledger.list()["records"]) == 1
+
+
+def test_cashflow_boundary_rejects_missing_fields_and_fabricated_order_links(ledger):
+    for change in ({"asset": None}, {"amount": None}, {"transaction_id": "1.5"},
+                   {"evidence": "project"}, {"order_id": "17"}, {"strategy_id": "strategy"},
+                   {"amount": "NaN"}, {"income_type": ""}):
+        with pytest.raises(ValueError):
+            ledger.ingest(cash_event(**change))
+    with pytest.raises(ValueError):
+        ledger.ingest(event(asset="USDT"))
+    with pytest.raises(ValueError):
+        ledger.ingest(event(symbol=""))
+
+
+def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failures(ledger, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from api.operations import service as module
+    from api.operations.service import OperationService
+    from connectors.binance.income import DAY_MS
+
+    source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
+    accounts = SimpleNamespace(private=lambda _: source,
+                               repository=SimpleNamespace(list_exchange_accounts=lambda: [source]))
+    service = OperationService(ledger.database, accounts)
+    starts = []
+    first_stop = None
+
+    async def incomplete(account, first, last):
+        nonlocal first_stop
+        starts.append(first)
+        first_stop = first + DAY_MS - 1
+        yield {"start_ms": first, "end_ms": first_stop,
+               "records": [cash_event(timestamp=first)]}
+        raise RuntimeError("private-signature-must-not-leak")
+
+    async def native_failed(*args, **kwargs):
+        raise RuntimeError("private-native-error")
+
+    monkeypatch.setattr(module, "income_history", incomplete)
+    monkeypatch.setattr(module, "operation_history", native_failed)
+    result = asyncio.run(service.sync())
+    state = result["sync"][0]
+    assert result["records_added"] == 1 and state["status"] == "failed"
+    cash = state["cashflows"]
+    assert cash["next_ms"] == first_stop + 1
+    assert cash["coverage"] == [[starts[0], first_stop]]
+    assert not cash["requested_complete"] and "private-" not in str(result)
+
+    async def recovered(account, first, last):
+        starts.append(first)
+        yield {"start_ms": first, "end_ms": last,
+               "records": [cash_event(timestamp=starts[0]),
+                           cash_event(event_id="income-2", transaction_id="2", timestamp=first_stop + 1)]}
+
+    monkeypatch.setattr(module, "income_history", recovered)
+    # A new service simulates API restart; recovery reads durable state, not memory.
+    service = OperationService(ledger.database, accounts)
+    result = asyncio.run(service.sync(cashflows_only=True))
+    cash = result["sync"][0]["cashflows"]
+    assert starts[-1] <= first_stop + 1 and result["records_added"] == 1
+    assert cash["status"] == "success" and cash["requested_complete"]
+    assert cash["next_ms"] == cash["requested_end_ms"] + 1
+    assert len(cash["coverage"]) == 1 and len(ledger.list()["records"]) == 2
+    assert result["sync"][0]["status"] == "failed"  # Funds cannot certify order history.
+
+
+def test_cancelled_income_pipeline_keeps_acknowledged_windows(ledger, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from api.operations import service as module
+    from api.operations.service import OperationService
+
+    source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
+    accounts = SimpleNamespace(private=lambda _: source,
+                               repository=SimpleNamespace(list_exchange_accounts=lambda: [source]))
+
+    async def cancelled(account, first, last):
+        yield {"start_ms": first, "end_ms": first + 999, "records": []}
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(module, "income_history", cancelled)
+    service = OperationService(ledger.database, accounts)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(service.sync(cashflows_only=True))
+    cash = ledger.sync_state()[0]["cashflows"]
+    assert cash["next_ms"] == cash["coverage"][0][1] + 1
+    assert not cash["requested_complete"] and cash["status"] == "syncing"
+
+
+def test_cashflow_api_list_export_and_sync_authorization(tmp_path, monkeypatch):
+    settings = Settings(tmp_path / "api.db", cookie_secure=False)
+    db = Database(settings.database_path)
+    db.initialize()
+    repository = AuthRepository(db)
+    for name in ("admin", "viewer"):
+        repository.create_user(name, hash_password("test-password-123"))
+    app = create_app(settings)
+    with TestClient(app) as client:
+        app.state.operations.repository.ingest(cash_event(info="=private-note"))
+        assert client.get("/api/operations?event_type=cashflow").status_code == 401
+        client.post("/api/auth/login", json={"username": "viewer", "password": "test-password-123"})
+        record = client.get("/api/operations?event_type=cashflow").json()["records"][0]
+        assert record["asset"] == "USDC" and record["transaction_id"] == "9007199254740993"
+        assert record["price"] is None and record["order_id"] is None
+        export = client.get("/api/operations/export?event_type=cashflow").text
+        assert "income_type" in export and "USDC" in export and "'=private-note" in export
+        assert client.post("/api/operations/sync", json={"cashflows_only": True}).status_code == 403
+
+        async def sync(**values):
+            assert values["cashflows_only"] is True
+            return {"records_added": 0}
+
+        monkeypatch.setattr(app.state.operations, "sync", sync)
+        client.post("/api/auth/login", json={"username": "admin", "password": "test-password-123"})
+        assert client.post("/api/operations/sync", json={"cashflows_only": True}).status_code == 200
+        assert client.post("/api/operations/sync", json={"cashflows_only": True},
+                           headers={"Origin": "https://untrusted.example"}).status_code == 403
+
+
+def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from api.operations import service as module
+    from api.operations.service import OperationService
+    from connectors.binance.income import DAY_MS
+
+    now = int(time.time() * 1000)
+    old = [now - 150 * DAY_MS, now - 101 * DAY_MS]
+    ledger.save_sync(account_id=1, environment="production", status="partial", complete=False,
+                     cashflows={"next_ms": old[1] + 1, "coverage": [old]})
+    source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
+    accounts = SimpleNamespace(private=lambda _: source,
+                               repository=SimpleNamespace(list_exchange_accounts=lambda: [source]))
+
+    async def empty(account, first, last):
+        assert first >= now - 87 * DAY_MS
+        yield {"start_ms": first, "end_ms": last, "records": []}
+
+    monkeypatch.setattr(module, "income_history", empty)
+    result = asyncio.run(OperationService(ledger.database, accounts).sync(cashflows_only=True))
+    cash = result["sync"][0]["cashflows"]
+    assert result["records_added"] == 0 and cash["requested_complete"]
+    assert len(cash["coverage"]) == 2 and cash["coverage"][0] == old
+    assert cash["coverage"][0][1] + 1 < cash["coverage"][1][0]
+    assert not result["sync"][0]["complete"]

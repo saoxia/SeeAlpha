@@ -1,27 +1,15 @@
+import type { components } from "@/app/api/generated/schema";
+
 export type ExchangeId = "binance" | "okx";
 export type ExchangeEnvironment = "production" | "sandbox";
-export type MarketType = "spot" | "linear" | "option";
 
-export type ExchangeAccount = {
-  id: number;
+export type ExchangeAccount = Omit<components["schemas"]["ExchangeAccountResponse"], "market_symbols" | "exchange" | "environment"> & {
   exchange: ExchangeId;
-  account_name: string;
   environment: ExchangeEnvironment;
-  key_hint: string;
-  market_symbols: string[];
-  last_test_status: "success" | "failed" | null;
-  last_tested_at: number | null;
-  created_at: number;
-  updated_at: number;
 };
 
-export type ExchangeMarket = {
-  symbol: string;
-  market_type: MarketType;
-  base: string;
-  quote: string;
-  expiry: number | null;
-};
+export type ExchangeAccountCreateRequest = components["schemas"]["ExchangeAccountCreateRequest"];
+export type ExchangeAccountUpdateRequest = components["schemas"]["ExchangeAccountUpdateRequest"];
 
 export type BalanceItem = {
   account: ExchangeAccount;

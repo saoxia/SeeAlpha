@@ -48,7 +48,19 @@ def observation_key(record):
         record[k]
         for k in ("account_id", "environment", "exchange", "symbol", "evidence", "event_id")
     ]
+    if record["event_type"] == "cashflow":
+        identity = [record[k] for k in (
+            "account_id", "environment", "exchange", "event_type", "income_type", "transaction_id"
+        )]
     return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+
+
+def same_observation(previous, record):
+    if record["event_type"] == "cashflow":
+        # Account renaming does not change an immutable venue transaction.
+        return ({k: v for k, v in previous.items() if k != "account_name"}
+                == {k: v for k, v in record.items() if k != "account_name"})
+    return previous == record
 
 
 def same_order(left, right):
@@ -66,7 +78,7 @@ class Operations:
             c.executescript(SQLITE_SCHEMA)
 
     def ingest(self, observation):
-        record = Observation.model_validate(observation).model_dump()
+        record = Observation.model_validate(observation).storage_record()
         key = observation_key(record)
         with self.database.connect() as c:
             c.execute("BEGIN IMMEDIATE")
@@ -74,14 +86,15 @@ class Operations:
                 "SELECT operation_id,body FROM ledger_observations WHERE id=?", (key,)
             ).fetchone()
             if previous:
-                if json.loads(previous["body"]) != record:
+                if not same_observation(json.loads(previous["body"]), record):
                     raise ValueError("相同事件标识包含冲突的内容，请使用新的事件标识保留修订。")
                 return {
                     "operation_id": previous["operation_id"],
                     "created": False,
                     "observation_added": False,
                 }
-            candidates = [
+            # Cashflows have a natural transaction identity checked above, not order links.
+            candidates = [] if record["event_type"] == "cashflow" else [
                 json.loads(r["body"])
                 for r in c.execute(
                     "SELECT body FROM ledger_operations WHERE account_id=? AND environment=? AND exchange=? AND symbol=?",

@@ -57,6 +57,8 @@ state = "data/test-state"
 
 def test_binance_and_nautilus_names_are_consistent() -> None:
     assert normalize_symbol("ETH-USDT") == "ETHUSDT"
+    assert normalize_symbol("ETH/USDC") == "ETHUSDC"
+    assert instrument_id_for("ethusdc") == "ETHUSDC-PERP.BINANCE"
     assert instrument_id_for("ethusdt") == "ETHUSDT-PERP.BINANCE"
     assert bar_type_for("ethusdt", "15m") == "ETHUSDT-PERP.BINANCE-15-MINUTE-LAST-EXTERNAL"
     assert bar_type_for("ethusdt", "1s") == "ETHUSDT-PERP.BINANCE-1-SECOND-LAST-EXTERNAL"

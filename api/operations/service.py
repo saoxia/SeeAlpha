@@ -5,6 +5,7 @@ import logging
 import math
 import time
 
+from connectors.binance.income import DAY_MS, income_history
 from connectors.binance.operations import operation_history
 
 from .repository import Operations
@@ -35,13 +36,43 @@ class OperationService:
         record = normalize_event(event, order, account)
         return self.repository.ingest(record) if record is not None else None
 
-    async def sync(self, account_id=None, start_ms=None, end_ms=None):
+    async def _sync_income(self, account, start_ms, end_ms, state):
+        cash = state["cashflows"]
+        cash.update(status="syncing", requested_start_ms=start_ms, requested_end_ms=end_ms,
+                    requested_complete=False)
+        await asyncio.to_thread(self.repository.save_sync, **state)
+        async for page in income_history(account, start_ms, end_ms):
+            for record in page["records"]:
+                result = await asyncio.to_thread(self.repository.ingest, record)
+                cash["records_scanned"] += 1
+                cash["records_added"] += int(result["created"])
+            # Only acknowledge a whole validated, persisted leaf window, including empty ones.
+            intervals = sorted([*cash.get("coverage", []), [page["start_ms"], page["end_ms"]]])
+            merged = []
+            for first, last in intervals:
+                if merged and first <= merged[-1][1] + 1:
+                    merged[-1][1] = max(last, merged[-1][1])
+                else:
+                    merged.append([first, last])
+            cash["coverage"] = merged
+            watermark = cash["next_ms"]
+            for first, last in merged:
+                if first <= watermark <= last + 1:
+                    watermark = max(watermark, last + 1)
+            cash.update(next_ms=watermark, last_success_at=int(time.time() * 1000))
+            await asyncio.to_thread(self.repository.save_sync, **state)
+        cash.update(status="success", requested_complete=True,
+                    message="已保存请求区间的合约资金流水；接口保留期及迟到记录限制仍适用。")
+        await asyncio.to_thread(self.repository.save_sync, **state)
+
+    async def sync(self, account_id=None, start_ms=None, end_ms=None, cashflows_only=False):
         if self.lock.locked():
             from fastapi import HTTPException
 
             raise HTTPException(409, "已有操作记录同步正在运行。")
         async with self.lock:
             now = int(time.time() * 1000)
+            explicit_start = start_ms
             end_ms = end_ms or now
             start_ms = start_ms or end_ms - 24 * 60 * 60 * 1000
             if (
@@ -59,14 +90,44 @@ class OperationService:
                 else await asyncio.to_thread(self.accounts.repository.list_exchange_accounts)
             )
             scanned, added, warnings = 0, 0, []
+            previous = await asyncio.to_thread(self.repository.sync_state)
             for row in accounts:
+                old = next((item for item in previous if item["account_id"] == row["id"]
+                            and item["environment"] == row["environment"]), {})
                 state = {
+                    **old,
                     "account_id": row["id"],
                     "environment": row["environment"],
-                    "requested_start_ms": start_ms,
-                    "requested_end_ms": end_ms,
-                    "complete": False,
+                    "complete": old.get("complete", False),
+                    "status": old.get("status", "pending"),
+                    "message": old.get("message", "尚未完成订单历史同步。"),
+                    "cashflows": dict(old.get("cashflows", {})),
                 }
+                floor = now - 87 * DAY_MS
+                cash = state["cashflows"]
+                cash.setdefault("next_ms", floor)
+                # Resume within the supported lookback without claiming the expired gap was read.
+                cash["next_ms"] = max(cash["next_ms"], floor)
+                cash["lookback_floor_ms"] = floor
+                cash.update(records_scanned=0, records_added=0)
+                income_start = explicit_start if explicit_start is not None else max(
+                    floor, min(cash["next_ms"], end_ms) - DAY_MS
+                )
+                try:
+                    account = await asyncio.to_thread(self.accounts.private, row["id"])
+                    await self._sync_income(
+                        account, income_start, end_ms, state
+                    )
+                except Exception:  # noqa: BLE001 - Never expose signed requests or credentials.
+                    cash.update(status="failed", requested_complete=False,
+                                message="资金流水同步失败；已保存记录和已确认区间保留，将从检查点重试。")
+                    warnings.append(f"账户 {row['id']}：{cash['message']}")
+                    await asyncio.to_thread(self.repository.save_sync, **state)
+                scanned += cash["records_scanned"]
+                added += cash["records_added"]
+                if cashflows_only:
+                    continue
+                state.update(requested_start_ms=start_ms, requested_end_ms=end_ms, complete=False)
                 try:
                     account = await asyncio.to_thread(self.accounts.private, row["id"])
                     records = await operation_history(

@@ -142,3 +142,20 @@ def test_legacy_migration_preserves_user_hash_sessions_and_business_data(environ
     with pytest.raises(ValueError, match="拒绝覆盖"):
         migrate(settings.database_path, target)
     assert settings.database_path.exists()
+
+
+def test_session_lookup_does_not_write_and_still_enforces_expiry_and_revocation(environment):
+    _settings, database, repository = environment
+    user = repository.get_user_by_username("admin")
+    now = int(time.time())
+    repository.create_session(user["id"], "valid-read-only", now + 60)
+    repository.create_session(user["id"], "expired-read-only", now - 1)
+    assert repository.get_user_for_session("valid-read-only")["id"] == user["id"]
+    assert repository.get_user_for_session("expired-read-only") is None
+    with database.connect() as connection:
+        assert connection.execute("SELECT count(*) FROM sessions WHERE token_hash='expired-read-only'").fetchone()[0] == 1
+    repository.delete_session("valid-read-only")
+    assert repository.get_user_for_session("valid-read-only") is None
+    repository.create_session(user["id"], "next-login", now + 60)
+    with database.connect() as connection:
+        assert connection.execute("SELECT count(*) FROM sessions WHERE token_hash='expired-read-only'").fetchone()[0] == 0

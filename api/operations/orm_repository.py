@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, or_, select, update
 from api.db.models import LedgerAlias, LedgerObservation, LedgerOperation, LedgerSync
 
 from .models import Observation
-from .repository import observation_key, same_order
+from .repository import observation_key, same_observation, same_order
 
 
 class ORMOperations:
@@ -19,7 +19,7 @@ class ORMOperations:
         pass  # Schema is managed by Alembic.
 
     def ingest(self, observation):
-        record = Observation.model_validate(observation).model_dump()
+        record = Observation.model_validate(observation).storage_record()
         key = observation_key(record)
         # A scope lock prevents concurrent events for the same instrument from
         # creating conflicting identities, including when no rows yet exist.
@@ -29,7 +29,7 @@ class ORMOperations:
         with self.database.session(write=True, lock_key=lock_key) as session:
             previous = session.get(LedgerObservation, key)
             if previous:
-                if previous.body != record:
+                if not same_observation(previous.body, record):
                     raise ValueError("相同事件标识包含冲突的内容，请使用新的事件标识保留修订。")
                 return {
                     "operation_id": previous.operation_id,
@@ -42,7 +42,8 @@ class ORMOperations:
                 LedgerOperation.exchange == record["exchange"],
                 LedgerOperation.symbol == record["symbol"],
             )
-            candidates = [dict(item.body) for item in session.scalars(scope).all()]
+            candidates = ([] if record["event_type"] == "cashflow" else
+                          [dict(item.body) for item in session.scalars(scope).all()])
             linked = [item for item in candidates if same_order(item, record)]
             if record.get("strategy_id") and any(
                 item.get("strategy_id") and item["strategy_id"] != record["strategy_id"]

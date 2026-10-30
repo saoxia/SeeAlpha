@@ -1,4 +1,4 @@
-export type DataTab = "operations" | "export";
+export type DataTab = "market" | "operations";
 
 export type DataFilters = {
   accountId: string;

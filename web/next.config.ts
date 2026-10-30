@@ -5,10 +5,12 @@ const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  allowedDevOrigins: ["127.0.0.1", "192.168.31.81"],
   output: "standalone",
   async rewrites() {
     const apiUrl = process.env.SEEALPHA_API_URL ?? "http://127.0.0.1:8000";
     return [
+      { source: "/api/data/:path*", destination: `${apiUrl}/api/data/:path*` },
       { source: "/api/system/update/:path+", destination: "/api/system/update" },
       { source: "/api/operations/:path*", destination: `${apiUrl}/api/operations/:path*` },
       { source: "/api/auth/:path*", destination: `${apiUrl}/api/auth/:path*` },

@@ -43,6 +43,8 @@ class MinuteActor(DataActor):
         super().__init__()
         self.source = source
         self.last_heartbeat = {}
+        self.partials = {}
+        self.last_partial = {}
 
     def on_start(self):
         self.subscribe_socket_state()
@@ -54,9 +56,29 @@ class MinuteActor(DataActor):
     def on_bar(self, bar):
         value = minute_bar(bar)
         self.source.deliver((value.symbol, bar.ts_init // 1_000_000, value))
+        previous = self.partials.get(value.symbol)
+        if previous and previous.start_ms <= value.start_ms:
+            self.partials.pop(value.symbol, None)
 
     def on_trade(self, trade):
         symbol = str(trade.instrument_id.symbol).removesuffix("-PERP")
+        if getattr(self.source, "on_partial", None) is not None:
+            stamp = trade.ts_event // 1_000_000
+            left = stamp // MINUTE * MINUTE
+            previous = self.partials.get(symbol)
+            price, size = trade.price.as_decimal(), trade.size.as_decimal()
+            if previous is None or left > previous.start_ms:
+                partial = MinuteBar(symbol, left, price, price, price, price, size)
+            elif left == previous.start_ms:
+                partial = MinuteBar(symbol, left, previous.open, max(previous.high, price),
+                                    min(previous.low, price), price, previous.volume + size)
+            else:
+                return
+            self.partials[symbol] = partial
+            tick = monotonic()
+            if tick - self.last_partial.get(symbol, 0) >= 0.25:
+                self.last_partial[symbol] = tick
+                self.source.loop.call_soon_threadsafe(self.source.on_partial, partial, stamp)
         now = monotonic()
         if now - self.last_heartbeat.get(symbol, 0) >= 1:
             self.last_heartbeat[symbol] = now
@@ -80,7 +102,7 @@ class NativeMarketData:
         self.http_url, self.websocket_url = http_url, websocket_url
         self.timeout = timeout
         self.node = self.task = self.actor = None
-        self.on_message = self.on_reconnect = None
+        self.on_message = self.on_reconnect = self.on_partial = None
         self.connected = True
         self.sockets = {}
         self.pending = None

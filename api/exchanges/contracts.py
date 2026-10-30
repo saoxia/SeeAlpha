@@ -1,7 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-MARKET_SELECTION_LIMIT = 30
-
 
 class ExchangeAccountCreateRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
@@ -11,7 +9,6 @@ class ExchangeAccountCreateRequest(BaseModel):
     api_key: str = Field(min_length=1, max_length=2048, repr=False)
     secret: str = Field(min_length=1, max_length=2048, repr=False)
     passphrase: str | None = Field(default=None, max_length=2048, repr=False)
-    market_symbols: list[str] = Field(min_length=1, max_length=MARKET_SELECTION_LIMIT)
 
 
 class ExchangeAccountUpdateRequest(BaseModel):
@@ -21,7 +18,6 @@ class ExchangeAccountUpdateRequest(BaseModel):
     api_key: str | None = Field(default=None, max_length=2048, repr=False)
     secret: str | None = Field(default=None, max_length=2048, repr=False)
     passphrase: str | None = Field(default=None, max_length=2048, repr=False)
-    market_symbols: list[str] = Field(min_length=1, max_length=MARKET_SELECTION_LIMIT)
 
 
 class ExchangeAccountResponse(BaseModel):
@@ -30,7 +26,10 @@ class ExchangeAccountResponse(BaseModel):
     account_name: str
     environment: str
     key_hint: str
-    market_symbols: list[str] = Field(default_factory=list)
+    market_symbols: list[str] = Field(
+        default_factory=list, deprecated=True,
+        description="Historical compatibility metadata only; not configurable or used to filter accounts.",
+    )
     last_test_status: str | None = None
     last_tested_at: int | None = None
     created_at: int

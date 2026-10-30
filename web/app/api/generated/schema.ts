@@ -4,6 +4,121 @@
  */
 export interface components {
   schemas: {
+      ExchangeAccountCreateRequest: {
+        exchange: string;
+        account_name: string;
+        environment: string;
+        api_key: string;
+        secret: string;
+        passphrase?: string | null;
+      };
+      ExchangeAccountUpdateRequest: {
+        account_name: string;
+        environment: string;
+        api_key?: string | null;
+        secret?: string | null;
+        passphrase?: string | null;
+      };
+      ExchangeAccountResponse: {
+        id: number;
+        exchange: string;
+        account_name: string;
+        environment: string;
+        key_hint: string;
+        market_symbols?: string[];
+        last_test_status?: string | null;
+        last_tested_at?: number | null;
+        created_at: number;
+        updated_at: number;
+      };
+      DataCapabilities: {
+        market: string;
+        symbols: string[];
+        intervals: string[];
+        can_operate: boolean;
+        max_range_days?: number | null;
+        max_preview_minutes?: number;
+        realtime_ticks?: boolean;
+        realtime_base_levels?: string[];
+        realtime_products?: string[];
+        products?: string[];
+        option_intervals?: string[];
+        option_historical_ticks?: boolean;
+        option_recent_limit?: number;
+      };
+      DataPolicy: {
+        symbol: string;
+        product?: "futures_um" | "options";
+        base_level?: "auto" | "tick" | "1s" | "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "2h" | "4h" | "6h" | "8h" | "12h" | "1d" | "3d" | "1w" | "1M";
+        intervals?: string[];
+        realtime_enabled?: boolean;
+        history_enabled?: boolean;
+        history_mode?: "all" | "start" | "duration";
+        history_start?: string | null;
+        history_days?: number;
+      };
+      DataPolicySave: {
+        symbol: string;
+        product?: "futures_um" | "options";
+        base_level?: "auto" | "tick" | "1s" | "1m" | "3m" | "5m" | "15m" | "30m" | "1h" | "2h" | "4h" | "6h" | "8h" | "12h" | "1d" | "3d" | "1w" | "1M";
+        intervals?: string[];
+        realtime_enabled?: boolean;
+        history_enabled?: boolean;
+        history_mode?: "all" | "start" | "duration";
+        history_start?: string | null;
+        history_days?: number;
+        deletion_snapshot?: string | null;
+        confirmation?: string | null;
+      };
+      PairDeletePlanRequest: {
+        symbol: string;
+        product?: "futures_um" | "options";
+      };
+      PairDeleteRequest: {
+        symbol: string;
+        product?: "futures_um" | "options";
+        action?: string;
+        deletion_snapshot: string;
+        confirmation: string;
+      };
+      DataMarket: {
+        symbol: string;
+        base: string;
+        quote: string;
+        product?: "futures_um" | "options";
+        underlying?: string | null;
+        expiry?: number | null;
+        strike?: string | null;
+        right?: "CALL" | "PUT" | null;
+        multiplier?: string | null;
+      };
+      DataDeletionPlan: {
+        product?: "futures_um" | "options";
+        snapshot: string;
+        file_count: number;
+        total_bytes: number;
+        groups: Record<string, Record<string, number>>;
+        files: Record<string, unknown>[];
+        symbol: string;
+        start: string;
+        end: string;
+        delete_archives: boolean;
+        message: string;
+      };
+      DataJobResponse: {
+        id: string;
+        action: string;
+        status: string;
+        created_at: string;
+        finished_at: string | null;
+        parameters: Record<string, unknown>;
+        error: string | null;
+        result: Record<string, unknown> | null;
+        progress?: string;
+        log?: string;
+        log_truncated?: boolean;
+        cancellable?: boolean;
+      };
       EquityCandleResponse: {
         bucket_start: number;
         open: string;

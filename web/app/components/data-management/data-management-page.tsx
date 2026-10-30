@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ExchangeAccount, ExchangeTrade } from "../types";
+import { MarketDataPanel } from "./market-data-panel";
 import { OperationsList } from "./data-management-sections";
-import { buildQuery, dataManagementApi, timestamp } from "@/app/features/data-management/api";
+import { dataManagementApi, timestamp } from "@/app/features/data-management/api";
 import { emptyDataFilters, type DataFilters, type DataTab } from "@/app/features/data-management/types";
 
 export function DataManagementPage() {
-  const [tab, setTab] = useState<DataTab>("operations");
+  const [tab, setTab] = useState<DataTab>("market");
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [draftFilters, setDraftFilters] = useState<DataFilters>(emptyDataFilters);
   const [filters, setFilters] = useState<DataFilters>(emptyDataFilters);
@@ -17,10 +18,8 @@ export function DataManagementPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [backfillingOperations, setBackfillingOperations] = useState(false);
-  const selectedAccount = accounts.find(
-    (account) => String(account.id) === filters.accountId,
-  );
   useEffect(() => {
+    if (tab !== "operations") return;
     const controller = new AbortController();
     dataManagementApi.accounts(controller.signal)
       .then(setAccounts)
@@ -29,10 +28,10 @@ export function DataManagementPage() {
         setMessage(error instanceof Error ? error.message : "无法读取账户列表。");
       });
     return () => controller.abort();
-  }, []);
+  }, [tab]);
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
-    if (tab === "export") {
+    if (tab !== "operations") {
       setLoading(false);
       return;
     }
@@ -87,13 +86,14 @@ export function DataManagementPage() {
         account_id: filters.accountId ? Number(filters.accountId) : null,
         start_ms: timestamp(filters.start),
         end_ms: timestamp(filters.end),
+        cashflows_only: filters.eventType === "cashflow",
       });
       await loadData();
       const warning = result.warnings.length
         ? `；${result.warnings.length} 项未完成，请检查交易所接口权限或时间范围`
         : "";
       setMessage(
-        `操作记录更新完成：检查 ${result.records_scanned} 条，补齐 ${result.records_added} 条${warning}。`,
+        `账户记录更新完成：检查 ${result.records_scanned} 条，补齐 ${result.records_added} 条${warning}。`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "无法更新操作记录。");
@@ -102,34 +102,12 @@ export function DataManagementPage() {
     }
   }
 
-  function exportData() {
-    const query = buildQuery(filters);
-    const anchor = document.createElement("a");
-    anchor.href = `/api/operations/export?${query}`;
-    anchor.download = "";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  }
-
   return (
     <section className="data-management-page">
-      <header className="data-management-heading">
-        <div>
-          <span>DATA MANAGEMENT</span>
-          <h1>数据管理</h1>
-          <p>查询和导出账户操作记录。</p>
-        </div>
-        <div className="data-management-summary">
-          <span>当前范围</span>
-          <b>{selectedAccount?.account_name || "全部账户"}</b>
-        </div>
-      </header>
-
       <nav className="data-management-tabs" aria-label="数据管理分类">
         {([
+          ["market", "行情数据"],
           ["operations", "账户记录"],
-          ["export", "数据导出"],
         ] as Array<[DataTab, string]>).map(([id, label]) => (
           <button
             key={id}
@@ -144,6 +122,8 @@ export function DataManagementPage() {
         ))}
       </nav>
 
+      {tab === "market" && <MarketDataPanel />}
+      <div hidden={tab === "market"}>
       <form
         className="data-filter-bar"
         onSubmit={(event) => {
@@ -165,7 +145,6 @@ export function DataManagementPage() {
             ))}
           </select>
         </label>
-        {tab === "operations" || tab === "export" ? <>
           <label>
             <span>类型</span>
             <select
@@ -180,6 +159,7 @@ export function DataManagementPage() {
               <option value="reject">拒绝</option>
               <option value="expire">过期</option>
               <option value="correction">对账修正</option>
+              <option value="cashflow">资金变动</option>
             </select>
           </label>
           <label>
@@ -190,7 +170,6 @@ export function DataManagementPage() {
               onChange={(event) => setDraftFilters((current) => ({ ...current, symbol: event.target.value }))}
             />
           </label>
-        </> : null}
         <label><span>开始时间</span><input type="datetime-local" value={draftFilters.start} onChange={(event) => setDraftFilters((current) => ({ ...current, start: event.target.value }))} /></label>
         <label><span>结束时间</span><input type="datetime-local" value={draftFilters.end} onChange={(event) => setDraftFilters((current) => ({ ...current, end: event.target.value }))} /></label>
         <button type="submit">应用筛选</button>
@@ -201,25 +180,21 @@ export function DataManagementPage() {
       <div className="data-management-content">
         {tab === "operations" && <div className="operation-backfill-bar">
           <div>
-            <b>历史操作记录</b>
-            <small>按当前账户与时间筛选检查缺失记录；未选择开始时间时默认检查最近 24 小时；历史覆盖可能不完整。</small>
+            <b>历史账户记录</b>
+            <small>按当前账户与时间筛选补齐记录。未选择开始时间时，订单检查最近 24 小时，资金首次检查最近 87 天、之后续传；历史覆盖可能不完整。</small>
           </div>
           <button
             type="button"
             disabled={backfillingOperations}
             onClick={() => void backfillOperations()}
           >
-            {backfillingOperations ? "正在更新…" : "更新操作记录"}
+            {backfillingOperations ? "正在更新…" : "更新账户记录"}
           </button>
         </div>}
         {tab === "operations" && <OperationsList operations={operations} loading={loading} />}
         {tab === "operations" && hasMore && <button type="button" className="data-load-more" disabled={loading} onClick={() => void loadMoreOperations()}>加载更早记录</button>}
-        {tab === "export" && <section className="data-export-card">
-          <span>EXPORT</span>
-          <h2>按当前筛选条件导出 CSV</h2>
-          <p>文件使用 UTF-8 编码，可直接用 Excel 打开。导出不会修改任何数据。</p>
-          <button type="button" onClick={exportData}>导出 CSV</button>
-        </section>}
+
+      </div>
       </div>
     </section>
   );

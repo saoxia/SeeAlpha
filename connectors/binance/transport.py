@@ -13,6 +13,8 @@ REST_URL = "https://fapi.binance.com/fapi/v1/"
 
 
 class PublicREST:
+    allowed_endpoints = frozenset({"time"})
+
     def __init__(
         self, *, symbols=("BTCUSDT", "ETHUSDT"), timeout=12, attempts=4, minimum_interval=0.3
     ):
@@ -41,8 +43,8 @@ class PublicREST:
         return result
 
     async def get(self, endpoint, **params):
-        if endpoint != "time":
-            raise ValueError("Only public time and klines are allowed")
+        if endpoint not in self.allowed_endpoints:
+            raise ValueError("Unsupported public REST endpoint")
         async with self.lock:
             for attempt in range(self.attempts):
                 await asyncio.sleep(

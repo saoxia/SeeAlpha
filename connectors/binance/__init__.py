@@ -1,1 +1,1 @@
-"""Binance public-data integration using the native Nautilus adapter."""
+"""Binance native USD-M integration and public-extension options clients."""

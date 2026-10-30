@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+import time
 import uuid
 from pathlib import Path
 
@@ -9,13 +10,13 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.db.database import create_database
-from api.db.errors import StorageConflict
+from api.db.errors import StorageConflict, StorageUnavailable
 from api.db.exchange_repository import exchange_repository
 from api.db.orm import ORMDatabase
 from api.main import create_app
@@ -105,11 +106,32 @@ def test_orm_api_restart_preserves_state(orm, tmp_path):
             == 200
         )
         assert client.get("/api/auth/me").json()["user"]["username"] == "admin"
+        response = client.post("/api/system/exchange-accounts", json={
+            "exchange": "binance", "account_name": "No watchlist", "environment": "production",
+            "api_key": "fixture-key", "secret": "fixture-secret",
+        })
+        assert response.status_code == 201
+        account_id = response.json()["id"]
+        assert response.json()["market_symbols"] == []
         cookie = client.cookies.get("seealpha_session")
     with TestClient(create_app(settings)) as client:
         client.cookies.set("seealpha_session", cookie)
         assert client.get("/api/auth/me").status_code == 200
         assert client.get("/api/system/exchange-accounts").status_code == 200
+        before = exchange_repository(db).get_exchange_account(account_id)
+        exchange_repository(db).update_exchange_account(
+            account_id, account_name=before["account_name"], environment=before["environment"],
+            credentials_encrypted=before["credentials_encrypted"],
+            market_symbols_json='["ETH/USDT:USDT"]',
+        )
+        response = client.put(f"/api/system/exchange-accounts/{account_id}", json={
+            "account_name": "Renamed", "environment": "production",
+        })
+        assert response.status_code == 200
+        assert response.json()["market_symbols"] == ["ETH/USDT:USDT"]
+        after = exchange_repository(db).get_exchange_account(account_id)
+        assert after["credentials_encrypted"] == before["credentials_encrypted"]
+        assert after["market_symbols_json"] == '["ETH/USDT:USDT"]'
 
 
 def test_orm_ledger_idempotence_and_merge(orm):
@@ -355,3 +377,84 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     with db.session() as session:
         assert len(session.scalars(select(BacktestReport)).all()) == 1
     jobs.close()
+
+
+def test_orm_session_lookup_is_read_only_with_immediate_expiry_and_revocation(orm):
+    db, _url, _schema = orm
+    auth = auth_repository(db)
+    user = auth.create_user("session-reader", "fixture-hash")
+    now = int(time.time())
+    auth.create_session(user["id"], "valid-read-only", now + 60)
+    auth.create_session(user["id"], "expired-read-only", now - 1)
+    statements = []
+    def record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lstrip().upper())
+    event.listen(db.engine, "before_cursor_execute", record)
+    try:
+        assert auth.get_user_for_session("valid-read-only")["id"] == user["id"]
+        assert auth.get_user_for_session("expired-read-only") is None
+    finally:
+        event.remove(db.engine, "before_cursor_execute", record)
+    assert statements and all(statement.startswith("SELECT") for statement in statements)
+    auth.delete_session("valid-read-only")
+    assert auth.get_user_for_session("valid-read-only") is None
+    from api.db.models import Session
+    with db.session() as session:
+        assert session.get(Session, "expired-read-only") is not None
+    auth.create_session(user["id"], "next-login", now + 60)
+    with db.session() as session:
+        assert session.get(Session, "expired-read-only") is None
+
+
+def test_exhausted_connection_pool_becomes_service_unavailable(orm):
+    from sqlalchemy.exc import TimeoutError as PoolTimeout
+    db, _url, _schema = orm
+    with pytest.raises(StorageUnavailable), db.session():
+        raise PoolTimeout("pool exhausted")
+
+
+def test_pool_replaces_closed_idle_connection_without_losing_sessions(orm):
+    db, _url, _schema = orm
+    auth = auth_repository(db)
+    user = auth.create_user("reconnect-user", "hash")
+    auth.create_session(user["id"], "reconnect-session", int(time.time()) + 60)
+    with db.engine.connect() as connection:
+        raw = connection.connection.dbapi_connection
+    # Simulate the server closing an idle socket after it was returned to the pool.
+    raw.close()
+    assert auth.get_user_for_session("reconnect-session")["id"] == user["id"]
+
+
+def test_postgres_unresponsive_handshake_is_bounded_and_logs_no_credentials(tmp_path, caplog):
+    import socket
+    import threading
+
+    stop = threading.Event()
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        listener.settimeout(10)
+
+        def stalled_server():
+            with listener.accept()[0]:
+                stop.wait(10)
+
+        server = threading.Thread(target=stalled_server, daemon=True)
+        server.start()
+        password = "private-diagnostic-password"
+        db = ORMDatabase(
+            f"postgresql+psycopg://fixture:{password}@127.0.0.1:{listener.getsockname()[1]}/fixture",
+            tmp_path / "unused.db",
+        )
+        started = time.monotonic()
+        try:
+            with pytest.raises(StorageUnavailable), db.session() as session:
+                session.execute(text("SELECT 1"))
+            assert time.monotonic() - started < 9
+            assert "error=OperationalError" in caplog.text
+            assert password not in caplog.text
+            assert "postgresql" not in caplog.text
+        finally:
+            stop.set()
+            db.close()
+            server.join(timeout=2)

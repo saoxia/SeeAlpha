@@ -100,12 +100,26 @@ class Coordinator:
         return bool(checked)
 
 
-async def serve(args, root, *, on_delivery=None):
+async def serve(args, root, *, on_delivery=None, on_bar_update=None):
     rest, clock = PublicREST(symbols=args.symbols), ServerClock()
     await clock.sync(rest)
     start = clock.confirmed() // MINUTE * MINUTE - args.warmup_minutes * MINUTE
     store = Store(root / "minutes.sqlite", tuple(args.symbols), start)
-    feed = Feed(store, warmup_minutes=args.warmup_minutes, on_delivery=on_delivery)
+    rollups = None
+    intervals = getattr(args, "intervals", None)
+    if intervals:
+        from .aggregation import Rollups
+        rollups = Rollups(store, root / "rollups.sqlite", intervals, on_bar_update)
+        rollups.recover(clock.confirmed())
+
+    def deliver(value):
+        if rollups:
+            rollups.update(value.bar, clock.confirmed(), is_closed=True,
+                           allow_new_risk=value.allow_new_risk)
+        if on_delivery:
+            on_delivery(value)
+
+    feed = Feed(store, warmup_minutes=args.warmup_minutes, on_delivery=deliver)
     history = CatalogHistory(args.catalog)
     coordinator = Coordinator(feed, rest, clock, history)
     queue = asyncio.Queue(maxsize=4096)
@@ -135,6 +149,12 @@ async def serve(args, root, *, on_delivery=None):
         while True:
             raw = await queue.get()
             try:
+                if raw[0] == "partial":
+                    _, partial_bar, event = raw
+                    now = clock.confirmed()
+                    if now - feed.stale_ms <= event <= now + 2000:
+                        rollups.update(partial_bar, now)
+                    continue
                 symbol, event, bar = parse_message(raw, args.symbols)
                 # A server clock estimate carries uncertainty. Hold a final candle
                 # until its entire minute is certainly in the past.
@@ -149,6 +169,12 @@ async def serve(args, root, *, on_delivery=None):
                 store.incident("websocket_error", {"error": str(exc)}, clock.now())
             finally:
                 queue.task_done()
+
+    if rollups:
+        def partial(bar, stamp):
+            # Keep validation/consumer failures inside receive(), which closes the gate.
+            enqueue(("partial", bar, stamp))
+        rest.source.on_partial = partial
 
     worker = None
     receive_task = None
@@ -216,6 +242,8 @@ async def serve(args, root, *, on_delivery=None):
             status["job"] = job if worker else None
             status["last_reconciled_day_ms"] = last_reconciled_day
             status["scope"] = "closed_1m_OHLCV_public_data_no_orders"
+            if rollups:
+                status["bar_updates"] = rollups.snapshot(clock.confirmed())
             write_status(root, status)
             await asyncio.sleep(0.25)
     finally:
@@ -232,6 +260,8 @@ async def serve(args, root, *, on_delivery=None):
             status = feed.status(clock.now())
             status["state"], status["reason"] = State.STOPPED, "service_stopped"
             write_status(root, status)
+            if rollups:
+                rollups.close()
             store.close()
 
 
