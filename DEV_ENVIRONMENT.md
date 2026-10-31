@@ -14,12 +14,12 @@
 
 ## 日常使用
 
-独立前端与 API 已完成第一阶段拆分：用户鉴权运行于根目录 `api/`，Next.js
-前端运行于 `web/`。安装 API 依赖使用 `uv sync --locked --group api`，启动和
+独立前端与 API 已完成拆分：用户鉴权、研究任务和其余业务接口运行于根目录 `api/`，
+Next.js 前端运行于 `web/`。安装 API 依赖使用 `uv sync --locked --group api`，启动和
 迁移说明见 [API 说明](api/README.md) 与 [前端说明](web/README.md)。
 业务存储使用 ORM 对接 PostgreSQL 或 SQLite；数据库连接需显式配置，离线测试使用临时 SQLite。
 云端连接失败不会自动退回 SQLite。旧历史业务和大体积行情文件仍保留本地。
-下文 `python -m web.server` 仍指兼容保留的旧 Python 管理端。
+`:8765` Python 管理端和 `:8001` 兼容后端已移除。
 
 在项目根目录执行：
 
@@ -28,11 +28,10 @@ source ./activate.sh
 python --version
 python -m ruff check .
 python -m pytest -q
-python -m web.server --host 127.0.0.1
 ```
 
-最后一条手动启动管理端，浏览器打开 `http://127.0.0.1:8765`；Ctrl+C 停止。
-验收过程中管理端已退出，没有留下长期服务。
+前端与 API 按各自说明手动启动，浏览器打开 `http://127.0.0.1:3000`。
+验收过程中这些进程已退出，没有留下长期服务。
 
 激活支持 zsh 和 Bash，不依赖数据目录或外置盘。数据位置由本机文件系统链接管理；
 程序仅使用逻辑路径 `data/`，不检查挂载状态或推导外置盘位置。
@@ -103,9 +102,9 @@ NAUTILUS_RUST_CONVERTER=off python -m pytest tests/pipeline -q
 
 当前依赖版本以 `uv.lock`、`rust-toolchain.toml` 和转换器 `Cargo.lock` 为准。
 开发检查使用 `python -m ruff check .` 与 `python -m pytest -q`。
-Web 任务记录位于 `.local/state/web/jobs/`，日志位于 `logs/web/`，登录口令位于
-`.local/config/web/access_password`，服务锁位于 `.local/run/web/server.lock`。
-这些目录不依赖外置数据盘，旧 Web 运行文件的迁移规则见 [Web 管理端说明](web/README.md#运行文件布局与迁移)。
+研究任务记录位于 `.local/state/web/jobs/`（启用 ORM 后以数据库为准），日志位于 `logs/web/`，
+服务锁位于 `.local/run/web/server.lock`。旧管理端口令不再用于登录。
+这些目录不依赖外置数据盘，迁移规则见 [前端说明](web/README.md#研究与任务)。
 
 Web 发起的检查保存报告到 `logs/web/checks/latest.json`；直接运行标准命令时结果显示在终端。
 当前策略源码基线位于 `tests/baselines/current_source_baselines.json`。

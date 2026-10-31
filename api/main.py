@@ -1,8 +1,9 @@
-"""Independent API entry point; no legacy business workers are started here."""
+"""Independent API entry point. Research jobs start here; no legacy console is imported."""
 
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,7 +13,7 @@ from starlette.responses import JSONResponse
 from connectors.binance.queries import QueryError
 
 from .auth.router import router
-from .config import Settings
+from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
@@ -20,6 +21,8 @@ from .exchanges.accounts import Accounts
 from .exchanges.equity_sample import router as equity_sample_router
 from .exchanges.router import router as exchanges_router
 from .exchanges.service import ExchangeService
+from .management.router import router as management_router
+from .management.service import management_runtime
 from .market_data.router import router as market_data_router
 from .market_data.service import DataService
 from .olap.repository import olap_repository
@@ -29,7 +32,7 @@ from .operations.router import router as operations_router
 from .operations.service import OperationService
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, *, project: Path | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
     database = create_database(settings)
 
@@ -39,8 +42,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         olap_task = None
         configuration_task = None
         monitor_task = None
+        runtime = None
         try:
             database.initialize()
+            if app.state.management_project is not None:
+                runtime = management_runtime(app.state.management_project, database)
+                app.state.management = runtime.__enter__()
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
             await asyncio.to_thread(app.state.market_data.subscriptions.restore)
@@ -87,6 +94,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 task.cancel()
                 with suppress(asyncio.CancelledError):
                     await task
+            if app.state.management is not None and runtime is not None:
+                runtime.__exit__(None, None, None)
+                app.state.management = None
             database.close()
 
     app = FastAPI(title="SeeAlpha API", version="0.1.0", lifespan=lifespan)
@@ -98,6 +108,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.exchanges = ExchangeService(app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
     app.state.market_data = DataService(database)
+    app.state.management = None
+    app.state.management_project = (
+        project if project is not None else PROJECT if settings.require_database_url else None
+    )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
 
     @app.middleware("http")
@@ -147,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(operations_router, prefix="/api")
     app.include_router(olap_router, prefix="/api")
     app.include_router(market_data_router, prefix="/api")
+    app.include_router(management_router, prefix="/api")
     return app
 
 

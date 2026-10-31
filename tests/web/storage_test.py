@@ -3,13 +3,13 @@
 import fcntl
 import json
 import stat
-import sys
 
 import pytest
 
-from web import server, storage
-from web.jobs import JobManager
-from web.storage import WebPaths, migrate_legacy, runtime_lock
+from api.management import storage
+from api.management.jobs import JobManager
+from api.management.service import management_runtime
+from api.management.storage import WebPaths, migrate_legacy, runtime_lock
 
 
 def legacy_files(project):
@@ -105,21 +105,9 @@ def test_active_server_blocks_migration(tmp_path, legacy):
     assert (paths.legacy / "access_password").is_file()
 
 
-def test_startup_migrates_before_loading_jobs_and_uses_new_password_path(tmp_path, monkeypatch):
+def test_startup_migrates_before_loading_jobs(tmp_path):
     paths, identity = legacy_files(tmp_path)
-    monkeypatch.setattr(server, "PROJECT", tmp_path)
-    monkeypatch.setattr(sys, "argv", ["web.server"])
-
-    def serve(args, parser):
-        assert args.password_file == paths.password
+    with management_runtime(tmp_path, database=None) as service:
         assert paths.password.is_file()
-        manager = JobManager(tmp_path)
-        try:
-            assert manager.get_job(identity)["log"] == "original output\n"
-        finally:
-            manager.close()
-        return 0
-
-    monkeypatch.setattr(server, "_serve", serve)
-    assert server.main() == 0
+        assert service.jobs.get_job(identity)["log"] == "original output\n"
     assert not paths.legacy.exists()

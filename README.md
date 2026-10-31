@@ -15,7 +15,7 @@ SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密�
 | --- | --- |
 | 数据准备与行情 | Binance USD-M 永续合约公开行情，默认 BTC、ETH、SOL；连续行情层输出闭合分钟 OHLCV |
 | 策略研究与回测 | 现有 BTC/ETH 策略、组合回测及报告 |
-| Web 管理端 | 独立 Next.js 前端与用户鉴权 API；原 Python 管理端保留项目检查、BTC/ETH 策略回测、报告和任务日志 |
+| Web 管理端 | 独立 Next.js 前端与 FastAPI；项目检查、BTC/ETH 策略回测、报告和任务日志在 RESEARCH 页 |
 | 账户与实盘执行 | 已提供 Binance 原生只读账户接口，尚未使用真实账户凭据验收；未接入实盘下单 |
 | 业务持久化 | 通过 ORM 支持 PostgreSQL/SQLite；本机已连接 PostgreSQL 并完成迁移 |
 | 其他市场与交易产品 | 股票、其他期货、现货、期权等尚未完成本项目接入与验收 |
@@ -37,10 +37,10 @@ v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_U
 
 ## Web 管理端
 
-运行 `.venv/bin/python -m web.server`，在浏览器打开
-[综合管理端](http://127.0.0.1:8765)，即可查看项目检查、
+先启动 API，再启动 Next.js 前端，浏览器打开
+[综合管理端](http://127.0.0.1:3000) 的 RESEARCH 页，即可查看项目检查、
 发起 BTC/ETH 策略回测、查看任务日志及历史报告。使用现有本地数据及策略参数，
-其他设备可访问 `http://运行机器的IP:8765`。无需安装新依赖。详见 [Web 管理端说明](web/README.md)。
+登录沿用 API 用户会话。详见 [前端说明](web/README.md) 与 [API 说明](api/README.md)。
 
 ## 当前进度与检查
 
@@ -263,15 +263,15 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 
 ## 工程边界
 
-`api/` 提供当前前端所需 API，`web/app/` 为独立 Next.js 前端；
-旧业务后端及其依赖已清理，既有 Python 管理端及任务模块继续保留。启动方式见
-[API 说明](api/README.md) 与 [前端说明](web/README.md)。
+`api/` 提供当前前端所需 API，`web/app/` 为独立 Next.js 前端。
+旧业务后端、`:8001` 兼容后端和 `:8765` Python 管理端已移除；检查与回测任务由 API 启动。
+启动方式见 [API 说明](api/README.md) 与 [前端说明](web/README.md)。
 
 - `core/`：公共行情定义和逻辑路径。
-- `api/`：独立 API 入口与用户鉴权，后续收敛其他业务接口。
-- `web/`：独立前端；现有 Python 服务、后台任务暂兼容保留。
+- `api/`：鉴权、账户、操作记录、行情管理，以及检查、回测、报告和任务日志。
+- `web/`：独立 Next.js 前端，通过同源 `/api` 访问上述接口。
 - `tests/`：自动化行为测试、源码基线及历史研究来源校验。
 - 配置继续位于所属模块，依赖与工具链由根目录声明文件管理。
 
 不设置独立的 conf、cli、runtime、checks、benchmarks 或 scripts 目录。
-Web 启动入口为 `python -m web.server`，环境和构建步骤见 [开发环境说明](DEV_ENVIRONMENT.md)。
+前端与 API 的环境和构建步骤见 [开发环境说明](DEV_ENVIRONMENT.md)。

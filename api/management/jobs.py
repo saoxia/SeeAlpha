@@ -1,4 +1,4 @@
-"""Allowlisted, persistent background jobs for the local management console."""
+"""Allowlisted background checks and backtests for the authenticated API."""
 
 import argparse
 import copy
@@ -20,6 +20,8 @@ from core.paths import PROJECT_ROOT as PROJECT
 
 from .artifacts import BACKTESTS, CHECKS, artifact_path
 from .storage import WebPaths
+
+CHECK_MODULE = "api.management.jobs"
 
 _FAMILIES = (
     ("trend_following_long", "趋势跟随多头"),
@@ -43,8 +45,8 @@ ACTIONS = [
     {"id": "backtest", "label": "运行策略回测", "description": "使用本地数据回测指定策略。"},
 ]
 _COMMANDS = {
-    "check_quick": ("web.jobs", "--quick"),
-    "check_full": ("web.jobs",),
+    "check_quick": (CHECK_MODULE, "--quick"),
+    "check_full": (CHECK_MODULE,),
 }
 _LABELS = {item["id"]: item["label"] for item in ACTIONS}
 _STRATEGIES = {item["id"]: item for item in STRATEGIES}

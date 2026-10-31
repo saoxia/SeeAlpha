@@ -16,7 +16,7 @@
 
 SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。根目录 `pyproject.toml`、`uv.lock` 管理 Python 及依赖，当前引擎固定为 `nautilus-trader==2.0.0rc7`；项目不是引擎源码仓库。
 
-Python 承担行情、管道、策略、API 和兼容管理端；Rust 用于历史 trades 转换，保留 Python 回退。`strategy_rust/` 当前只有说明文件，不能视为已有可运行 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
+Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换，保留 Python 回退。`strategy_rust/` 当前只有说明文件，不能视为已有可运行 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
 
 现有账户与操作历史接入是只读查询，不等于已上线实盘下单；资产 K 线接口当前返回示例数据。不能将多资产产品定位或历史文档中的后续设计视为已实现能力。
 
@@ -29,9 +29,8 @@ Python 承担行情、管道、策略、API 和兼容管理端；Rust 用于历�
 | `pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。 |
 | `feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `connectors`、`core`，仅 `history.py` 通过 `pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
 | `strategy_python/` | 策略包及共享指标、值对象、风险和执行组件；`_backtesting.py` 组装引擎与数据，`portfolio.py` 按清单组装策略，`portfolio_backtest.py` 启动共用账户回测，`_report/` 输出报告。 |
-| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP 及离线数据管理；服务通过 connector 查询，通过 repository/ORM 持久化，Alembic 管理业务表结构。行情服务参数存库，运行及监控状态存文件；兼容操作调用既有 Pipeline 固定入口。启动时运行操作同步及 OLAP 缓存刷新，不启动实盘策略。 |
-| `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。 |
-| `web/*.py`、`web/static/` | 兼容 Python HTTP 管理端及独立页面；`server.py` 负责访问控制，`jobs.py` 执行固定检查/回测任务，`artifacts.py` 检索报告，`storage.py` 管理运行路径与迁移。与新前端/API 的登录机制独立。 |
+| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务；服务通过 connector 查询，通过 repository/ORM 持久化，Alembic 管理业务表结构。行情服务参数存库，运行及监控状态存文件；研究任务调用既有检查与策略回测入口。启动时运行操作同步、OLAP 缓存刷新和研究任务恢复，不启动实盘策略。 |
+| `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
 
 ## 公共入口、契约与主要数据流
@@ -77,17 +76,19 @@ Market Data → Indicators / Features → Signal → Position Target
   → repository / ORM → 业务数据库
   → OLAP 服务 → ClickHouse 查询 / 监控缓存
 
-兼容 Python 管理端 → 固定任务子进程 → 检查 / 策略回测
+FastAPI `/api/management` → 固定任务子进程 → 检查 / 策略回测
   → 任务记录、文件日志和报告索引
 ```
 
-API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accounts/*`、`/api/exchange-accounts/*`、`/api/operations/*`、`/api/system/olap/*` 与 `/api/clickhouse/*`；字段以路由、contracts/models 和 OpenAPI 为准。`/api/system/update` 在前端返回 410。浏览器不直接访问数据库、Python 模块或本地业务文件。
+API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accounts/*`、`/api/exchange-accounts/*`、`/api/operations/*`、`/api/system/olap/*`、`/api/clickhouse/*` 与 `/api/management/*`；字段以路由、contracts/models 和 OpenAPI 为准。`/api/system/update` 在前端返回 410。浏览器不直接访问数据库、Python 模块或本地业务文件。
+
+2026-10-31 按用户明确要求完成前端/API 拆分第二阶段：移除 `:8765` Python 管理端和已不存在的 `:8001` 兼容后端。检查、回测、报告与任务日志改由现有 FastAPI 会话提供，任务仍写入原 ORM 表和原文件路径，不新增表、不改策略研究来源、不启用实盘。
 
 2026-10-28 按授权增加 `/api/data/*`：浏览器经同源代理访问离线 Tick 预览、覆盖、
 质量与存储状态，管理员可发起现有 Pipeline 的补缺失、只读逐笔校验、本地派生 K 线与导出。
 任务由 API 启动固定子进程，元数据复用 ORM `ManagementJob`；结果在 `.local/state/api/data_jobs/`，
 日志在 `logs/api/data/`，导出在 `data/exports/ticks/`。未改既有模块依赖方向，
-不迁移兼容管理端任务、不强制重建、不增加实时 Tick 采集或交易执行。
+当时未迁移检查/回测任务；该迁移已于 2026-10-31 按后续授权完成。不强制重建，不增加实时 Tick 采集或交易执行。
 详见 [离线数据管理 API](DATA_MANAGEMENT_API.md)。
 
 2026-10-28 按用户授权补充历史数据删除：沿用相同 API → Pipeline 固定任务及 ORM 任务表，
@@ -99,13 +100,13 @@ API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accoun
 ## 持久化边界
 
 - `data/` 保存原始归档、Catalog、特征、连续行情和报告；当前链接外置盘，使用规则见 [DATA_STORAGE.md](../DATA_STORAGE.md)。磁盘不可用不能当作空数据并自动重建或清除记录。
-- 业务数据库保存用户/会话、加密账户配置、操作账本和 OLAP 设置/缓存；启用 ORM 的兼容管理端还保存任务及报告索引。正式 API 要求显式数据库连接并检查 Alembic 版本，不在连接失败时切换数据库。
-- 兼容管理端未启用 ORM 时保留本地任务 JSON；`.local/` 保存私有配置、运行状态及工具环境，`logs/` 保存日志。报告原文件和任务日志仍在文件系统，业务库不能替代其备份。
+- 业务数据库保存用户/会话、加密账户配置、操作账本、OLAP 设置/缓存，以及研究任务和回测报告索引。正式 API 要求显式数据库连接并检查 Alembic 版本，不在连接失败时切换数据库。
+- 未启用 ORM 时研究任务仍可落在本地 JSON；`.local/` 保存私有配置、运行状态及工具环境，`logs/` 保存日志。报告原文件和任务日志仍在文件系统，业务库不能替代其备份。
 - Catalog、ClickHouse 和 Nautilus 引擎状态各自管理，不能混作业务 ORM 表或相互替代。路径以项目位置解析，配置继续属于各模块。
 
 ## 禁止擅自跨越的边界
 
-主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约、存储归属与双管理端兼容关系均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。
+主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并属于该项明确授权，不构成继续合并其他服务的许可。
 
 
 2026-10-28 按用户授权，行情数据管理取消预设交易对：复用既有 Binance 品种查询、

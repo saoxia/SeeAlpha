@@ -335,9 +335,9 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     from sqlalchemy import select
 
     from api.db.models import BacktestReport, ManagementJob
+    from api.management.jobs import CHECK_MODULE, JobManager
+    from api.management.service import ManagementService
     from tests.web.jobs_test import finished, module
-    from web.jobs import JobManager
-    from web.server import Console
 
     db, _, _ = orm
     directory = tmp_path / ".local/state/web/jobs"
@@ -359,10 +359,10 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     jobs = JobManager(tmp_path, orm_database=db)
     assert jobs.get_job(identity)["status"] == "interrupted"
     assert jobs.get_job(identity)["log"] == "previous output"
-    module(tmp_path, "web.jobs", "print('new output')\n")
+    module(tmp_path, CHECK_MODULE, "print('new output')\n")
     new_identity = jobs.start("check_quick", {})["id"]
     assert finished(jobs, new_identity)["status"] == "succeeded"
-    assert len(Console(tmp_path, jobs=jobs).reports()) == 1
+    assert len(ManagementService(tmp_path, jobs).reports()) == 1
     jobs.close()
     with db.session() as session:
         assert session.get(ManagementJob, identity).payload["status"] == "interrupted"
@@ -373,7 +373,7 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     assert jobs.get_job(new_identity)["status"] == "succeeded"
     assert "new output" in jobs.get_job(new_identity)["log"]
     report.unlink()
-    assert Console(tmp_path, jobs=jobs).reports() == []
+    assert ManagementService(tmp_path, jobs).reports() == []
     with db.session() as session:
         assert len(session.scalars(select(BacktestReport)).all()) == 1
     jobs.close()

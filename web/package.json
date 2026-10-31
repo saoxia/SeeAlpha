@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint . --ignore-pattern .next",
     "generate:api-types": "../.venv/bin/python scripts/generate_api_types.py",
-    "test:frontend": "node --experimental-strip-types --test app/features/live/*.test.ts app/features/data-management/*.test.ts"
+    "test:frontend": "node --experimental-strip-types --test app/features/live/*.test.ts app/features/data-management/*.test.ts app/features/research/*.test.ts"
   },
   "dependencies": {
     "lightweight-charts": "^5.2.0",

@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from web import jobs as web_jobs
-from web.jobs import BusyError, JobManager
+from api.management import jobs as jobs_module
+from api.management.jobs import BusyError, JobManager
 
 
 @pytest.fixture
@@ -62,7 +62,7 @@ def backtest_parameters(**overrides):
         ("shell", {}),
         ("check_quick", {"root": "/tmp/anything"}),
         ("check_quick", []),
-        ("backtest", backtest_parameters(strategy="../../web.jobs")),
+        ("backtest", backtest_parameters(strategy="../../" + jobs_module.CHECK_MODULE)),
         ("backtest", backtest_parameters(start="2026-08-01; touch injected")),
         ("backtest", backtest_parameters(start="2026-02-30")),
         ("backtest", backtest_parameters(start="2026-08-03")),
@@ -80,13 +80,13 @@ def test_rejects_commands_and_unbounded_or_invalid_backtests(manager, action, pa
 
 
 def test_records_output_persists_and_bounds_log(manager):
-    module(manager.project, "web.jobs", "print('x' * 90000)\nprint('done')\n")
+    module(manager.project, jobs_module.CHECK_MODULE, "print('x' * 90000)\nprint('done')\n")
     identity = manager.start("check_quick", {})["id"]
     job = finished(manager, identity)
     assert job["status"] == "succeeded"
     assert job["returncode"] == 0
     assert job["log"].endswith("done\n")
-    assert len(job["log"].encode()) == web_jobs.LOG_TAIL_BYTES
+    assert len(job["log"].encode()) == jobs_module.LOG_TAIL_BYTES
     assert job["log_truncated"] is True
     assert "log" not in manager.list_jobs()[0]
     restored = JobManager(manager.project)
@@ -99,7 +99,7 @@ def test_records_output_persists_and_bounds_log(manager):
 def test_busy_and_cancel_stop_child_and_allow_following_job(manager):
     module(
         manager.project,
-        "web.jobs",
+        jobs_module.CHECK_MODULE,
         "import time\nfrom pathlib import Path\nPath('ready').touch()\ntime.sleep(60)\n",
     )
     job = manager.start("check_quick", {})
@@ -112,7 +112,7 @@ def test_busy_and_cancel_stop_child_and_allow_following_job(manager):
     cancelled = manager.cancel(job["id"])
     assert cancelled["status"] == "cancelled"
     assert cancelled["returncode"] == -signal.SIGTERM
-    module(manager.project, "web.jobs", "print('quality ready')\n")
+    module(manager.project, jobs_module.CHECK_MODULE, "print('quality ready')\n")
     following = manager.start("check_full", {})
     assert finished(manager, following["id"])["status"] == "succeeded"
 
@@ -129,7 +129,7 @@ def test_exiting_group_permission_query_is_retried(manager, monkeypatch):
                 raise PermissionError("macOS group exit transition")
             raise ProcessLookupError
 
-    monkeypatch.setattr(web_jobs.os, "killpg", killpg)
+    monkeypatch.setattr(jobs_module.os, "killpg", killpg)
     manager._stop_group(SimpleNamespace(pid=123, poll=lambda: -signal.SIGTERM))
     assert signals == [signal.SIGTERM, 0, 0]
 
@@ -152,7 +152,7 @@ def test_project_check_report_links_stay_in_local_check_logs(manager):
 def test_shutdown_kills_entire_child_group(manager):
     module(
         manager.project,
-        "web.jobs",
+        jobs_module.CHECK_MODULE,
         """
 import subprocess
 import sys
@@ -178,8 +178,8 @@ time.sleep(60)
 
 
 def test_timeout_fails_and_stops_process(manager, monkeypatch):
-    monkeypatch.setattr(web_jobs, "CHECK_TIMEOUT", 0.05)
-    module(manager.project, "web.jobs", "import time\ntime.sleep(60)\n")
+    monkeypatch.setattr(jobs_module, "CHECK_TIMEOUT", 0.05)
+    module(manager.project, jobs_module.CHECK_MODULE, "import time\ntime.sleep(60)\n")
     job = finished(manager, manager.start("check_quick", {})["id"])
     assert job["status"] == "failed"
     assert "限制" in job["error"]
@@ -187,10 +187,10 @@ def test_timeout_fails_and_stops_process(manager, monkeypatch):
 
 
 def test_cancel_escalates_for_child_ignoring_termination(manager, monkeypatch):
-    monkeypatch.setattr(web_jobs, "STOP_GRACE", 0.1)
+    monkeypatch.setattr(jobs_module, "STOP_GRACE", 0.1)
     module(
         manager.project,
-        "web.jobs",
+        jobs_module.CHECK_MODULE,
         """
 import signal
 import time
@@ -257,7 +257,7 @@ print('中文交互报告：' + str((p / 'report.html').resolve()))
 
 
 def test_nonzero_exit_preserves_error_and_logs(manager):
-    module(manager.project, "web.jobs", "print('bad data')\nraise SystemExit(3)\n")
+    module(manager.project, jobs_module.CHECK_MODULE, "print('bad data')\nraise SystemExit(3)\n")
     job = finished(manager, manager.start("check_full", {})["id"])
     assert job["status"] == "failed"
     assert job["returncode"] == 3

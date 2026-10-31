@@ -28,6 +28,11 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/auth/login` | JSON 用户名、密码登录，设置会话 Cookie |
 | `GET /api/auth/me` | 当前用户，未登录或过期返回 401 |
 | `POST /api/auth/logout` | 撤销当前会话并清除 Cookie |
+| `GET /api/management/state` | 检查快照、策略、任务和可访问报告，需要登录 |
+| `GET /api/management/jobs/{id}` | 任务详情及日志尾部，需要登录 |
+| `POST /api/management/jobs` | 启动快速检查、完整检查或策略回测，需要管理员 |
+| `POST /api/management/jobs/{id}/cancel` | 取消正在运行的任务，需要管理员 |
+| `GET /api/management/artifacts/{path}` | 下载已发布的报告或检查结果，需要登录 |
 
 业务接口可依赖 `api.auth.dependencies.CurrentUser` 执行登录检查。
 当前只提供身份鉴权，没有扩展角色权限模型。
@@ -85,8 +90,8 @@ Nautilus Python 接入限制与执行运行时接入方式见
 `api/db/models/` 定义 SQLAlchemy ORM 模型；`api/db/orm.py` 管理连接池与事务。
 用户、会话、账户配置、操作记录和 OLAP 设置可通过相同代码使用 PostgreSQL 或 SQLite。
 行情 Catalog、ClickHouse 分析数据和 NautilusTrader 引擎状态仍由各自系统管理。
-旧版 Web 管理端在启用 ORM 后将任务记录和回测报告索引保存在业务数据库；
-报告原文件与任务日志继续留在文件系统。
+研究任务和回测报告索引保存在业务数据库的 `management_jobs`、`backtest_reports`；
+报告原文件与任务日志继续留在文件系统。历史行仍按原 URL 键更新，不因页面迁移而改写。
 
 数据库连接通过环境变量 `DATABASE_URL`，或本机私有文件
 `.local/config/api/database_url` 配置；可通过 `DATABASE_URL_FILE` 指定文件路径。
@@ -117,10 +122,9 @@ Alembic 基线；迁移会检查字段、主键、外键与关键唯一索引，
 
 导入先生成源数据库快照，单个事务导入用户、会话、账户、操作记录与 OLAP 设置；
 目标有业务记录时拒绝覆盖，失败则回滚。快照与加密密钥需要安全保管。
-ORM 启用后的旧版 Web 管理端会把已有的 `.local/state/web/jobs/` 记录复制到数据库，
+API 启动后会把已有的 `.local/state/web/jobs/` 记录复制到数据库，
 同 ID 已存在时保留数据库版本，原 JSON 和任务日志不删除。回测报告索引随目录扫描更新，
 数据盘不可用时已保存的索引不会被清除；页面只展示当前可访问的报告。
-未启用 ORM 时，旧版 Web 管理端继续使用本地 JSON。
 
 业务表结构在 `migrations/versions/` 由 Alembic 管理。
 

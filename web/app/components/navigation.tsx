@@ -9,6 +9,7 @@ const navigationItems: Array<{ id: AppView; label: string }> = [
   { id: "live", label: "LIVE" },
   { id: "dataops", label: "DATA OPS" },
   { id: "data", label: "DATA" },
+  { id: "research", label: "RESEARCH" },
   { id: "settings", label: "SETTINGS" },
 ];
 

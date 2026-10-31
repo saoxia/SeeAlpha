@@ -1,4 +1,4 @@
-"""Web runtime paths and restart-safe migration from the legacy data directory."""
+"""Runtime paths and one-time migration of the former console's local files."""
 
 import fcntl
 import hashlib
