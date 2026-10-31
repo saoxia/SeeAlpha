@@ -17,29 +17,41 @@
 cd web
 npm ci
 cp .env.example .env.local
-npm run dev -- --hostname 127.0.0.1 --port 3000
+npm run dev
 ```
 
-本机已安装依赖并配置 `.env.local`，打开 <http://127.0.0.1:3000>。
-开发与生产构建均使用 webpack，修改页面后自动刷新。
+`npm run dev` 使用 webpack，并且只监听 `127.0.0.1:3000`。本机打开 <http://127.0.0.1:3000>。
+修改页面后自动刷新。不要把开发服务器绑定到 `0.0.0.0` 或局域网地址。
 
-局域网 HTTP 测试时，先停止原开发服务，在项目根目录启动 API：
+局域网访问使用生产构建。先停止开发服务，在项目根目录启动 API。`LAN_IP` 是这台机器当前的局域网地址，只放在启动环境里，不写入仓库：
 
 ```bash
+# export LAN_IP=当前局域网地址
 COOKIE_SECURE=false \
-ALLOWED_HOSTS=localhost,127.0.0.1,192.168.31.81 \
-ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000,http://192.168.31.81:3000 \
+ALLOWED_HOSTS="localhost,127.0.0.1,${LAN_IP}" \
+ALLOWED_ORIGINS="http://127.0.0.1:3000,http://localhost:3000,http://${LAN_IP}:3000" \
 .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-再在 `web/` 运行 `npm run dev -- --hostname 0.0.0.0 --port 3000`。
-同一局域网设备访问 <http://192.168.31.81:3000>，并允许防火墙的 3000 端口入站。
-该 IP 为当前 Mac 的局域网地址，地址变化后需同步替换命令和访问网址。
-`next.config.ts` 的 `allowedDevOrigins` 同时允许本机与该 IP 的开发资源和热更新请求，
-地址变化时也需同步更新。当前 API 的局域网环境配置保存在本机
-`.local/config/api/lan.env`，后续可在启动 API 前运行 `source .local/config/api/lan.env`。
-API 仍仅监听本机，通过前端同源代理访问；HTTP Cookie 配置仅用于可信局域网测试，
+再在 `web/` 构建并以生产模式监听局域网：
+
+```bash
+cd web
+npm run build
+npm run start:lan
+```
+
+同一局域网设备访问 `http://${LAN_IP}:3000`，并允许防火墙的 3000 端口入站。
+地址变化时只更新 `LAN_IP`。本机私有文件 `.local/config/api/lan.env` 可以保存这些变量，
+启动 API 前运行 `source .local/config/api/lan.env`；该文件不提交。
+`next dev` 默认不放行额外来源。只有确需在开发模式从其它主机访问时，才在 `.env.local`
+把 `SEEALPHA_ALLOWED_DEV_ORIGINS` 设为该主机名（不含协议、端口或通配符）。日常局域网访问不使用这条路径。
+本机生产模式执行 `npm run start`，只监听 `127.0.0.1:3000`。
+API 仍仅监听本机，通过前端同源代理访问；`COOKIE_SECURE=false` 仅用于可信局域网的 HTTP 测试，
 正式部署继续使用 HTTPS 和 Secure Cookie。
+`output: "standalone"` 仍然保留。Next.js 16.4 执行 `next start` 时会提示独立产物改用
+`node .next/standalone/server.js`；仓库脚本继续使用 `next start`，页面和 `/api` 代理由该进程提供。
+生产构建会把 `SEEALPHA_API_URL` 写入转发规则，改地址后需要重新执行 `npm run build`。
 
 浏览器只通过同源 `/api` 交互，前端不直接访问项目 Python 模块、数据库或本地业务文件。
 服务端代理配置：
@@ -48,9 +60,10 @@ API 仍仅监听本机，通过前端同源代理访问；HTTP Cookie 配置仅�
 
 前端请求转发到项目 API；生产构建同样需要设置目标地址，或由正式反向代理接管 `/api`。
 正式部署采用同域 HTTPS，API 使用 Secure 会话 Cookie。
+页面没有使用 `next/image`。配置关闭图片优化，并且不设置远程图片来源，`/_next/image` 不再做图片抓取。
 
 `npm run lint` 检查当前前端，`npm run test:frontend` 运行已有前端测试，
-`npm run build` 构建生产版本。
+`npm run build` 构建生产版本，`npm run start` 在本机启动该构建。
 
 ## 研究与任务
 

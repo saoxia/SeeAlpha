@@ -19,6 +19,8 @@ ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文件，
 并使用 Alembic 完成结构迁移。未配置连接时服务不会自动创建或切换到本地数据库。
 服务不会自动创建默认用户或公开注册入口。
+局域网打开前端时，API 仍然只监听 `127.0.0.1`。把当前局域网地址放进 `ALLOWED_HOSTS` 和 `ALLOWED_ORIGINS`，
+前端用 `npm run build` 与 `npm run start:lan` 提供页面，不要用 `next dev` 对局域网监听。步骤见 [前端说明](../web/README.md#前端启动)。
 
 接口文档：<http://127.0.0.1:8000/docs>，OpenAPI：`/openapi.json`。
 
