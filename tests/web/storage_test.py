@@ -2,14 +2,80 @@
 
 import fcntl
 import json
+import os
 import stat
+import subprocess
 import sys
+import time
+from contextlib import contextmanager
 
 import pytest
 
-from web import server, storage
-from web.jobs import JobManager
-from web.storage import WebPaths, migrate_legacy, runtime_lock
+from api.management import storage
+from api.management.jobs import JobManager, NotOwnerError
+from api.management.service import management_runtime
+from api.management.storage import WebPaths, migrate_legacy, runtime_lock
+
+_LOCK_HOLDER = """
+import fcntl
+import sys
+import time
+from pathlib import Path
+
+path, ready = Path(sys.argv[1]), Path(sys.argv[2])
+handle = path.open("a")
+fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+ready.write_text("held")
+while True:
+    time.sleep(3600)
+"""
+
+
+def hold_lock(path):
+    """Hold path from a separate process until release_lock stops it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ready = path.with_name(path.name + ".ready")
+    ready.unlink(missing_ok=True)
+    process = subprocess.Popen(
+        [sys.executable, "-c", _LOCK_HOLDER, str(path), str(ready)],
+        stderr=subprocess.PIPE,
+    )
+    process.ready_path = ready
+    deadline = time.monotonic() + 5
+    while not ready.exists():
+        if process.poll() is not None:
+            detail = process.stderr.read().decode() if process.stderr is not None else ""
+            raise AssertionError(f"lock holder exited {process.returncode}: {detail}")
+        if time.monotonic() > deadline:
+            process.kill()
+            process.wait(timeout=5)
+            raise AssertionError("lock holder did not acquire the lock")
+        time.sleep(0.02)
+    return process
+
+
+def release_lock(process):
+    if process.poll() is None:
+        process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+    if process.stderr is not None:
+        process.stderr.close()
+    ready = getattr(process, "ready_path", None)
+    if ready is not None:
+        ready.unlink(missing_ok=True)
+
+
+@contextmanager
+def external_lock(path):
+    process = hold_lock(path)
+    try:
+        yield process
+    finally:
+        release_lock(process)
 
 
 def legacy_files(project):
@@ -105,21 +171,98 @@ def test_active_server_blocks_migration(tmp_path, legacy):
     assert (paths.legacy / "access_password").is_file()
 
 
-def test_startup_migrates_before_loading_jobs_and_uses_new_password_path(tmp_path, monkeypatch):
+def test_startup_migrates_before_loading_jobs(tmp_path):
     paths, identity = legacy_files(tmp_path)
-    monkeypatch.setattr(server, "PROJECT", tmp_path)
-    monkeypatch.setattr(sys, "argv", ["web.server"])
-
-    def serve(args, parser):
-        assert args.password_file == paths.password
+    with management_runtime(tmp_path, database=None) as service:
         assert paths.password.is_file()
-        manager = JobManager(tmp_path)
-        try:
-            assert manager.get_job(identity)["log"] == "original output\n"
-        finally:
-            manager.close()
-        return 0
+        assert service.jobs.get_job(identity)["log"] == "original output\n"
+        assert service.jobs.executor is True
+    assert not paths.legacy.exists()
 
-    monkeypatch.setattr(server, "_serve", serve)
-    assert server.main() == 0
+
+def test_optional_lock_is_false_while_another_descriptor_holds_it(tmp_path):
+    paths = WebPaths(tmp_path)
+    paths.lock.parent.mkdir(parents=True)
+    with paths.lock.open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with runtime_lock(paths, required=False) as owner:
+            assert owner is False
+        with pytest.raises(ValueError, match="已在运行"), runtime_lock(paths):
+            pytest.fail("required lock must still refuse a second holder")
+
+
+def test_symlink_lock_is_rejected_when_the_lock_is_optional(tmp_path):
+    paths = WebPaths(tmp_path)
+    paths.lock.parent.mkdir(parents=True)
+    paths.lock.symlink_to(tmp_path / "other.lock")
+    with pytest.raises(ValueError, match="符号链接"), runtime_lock(paths, required=False):
+        pytest.fail("a symlink lock must not be treated as a free slot")
+
+
+def test_second_runtime_reads_jobs_without_interrupting_or_signalling(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "killpg", lambda *_args, **_kwargs: pytest.fail("must not signal"))
+    with management_runtime(tmp_path, database=None) as owner:
+        assert owner.jobs.executor is True
+        paths = WebPaths(tmp_path)
+        identity = "b" * 32
+        (paths.jobs / f"{identity}.json").write_text(
+            json.dumps(
+                {
+                    "id": identity,
+                    "action": "check_quick",
+                    "status": "running",
+                    "created_at": "2026-08-01T00:00:00+00:00",
+                }
+            )
+        )
+        (paths.logs / f"{identity}.log").write_text("still running\n")
+        with management_runtime(tmp_path, database=None) as follower:
+            assert follower.jobs.executor is False
+            current = follower.jobs.get_job(identity)
+            assert current["status"] == "running"
+            assert current["log"] == "still running\n"
+            assert current["log_truncated"] is False
+            assert follower.state()["jobs"][0]["status"] == "running"
+            assert "log" not in follower.state()["jobs"][0]
+            with pytest.raises(NotOwnerError, match="管理任务锁"):
+                follower.jobs.start("check_quick", {})
+            with pytest.raises(ValueError):
+                follower.jobs.start("shell", {})
+            with pytest.raises(NotOwnerError):
+                follower.jobs.cancel(identity)
+        stored = json.loads((paths.jobs / f"{identity}.json").read_text())
+        assert stored["status"] == "running"
+        assert "finished_at" not in stored
+    with management_runtime(tmp_path, database=None) as restarted:
+        assert restarted.jobs.executor is True
+        recovered = restarted.jobs.get_job(identity)
+        assert recovered["status"] == "interrupted"
+        assert "未操作历史进程" in recovered["error"]
+        assert recovered["log"] == "still running\n"
+
+
+def test_other_process_lock_skips_migration_and_does_not_keep_the_new_lock(tmp_path):
+    paths, identity = legacy_files(tmp_path)
+    job_path = paths.legacy / "jobs" / f"{identity}.json"
+    job = json.loads(job_path.read_text())
+    job["status"] = "running"
+    job_path.write_text(json.dumps(job))
+    with (
+        external_lock(paths.legacy / "server.lock"),
+        management_runtime(tmp_path, database=None) as service,
+    ):
+        assert service.jobs.executor is False
+        assert service.jobs.list_jobs() == []
+        assert not paths.password.exists()
+        assert (paths.legacy / "access_password").is_file()
+        assert job_path.is_file()
+        with paths.lock.open("a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_UN)
+    assert not paths.password.exists()
+    with management_runtime(tmp_path, database=None) as service:
+        assert service.jobs.executor is True
+        assert paths.password.is_file()
+        assert service.jobs.get_job(identity)["status"] == "interrupted"
+        assert service.jobs.get_job(identity)["log"] == "original output\n"
     assert not paths.legacy.exists()

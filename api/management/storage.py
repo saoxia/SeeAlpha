@@ -1,4 +1,4 @@
-"""Web runtime paths and restart-safe migration from the legacy data directory."""
+"""Runtime paths and one-time migration of the former console's local files."""
 
 import fcntl
 import hashlib
@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 import tempfile
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,6 +15,8 @@ from pathlib import Path
 class WebPaths:
     project: Path
 
+    # access_password, logs/web and .local/state/web/jobs keep the retired console's
+    # names so migrate_legacy still moves data/web_console files without splitting history.
     @property
     def jobs(self):
         return self.project / ".local/state/web/jobs"
@@ -93,34 +95,62 @@ def migrate_legacy(paths):
         source.unlink()
 
 
+def _close_lock(handle):
+    if handle is not None:
+        handle.close()
+
+
 @contextmanager
-def runtime_lock(paths):
-    """Serialize startup and refuse migration while the old server is still running."""
+def runtime_lock(paths, *, required=True):
+    """Hold the single management execution lock.
+
+    Migration and job execution require the lock. When another process already
+    holds `.local/run/web/server.lock` or the legacy console lock, ``required``
+    raises. API startup passes required=False and receives False so the process
+    can keep serving; the caller must not migrate or run jobs in that case.
+    """
     paths.lock.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with ExitStack() as stack:
-        if paths.lock.is_symlink():
-            raise ValueError("Web 锁文件不能是符号链接")
-        lock = stack.enter_context(paths.lock.open("a"))
+    if paths.lock.is_symlink():
+        raise ValueError("Web 锁文件不能是符号链接")
+    lock_file = paths.lock.open("a")
+    old_file = None
+    legacy_path = None
+    acquired = False
+    try:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if paths.legacy.exists():
                 if paths.legacy.is_symlink():
                     raise ValueError("旧 Web 运行目录不能是符号链接")
                 legacy_path = paths.legacy / "server.lock"
                 if legacy_path.is_symlink():
                     raise ValueError("旧 Web 锁文件不能是符号链接")
-                old_lock = stack.enter_context(legacy_path.open("a"))
-                fcntl.flock(old_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                old_file = legacy_path.open("a")
+                fcntl.flock(old_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
         except BlockingIOError:
-            raise ValueError("Web 管理端已在运行，请先停止后再迁移或启动") from None
+            if required:
+                raise ValueError("Web 管理端已在运行，请先停止后再迁移或启动") from None
+        if not acquired:
+            # Drop a partial hold before yielding. A follower must not keep the
+            # new lock while the legacy console still owns its own lock.
+            _close_lock(old_file)
+            old_file = None
+            _close_lock(lock_file)
+            lock_file = None
+            yield False
+            return
         try:
-            yield
+            yield True
         finally:
             # Keep the old lock until shutdown. Preserve any unrecognized files.
-            if "old_lock" in locals():
+            if old_file is not None:
                 legacy_path.unlink(missing_ok=True)
                 for directory in (paths.legacy / "jobs", paths.legacy):
                     try:
                         directory.rmdir()
                     except OSError:
                         pass
+    finally:
+        _close_lock(old_file)
+        _close_lock(lock_file)

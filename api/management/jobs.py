@@ -1,4 +1,4 @@
-"""Allowlisted, persistent background jobs for the local management console."""
+"""Allowlisted background checks and backtests for the authenticated API."""
 
 import argparse
 import copy
@@ -20,6 +20,8 @@ from core.paths import PROJECT_ROOT as PROJECT
 
 from .artifacts import BACKTESTS, CHECKS, artifact_path
 from .storage import WebPaths
+
+CHECK_MODULE = "api.management.jobs"
 
 _FAMILIES = (
     ("trend_following_long", "趋势跟随多头"),
@@ -43,8 +45,8 @@ ACTIONS = [
     {"id": "backtest", "label": "运行策略回测", "description": "使用本地数据回测指定策略。"},
 ]
 _COMMANDS = {
-    "check_quick": ("web.jobs", "--quick"),
-    "check_full": ("web.jobs",),
+    "check_quick": (CHECK_MODULE, "--quick"),
+    "check_full": (CHECK_MODULE,),
 }
 _LABELS = {item["id"]: item["label"] for item in ACTIONS}
 _STRATEGIES = {item["id"]: item for item in STRATEGIES}
@@ -60,6 +62,36 @@ STOP_GRACE = 2.0
 
 class BusyError(ValueError):
     """A console job is already using the single execution slot."""
+
+
+class NotOwnerError(Exception):
+    """This process does not hold the management execution lock."""
+
+    def __init__(self):
+        super().__init__("当前进程未持有管理任务锁，不能启动或取消任务。")
+
+
+def _stored_job(job, identity):
+    return (
+        isinstance(job, dict)
+        and isinstance(identity, str)
+        and job.get("id") == identity
+        and re.fullmatch(r"[0-9a-f]{32}", identity) is not None
+        and job.get("status") in _STATUSES
+        and job.get("action") in _LABELS
+    )
+
+
+def _read_log(directory, identity):
+    try:
+        with (directory / f"{identity}.log").open("rb") as source:
+            size = source.seek(0, os.SEEK_END)
+            source.seek(max(0, size - LOG_TAIL_BYTES))
+            return source.read(LOG_TAIL_BYTES).decode(
+                "utf-8", errors="replace"
+            ), size > LOG_TAIL_BYTES
+    except FileNotFoundError:
+        return "", False
 
 
 def _now():
@@ -168,6 +200,7 @@ class JobManager:
         self._thread = None
         self._cancelled = threading.Event()
         self._closed = False
+        self.executor = True
         self._restore()
 
     def _restore(self):
@@ -175,15 +208,8 @@ class JobManager:
         for path in self.directory.glob("*.json"):
             try:
                 job = json.loads(path.read_text(encoding="utf-8"))
-                if (
-                    not isinstance(job, dict)
-                    or job.get("id") != path.stem
-                    or not re.fullmatch(r"[0-9a-f]{32}", path.stem)
-                    or job.get("status") not in _STATUSES
-                    or job.get("action") not in _LABELS
-                ):
-                    continue
-                legacy.append(job)
+                if _stored_job(job, path.stem):
+                    legacy.append(job)
             except (OSError, ValueError, TypeError):
                 continue
         if self.repository is not None:
@@ -193,12 +219,7 @@ class JobManager:
             restored = legacy
         for job in restored:
             identity = job.get("id")
-            if (
-                not isinstance(identity, str)
-                or not re.fullmatch(r"[0-9a-f]{32}", identity)
-                or job.get("status") not in _STATUSES
-                or job.get("action") not in _LABELS
-            ):
+            if not _stored_job(job, identity):
                 continue
             if job["status"] == "running":
                 job.update(
@@ -224,15 +245,7 @@ class JobManager:
             )
 
     def _log_tail(self, identity):
-        try:
-            with (self.log_directory / f"{identity}.log").open("rb") as source:
-                size = source.seek(0, os.SEEK_END)
-                source.seek(max(0, size - LOG_TAIL_BYTES))
-                return source.read(LOG_TAIL_BYTES).decode(
-                    "utf-8", errors="replace"
-                ), size > LOG_TAIL_BYTES
-        except FileNotFoundError:
-            return "", False
+        return _read_log(self.log_directory, identity)
 
     def get_job(self, identity):
         with self._lock:
@@ -433,6 +446,68 @@ class JobManager:
             thread.join(timeout=STOP_GRACE + 8)
         if self._owns_database:
             self._database.close()
+
+
+class JobReader:
+    """Read persisted jobs and logs without executing them or rewriting status."""
+
+    def __init__(self, project: Path, *, orm_database=None):
+        self.project = Path(project).resolve()
+        paths = WebPaths(self.project)
+        self.directory = paths.jobs
+        self.log_directory = paths.logs
+        self.executor = False
+        self.repository = None
+        if orm_database is not None:
+            from api.db.management_repository import ManagementRepository
+
+            self.repository = ManagementRepository(orm_database)
+
+    def _records(self):
+        found = []
+        if self.repository is not None:
+            loaded = [
+                (job, job.get("id") if isinstance(job, dict) else None)
+                for job in self.repository.list_jobs()
+            ]
+        elif self.directory.is_dir():
+            loaded = []
+            for path in self.directory.glob("*.json"):
+                try:
+                    job = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, TypeError):
+                    continue
+                loaded.append((job, path.stem))
+        else:
+            loaded = []
+        for job, identity in loaded:
+            try:
+                if _stored_job(job, identity):
+                    found.append(copy.deepcopy(job))
+            except TypeError:
+                continue
+        return found
+
+    def list_jobs(self):
+        return sorted(self._records(), key=lambda item: item.get("created_at", ""), reverse=True)
+
+    def get_job(self, identity):
+        for job in self._records():
+            if job.get("id") == identity:
+                job["log"], job["log_truncated"] = _read_log(self.log_directory, identity)
+                return job
+        raise KeyError(identity)
+
+    def start(self, action, parameters):
+        _build_command(sys.executable, action, parameters)
+        raise NotOwnerError()
+
+    def cancel(self, identity):
+        # The child belongs to the lock holder. This process must not signal it.
+        raise NotOwnerError()
+
+    def close(self):
+        """No child process or database connection is owned by this reader."""
 
 
 def run_checks(*, quick=False):

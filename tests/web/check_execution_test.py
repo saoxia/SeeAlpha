@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 
-from web import jobs as check_project
+from api.management import jobs as check_project
 
 
 def test_project_check_only_runs_source_style_and_requested_tests(tmp_path, monkeypatch):

@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
       { source: "/api/system/update/:path+", destination: "/api/system/update" },
       { source: "/api/operations/:path*", destination: `${apiUrl}/api/operations/:path*` },
       { source: "/api/auth/:path*", destination: `${apiUrl}/api/auth/:path*` },
+      { source: "/api/management/:path*", destination: `${apiUrl}/api/management/:path*` },
       { source: "/api/health", destination: `${apiUrl}/api/health` },
       { source: "/api/system/olap/:path*", destination: `${apiUrl}/api/system/olap/:path*` },
       { source: "/api/clickhouse/:path*", destination: `${apiUrl}/api/clickhouse/:path*` },

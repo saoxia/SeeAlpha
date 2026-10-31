@@ -1,1 +1,1 @@
-"""SeeAlpha web management interface and its background job execution."""
+"""SeeAlpha frontend package. Research jobs now live in api.management."""
