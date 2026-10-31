@@ -13,7 +13,7 @@ from starlette.responses import Response, StreamingResponse
 from ..auth.dependencies import AdminUser, CurrentUser
 from ..db.errors import StorageUnavailable
 from .artifacts import artifact_path
-from .jobs import BusyError
+from .jobs import BusyError, NotOwnerError
 
 router = APIRouter(prefix="/management", tags=["management"])
 
@@ -51,6 +51,8 @@ async def _json_object(request: Request, allowed: set[str]):
 
 
 def _job_error(exc):
+    if isinstance(exc, NotOwnerError):
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, BusyError):
         return HTTPException(status_code=409, detail="已有任务运行，请等待完成或取消后再试")
     if isinstance(exc, KeyError):
@@ -89,7 +91,16 @@ async def start_management_job(request: Request, _: AdminUser):
     parameters = data.get("parameters", {})
     try:
         job = await asyncio.to_thread(service.jobs.start, data.get("action"), parameters)
-    except (BusyError, KeyError, ValueError, TypeError, UnicodeError, OSError, RuntimeError) as exc:
+    except (
+        BusyError,
+        NotOwnerError,
+        KeyError,
+        ValueError,
+        TypeError,
+        UnicodeError,
+        OSError,
+        RuntimeError,
+    ) as exc:
         raise _job_error(exc) from exc
     return {"job": job}
 
@@ -100,7 +111,16 @@ async def cancel_management_job(identity: str, request: Request, _: AdminUser):
     service = _service(request)
     try:
         job = await asyncio.to_thread(service.jobs.cancel, identity)
-    except (BusyError, KeyError, ValueError, TypeError, UnicodeError, OSError, RuntimeError) as exc:
+    except (
+        BusyError,
+        NotOwnerError,
+        KeyError,
+        ValueError,
+        TypeError,
+        UnicodeError,
+        OSError,
+        RuntimeError,
+    ) as exc:
         raise _job_error(exc) from exc
     return {"job": job}
 

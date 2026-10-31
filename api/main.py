@@ -46,6 +46,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         try:
             database.initialize()
             if app.state.management_project is not None:
+                # Another process may already hold the management lock. Startup
+                # still continues; only that holder runs and recovers jobs.
                 runtime = management_runtime(app.state.management_project, database)
                 app.state.management = runtime.__enter__()
             app.state.operations.repository.initialize()

@@ -103,7 +103,7 @@ NAUTILUS_RUST_CONVERTER=off python -m pytest tests/pipeline -q
 当前依赖版本以 `uv.lock`、`rust-toolchain.toml` 和转换器 `Cargo.lock` 为准。
 开发检查使用 `python -m ruff check .` 与 `python -m pytest -q`。
 研究任务记录位于 `.local/state/web/jobs/`（启用 ORM 后以数据库为准），日志位于 `logs/web/`，
-服务锁位于 `.local/run/web/server.lock`。旧管理端口令不再用于登录。
+服务锁位于 `.local/run/web/server.lock`。未持锁的 API 进程仍可启动并查询，但不能执行任务。旧管理端口令不再用于登录。
 这些目录不依赖外置数据盘，迁移规则见 [前端说明](web/README.md#研究与任务)。
 
 Web 发起的检查保存报告到 `logs/web/checks/latest.json`；直接运行标准命令时结果显示在终端。

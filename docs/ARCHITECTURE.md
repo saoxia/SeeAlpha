@@ -29,7 +29,7 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | `pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。 |
 | `feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `connectors`、`core`，仅 `history.py` 通过 `pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
 | `strategy_python/` | 策略包及共享指标、值对象、风险和执行组件；`_backtesting.py` 组装引擎与数据，`portfolio.py` 按清单组装策略，`portfolio_backtest.py` 启动共用账户回测，`_report/` 输出报告。 |
-| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务；服务通过 connector 查询，通过 repository/ORM 持久化，Alembic 管理业务表结构。行情服务参数存库，运行及监控状态存文件；研究任务调用既有检查与策略回测入口。启动时运行操作同步、OLAP 缓存刷新和研究任务恢复，不启动实盘策略。 |
+| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务；服务通过 connector 查询，通过 repository/ORM 持久化，Alembic 管理业务表结构。行情服务参数存库，运行及监控状态存文件；研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。不启动实盘策略。 |
 | `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
 
@@ -82,7 +82,7 @@ FastAPI `/api/management` → 固定任务子进程 → 检查 / 策略回测
 
 API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accounts/*`、`/api/exchange-accounts/*`、`/api/operations/*`、`/api/system/olap/*`、`/api/clickhouse/*` 与 `/api/management/*`；字段以路由、contracts/models 和 OpenAPI 为准。`/api/system/update` 在前端返回 410。浏览器不直接访问数据库、Python 模块或本地业务文件。
 
-2026-10-31 按用户明确要求完成前端/API 拆分第二阶段：移除 `:8765` Python 管理端和已不存在的 `:8001` 兼容后端。检查、回测、报告与任务日志改由现有 FastAPI 会话提供，任务仍写入原 ORM 表和原文件路径，不新增表、不改策略研究来源、不启用实盘。
+2026-10-31 按用户明确要求完成前端/API 拆分第二阶段：移除 `:8765` Python 管理端和已不存在的 `:8001` 兼容后端。检查、回测、报告与任务日志改由现有 FastAPI 会话提供，任务仍写入原 ORM 表和原文件路径，不新增表、不改策略研究来源、不启用实盘。另一端口或额外 worker 未拿到 `.local/run/web/server.lock` 时继续提供其余 API 和管理查询；只有持锁进程执行任务，并在自己启动时把未完成任务标为中断。
 
 2026-10-28 按授权增加 `/api/data/*`：浏览器经同源代理访问离线 Tick 预览、覆盖、
 质量与存储状态，管理员可发起现有 Pipeline 的补缺失、只读逐笔校验、本地派生 K 线与导出。

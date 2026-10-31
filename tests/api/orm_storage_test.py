@@ -379,6 +379,57 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     jobs.close()
 
 
+def test_non_owner_reads_database_jobs_without_interrupting_them(orm, tmp_path):
+    import fcntl
+    import json
+
+    from api.db.management_repository import ManagementRepository
+    from api.db.models import ManagementJob
+    from api.management.jobs import NotOwnerError
+    from api.management.service import management_runtime
+    from api.management.storage import WebPaths
+
+    db, _, _ = orm
+    identity = "c" * 32
+    running = {
+        "id": identity,
+        "action": "check_quick",
+        "status": "running",
+        "created_at": "2026-08-01T00:00:00+00:00",
+    }
+    ManagementRepository(db).save_job(dict(running))
+    paths = WebPaths(tmp_path)
+    paths.jobs.mkdir(parents=True)
+    (paths.jobs / f"{identity}.json").write_text(json.dumps({**running, "status": "failed"}))
+    paths.logs.mkdir(parents=True)
+    (paths.logs / f"{identity}.log").write_text("from the owner\n")
+    report = tmp_path / "data/reports/backtest/example/run/report.html"
+    report.parent.mkdir(parents=True)
+    report.write_text("<p>Report</p>")
+    (report.with_name("summary.json")).write_text("{}")
+    paths.lock.parent.mkdir(parents=True)
+    with paths.lock.open("a") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with management_runtime(tmp_path, db) as service:
+            assert service.jobs.executor is False
+            assert service.jobs.get_job(identity)["status"] == "running"
+            assert service.jobs.get_job(identity)["log"] == "from the owner\n"
+            assert service.state()["report_count"] == 1
+            with db.session() as session:
+                assert session.get(ManagementJob, identity).payload["status"] == "running"
+            ManagementRepository(db).save_job({**running, "status": "succeeded"})
+            assert service.jobs.get_job(identity)["status"] == "succeeded"
+            with pytest.raises(NotOwnerError, match="管理任务锁"):
+                service.jobs.start("check_quick", {})
+            with pytest.raises(NotOwnerError):
+                service.jobs.cancel(identity)
+            with pytest.raises(ValueError):
+                service.jobs.start("check_quick", {"root": "/tmp"})
+    assert json.loads((paths.jobs / f"{identity}.json").read_text())["status"] == "failed"
+    with db.session() as session:
+        assert session.get(ManagementJob, identity).payload["status"] == "succeeded"
+
+
 def test_orm_session_lookup_is_read_only_with_immediate_expiry_and_revocation(orm):
     db, _url, _schema = orm
     auth = auth_repository(db)

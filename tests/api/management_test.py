@@ -14,8 +14,10 @@ from api.db.database import Database
 from api.main import create_app
 from api.management.jobs import CHECK_MODULE
 from api.management.service import snapshot
+from api.management.storage import WebPaths
 from tests.api.auth_test import login
 from tests.web.jobs_test import module
+from tests.web.storage_test import hold_lock, release_lock
 
 
 @pytest.fixture
@@ -214,6 +216,97 @@ def test_old_check_snapshot_is_marked_stale(tmp_path):
     result = snapshot(tmp_path, "latest.json", 180)
     assert result["data"]["healthy"] is True
     assert result["stale"] is True and result["age_seconds"] >= 600
+
+
+def _wait_job(client, identity):
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        body = client.get(f"/api/management/jobs/{identity}").json()
+        if body["status"] != "running":
+            return body
+        time.sleep(0.02)
+    pytest.fail("job did not finish")
+
+
+def test_second_process_serves_api_and_refuses_job_execution(tmp_path):
+    identity = "c" * 32
+    paths = WebPaths(tmp_path)
+    paths.jobs.mkdir(parents=True)
+    (paths.jobs / f"{identity}.json").write_text(
+        json.dumps(
+            {
+                "id": identity,
+                "action": "check_quick",
+                "label": "快速项目检查",
+                "status": "running",
+                "created_at": "2026-08-01T00:00:00+00:00",
+            }
+        )
+    )
+    paths.logs.mkdir(parents=True)
+    (paths.logs / f"{identity}.log").write_text("still running\n")
+    report = tmp_path / "data/reports/backtest/example/run/report.html"
+    report.parent.mkdir(parents=True)
+    report.write_text("<p>Report</p>")
+    (report.with_name("summary.json")).write_text("{}")
+    settings = Settings(tmp_path / "auth.db", cookie_secure=False)
+    database = Database(settings.database_path)
+    database.initialize()
+    AuthRepository(database).create_user("admin", hash_password("test-password-123"))
+    holder = hold_lock(paths.lock)
+    try:
+        with TestClient(create_app(settings, project=tmp_path)) as client:
+            assert client.get("/api/health").json() == {"status": "ok"}
+            assert client.app.state.management.jobs.executor is False
+            login(client)
+            assert client.get("/api/auth/me").status_code == 200
+            state = client.get("/api/management/state")
+            assert state.status_code == 200
+            body = state.json()
+            assert body["jobs"][0]["id"] == identity
+            assert body["jobs"][0]["status"] == "running"
+            assert "log" not in body["jobs"][0]
+            assert body["report_count"] == 1
+            detail = client.get(f"/api/management/jobs/{identity}")
+            assert detail.status_code == 200
+            assert detail.json()["log"] == "still running\n"
+            opened = client.get("/api/management" + body["reports"][0]["url"])
+            assert opened.status_code == 200 and b"Report" in opened.content
+            started = client.post("/api/management/jobs", json={"action": "check_quick"})
+            assert started.status_code == 409
+            assert "管理任务锁" in started.json()["detail"]
+            cancelled = client.post(f"/api/management/jobs/{identity}/cancel", json={})
+            assert cancelled.status_code == 409
+            assert "管理任务锁" in cancelled.json()["detail"]
+            missing = client.post("/api/management/jobs/" + "d" * 32 + "/cancel", json={})
+            assert missing.status_code == 409
+            invalid = client.post(
+                "/api/management/jobs", json={"action": "check_quick", "shell": "id"}
+            )
+            assert invalid.status_code == 400
+            assert json.loads((paths.jobs / f"{identity}.json").read_text())["status"] == "running"
+            release_lock(holder)
+            holder = None
+            still = client.post("/api/management/jobs", json={"action": "check_quick"})
+            assert still.status_code == 409
+            assert client.app.state.management.jobs.executor is False
+    finally:
+        if holder is not None:
+            release_lock(holder)
+
+    module(tmp_path, CHECK_MODULE, "print('owner')\n")
+    with TestClient(create_app(settings, project=tmp_path)) as client:
+        assert client.app.state.management.jobs.executor is True
+        login(client)
+        recovered = client.get(f"/api/management/jobs/{identity}")
+        assert recovered.status_code == 200
+        assert recovered.json()["status"] == "interrupted"
+        assert "未操作历史进程" in recovered.json()["error"]
+        started = client.post("/api/management/jobs", json={"action": "check_quick"})
+        assert started.status_code == 202, started.text
+        finished = _wait_job(client, started.json()["job"]["id"])
+        assert finished["status"] == "succeeded"
+        assert "owner" in finished["log"]
 
 
 def test_published_report_is_listed_and_downloadable(api):

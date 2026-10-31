@@ -1,6 +1,7 @@
 """Report index, published check snapshots and the single job runtime."""
 
 import json
+import logging
 import math
 import threading
 import time
@@ -10,7 +11,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from .artifacts import BACKTESTS, CHECKS, artifact_path
-from .jobs import ACTIONS, STRATEGIES, JobManager
+from .jobs import ACTIONS, STRATEGIES, JobManager, JobReader
 from .storage import WebPaths, migrate_legacy, runtime_lock
 
 
@@ -107,12 +108,18 @@ class ManagementService:
 
 @contextmanager
 def management_runtime(project, database):
-    """Migrate leftover console files, then own the single in-process job slot."""
+    """Run jobs when this process owns the lock; otherwise only read history."""
     paths = WebPaths(Path(project))
     orm = database if getattr(database, "backend", None) == "orm" else None
-    with runtime_lock(paths):
-        migrate_legacy(paths)
-        jobs = JobManager(paths.project, orm_database=orm)
+    with runtime_lock(paths, required=False) as owner:
+        if owner:
+            migrate_legacy(paths)
+            jobs = JobManager(paths.project, orm_database=orm)
+        else:
+            logging.getLogger(__name__).warning(
+                "未获得管理任务锁，本进程提供查询，不启动或取消任务。"
+            )
+            jobs = JobReader(paths.project, orm_database=orm)
         try:
             yield ManagementService(paths.project, jobs)
         finally:
