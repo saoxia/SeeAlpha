@@ -79,7 +79,7 @@ def iter_trade_archive(path: Path, chunk_rows: int = CSV_CHUNK_ROWS) -> Iterator
                     names=TRADE_COLUMNS,
                     # 让 CSV 解析器直接生成数值列，避免先创建逐行字符串再解析。
                     # 混合内容的块仍由下方规范化函数严格校验。
-                    float_precision="round_trip",
+                    # pandas 3.1 起各 float_precision 模式共用同一转换器，再传该参数只会告警。
                     low_memory=False,
                     skiprows=skiprows,
                     chunksize=chunk_rows,

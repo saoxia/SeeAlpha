@@ -6,8 +6,8 @@
   },
   "pipeline/convert_binance_trades.py": {
     "previous_sha256": "ec3f33d84b6e166242402220f56ce8fbabffa25688a37cc4bb0524e3a9430e60",
-    "sha256": "7f59c0f20ef094a1ecbac7ca8f8002ab657d5d805d870d68dd09f4da0875cf9c",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "60d841dff243611ff10a54ef1f1e2043d8735eedaeae04422a96793ca0dc669a",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-10-31 用户明确要求去掉 pandas 3.1 已弃用的 read_csv float_precision 参数；各模式共用同一转换器，解析结果不变，历史冻结归档不改。"
   },
   "pipeline/validate_data.py": {
     "previous_sha256": "e56c2e6c69db8b6d8fefd09cab0527e0242a607cb7c0bbf02aa0c7c6947e48f2",
