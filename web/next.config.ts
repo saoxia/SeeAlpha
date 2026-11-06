@@ -3,9 +3,20 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 
+// Hostnames only. Scheme, port, path, and wildcards are rejected so a LAN
+// address stays off unless SEEALPHA_ALLOWED_DEV_ORIGINS sets it explicitly.
+const allowedDevOrigins = (process.env.SEEALPHA_ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((item) => item.trim())
+  .filter((item) => item.length > 0 && !/[/*:]/.test(item));
+
 const nextConfig: NextConfig = {
   agentRules: false,
-  allowedDevOrigins: ["127.0.0.1", "192.168.31.81"],
+  allowedDevOrigins,
+  images: {
+    unoptimized: true,
+    remotePatterns: [],
+  },
   output: "standalone",
   async rewrites() {
     const apiUrl = process.env.SEEALPHA_API_URL ?? "http://127.0.0.1:8000";
