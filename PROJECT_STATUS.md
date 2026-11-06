@@ -2,66 +2,110 @@
 
 产品定位（2026-10-27）：基于 NautilusTrader 的多资产量化交易系统，面向加密资产、
 期货、股票等市场，以及现货、永续合约、期权等交易产品。
-当前主要实现 Binance USD-M 永续行情及 BTC/ETH 策略研究与回测，尚未接入真实账户
-或实盘执行；其他市场与交易产品仍需接入和验收。详见 [产品范围与当前实现](README.md#产品范围与当前实现)。
+当前主要实现是 Binance USD-M 永续的公开行情、研究回测和管理端。期权行情适配器、
+期权历史数据和 USD-M 资金流水台账已经在代码中，尚未接入真实账户或实盘执行。
+其他市场仍需接入和验收。详见 [产品范围与当前实现](README.md#产品范围与当前实现)。
 
-历史状态更新时间：2026-09-28（北京时间）。
+状态核对日期：2026-10-31。下文「当前检查」是这次在干净环境里实际跑出来的结果。
+各研究小节里的测试数量是该日记录，不代表当前总数。
 
-2026-10-26 迁移说明：本文件保留策略研究进展；后台采集、覆盖率和验收均为旧机器记录。
-本机已升级到 NautilusTrader 2.0.0rc7 并完成开发环境验收：1,345 项测试通过，Rust 单元测试 3 项通过。
-原观察数据未迁移，未启动长期服务；详情见 [开发环境说明](DEV_ENVIRONMENT.md)。
+## 当前检查（2026-10-31）
 
-## 本轮已完成
+环境：Python 3.14.9、NautilusTrader 2.0.0rc7、pandas 3.1.0、Ruff 0.17.2。
+未使用交易所凭据，未下单。
 
-- [x] 项目盘点与全量检查：初始 1,139 项通过、1 项失败；修复后新增健康及恢复检查，共 **1,152 项通过**。
-- [x] 修复数据配置测试与文档脱节：默认数据集已有 BTC、ETH、SOL，保留现有配置并同步断言和说明。
-- [x] 处理停机后行情积压：确认跳过区间没有已生效模拟报价，备份并保留明确缺口后恢复实时采集；已经生成新的实时报价。没有补造过去的信号。
-- [x] 新增独立健康页及每分钟后台检查：区分实时正常、数据追赶、停止、心跳过期和冻结文件变化；保留状态变化记录。
-- [x] 整理代码检查：修复 9 处测试样式问题；历史研究不改写，既有策略样式例外按文件和哈希登记，现行代码检查通过。
-- [x] 统一检查入口及证据：源码基线测试核验历史研究来源，Web 任务统一运行代码规范和全量测试。报告及日志保存到 [检查结果](logs/web/checks/latest.json)。
-- [x] 更新项目首页、数据目录、测试与运维说明，清理过时的 MA20 入口描述。
+```bash
+.venv/bin/python -m ruff check .
+.venv/bin/python -m pytest -q
+cd web && npm run test:frontend
+```
 
-## 当前范围（2026-10-27）
+- Ruff：通过。
+- pytest：`2 failed, 1573 passed, 37 skipped, 1 warning, 18 errors`（66 秒）。
+  - 失败 2 项：`tests/core/environment_test.py` 要执行 `/bin/zsh`，本环境没有这个解释器（`FileNotFoundError`）。同一测试的 Bash 参数通过。
+  - 错误 18 项：全部是 `tests/pipeline/data_management_test.py` 的 `dataset` 夹具。`find_rust_converter()` 为 `None`，Python 回退在 `pipeline/catalog.py` 的 `_decimal` 把数值转成 `decimal128(38, 16)` 时失败，异常为 `pyarrow.lib.ArrowInvalid: Rescaling Decimal value would cause data loss`。
+  - 跳过 37 项：26 项因为未设置 `TEST_POSTGRES_URL`（`tests/api/operations_test.py`、`tests/api/orm_storage_test.py`）；11 项因为 Rust 转换器未构建（`tests/pipeline/convert_binance_trades_test.py`，原因是 `Rust converter has not been built`）。
+  - 警告 1 条：依赖里的 `StarletteDeprecationWarning`（`fastapi/testclient.py` 使用 httpx）。项目代码没有再发出时间接口或 `float_precision` 警告。
+- 前端 `npm run test:frontend`：29 项通过，0 项失败。
 
-项目操作记录 API 已提供列表、详情、同步及 CSV 导出，前端实时页与数据管理页
-已对接 `/api/operations`。业务数据库保存去重投影与不可改写的观察证据，支持
-迟到策略归属、同毫秒分页、真实成交与修正区分。本机 Nautilus Python 原始报告
-订阅受限，已使用公开执行缓存验证读取；历史覆盖保守标记不完整。尚未启动实盘策略，
-后续执行节点需接入项目事件持久化入口。本轮 Python 全量 **1,355 项通过**，
-前端 6 项测试、代码检查及生产构建通过；云端事务回滚校验和真实前端代理联调通过。详见 [操作记录说明](docs/OPERATIONS_API.md)。
+检查任务本身仍由 `api/management/jobs.py` 的 `run_checks` 执行，结果写到
+`logs/web/checks/<时间戳>/` 和 `logs/web/checks/latest.json`。`logs/` 被 gitignore，
+全新 clone 里没有这份文件；跑一次项目检查后才会生成。
 
-业务持久化已统一支持 PostgreSQL / SQLite ORM。原云端数据保留，本机已配置 PostgreSQL
-连接并完成迁移；旧 RPC 接入已移除，连接配置与迁移见 [API 持久化说明](api/README.md#通用-orm-业务持久化)。
+## 当前实现
 
-Binance 原生只读接口已迁入新 API：账户配置、品种列表、分币种余额、连接测试、
-账户总览和仓位快照通过 `connectors/binance/queries.py` 调用原生适配器，
-这些请求不经过旧 CCXT 客户端。旧业务后端已清理；历史资产重建功能暂未提供。
-本轮全量测试 1,336 项通过，包含真实原生客户端连接本机模拟交易所的空仓、
-单向/双向仓位测试；真实 Binance 公开品种查询经前端代理返回成功。
-账户私有查询尚未使用真实账户凭据验收。范围、缺失字段与计价约束见
-[Binance 原生 API 说明](docs/BINANCE_NATIVE_API.md)。
+默认研究数据集仍是 `pipeline/binance_sources.toml` 中的 BTC-USDT、ETH-USDT、SOL-USDT。
+本地开发服务是前端 `127.0.0.1:3000` 和 API `:8000`。
 
-前端与 API 拆分第二阶段已完成。项目检查、BTC/ETH 策略回测、报告浏览和任务日志
-通过 FastAPI `/api/management` 提供，复用现有用户会话；写操作需要管理员。
-后台仍同时只运行一个固定任务，记录继续写入 `management_jobs` 与 `backtest_reports`，
-日志仍在 `logs/web/`，报告原文件仍在 `data/reports/backtest/`。
-Next.js 主导航新增 RESEARCH。原 `:8765` Python 管理端、其独立口令登录，
-以及曾经提到的 `:8001` 兼容后端均已移除。API 启动时仍会把遗留的
-`data/web_console/` 任务文件迁入现有运行目录，不覆盖已有数据库记录。
+### 前后端拆分第二阶段（已完成）
 
-第一阶段验证记录：全量 Python 测试 1,327 项通过（含当时新增 6 项鉴权测试）、Ruff 通过，
-前端代码检查、3 项已有前端测试和 webpack 生产构建通过。
-本地开发服务监听 `127.0.0.1:3000`（前端）和 `:8000`（API）。
+已在 [PR #1](https://github.com/saoxia/SeeAlpha/pull/1) 合并。项目检查、BTC/ETH 策略回测、
+报告浏览和任务日志在 FastAPI `api/management/`（`router.py`、`jobs.py`、`service.py`、
+`artifacts.py`、`storage.py`），路径为 `/api/management`，复用现有用户会话；启动和取消需要管理员。
+Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.tsx`，
+入口在 `web/app/components/navigation.tsx`。`web/server.py`、`:8765` 服务和 `web/static/*` 已不在树中。
 
-前向观察及配套健康、样本质量、备份、恢复与到期评估功能已删除。
-当前保留离线研究与回测、连接器、连续行情服务及项目管理端。
-下文优化实验和验收数量为历史记录，不代表仍有后台任务运行。
+管理任务锁是 `.local/run/web/server.lock`（`api/management/storage.py` 的 `runtime_lock`）。
+拿到锁的进程迁移遗留的 `data/web_console/`、把仍标为运行中的任务标成中断，并执行启动、取消和子进程。
+没拿到锁的进程照常提供其余 API，`/api/management` 仍可查询；在该进程上启动或取消由
+`JobReader` 抛出 `NotOwnerError`，路由返回 **409**，正文为「当前进程未持有管理任务锁，不能启动或取消任务。」
+同一时间仍只有一个此类任务。多 worker 或另一个端口可以同时提供 API，但锁不会在运行中途被接管；
+持锁进程退出后，下一个启动并拿到锁的进程才接受启动和取消。因此启动或取消请求必须到达持锁进程。
+
+任务记录在启用 ORM 时写入 `management_jobs` 与 `backtest_reports`，日志在 `logs/web/`，
+报告原文件在 `data/reports/backtest/`。
+
+### 已补记的现有功能
+
+这些功能此前未写入本文件，路径以当前代码为准。
+
+- **Binance 期权适配器**：行情客户端 `connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `connectors/binance/options_account.py`，执行客户端 `connectors/binance/options_execution.py`。公开行情解析在 `connectors/binance/options.py` 与 `connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
+- **USD-M 现金流台账**：`connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
+- **期权数据**：离线任务在 `pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集尚未接入 `feed/`。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
+- **托管行情数据服务**：`api/market_data/subscriptions.py` 按配置启动 `feed.managed` 的采集与计算，以及 `pipeline.pair_data --service` 历史补齐。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线数据任务在 `api/market_data/service.py`。
+- **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
+
+### 业务数据库
+
+ORM 同时支持 SQLite 和 PostgreSQL（`api/db/database.py`、`api/db/orm.py`）。
+开发和自动化测试默认使用 SQLite。PostgreSQL 是可选项，用 `DATABASE_URL` 或私有连接文件配置。
+API 进程要求显式连接；未配置时不会自行建库，也不会在连接失败后改用另一种数据库。
+连接与迁移见 [API 持久化说明](api/README.md#通用-orm-业务持久化)。
+
+Binance 原生只读查询在 `connectors/binance/queries.py`，不经过旧 CCXT 客户端。
+范围见 [Binance 原生 API 说明](docs/BINANCE_NATIVE_API.md)。
+
+### 警告
+
+约 180 条上游时间接口弃用提示已随 NautilusTrader 2.0.0rc7 升级消除。本次全量 pytest 的警告汇总里没有这类提示。
+
+去掉参数之前，同一命令还有 **78** 条 pandas `Pandas4Warning`：`The 'float_precision' argument is deprecated. Use the default float precision instead.`
+全部指向当时的 `pipeline/convert_binance_trades.py:76`（`tests/pipeline/bar_features_test.py` 25 条、`convert_binance_trades_test.py` 29 条、`data_management_test.py` 22 条、`pair_repair_test.py` 2 条）。
+pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_trade_archive` 已不再传入 `float_precision`。
+抽样比较省略该参数与三种旧模式，数值列一致。修改后的全量测试不再出现这条警告。
+
+## 仍未完成
+
+- [ ] 行情 feed 的长时间运行验收，以及具体策略的预热验收。短时 5 分钟预热验证不替代这两项。运行说明见 [feed/README.md](feed/README.md)。有界连通性检查使用独立目录，不把结果写进仓库：
+
+  ```bash
+  .venv/bin/python -m feed.service serve \
+    --root /tmp/nautilus-minute-smoke --warmup-minutes 5 --duration-seconds 90
+  ```
+
+  旧文档指向的 `data/market_data/validation/20260928/smoke.json` 不在仓库中（`data/**` 被 gitignore，全新 clone 没有该文件）。
+- [ ] Binance 私有接口尚未使用真实账户凭据验收。
+- [ ] 实盘执行节点尚未接入 `OperationService.record_project_event`（`api/operations/service.py`）。当前只有 `tests/api/operations_test.py` 调用该入口。回测不应写入这个实盘账本。
+
+前向观察及其健康页、样本质量、备份、恢复和到期评估已从代码中删除。
+当前保留离线研究与回测、连接器、连续行情服务、托管行情数据和项目管理端。
+下面各节是历史研究记录，不表示仍有后台任务在运行。
 
 ## 独立策略优化（2026-09-22）
 
 - [x] 新增独立均值回归多头候选：完整日线趋势过滤，以及24小时／布林距离退出和中轨重新准入规则组。
 - [x] 预先固定原基线、仅过滤、仅退出、两者组合四组，在BTC/ETH和两档费用下对比；组合为主候选，不根据事后最高收益换选。
-- [x] 新增时序、缺口、退出、风险预算保持及零交易统计检查；全项目 **1,175项测试通过**，历史研究和前向冻结来源校验通过。
+- [x] 新增时序、缺口、退出、风险预算保持及零交易统计检查；当日全项目 **1,175项测试通过**，历史研究和前向冻结来源校验通过。
 - [x] 16组完整历史回放及逐项门槛检查完成，三种新增规则均未通过。主候选最长持仓缩至24小时，但原费率BTC净收益从−29.74降至−50.40 USDT，ETH从−52.15降至−97.47 USDT；费用压力后也未通过，不替换默认策略。
 - [x] 三组可对照基线逐笔复现历史参考，全部回放通过开仓约束、价格精度、持仓归零和现金流检查；保留已有撤单目标不存在记录、分钟数据缺口及统计工具修订说明。
 
@@ -72,7 +116,7 @@ Next.js 主导航新增 RESEARCH。原 `:8765` Python 管理端、其独立口�
 - [x] 新增独立成本门槛、跌破收复确认和5分钟订单到期；完整闭合行情驱动，保留原仓位预算，使用固定退出框架。
 - [x] 完成BTC/ETH、两项规则、两档费用共8组完整回放，加2组严格成交复核；核验复用8组原有对照，固定主候选与判断门槛。
 - [x] 主候选原费率最大回撤由BTC 14.26%／ETH 22.53%降至9.45%／16.82%，但净收益由−29.74／−52.15降至−36.06／−68.19 USDT；费用压力下亏损减少，仍未形成跨市场一致改进，不替换默认策略。
-- [x] 完成现金流、过期订单、退出贡献和月度不确定性复核；全项目 **1,186项测试通过**，冻结来源保持一致，
+- [x] 完成现金流、过期订单、退出贡献和月度不确定性复核；当日全项目 **1,186项测试通过**，冻结来源保持一致。
 
 [结论与原因](strategy_python/_optimization/mrl_entry_20260922/INTERPRETATION.md) · [完整对照](strategy_python/_optimization/mrl_entry_20260922/RESULTS.md) · [复现与验收](strategy_python/_optimization/mrl_entry_20260922/README.md)
 
@@ -81,7 +125,7 @@ Next.js 主导航新增 RESEARCH。原 `:8765` Python 管理端、其独立口�
 - [x] 新增后续完整一分钟收盘突破确认线高点后入场，限制买入价格并保留确认后的5分钟期限；重新检查剩余盈利空间，仓位预算不变。
 - [x] 完成两市场、两档费用和严格成交共6组完整回放，核验10组历史参考；控制组逐笔复现上一轮。
 - [x] 相较上一轮，原费率BTC净收益从−36.06改善至−26.02 USDT，回撤9.45%降至6.63%；ETH净收益从−68.19降至−69.22，回撤16.82%降至15.44%。费用压力下累计亏损减少，6组全期及近期收益仍全部为负，不替换默认策略。
-- [x] 新候选平均单笔净亏损增加，主动成交费用更高；保留全部失败结果、入场时序、价格上限及成本分解。全项目 **1,203项测试通过**，冻结来源核验通过。
+- [x] 新候选平均单笔净亏损增加，主动成交费用更高；保留全部失败结果、入场时序、价格上限及成本分解。当日全项目 **1,203项测试通过**，冻结来源核验通过。
 
 [结论与原因](strategy_python/_optimization/mrl_recovery_20260922/INTERPRETATION.md) · [完整对照](strategy_python/_optimization/mrl_recovery_20260922/RESULTS.md) · [复现与验收](strategy_python/_optimization/mrl_recovery_20260922/README.md)
 
@@ -91,21 +135,18 @@ Next.js 主导航新增 RESEARCH。原 `:8765` Python 管理端、其独立口�
 - [x] SQLite 原子落盘和连续检查点，重复去重、乱序缓存、缺口阻断、来源冲突持久化及重启重查。
 - [x] WARMING_UP／READY／DEGRADED 状态控制；断线、心跳或时钟异常后重新核对；恢复数据只回放，不补发历史信号。
 - [x] 前一完整 UTC 日分钟数据核验，Nautilus Bar 转换及显式 replay/live 消费接口。
-- [x] 新增31项测试；全项目 **1,307项测试通过**，冻结来源和代码检查通过。
-- [x] 公开接口短时验证：BTC/ETH 冷启动达到 READY，75秒内各记录一根实时闭合线；同一目录重启25秒再次 READY。两次均正常停止，无账户或下单操作。
-- [ ] 长时间运行、完整135天冷启动与具体策略预热验收；短时5分钟预热验证不替代这些验收。
+- [x] 当日新增 31 项测试；全项目 **1,307 项测试通过**，冻结来源和代码检查通过。
+- [x] 公开接口短时验证：BTC/ETH 冷启动达到 READY，75 秒内各记录一根实时闭合线；同一目录重启 25 秒再次 READY。两次均正常停止，无账户或下单操作。该次产物不在仓库中。
+- [ ] 长时间运行验收与具体策略预热验收。短时 5 分钟预热验证不替代这两项。
 
 本版仅分钟 OHLCV，不提供逐笔还原、盘口或主动成交量特征；未自动启用常驻服务，
 未接入交易账户或现行策略下单。
 
-[运行与接入说明](feed/README.md) · 历史完整检查（旧检查产物已清理） · [短时网络验证](data/market_data/validation/20260928/smoke.json)
+[运行与接入说明](feed/README.md)
 
 ## 查看与复查
 
-[BTC 四策略及历史结论](strategy_python/BTC_STRATEGIES.md) · [运维与恢复记录](web/README.md)
+[BTC 四策略及历史结论](strategy_python/BTC_STRATEGIES.md) · [运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md)
 
-```bash
-.venv/bin/python -m pytest -q
-```
-
-最新检查存在180条上游时间接口弃用提示，其中新增执行用例重复触发16条，未造成测试失败。升级依赖会改变冻结环境，应在后续独立迁移阶段处理。
+2026-10-26 的开发环境记录是当日验收：当时 pytest 为 1,345 项通过。该数字不是上面的当前结果。
+详情见 [开发环境说明](DEV_ENVIRONMENT.md)。
