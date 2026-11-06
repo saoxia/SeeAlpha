@@ -1,4 +1,4 @@
-"""从运行清单创建独立策略；不依赖回测或实盘连接环境。"""
+"""从运行清单创建策略，并在多成员净额模式下绑定组合协调器。"""
 
 import json
 import re
@@ -10,6 +10,10 @@ from pathlib import Path
 from nautilus_trader.model import BarType, InstrumentId
 
 from pipeline.models import bar_type_for
+from strategy_python._execution.portfolio_coordinator import (
+    PortfolioCoordinator,
+    PortfolioCoordinatorConfig,
+)
 from strategy_python._risk.shared_budget import SharedRiskBudget
 from strategy_python.mean_reversion_long_5min import (
     MeanReversionLong5MinConfig,
@@ -73,6 +77,7 @@ class PortfolioConfig:
     risk_mode: str
     total_risk_fraction: Decimal | None
     members: tuple[StrategyMember, ...]
+    execution: str = "netted"
 
     @property
     def active_members(self) -> tuple[StrategyMember, ...]:
@@ -102,10 +107,13 @@ def _positive(value: object, label: str) -> Decimal:
 def parse_portfolio(value: object) -> PortfolioConfig:
     root = _keys(
         value,
-        {"name", "market", "account", "backtest", "risk", "strategies"},
+        {"name", "market", "account", "backtest", "risk", "strategies", "execution"},
         {"name", "market", "account", "backtest", "risk", "strategies"},
         "运行清单",
     )
+    execution = root.get("execution", "netted")
+    if execution not in ("netted", "independent"):
+        raise ValueError("execution 必须为 netted 或 independent")
     name = root["name"]
     if not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9_]+", name):
         raise ValueError("组合名称只能包含字母、数字和下划线")
@@ -200,6 +208,7 @@ def parse_portfolio(value: object) -> PortfolioConfig:
         risk["mode"],
         total,
         tuple(members),
+        execution,
     )
 
 
@@ -254,4 +263,26 @@ def create_strategies(
         if budget is not None:
             strategy.attach_shared_risk_budget(budget, member.id)
         strategies.append(strategy)
+    if config.execution == "netted" and len(strategies) > 1:
+        coordinator = PortfolioCoordinator(
+            PortfolioCoordinatorConfig(
+                instrument_id=config.instrument_id,
+                bar_type=config.bar_type,
+                order_id_tag="PORTFOLIO_NET",
+            ),
+        )
+        for strategy in strategies:
+            strategy.attach_portfolio_coordinator(coordinator)
     return strategies, budget
+
+
+def uses_net_execution(strategies: list) -> bool:
+    """协调器已绑定且会被注册到引擎时，账户改为净持仓并由协调器发单。"""
+    return bool(strategies) and getattr(strategies[0], "_portfolio_coordinator", None) is not None
+
+
+def with_net_execution(strategies: list) -> list:
+    """协调器最先注册。净额在本根 K 线的警报里计算，不依赖这个顺序。"""
+    if not uses_net_execution(strategies):
+        return strategies
+    return [strategies[0]._portfolio_coordinator, *strategies]

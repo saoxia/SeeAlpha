@@ -26,8 +26,8 @@
   },
   "strategy_python/_backtesting.py": {
     "previous_sha256": "78a2cff35a2a5ff5470cd28dd807c84a021714f786be934c6ff95ffa333fefb4",
-    "sha256": "0639c631128893c5962bee87f1f01e9c04f68d4cf327eb94f474f5198a027fe5",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "f37dcd27879ce4cbb06716278258ee2dcbb68d95cff0cadd318f16a669c3261d",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-11-06 用户明确授权第四代组合层：多成员净额回测允许 NETTING，并把协调器排除在成员报表之外；历史冻结归档不改。"
   },
   "strategy_python/_execution/__init__.py": {
     "previous_sha256": "6bb88daded1f231a7d68e60ff86df031c58f69b615e9cbc914e4e9f4439f1f99",

@@ -262,7 +262,15 @@ def run_backtest(
     if not strategies or any(item is None for item in strategies):
         raise ValueError("至少需要一个策略")
     if len(strategies) > 1:
-        if spec.oms_type != OmsType.HEDGING:
+        from strategy_python._execution.portfolio_coordinator import PortfolioCoordinator
+
+        coordinators = [item for item in strategies if isinstance(item, PortfolioCoordinator)]
+        if coordinators:
+            if spec.oms_type != OmsType.NETTING:
+                raise ValueError("净额组合必须使用 NETTING，账户只保留一条净持仓")
+            if len(coordinators) != 1:
+                raise ValueError("一个组合只能有一个协调器")
+        elif spec.oms_type != OmsType.HEDGING:
             raise ValueError("同合约多策略回测必须使用 HEDGING")
         if len({str(item.strategy_id) for item in strategies}) != len(strategies):
             raise ValueError("策略 ID 必须唯一")
@@ -331,17 +339,20 @@ def run_backtest(
         for name, report in reports.items():
             print(f"\n{name} 报表")
             print(report)
+        from strategy_python._execution.portfolio_coordinator import PortfolioCoordinator
+
+        reported = [item for item in strategies if not isinstance(item, PortfolioCoordinator)]
         strategy_parameters = {}
         strategy_statistics = {}
-        if len(strategies) == 1 and portfolio_parameters is None:
-            item = strategies[0]
+        if len(reported) == 1 and len(strategies) == 1 and portfolio_parameters is None:
+            item = reported[0]
             strategy_parameters = {
                 "strategy_class": f"{type(item).__module__}.{type(item).__name__}",
                 "strategy_config": json.loads(item.config.json()),
             }
         else:
             members = {}
-            for index, item in enumerate(strategies, start=1):
+            for index, item in enumerate(reported, start=1):
                 prefix = f"strategy_{index:02d}"
                 members[str(item.strategy_id)] = {
                     "strategy_class": f"{type(item).__module__}.{type(item).__name__}",
