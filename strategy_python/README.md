@@ -20,8 +20,10 @@ Market Data → Indicators / Features → Signal → Position Target
 [`pullback_short_1h`](pullback_short_1h/README.md)（下跌趋势中的小时反弹做空）、
 [`mean_reversion_short_v2_5min`](mean_reversion_short_v2_5min/README.md)（周末五分钟均值回归空头，3～5倍开仓上限）。
 均值回归和趋势跟随均按方向独立配置和优化，不互相导入，也不提供双向切换。
-根目录 `portfolio.py` 根据 `_portfolio/*.json` 清单组装任意数量的独立策略，
-`portfolio_backtest.py` 启动共用账户回测；共享预算通过清单显式配置。
+根目录 `portfolio.py` 根据 `_portfolio/*.json` 清单组装策略。
+多个成员且 `execution=netted`（默认）时，协调器把各成员目标净额合并，
+只交易净目标与账户持仓的差额；单成员以及 `execution=independent` 仍由各策略自己下单。
+`portfolio_backtest.py` 启动共用账户回测；共享预算通过清单显式配置，只限制新开仓规模，不代替净额。
 组合层可以导入具体策略，不包含交易信号规则；具体策略不反向导入组合层。
 组合使用说明及未来实盘入口设计见 [`PORTFOLIO.md`](PORTFOLIO.md)。
 

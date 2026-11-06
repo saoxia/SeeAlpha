@@ -1,4 +1,8 @@
-"""读取运行清单，在同一账户中回测任意数量的独立策略。"""
+"""读取运行清单，在同一账户中回测多个策略。
+
+多成员且 execution=netted 时，协调器最后注册，账户使用 NETTING，
+只交易净目标与账户持仓的差额。单成员和 independent 仍由各策略自己下单。
+"""
 
 from dataclasses import asdict, replace
 from datetime import datetime
@@ -20,6 +24,8 @@ from strategy_python.portfolio import (
     PortfolioConfig,
     create_strategies,
     load_portfolio,
+    uses_net_execution,
+    with_net_execution,
 )
 
 
@@ -62,14 +68,18 @@ def run_backtest(
     resolve_data_check(spec, check_data, force=force, refresh_archives=refresh_archives)
     config = replace(config, interval=spec.interval, bar_type=spec.bar_type)
     strategies, budget = create_strategies(start, config)
+    member_ids = {
+        str(strategy.strategy_id): member.id
+        for strategy, member in zip(strategies, config.active_members)
+    }
+    if uses_net_execution(strategies):
+        spec = replace(spec, oms_type=OmsType.NETTING)
+        strategies = with_net_execution(strategies)
     snapshot = {
         "config_path": str(Path(config_path).resolve()),
         "run_config": asdict(config),
         "risk_mode": config.risk_mode,
-        "members": {
-            str(strategy.strategy_id): member.id
-            for strategy, member in zip(strategies, config.active_members)
-        },
+        "members": member_ids,
         **(budget.snapshot() if budget else {}),
     }
     return run_engine_backtest(

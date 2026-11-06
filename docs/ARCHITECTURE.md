@@ -63,8 +63,19 @@ Binance 原生 REST / WebSocket ─┴→ Coordinator / Store
 
 ```text
 Market Data → Indicators / Features → Signal → Position Target
-  → Risk Overlay → Final Target → Execution → Order
+  → Risk Overlay → Final Target
+  → 单策略 / independent：Execution → Order
+  → 多成员净额组合：Coordinator 合并目标 → 只交易账户净差额
 ```
+
+2026-11-06 用户明确授权第四代组合层。成员策略仍各自产生目标，不改写信号和指标。
+组合协调器按合约把带符号目标净额合并，执行路径只发净目标与
+`Portfolio.net_position` 的差额。Nautilus 的 RiskEngine 继续检查这张订单；
+OMS 的 NETTING 只合并成交后的持仓，不能代替下单前的目标对冲。
+单策略回测和清单 `execution=independent` 保持各策略自己下单。
+本轮不包含市场状态调权、FOF 动态再平衡、期权对冲或账户级最大回撤锁仓。
+保护性止损和应急退出先记在协调器里，触发后再进入净目标，避免静默丢掉风险退出。
+详见 [组合说明](../strategy_python/PORTFOLIO.md)。
 
 `strategy.py` 保持生命周期和事件编排；信号不访问订单，执行不判断指标，风险不产生 Alpha。配置与运行状态分离；具体策略不互相导入，共享组件不依赖具体策略。组合层可以组装具体策略，策略不反向依赖组合与回测入口。公共回测入口包括 `StrategyBacktest`、`run_backtest_cli`；兼容导出按根目录规范核实真实调用和支持承诺后处理，不得破坏公共接口。具体约束见 [策略工程约定](../strategy_python/README.md) 和 `tests/strategy_python/architecture_test.py`。
 
