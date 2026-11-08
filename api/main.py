@@ -19,6 +19,7 @@ from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
 from .engine_client import EngineClient
+from .tenant_docker import DockerTenantManager
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -128,9 +129,22 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.repository = auth_repository(database)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
+    if settings.engine_deployment not in {"single", "docker"}:
+        raise ValueError("ENGINE_DEPLOYMENT must be single or docker")
+    manager = None
+    if settings.engine_deployment == "docker":
+        manager = DockerTenantManager(
+            settings.engine_tenant_root or PROJECT / ".local/tenants",
+            image=settings.engine_docker_image,
+            production_cpus=settings.engine_production_cpus,
+            production_memory=settings.engine_production_memory,
+            development_cpus=settings.engine_development_cpus,
+            development_memory=settings.engine_development_memory,
+        )
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
         market_account_id=settings.engine_market_account_id,
+        tenant_manager=manager,
     )
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
