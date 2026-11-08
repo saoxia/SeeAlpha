@@ -24,9 +24,8 @@ class BinanceOptionsOrderTransport(BinanceOptionsAccountClient):
         return "BinanceOptionsOrderTransport(environment='production')"
 
     def _request(self, method, endpoint, params):
-        allowed = READ_PARAMS | {"userTrades": {"symbol", "fromId", "startTime", "endTime", "limit"}}
         if method == "GET":
-            if endpoint not in allowed or params.keys() - allowed[endpoint]:
+            if endpoint not in READ_PARAMS or params.keys() - READ_PARAMS[endpoint]:
                 raise ValueError("不支持的期权查询")
         elif method == "POST":
             if endpoint != "order" or set(params) != {"symbol", "side", "type", "quantity", "price", "timeInForce",

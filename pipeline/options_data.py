@@ -22,6 +22,7 @@ from nautilus_trader.model import (
 
 from connectors.binance import options
 from connectors.binance.options_parsing import bar as parse_bar
+from connectors.binance.options_parsing import depth as parse_depth
 from connectors.binance.options_parsing import trade as parse_trade
 from connectors.binance.queries import QueryError
 from core.market.instruments import (
@@ -78,7 +79,7 @@ def source_paths(request, settings, *, include_pending=False):
     day, last = request.start.date(), (request.end - timedelta(microseconds=1)).date()
     result = []
     while day <= last:
-        for level in ("tick", *PERIODS):
+        for level in ("tick", "depth", *PERIODS):
             folder = _safe(settings.raw_dir, root / level / day.isoformat())
             if folder.exists():
                 for path in folder.iterdir():
@@ -97,9 +98,10 @@ def source_paths(request, settings, *, include_pending=False):
 def _decode(snapshot):
     instrument = CryptoOption.from_dict(snapshot["instrument"])
     symbol, level = str(instrument.raw_symbol), snapshot["level"]
-    if (snapshot["product"] != "options" or level not in ("tick", *PERIODS)
+    sources = {"tick": ("eapi/v1/trades", "ws/optionTrade"), "depth": ("ws/depth",)}
+    if (snapshot["product"] != "options" or level not in ("tick", "depth", *PERIODS)
             or str(instrument.id) != instrument_id_for(symbol, "options")
-            or snapshot["source"] not in (("eapi/v1/trades", "ws/optionTrade") if level == "tick" else ("eapi/v1/klines", "ws/kline"))):
+            or snapshot["source"] not in sources.get(level, ("eapi/v1/klines", "ws/kline"))):
         raise ValueError("无效的期权来源类型")
     first, last = snapshot["start_ms"], snapshot["end_ms"]
     if type(first) is not int or type(last) is not int or first < 0 or last <= first:
@@ -109,7 +111,16 @@ def _decode(snapshot):
     if not isinstance(payload, list):
         raise TypeError("无效的期权行情响应")
     for row in payload:
-        if level == "tick":
+        if level == "depth":
+            if type(row["received_ns"]) is not int or not 0 <= row["received_ns"] < 2**64:
+                raise ValueError("期权盘口接收时间无效")
+            item = parse_depth(instrument, row, 10, row["received_ns"])
+            if not first * 1000000 <= item.ts_event < last * 1000000 or item.ts_event > instrument.expiration_ns:
+                raise ValueError("期权盘口超出时间范围或到期边界")
+            key = f"{item.ts_event}:{item.sequence}"
+            record = {"ts_event_ns": str(item.ts_event), "sequence": item.sequence,
+                      "bids": row["b"], "asks": row["a"]}
+        elif level == "tick":
             if row.get("symbol", symbol) != symbol or type(row["time"]) is not int:
                 raise ValueError("期权成交合约或时间不一致")
             stamp = row["time"]
@@ -222,6 +233,9 @@ def _install(path, settings, device, *, merge=False):
     instrument, values = _decode(snapshot)
     catalog = _ensure_definition(instrument, settings, device)
     level = snapshot["level"]
+    if level == "depth":
+        # Depth history is the immutable raw snapshot; there is no derived Bar/Tick.
+        return 0
     existing = _existing(settings, instrument, level, snapshot["start_ms"], snapshot["end_ms"])
     missing = []
     for item, record in values:
@@ -330,7 +344,9 @@ def _prepare(request, settings, *, managed=False, definition=None):
             end = min(day + timedelta(days=1), request.end)
             first, last = int(day.timestamp() * 1000), int(end.timestamp() * 1000)
             if not managed and any(raw["level"] == level and raw["start_ms"] == first
-                                       and raw["end_ms"] == last and _decode(raw)[1] for _p, raw in relevant):
+                                       and raw["end_ms"] == last and raw["source"] == "eapi/v1/klines"
+                                       and raw.get("history_request_complete") is True
+                                       and _decode(raw)[1] for _p, raw in relevant):
                 print(f"{day.date()} {level} 复用本地期权来源", flush=True)
                 day = end
                 continue
@@ -354,6 +370,7 @@ def _prepare(request, settings, *, managed=False, definition=None):
             snapshot = {"product": "options", "level": level, "start_ms": first, "end_ms": last,
                         "fetched_ms": int(datetime.now(UTC).timestamp() * 1000),
                         "source": "eapi/v1/klines",
+                        "history_request_complete": True,
                         "instrument": instrument.to_dict(), "payload": payload}
             _instrument, decoded = _decode(snapshot)
             if not decoded:
@@ -527,15 +544,15 @@ def persist_live(symbol, events, settings, *, recover=False, definition=None):
         now = int(datetime.now(UTC).timestamp() * 1000)
         for event in events:
             level, row = event["level"], event["row"]
-            stamp = row["time"] if level == "tick" else row[0]
-            closed = stamp if level == "tick" else row[6] + 1
+            stamp = row["time"] if level == "tick" else row["T"] if level == "depth" else row[0]
+            closed = stamp if level in {"tick", "depth"} else row[6] + 1
             if type(stamp) is not int or closed > now or closed * 1000000 > instrument.expiration_ns:
                 raise ValueError("期权实时来源未闭合、时间超前或超过到期边界")
             day = stamp // 86400000 * 86400000
             groups.setdefault((level, day), []).append(row)
         for (level, day), rows in sorted(groups.items()):
             snapshot = {"product": "options", "level": level, "start_ms": day, "end_ms": day + 86400000,
-                        "fetched_ms": now, "source": "ws/optionTrade" if level == "tick" else "ws/kline",
+                        "fetched_ms": now, "source": {"tick": "ws/optionTrade", "depth": "ws/depth"}.get(level, "ws/kline"),
                         "instrument": instrument.to_dict(), "payload": rows}
             path, _count = _save(snapshot, settings, device)
             written += _install(path, settings, device, merge=True)

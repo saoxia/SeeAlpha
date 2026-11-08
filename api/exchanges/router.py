@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from connectors.binance.queries import QueryError
 
 from ..auth.dependencies import AdminUser, CurrentUser
+from ..operations.options import position_view
 from .contracts import (
     ExchangeAccountCreateRequest,
     ExchangeAccountNavigationResponse,
@@ -113,11 +114,14 @@ async def overview(request: Request, _: CurrentUser, refresh: bool = False):
 
 @router.get("/exchange-accounts/{account_id}/portfolio", response_model=ExchangePortfolioResponse)
 async def portfolio(request: Request, account_id: int, _: CurrentUser, refresh: bool = False):
-    return await request.app.state.exchanges.portfolio(account_id, fresh=refresh)
+    return await request.app.state.exchanges.persisted_portfolio(account_id, fresh=refresh)
 
 
 @router.get(
     "/exchange-accounts/{account_id}/positions", response_model=list[ExchangePositionResponse]
 )
 async def positions(request: Request, account_id: int, _: CurrentUser):
-    return (await request.app.state.exchanges.portfolio(account_id))["positions"]
+    values = (await request.app.state.exchanges.portfolio(account_id))["positions"]
+    row = await asyncio.to_thread(request.app.state.accounts.row, account_id)
+    options, _ = await asyncio.to_thread(position_view, request.app.state.operations.repository, row)
+    return [*values, *options]

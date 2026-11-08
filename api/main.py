@@ -45,6 +45,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         olap_task = None
         configuration_task = None
         monitor_task = None
+        portfolio_task = None
         runtime = None
         try:
             database.initialize()
@@ -74,6 +75,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
 
             configuration_task = asyncio.create_task(reconcile_configuration())
             monitor_task = asyncio.create_task(monitor_services())
+            portfolio_task = asyncio.create_task(app.state.exchanges.portfolio_worker())
 
             async def refresh_olap():
                 while True:
@@ -90,7 +92,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             yield
         finally:
             await app.state.equity.close()
-            for background in (configuration_task, monitor_task):
+            for background in (configuration_task, monitor_task, portfolio_task):
                 if background is not None:
                     background.cancel()
                     with suppress(asyncio.CancelledError):
@@ -115,8 +117,9 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
-    app.state.exchanges = ExchangeService(app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
+    app.state.exchanges = ExchangeService(app.state.accounts, settings.database_path.parent / "portfolios",
+                                          app.state.operations.repository)
     app.state.equity = EquityService(database, app.state.accounts)
     app.state.trading = ManualTrading(app.state.accounts, app.state.exchanges, app.state.operations,
                                       settings.database_path.parent / "trading")

@@ -7,7 +7,9 @@ import time
 
 from connectors.binance.income import DAY_MS, income_history
 from connectors.binance.operations import operation_history
+from connectors.binance.queries import QueryError
 
+from .options import sync_options
 from .repository import Operations
 
 logger = logging.getLogger(__name__)
@@ -125,6 +127,24 @@ class OperationService:
                     await asyncio.to_thread(self.repository.save_sync, **state)
                 scanned += cash["records_scanned"]
                 added += cash["records_added"]
+                option_state = state.setdefault("options", {})
+                option_state.pop("records_scanned", None)
+                option_state.pop("records_added", None)
+                try:
+                    account = await asyncio.to_thread(self.accounts.private, row["id"])
+                    option_scanned, option_added = await sync_options(
+                        self.repository, account, state, start_ms, end_ms, cashflows_only=cashflows_only
+                    )
+                    scanned += option_scanned
+                    added += option_added
+                except Exception as exc:  # noqa: BLE001 - Never expose private endpoint or credential failures.
+                    option_state = state.setdefault("options", {})
+                    scanned += option_state.get("records_scanned", 0)
+                    added += option_state.get("records_added", 0)
+                    message = str(exc) if isinstance(exc, QueryError) else "期权同步未完成。"
+                    option_state.update(status="failed", message=message + " 已保存操作与初始基准保留，下轮重试。")
+                    warnings.append(f"账户 {row['id']}：{option_state['message']}")
+                    await asyncio.to_thread(self.repository.save_sync, **state)
                 if cashflows_only:
                     continue
                 state.update(requested_start_ms=start_ms, requested_end_ms=end_ms, complete=False)

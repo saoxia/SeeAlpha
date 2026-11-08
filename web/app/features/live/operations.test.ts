@@ -20,6 +20,8 @@ test('external orders are never labelled manual and corrections are separate', (
 test('cashflows retain their venue category without becoming trades or strategy operations', () => {
   assert.equal(cashflowLabel('FUNDING_FEE'), '资金费');
   assert.equal(cashflowLabel('NEW_VENUE_TYPE'), 'NEW_VENUE_TYPE');
+  assert.equal(cashflowLabel('OPTIONS_FEE'), '期权手续费');
+  assert.equal(cashflowLabel('OPTIONS_EXERCISE_PNL'), '期权行权盈亏');
   assert.equal(operationSourceLabel({ source: 'external', event_type: 'cashflow' }), '交易所资金流水');
 });
 

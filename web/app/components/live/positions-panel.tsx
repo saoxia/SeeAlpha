@@ -36,7 +36,7 @@ export function PositionsPanel({ account, portfolio, loading, error, overview, s
                       </header>
                       <div className="position-compact-meta">
                         {overview && <small className="portfolio-source">{position.account_name} · {position.exchange.toUpperCase()}</small>}
-                        <small>{(position.margin_mode || "--").toUpperCase()} MARGIN</small>
+                        <small>{position.id.startsWith("options:") ? "期权" : `${(position.margin_mode || "--").toUpperCase()} MARGIN`}</small>
                       </div>
                       <dl className="position-metrics">
                         <div><dt>数量</dt><dd>{decimal(position.contracts)}</dd></div>
@@ -47,7 +47,7 @@ export function PositionsPanel({ account, portfolio, loading, error, overview, s
                     </article>
                   );
                 })
-              : <p className="portfolio-state">当前没有未平仓仓位。</p>}
+              : <p className="portfolio-state">暂无可展示的未平仓仓位。</p>}
           </>)}
     </>
   );

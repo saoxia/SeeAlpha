@@ -59,7 +59,9 @@ NautilusTrader 原生适配器；行情接入与账户、执行接入分别说�
 行情与只读账户客户端不注册 ExecutionClient，不接通策略交易，不改变 USD-M Feed。
 单合约 `options_client.market_events` 保留 data-only 原生节点公开入口。
 批量管理通过 `batch_market_events` 每组至多 64 个合约复用公开连接，共享 DataClient
-所用的 TradeTick/Bar 解析、合约单位与精度验证；新增/移除合约使用原连接订阅/退订并核对确认。
+所用的 TradeTick/Bar/OrderBookDepth 解析、合约单位与精度验证；
+管理端同时订阅 Tick 和前 10 档盘口（100ms），共享公开连接；
+新增/移除合约使用原连接订阅/退订并核对确认。
 连接器只交付精确行情与传输状态，有界队列施加背压；落盘、补齐和缺口恢复仍归 Feed/Pipeline。
 调用方式、连接状态和未验证边界见 [期权适配器](../docs/BINANCE_OPTIONS_ADAPTER.md)。
 
@@ -107,3 +109,11 @@ connector 不依赖 API/数据库；命令登记、账户互斥和账本保存�
 原生对象仅在所属工作线程创建和释放，不发送交易或账户配置命令。
 持久化、Decimal 估值、资产指数折算、校准、任务和恢复继续属于 API。
 详见 [资产估值与重算](../docs/EQUITY_VALUATION.md)。
+
+
+2026-11-08 首页及操作记录增加期权只读接入：`options_account.history_pages` 提供
+资金、真实成交和行权的有界分页证据，`operations.normalize_option_record` 复用既有账本契约。
+只允许固定 EAPI 主机的签名 GET，保持重定向拒绝、限流重试、精确数值和错误脱敏；
+满页二分时间，单毫秒饱和或身份/范围冲突拒绝确认覆盖。
+一次初始持仓、操作调度、持仓推算和存储仍归 API，不为展示注册执行客户端。
+详见 [期权操作与持仓推算](../docs/OPERATIONS_API.md#期权操作与持仓推算2026-11-08)。

@@ -306,6 +306,9 @@ def test_managed_market_events_use_native_public_subscriptions(monkeypatch):
             if "@optionTrade" in stream:
                 await socket.send(json.dumps({"e": "trade", "T": BASE, "s": SYMBOL, "t": 8,
                                               "p": "1000", "q": "0.1", "m": False, "X": "MARKET"}))
+            elif "@depth" in stream:
+                await socket.send(json.dumps({"e": "depthUpdate", "T": BASE, "s": SYMBOL, "u": 9,
+                                              "b": [["1000", "0.1"]], "a": [["1100", "0.2"]]}))
             else:
                 await socket.send(json.dumps({"e": "kline", "s": SYMBOL,
                     "k": {"t": BASE, "T": BASE + 59999, "s": SYMBOL, "i": "1m", "o": "1000",
@@ -315,20 +318,21 @@ def test_managed_market_events_use_native_public_subscriptions(monkeypatch):
             address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
             monkeypatch.setattr(options_client, "PUBLIC_WS", address)
             monkeypatch.setattr(options_client, "MARKET_WS", address)
-            stream = options_client.market_events(SYMBOL, ["1m"], trades=True)
+            stream = options_client.market_events(SYMBOL, ["1m"], trades=True, depth=True)
             records = []
             try:
                 async with asyncio.timeout(10):
                     async for event in stream:
                         if event["level"] != "status":
                             records.append(event)
-                        if len(records) == 2:
+                        if len(records) == 3:
                             break
             finally:
                 await stream.aclose()
-            assert set(subscribed) == {SYMBOL.lower() + "@optionTrade", SYMBOL.lower() + "@kline_1m"}
-            assert {row["level"] for row in records} == {"tick", "1m"}
+            assert set(subscribed) == {SYMBOL.lower() + suffix for suffix in ("@optionTrade", "@kline_1m", "@depth10@100ms")}
+            assert {row["level"] for row in records} == {"tick", "1m", "depth"}
             assert next(row["row"] for row in records if row["level"] == "tick")["id"] == 8
+            assert next(row["row"] for row in records if row["level"] == "depth")["b"] == [["1000.000", "0.10"]]
     asyncio.run(scenario())
     gc.collect()
 
@@ -352,7 +356,7 @@ def test_1514_option_contracts_share_bounded_combined_sockets(monkeypatch):
             address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
             monkeypatch.setattr(options_client, "PUBLIC_WS", address)
             monkeypatch.setattr(options_client, "MARKET_WS", address)
-            stream = options_client.batch_market_events(items, tick_symbols=[str(item.raw_symbol) for item in items])
+            stream = options_client.batch_market_events(items, tick_symbols=[str(item.raw_symbol) for item in items], depth=True)
             connected = set()
             try:
                 async with asyncio.timeout(15):
@@ -364,7 +368,7 @@ def test_1514_option_contracts_share_bounded_combined_sockets(monkeypatch):
             finally:
                 await stream.aclose()
             assert len(connections) == 2 * math.ceil(len(items) / 64)
-            assert len(names) == len(items) * 4
+            assert len(names) == len(items) * 5
     asyncio.run(scenario())
 
 
@@ -413,4 +417,50 @@ def test_batch_scope_updates_subscriptions_without_reconnecting_other_contracts(
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
                 await stream.aclose()
+    asyncio.run(scenario())
+
+
+def test_batch_depth_and_tick_share_public_socket_and_preserve_evidence(monkeypatch):
+    async def scenario():
+        item = model(monkeypatch)
+        subscribed, connections = set(), []
+        async def handler(socket):
+            connections.append(socket)
+            async for message in socket:
+                request = json.loads(message)
+                subscribed.update(request["params"])
+                await socket.send(json.dumps({"result": None, "id": request["id"]}))
+                for name in request["params"]:
+                    if "@depth" in name:
+                        payload = {"e": "depthUpdate", "s": SYMBOL, "T": BASE, "u": 42,
+                                   "b": [["1000.000", "0.10"]], "a": [["1100.000", "0.20"]]}
+                    elif "@optionTrade" in name:
+                        payload = {"e": "trade", "s": SYMBOL, "T": BASE, "t": 8,
+                                   "p": "1000.000", "q": "0.10", "m": False, "X": "MARKET"}
+                    else:
+                        continue
+                    await socket.send(json.dumps({"stream": name, "data": payload}))
+        async with serve(handler, "127.0.0.1", 0) as server:
+            address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+            monkeypatch.setattr(options_client, "PUBLIC_WS", address)
+            monkeypatch.setattr(options_client, "MARKET_WS", address)
+            stream = options_client.batch_market_events([item], tick_symbols=[SYMBOL], depth=True)
+            records, ready = {}, False
+            try:
+                async with asyncio.timeout(10):
+                    async for event in stream:
+                        if event["level"] == "status":
+                            ready |= event["connected"]
+                        else:
+                            records[event["level"]] = event["row"]
+                        if ready and records.keys() >= {"tick", "depth"}:
+                            break
+            finally:
+                await stream.aclose()
+            assert len(connections) == 2
+            assert len(subscribed) == 5
+            assert records["depth"]["u"] == 42
+            assert records["depth"]["b"] == [["1000.000", "0.10"]]
+            assert records["depth"]["received_ns"] > BASE * 1000000
+            assert records["tick"]["id"] == 8
     asyncio.run(scenario())

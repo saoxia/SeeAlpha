@@ -56,27 +56,39 @@ export function useLivePortfolio() {
     const controller = new AbortController();
     const refresh = forceRefresh.current;
     forceRefresh.current = false;
-    fetchPortfolio(venue === "overview" ? null : venue, controller.signal, refresh)
-      .then((nextPortfolio) => {
-        if (controller.signal.aborted) return;
-        setPortfolio(nextPortfolio);
-        if (venue === "overview") {
-          setOverviewEquity(nextPortfolio.account.total_equity);
-        } else {
-          setAccountEquities((current) => ({
-            ...current,
-            [venue]: nextPortfolio.account.total_equity,
-          }));
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (requestError instanceof DOMException && requestError.name === "AbortError") return;
-        setError(requestError instanceof Error ? requestError.message : "无法读取账户数据。");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
+    let pending = false;
+    const load = (refreshNow = false) => {
+      if (pending) return;
+      pending = true;
+      fetchPortfolio(venue === "overview" ? null : venue, controller.signal, refreshNow)
+        .then((nextPortfolio) => {
+          if (controller.signal.aborted) return;
+          setError("");
+          setPortfolio(nextPortfolio);
+          if (venue === "overview") {
+            setOverviewEquity(nextPortfolio.account.total_equity);
+          } else {
+            setAccountEquities((current) => ({
+              ...current,
+              [venue]: nextPortfolio.account.total_equity,
+            }));
+          }
+        })
+        .catch((requestError: unknown) => {
+          if (requestError instanceof DOMException && requestError.name === "AbortError") return;
+          setError(requestError instanceof Error ? requestError.message : "无法读取账户数据。");
+        })
+        .finally(() => {
+          pending = false;
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    };
+    load(refresh);
+    const interval = window.setInterval(() => load(), 60_000);
+    return () => {
+      window.clearInterval(interval);
+      controller.abort();
+    };
   }, [venue, refreshVersion]);
 
   const refreshAssets = useCallback(() => {

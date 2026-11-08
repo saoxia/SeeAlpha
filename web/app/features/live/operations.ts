@@ -17,6 +17,9 @@ export function cashflowLabel(incomeType?: string | null): string {
   const labels: Record<string, string> = {
     TRANSFER: '资金划转', FUNDING_FEE: '资金费', COMMISSION: '手续费',
     REALIZED_PNL: '已实现盈亏', INSURANCE_CLEAR: '保险清算',
+    OPTIONS_CONTRACT: '期权权利金', OPTIONS_FEE: '期权手续费',
+    OPTIONS_EXERCISE_PNL: '期权行权盈亏', OPTIONS_EXERCISE_FEE: '期权行权费',
+    OPTIONS_TRANSFER: '期权资金划转',
     COMMISSION_REBATE: '手续费返还', REFERRAL_KICKBACK: '推荐返佣',
   };
   return incomeType ? (labels[incomeType] ?? incomeType) : '资金变动';
