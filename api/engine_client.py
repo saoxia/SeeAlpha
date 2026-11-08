@@ -48,9 +48,9 @@ class EngineClient:
         if self.runtime is not None:
             self.runtime.close()
 
-    def _sync(self, method, path, **kwargs):
+    def _sync(self, method, path, timeout=60, **kwargs):
         try:
-            with httpx.Client(timeout=60) as client:
+            with httpx.Client(timeout=timeout) as client:
                 response = client.request(method, self.url + path, headers=self.headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
@@ -104,6 +104,32 @@ class EngineClient:
         if self.runtime is not None:
             return self.runtime.receive_strategy(tenant_id, payload)
         return self._sync("POST", f"/tenants/{tenant_id}/strategy-loads", json=payload)
+
+    def run_backtest(
+        self, tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
+    ):
+        if self.runtime is not None:
+            return self.runtime.run_backtest(
+                tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
+            )
+        return self._sync(
+            "POST", self._account_path(tenant_id, account_id) + "/backtests",
+            timeout=600,
+            json={
+                "start": start, "end": end, "interval": interval,
+                "starting_balance": str(starting_balance), "quote_currency": quote_currency,
+            },
+        )
+
+    def latest_backtest(self, tenant_id, account_id):
+        if self.runtime is not None:
+            return self.runtime.latest_backtest(tenant_id, account_id)
+        try:
+            return self._sync("GET", self._account_path(tenant_id, account_id) + "/backtests/latest")
+        except QueryError as error:
+            if "还没有回测" in str(error):
+                return None
+            raise
 
     def register(self, account):
         creds = account["credentials"]

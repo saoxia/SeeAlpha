@@ -48,13 +48,18 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/auth/logout` | 撤销当前会话并清除 Cookie |
 | `GET /api/management/state` | 检查快照、策略、任务和可访问报告，需要登录 |
 | `GET /api/management/jobs/{id}` | 任务详情及日志尾部，需要登录 |
-| `POST /api/management/jobs` | 启动快速检查、完整检查或策略回测，需要管理员 |
+| `POST /api/management/jobs` | 启动快速检查或完整检查，需要管理员。策略回测不再从这里启动。 |
 | `POST /api/management/jobs/{id}/cancel` | 取消正在运行的任务，需要管理员 |
 | `GET /api/management/artifacts/{path}` | 下载已发布的报告或检查结果，需要登录 |
+| `POST /api/tenants/{id}/accounts/{id}/backtests` | 开发租户用虚拟账户回测已下发的策略包，需要管理员 |
+| `GET /api/tenants/{id}/accounts/{id}/backtests/latest` | 读取该账户最近一次回测结果，需要管理员 |
+
+历史回测只接受开发租户、该租户的虚拟账户和已经下发到该账户的包。
+租户须先声明对应品种的行情订阅。K 线读取现有 Catalog，不另建任务表，不使用交易所密钥。
 
 ## 管理任务与进程锁
 
-检查、回测、取消和重启恢复只由一个 API 进程执行。启动时非阻塞地独占
+检查、取消和重启恢复只由一个 API 进程执行。启动时非阻塞地独占
 `.local/run/web/server.lock`；若旧目录 `data/web_console/` 仍在，还要独占其中的
 `server.lock`。拿到锁的进程迁移旧文件，并把状态仍为运行中的任务标为中断
 （不向旧进程发信号），然后负责启动、取消和子进程。同一时间仍只有一个此类任务。

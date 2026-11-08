@@ -27,7 +27,11 @@ STRATEGIES = []
 ACTIONS = [
     {"id": "check_quick", "label": "快速项目检查", "description": "核验冻结文件与代码规范。"},
     {"id": "check_full", "label": "完整项目检查", "description": "核验文件、代码规范及全量测试。"},
-    {"id": "backtest", "label": "运行策略回测", "description": "使用本地数据回测指定策略。"},
+    {
+        "id": "backtest",
+        "label": "策略回测",
+        "description": "研究目录不再启动已删除的策略。请在开发租户上对已下发的策略包运行历史回测。",
+    },
 ]
 _COMMANDS = {
     "check_quick": (CHECK_MODULE, "--quick"),
@@ -115,7 +119,7 @@ def _build_command(python, action, parameters):
     interval = parameters.get("interval", "1m")
     if not isinstance(interval, str) or interval not in {"1m", "5m"}:
         raise ValueError("K 线周期只支持 1m 或 5m")
-    raise ValueError("请选择支持的策略")
+    raise ValueError("研究目录不再启动已删除的策略。请在开发租户上对已下发的策略包运行历史回测。")
 
 
 def _atomic_json(path, value):

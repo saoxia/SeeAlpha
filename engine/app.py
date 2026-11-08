@@ -105,6 +105,15 @@ class PreviewBody(BaseModel):
     bars: list[PreviewBar] = Field(min_length=1, max_length=2000)
 
 
+class BacktestBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: str = Field(min_length=10, max_length=40)
+    end: str = Field(min_length=10, max_length=40)
+    interval: str = Field(default="1m", pattern=r"^(1m|5m)$")
+    starting_balance: str = Field(min_length=1, max_length=40)
+    quote_currency: str = Field(pattern=r"^[A-Z]{3,8}$")
+
+
 def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None = None) -> FastAPI:
     config = config or EngineConfig.from_environment()
     runtime = runtime or EngineRuntime(config.state_dir, config.project)
@@ -298,6 +307,26 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             )
         except EngineConflict as error:
             conflict(error)
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/backtests")
+    def start_backtest(tenant_id: str, account_id: str, body: BacktestBody):
+        try:
+            return runtime.run_backtest(
+                tenant_id, account_id, body.start, body.end, body.interval,
+                body.starting_balance, body.quote_currency,
+            )
+        except EngineConflict as error:
+            conflict(error)
+
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/backtests/latest")
+    def latest_backtest(tenant_id: str, account_id: str):
+        try:
+            found = runtime.latest_backtest(tenant_id, account_id)
+        except EngineConflict as error:
+            conflict(error)
+        if found is None:
+            raise HTTPException(404, "还没有回测结果。")
+        return found
 
     @app.post("/tenants/{tenant_id}/accounts/{account_id}/valuation")
     async def valuation(tenant_id: str, account_id: str, body: Credentials):
