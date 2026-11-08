@@ -21,11 +21,11 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, BarType, InstrumentId, Money, OmsType, TraderId
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
+from engine.pipeline.models import DataRequest, bar_type_for
+from engine.pipeline.prepare_data import prepare_data
 from nautilus_support import Instrument
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
-from pipeline.models import DataRequest, bar_type_for
-from pipeline.prepare_data import prepare_data
 from strategy_python._report import backtest_report_dir, write_html_report
 from strategy_python._report.report import pnl_data
 from strategy_python._strategy import Strategy

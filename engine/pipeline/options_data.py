@@ -31,7 +31,7 @@ from engine.connectors.binance.options_parsing import bar as parse_bar
 from engine.connectors.binance.options_parsing import depth as parse_depth
 from engine.connectors.binance.options_parsing import trade as parse_trade
 from engine.connectors.binance.queries import QueryError
-from pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.catalog import ParquetDataCatalog
 
 PERIODS = ("1m", "5m", "15m")
 DEFINITION_FIELDS = ("underlying", "quote_currency", "settlement_currency", "option_kind", "strike_price",
@@ -187,7 +187,7 @@ def _save(snapshot, settings, device):
 
 
 def _existing(settings, instrument, level, first, last):
-    from pipeline.data_management import rows
+    from engine.pipeline.data_management import rows
     if not settings.catalog_dir.is_dir():
         return {}
     records = rows(settings, str(instrument.raw_symbol), datetime.fromtimestamp(first / 1000, UTC),
@@ -479,7 +479,7 @@ def prepare(request, settings, *, managed=False, definition=None):
 
 def _merge_missing(catalog, settings, instrument, level, missing, device):
     """Fill holes with atomic single-file replacement, preserving known records."""
-    from pipeline.catalog import _parse_filename_timestamps
+    from engine.pipeline.catalog import _parse_filename_timestamps
 
     identifier = str(instrument.id) if level == "tick" else bar_type_for(str(instrument.raw_symbol), level, "options")
     kind = "trades" if level == "tick" else "bars"
@@ -597,8 +597,8 @@ async def serve_history(policy, settings, root, *, definition=None, limiter=None
     """Option history uses existing process supervision and file checkpoints."""
     import asyncio
 
-    from pipeline.convert_binance_bars import write_record
-    from pipeline.models import DataRequest
+    from engine.pipeline.convert_binance_bars import write_record
+    from engine.pipeline.models import DataRequest
 
     limiter = limiter or asyncio.Semaphore(1)
 
@@ -689,7 +689,7 @@ async def serve_history_batch(manifest, settings, managed_root, *, project=None)
     import time
 
     from core.paths import PROJECT_ROOT
-    from pipeline.convert_binance_bars import write_record
+    from engine.pipeline.convert_binance_bars import write_record
 
     project = project or PROJECT_ROOT
     limiter = asyncio.Semaphore(2)

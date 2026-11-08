@@ -7,11 +7,11 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pandas as pd
 import pytest
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.convert_binance_bars import convert_archive, load_kline_archive
+from engine.pipeline.models import ArchiveSpec, SyncedArchive
+from engine.pipeline.validate_data import DataValidationError, validate_catalog
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.convert_binance_bars import convert_archive, load_kline_archive
-from pipeline.models import ArchiveSpec, SyncedArchive
-from pipeline.validate_data import DataValidationError, validate_catalog
 
 
 def kline_row(open_time: int, *, close: str = "3001.0") -> list[str]:

@@ -18,7 +18,7 @@ from api.db.auth_repository import auth_repository
 from api.main import create_app
 from api.market_data.contracts import DataJobRequest
 from api.market_data.service import DataService
-from pipeline.models import PipelineSettings
+from engine.pipeline.models import PipelineSettings
 from tests.api.auth_test import login
 
 PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
@@ -125,7 +125,7 @@ def test_cross_year_plan_and_job_preserve_full_range(context, monkeypatch, produ
         captured.append(json.loads(command[command.index("--request") + 1]))
         return original([sys.executable, "-c", "print('range accepted', flush=True)"], **kwargs)
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", worker)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", worker)
     response = client.post("/api/data/jobs", json={**payload, "action": "prepare"})
     assert response.status_code == 202, response.text
     for thread in app.state.market_data.threads:
@@ -163,7 +163,7 @@ def test_feed_symbol_progress_is_read_only_validated_and_expires(context):
 
 def test_delete_requires_admin_explicit_confirmation_and_unchanged_plan(context, monkeypatch):
     client, app, root = context
-    from pipeline.sync_binance_batch import archive_path
+    from engine.pipeline.sync_binance_batch import archive_path
     archive = root / "data/raw" / archive_path("ETHUSDT", "trades", datetime(2026, 8, 1).date()).removeprefix("data/")
     archive.parent.mkdir(parents=True)
     archive.write_bytes(b"local-archive")
@@ -196,8 +196,8 @@ import sys, json
 sys.path.insert(0, {project!r})
 from pathlib import Path
 from datetime import datetime
-from pipeline.models import PipelineSettings
-from pipeline.data_management import checked_request, execute
+from engine.pipeline.models import PipelineSettings
+from engine.pipeline.data_management import checked_request, execute
 parameters = {parameters!r}
 root = Path({str(settings)!r})
 settings = PipelineSettings('futures_um', 'trades', ('ETHUSDT',), ('1m',), root/'raw', root/'catalog', root/'state')
@@ -207,7 +207,7 @@ Path({str(result_path)!r}).write_text(json.dumps(result))
 """
         return original([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", local_worker)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
     response = client.post("/api/data/jobs", json=job)
     assert response.status_code == 202, response.text
     for thread in app.state.market_data.threads:
@@ -225,12 +225,12 @@ def test_process_job_exclusion_cancellation_and_recovery(context, monkeypatch):
     original = subprocess.Popen
 
     def local_worker(command, **kwargs):
-        assert command[1:3] == ["-m", "pipeline.data_management"]
+        assert command[1:3] == ["-m", "engine.pipeline.data_management"]
         assert "--force" not in command
         script = "import time; print('checking', flush=True); time.sleep(30)"
         return original([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", local_worker)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
     response = client.post("/api/data/jobs", json={**PARAMETERS, "action": "validate"})
     assert response.status_code == 202, response.text
     identity = response.json()["id"]
@@ -267,7 +267,7 @@ def test_success_result_and_export_download(context, monkeypatch):
                   "p.write_text('trade_id,price\\n1,3000.10\\n')")
         return original([sys.executable, "-c", script], **kwargs)
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", local_worker)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
     identity = client.post("/api/data/jobs", json={**PARAMETERS, "action": "export"}).json()["id"]
     for thread in app.state.market_data.threads:
         thread.join(timeout=5)
@@ -423,8 +423,8 @@ def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypat
     from datetime import timedelta
 
     from engine.connectors.binance import options
-    from pipeline.catalog import ParquetDataCatalog
-    from pipeline.options_data import prepare
+    from engine.pipeline.catalog import ParquetDataCatalog
+    from engine.pipeline.options_data import prepare
     from tests.connectors.binance.options_queries_test import definition
     from tests.pipeline.options_data_test import bars_request, fake_klines
 
@@ -714,7 +714,7 @@ def test_managed_inventory_and_preview_read_persisted_evidence(context):
 def test_pair_delete_stops_collection_and_removes_configuration_only_on_success(context, monkeypatch, worker_succeeds, has_data):
     client, app, root = context
     from api.market_data.contracts import DataPolicy
-    from pipeline.pair_deletion import delete_pair_data
+    from engine.pipeline.pair_deletion import delete_pair_data
     manager = app.state.market_data
     payload = {"symbol": "ETHUSDT", "product": "futures_um"}
     assert client.post("/api/data/pairs/delete/plan", json=payload).status_code == 401
@@ -765,7 +765,7 @@ def test_pair_delete_stops_collection_and_removes_configuration_only_on_success(
         return Worker()
 
     identity = ""
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     response = client.post("/api/data/pairs/delete", json=request)
     assert response.status_code == 202, response.text
     for thread in manager.threads:
@@ -839,7 +839,7 @@ def test_different_pair_jobs_run_together_and_recovery_does_not_interrupt_live_w
     original = subprocess.Popen
     def worker(command, **kwargs):
         return original([sys.executable, "-c", "import time; time.sleep(30)"], **kwargs)
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", worker)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", worker)
     first = client.post("/api/data/jobs", json={**PARAMETERS, "action": "validate"})
     second = client.post("/api/data/jobs", json={**PARAMETERS, "symbol": "XRPUSDT", "action": "validate"})
     assert first.status_code == second.status_code == 202
@@ -1166,7 +1166,7 @@ def test_duration_without_retained_data_uses_today_utc_midnight(context, monkeyp
     monkeypatch.setattr(app.state.market_data.subscriptions, "_start", lambda policy: None)
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), ("1m",),
                                 root / "data/raw", root / "data/catalog", root / "data/state")
-    monkeypatch.setattr("pipeline.config.load_settings", lambda: settings)
+    monkeypatch.setattr("engine.pipeline.config.load_settings", lambda: settings)
     today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     # Old modes may contain an unused date: it is not a configured fixed start.
     from api.market_data.contracts import DataPolicy
@@ -1238,7 +1238,7 @@ def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(cont
     from nautilus_trader.model import Bar, BarType, Price, Quantity
 
     from core.market.instruments import bar_type_for
-    from pipeline.catalog import ParquetDataCatalog
+    from engine.pipeline.catalog import ParquetDataCatalog
 
     client, app, root = context
     login(client)
@@ -1531,7 +1531,7 @@ def test_option_group_deletion_pauses_every_contract_but_preserves_other_underly
     import threading
 
     from api.market_data.contracts import DataPolicy
-    from pipeline.pair_deletion import delete_pair_data
+    from engine.pipeline.pair_deletion import delete_pair_data
 
     client, app, root = context
     login(client)
@@ -1577,7 +1577,7 @@ def test_option_group_deletion_pauses_every_contract_but_preserves_other_underly
         nonlocal identity
         identity = command[-1]
         return Worker()
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     response = client.post("/api/data/pairs/delete", json={"symbol": "BTCUSDT", "product": "options",
                            "deletion_snapshot": snapshot, "confirmation": "DELETE BTCUSDT"})
     assert response.status_code == 202, response.text
@@ -1644,7 +1644,7 @@ def test_latest_data_times_read_only_configured_futures_1s(context, monkeypatch)
 
     from api.market_data.contracts import DataPolicy
     from core.market.instruments import bar_type_for
-    from pipeline.catalog import ParquetDataCatalog
+    from engine.pipeline.catalog import ParquetDataCatalog
 
     client, app, root = context
     assert client.get("/api/data/datasets/latest").status_code == 401

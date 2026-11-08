@@ -18,9 +18,9 @@ from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.execution import ProbabilisticFillModel as FillModel
 from nautilus_trader.model import AccountType, Money, OmsType
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
 from nautilus_support import instrument_fee_model
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
 from strategy_python._backtesting import BacktestSpec, load_binance_data
 from strategy_python._research.btc_long_validation_20260921.run import environment
 from strategy_python._research.mrl_regime_20260922.accounting import measure

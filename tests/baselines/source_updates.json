@@ -1,33 +1,33 @@
 {
   "pipeline/bar_features.py": {
     "previous_sha256": "d3620e423da790e44e4acaa0d3a3d162670643022f684b9beaf0ab040079156e",
-    "sha256": "fcc80048611d24819fae117a19bf34fd9c7f5b913e628091b47027ccb9717a0d",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "2f01f47dfa0b89bfa5a195938c1586f05af9d068860565d4d4a93ba6d81859c8",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "pipeline/convert_binance_trades.py": {
     "previous_sha256": "ec3f33d84b6e166242402220f56ce8fbabffa25688a37cc4bb0524e3a9430e60",
-    "sha256": "60d841dff243611ff10a54ef1f1e2043d8735eedaeae04422a96793ca0dc669a",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-10-31 用户明确要求去掉 pandas 3.1 已弃用的 read_csv float_precision 参数；各模式共用同一转换器，解析结果不变，历史冻结归档不改。"
+    "sha256": "76299c7988a5dbe5888ba4cee7272b3ebefc5d092cdf751846c5b7153e934481",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-10-31 用户明确要求去掉 pandas 3.1 已弃用的 read_csv float_precision 参数；各模式共用同一转换器，解析结果不变，历史冻结归档不改。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "pipeline/validate_data.py": {
     "previous_sha256": "e56c2e6c69db8b6d8fefd09cab0527e0242a607cb7c0bbf02aa0c7c6947e48f2",
-    "sha256": "1c74201e0f106eec036500ca3c7997dbea4d6bb646bb25a10baae895e968741c",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "544a643243998fd8f1d55844e41c37808484292de42ece2f0a813f03c6dcee97",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "pipeline/convert_binance_bars.py": {
     "previous_sha256": "c9e39f18bdd0a99ed2e76f091755b1a066f7def2319acd756b4c299ec0d7f381",
-    "sha256": "b5d5001fb778c01dbba6f5451d7a58cbe333a80490c260d76e11899eaae47da3",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-10-27 用户明确授权处理技术债审计 A 类、B2、B4：移除闲置的 convert_archives 批量封装，保留单归档转换和新链路使用的共享工具；历史归档不变。"
+    "sha256": "b279ddd922fe7500fcc579f0d4194d1d26d92b79fbdcb3bc7ea151b7623f78ab",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-10-27 用户明确授权处理技术债审计 A 类、B2、B4：移除闲置的 convert_archives 批量封装，保留单归档转换和新链路使用的共享工具；历史归档不变。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "pipeline/prepare_data.py": {
     "previous_sha256": "aa299b8cdd63e2e01189402ff5dffc48301f7e02a931e70e77dbc4f86973d02c",
-    "sha256": "7d4c45fef7b182df34348d8b177b38ae9cd9ac61865148707b603bbeff71a0b1",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。"
+    "sha256": "1928a1734913b226e90012546febe002d1b5abf9c929bf4d6e2f24c1a4a78968",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "strategy_python/_backtesting.py": {
     "previous_sha256": "78a2cff35a2a5ff5470cd28dd807c84a021714f786be934c6ff95ffa333fefb4",
-    "sha256": "f37dcd27879ce4cbb06716278258ee2dcbb68d95cff0cadd318f16a669c3261d",
-    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-11-06 用户明确授权第四代组合层：多成员净额回测允许 NETTING，并把协调器排除在成员报表之外；历史冻结归档不改。"
+    "sha256": "364de8c782b4f17eb73c9c025672f0cd232f29a2e6817051be4bfb700f33d089",
+    "reason": "2026-10-27 用户授权全面使用原生能力；Arrow、指标、Catalog、撤单与风险执行已原生化；研究冻结归档保留原始字节。2026-11-06 用户明确授权第四代组合层：多成员净额回测允许 NETTING，并把协调器排除在成员报表之外；历史冻结归档不改。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "strategy_python/_execution/__init__.py": {
     "previous_sha256": "6bb88daded1f231a7d68e60ff86df031c58f69b615e9cbc914e4e9f4439f1f99",
@@ -151,8 +151,8 @@
   },
   "pipeline/rust_trade_converter.py": {
     "previous_sha256": "7631705b343e91a0ffda01f762cca3ab93ed8a63d6c4dc7ad651559ec6822896",
-    "sha256": "293100b6daf24d9a33e8b77f42401395ce2a1b8cc1238a22fb3d1c38d03e0753",
-    "reason": "2026-10-27 用户要求 Rust 改为本机构建；移除外置盘挂载检查和按数据物理位置推导转换器路径，保留显式路径与 Python 回退。"
+    "sha256": "45c75891e0a2bc0121530781ab96c68e3f91da29c1264d51b488b94d36e0cb5f",
+    "reason": "2026-10-27 用户要求 Rust 改为本机构建；移除外置盘挂载检查和按数据物理位置推导转换器路径，保留显式路径与 Python 回退。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
   },
   "strategy_python/btc_cycle_optimized_20260915_mrl_original/indicators.py": {
     "previous_sha256": "d341f2f595a64af3e3c40a1749683a50dee710ab52f86405c4c19bcb5eb4c174",
@@ -186,7 +186,32 @@
   },
   "pipeline/config.py": {
     "previous_sha256": "52c65b8fcaf4704d735ea3864b25cb97feea3764ca1c62332976ed08efd9f681",
-    "sha256": "ff13d8efa9a23d9bd3c3d8b51376c8823230ce5ecebaee974f0b48b441eb0ec8",
-    "reason": "2026-10-27 用户确认精简目录；公共市场模型和路径迁入 core，保留 pipeline 原有导出及参数语义。"
+    "sha256": "ba7fec2605c54e416677e01395114ecee0c0139219037cd3c1f60545fdff6415",
+    "reason": "2026-10-27 用户确认精简目录；公共市场模型和路径迁入 core，保留 pipeline 原有导出及参数语义。 2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
+  },
+  "pipeline/sync_binance_batch.py": {
+    "previous_sha256": "1ed8b4e86746e6ca2f66d115fc58a7570eb8950ecb0ad67bb59c2a48b4a82fbf",
+    "sha256": "6efbfe02868e13ba2769e2510d7d6539fb8669dba5278c2815d39f802696c968",
+    "reason": "2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
+  },
+  "pipeline/sync_binance_file.py": {
+    "previous_sha256": "b8921a9a406a1b73b7d44f5640045b9fc7beccc3c310c6c8191dc090834272de",
+    "sha256": "7a6b2cd2277c568b23b27b3a6cb819ada2ddafb45a310a813c5d8626fde73d42",
+    "reason": "2026-11-08 用户授权将数据管道移入 engine/pipeline 并更新导入；历史冻结 ZIP 仍保存原字节。"
+  },
+  "strategy_python/_optimization/btc_eth_signal_attribution_20260921/native.py": {
+    "previous_sha256": "8ff81884fb800e86a89833acaa4e75475074cc17a94fa0172afde174476b2e70",
+    "sha256": "cb5b112ec1448ea434e570764875cf3f42a4e6a13d962f13bb82285f21035c2c",
+    "reason": "2026-11-08 用户授权将数据管道移入 engine/pipeline；研究脚本只更新导入，历史冻结 ZIP 仍保存原字节。"
+  },
+  "strategy_python/_optimization/btc_long_validation_20260921/run.py": {
+    "previous_sha256": "68cb5793858e2bf311fd9ff953469addbc8ee8de7d6d20a7f66c14c553a950aa",
+    "sha256": "68d7dd5ec6402cfa8b2093a59dd208e0bc062176b3956616cd0ea4791349bee5",
+    "reason": "2026-11-08 用户授权将数据管道移入 engine/pipeline；研究脚本只更新导入，历史冻结 ZIP 仍保存原字节。"
+  },
+  "strategy_python/_optimization/tfs_stability_20260921/study.py": {
+    "previous_sha256": "427d3642e7c0fd6296c503987f069a908f43fe985ae07d3bbe53bb830b431bfe",
+    "sha256": "e2894d612a0f250845f43d3fabb34f70d85383fe20beebd30b93d2b6b0cce592",
+    "reason": "2026-11-08 用户授权将数据管道移入 engine/pipeline；研究脚本只更新导入，历史冻结 ZIP 仍保存原字节。"
   }
 }

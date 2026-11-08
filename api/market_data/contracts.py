@@ -25,7 +25,7 @@ class DataRange(BaseModel):
 
     @model_validator(mode="after")
     def validate_range(self):
-        from pipeline.models import DataRequest
+        from engine.pipeline.models import DataRequest
 
         if self.start.tzinfo is None or self.end.tzinfo is None:
             raise ValueError("时间须包含 UTC 或时区偏移")

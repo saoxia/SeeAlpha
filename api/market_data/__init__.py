@@ -1,1 +1,1 @@
-"""Authenticated management of the existing offline Tick pipeline."""
+"""Authenticated management of the existing offline Tick engine.pipeline."""

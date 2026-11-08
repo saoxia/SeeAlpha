@@ -19,9 +19,9 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, Bar, Money, OmsType, Price, Quantity
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
 from nautilus_support import USDT, instrument_fee_model, instrument_fee_rates
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
 from strategy_python._backtesting import load_binance_data, with_input_interval
 from strategy_python._research.four_strategy_20260914.environment import backtest_spec
 from strategy_python.portfolio import STRATEGY_REGISTRY

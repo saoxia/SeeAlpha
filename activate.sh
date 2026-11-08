@@ -26,7 +26,7 @@ export RUSTUP_HOME="$PROJECT_ROOT/.local/rustup"
 export PATH="$PROJECT_ROOT/.local/bin:$CARGO_HOME/bin:$PATH"
 
 # Use the converter crate's local Cargo build directory.
-export CARGO_TARGET_DIR="$PROJECT_ROOT/pipeline/rust_converter/target"
+export CARGO_TARGET_DIR="$PROJECT_ROOT/engine/pipeline/rust_converter/target"
 
 mkdir -p \
     "$XDG_CACHE_HOME" \

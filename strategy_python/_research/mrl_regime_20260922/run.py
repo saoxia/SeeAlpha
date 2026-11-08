@@ -20,9 +20,9 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, Money, OmsType
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
 from nautilus_support import instrument_fee_model
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
 from strategy_python._backtesting import BacktestSpec, load_binance_data
 from strategy_python._execution.entry_constraints import opening_order_allowed
 from strategy_python._research.btc_long_validation_20260921.run import environment
@@ -80,7 +80,7 @@ def source_files():
     files.update((PROJECT / "pipeline").glob("*.py"))
     files.update(
         [
-            PROJECT / "pipeline/binance_sources.toml",
+            PROJECT / "engine/pipeline/binance_sources.toml",
             PROJECT / "strategy_python/_backtesting.py",
             ROOT / "run.py",
             ROOT / "accounting.py",

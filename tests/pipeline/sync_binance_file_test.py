@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from pipeline import sync_binance_file
-from pipeline.sync_binance_file import (
+from engine.pipeline import sync_binance_file
+from engine.pipeline.sync_binance_file import (
     SyncError,
     destination_for,
     normalize_source,

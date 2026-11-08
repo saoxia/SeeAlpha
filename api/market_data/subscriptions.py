@@ -252,9 +252,9 @@ class Subscriptions:
                     start = old.history_start - timedelta(days=policy.history_days)
                 else:
                     from engine.feed.pair_store import journal_inventory
+                    from engine.pipeline.catalog import ParquetDataCatalog
+                    from engine.pipeline.config import load_settings
                     from engine.pipeline.pair_data import history_bounds
-                    from pipeline.catalog import ParquetDataCatalog
-                    from pipeline.config import load_settings
                     settings = load_settings()
                     catalog = ParquetDataCatalog(settings.catalog_dir) if settings.catalog_dir.is_dir() else None
                     starts = [int(item["event_ranges_ns"][0][0])
@@ -323,7 +323,7 @@ class Subscriptions:
             self._publish_options()
 
     def _publish_options(self):
-        from pipeline.convert_binance_bars import write_record
+        from engine.pipeline.convert_binance_bars import write_record
         path = self.manager.directory / "options-runtime.json"
         values = [p.model_dump(mode="json") for p in self.policies or [] if p.product == "options" and "-" in p.symbol]
         write_record(path, {"version": 1, "policies": values})

@@ -1,4 +1,4 @@
-"""API orchestration; all market-data semantics remain in pipeline/."""
+"""API orchestration; market-data jobs run in the engine pipeline."""
 
 import fcntl
 import hashlib
@@ -17,9 +17,9 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from core.paths import PROJECT_ROOT
-from pipeline.config import load_settings
-from pipeline.data_management import checked_request, coverage, deletion_plan
-from pipeline.sync_binance_batch import plan_daily_archives
+from engine.pipeline.config import load_settings
+from engine.pipeline.data_management import checked_request, coverage, deletion_plan
+from engine.pipeline.sync_binance_batch import plan_daily_archives
 
 from .repository import OperationFiles, PolicyRepository
 
@@ -89,7 +89,7 @@ class DataService:
         self.require_storage()
         request, settings = self.request(payload)
         if request.market == "options":
-            from pipeline.options_data import check_download
+            from engine.pipeline.options_data import check_download
             check_download(request)
         result = coverage(request, settings)
         return {**result, "archive_days": len(result["days"]),
@@ -129,7 +129,7 @@ class DataService:
         return target
 
     def pair_delete_plan(self, payload):
-        from pipeline.pair_deletion import pair_deletion_plan
+        from engine.pipeline.pair_deletion import pair_deletion_plan
         self.require_storage(write=True)
         with self.lock, self.subscriptions.lock:
             self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
@@ -138,7 +138,7 @@ class DataService:
 
     def configuration_plan(self, policy):
         """Resolve a desired start; later starts require an exclusive deletion plan."""
-        from pipeline.pair_deletion import history_trim_plan
+        from engine.pipeline.pair_deletion import history_trim_plan
         with self.lock, self.subscriptions.lock:
             self.subscriptions._claim()
             old = next((item for item in self.subscriptions._read(refresh=True)
@@ -157,8 +157,8 @@ class DataService:
 
                     from core.market.instruments import INTERVALS, bar_window
                     from engine.feed.pair_store import journal_inventory
-                    from pipeline.data_management import dataset_inventory
-                    from pipeline.pair_deletion import pair_deletion_plan
+                    from engine.pipeline.data_management import dataset_inventory
+                    from engine.pipeline.pair_deletion import pair_deletion_plan
                     self.require_storage(write=True)
                     settings = load_settings()
                     items = dataset_inventory(replace(settings, intervals=tuple(INTERVALS)), all_levels=True) if settings.catalog_dir.is_dir() else []
@@ -324,7 +324,7 @@ class DataService:
             if payload.action not in {"prepare", "validate", "delete", "delete_pair"}:
                 raise ValueError("期权仅支持获取官方数据、本地来源校验和确认删除")
             if payload.action == "prepare":
-                from pipeline.options_data import check_download
+                from engine.pipeline.options_data import check_download
                 check_download(selection)
         if payload.action not in {"delete_pair", "delete", "trim"} and any(
                 policy.symbol == payload.symbol and policy.product == payload.product and policy.history_enabled
@@ -340,7 +340,7 @@ class DataService:
             try:
                 job_lease = lease.enter_context(self._lease(payload.symbol, payload.product))
                 if payload.action == "delete_pair":
-                    from pipeline.pair_deletion import pair_deletion_plan
+                    from engine.pipeline.pair_deletion import pair_deletion_plan
                     with self.subscriptions.lock:
                         self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
                         access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True))
@@ -350,7 +350,7 @@ class DataService:
                         self.subscriptions.deleting.add((payload.product, payload.symbol))
                         marked_deleting = True
                 if payload.action == "trim":
-                    from pipeline.pair_deletion import history_trim_plan
+                    from engine.pipeline.pair_deletion import history_trim_plan
                     with self.subscriptions.lock:
                         self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
                         access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True))
@@ -377,8 +377,8 @@ class DataService:
                 parameters = payload.model_dump(mode="json", exclude={"action"}, exclude_none=True)
                 if payload.action == "backfill":
                     if resolved_history is None:
+                        from engine.pipeline.catalog import ParquetDataCatalog
                         from engine.pipeline.pair_data import history_bounds
-                        from pipeline.catalog import ParquetDataCatalog
                         settings = load_settings()
                         catalog = ParquetDataCatalog(settings.catalog_dir) if settings.catalog_dir.is_dir() else None
                         from engine.feed.pair_store import journal_inventory
@@ -397,27 +397,24 @@ class DataService:
                 self.log_directory.mkdir(parents=True, exist_ok=True)
                 self.threads = [thread for thread in self.threads if thread.is_alive()]
                 command = ([sys.executable, "-m", "engine.pipeline.pair_data"] if payload.action == "backfill" else
-                           [sys.executable, "-m", "pipeline.data_management", payload.action]) + [
+                           [sys.executable, "-m", "engine.pipeline.data_management", payload.action]) + [
                     "--request", json.dumps(parameters), "--job-id", identity]
                 engine = getattr(self, "engine", None)
-                if payload.action == "backfill" and engine is not None and engine.remote:
+                log_path = self.log_directory / f"{identity}.log"
+                if engine is not None and engine.remote:
                     process = engine.spawn_worker(
-                        command, self.log_directory / f"{identity}.log",
-                        access=(payload.symbol, payload.product, True), log_mode="xb",
+                        command, log_path, access=(payload.symbol, payload.product, True), log_mode="xb",
                     )
                 else:
-                    with (self.log_directory / f"{identity}.log").open("xb", buffering=0) as output:
-                        if payload.action == "backfill":
-                            from engine.supervisor import popen as start_worker
-                        else:
-                            start_worker = subprocess.Popen
+                    from engine.supervisor import popen as start_worker
+                    with log_path.open("xb", buffering=0) as output:
                         process = start_worker(
                             command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output,
                             stderr=subprocess.STDOUT, start_new_session=True,
                             pass_fds=(job_lease.fileno(), access_lease.fileno()),
                             env={**os.environ, "PYTHONUNBUFFERED": "1"},
                         )
-                    if payload.action == "backfill" and engine is not None:
+                    if engine is not None and payload.action == "backfill":
                         engine.note_worker(command)
                 self.processes[identity] = (process, threading.Event())
                 thread = threading.Thread(target=self._wait, args=(job, process, lease, access_lease), daemon=True)

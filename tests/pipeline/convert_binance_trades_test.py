@@ -8,12 +8,12 @@ import pandas as pd
 import pytest
 from nautilus_trader.model import AggressorSide
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.convert_binance_trades import convert_trade_archive, iter_trade_archive
+from engine.pipeline.models import ArchiveSpec, SyncedArchive
+from engine.pipeline.rust_trade_converter import find_rust_converter
+from engine.pipeline.validate_data import TRADE_COLUMNS, DataValidationError, normalize_trade_frame
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.convert_binance_trades import convert_trade_archive, iter_trade_archive
-from pipeline.models import ArchiveSpec, SyncedArchive
-from pipeline.rust_trade_converter import find_rust_converter
-from pipeline.validate_data import TRADE_COLUMNS, DataValidationError, normalize_trade_frame
 
 
 def trade_row(
@@ -370,7 +370,7 @@ def test_new_period_aggregates_existing_bars_without_rewriting_ticks(
     incremental_dataset,
     monkeypatch,
 ):
-    from pipeline import convert_binance_trades as converter
+    from engine.pipeline import convert_binance_trades as converter
 
     synced, instrument, catalog, kwargs, _ = incremental_dataset
     root = Path(catalog.path)
@@ -441,7 +441,7 @@ def test_invalid_forced_conversion_preserves_existing_data(incremental_dataset):
 
 
 def test_unmanaged_existing_files_are_preserved(incremental_dataset):
-    from pipeline.convert_binance_bars import ConversionError
+    from engine.pipeline.convert_binance_bars import ConversionError
 
     synced, instrument, catalog, kwargs, _ = incremental_dataset
     before = parquet_snapshot(Path(catalog.path))
@@ -467,9 +467,9 @@ def test_missing_ticks_do_not_rebuild_existing_bars(incremental_dataset):
 def test_prepare_only_materializes_requested_period(incremental_dataset, monkeypatch):
     from dataclasses import replace
 
-    from pipeline import prepare_data as preparation
-    from pipeline.config import load_settings
-    from pipeline.models import DataRequest
+    from engine.pipeline import prepare_data as preparation
+    from engine.pipeline.config import load_settings
+    from engine.pipeline.models import DataRequest
 
     synced, instrument, catalog, kwargs, _ = incremental_dataset
     settings = replace(

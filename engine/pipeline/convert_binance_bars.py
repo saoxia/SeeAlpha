@@ -11,11 +11,11 @@ from zipfile import BadZipFile, ZipFile
 import pandas as pd
 from nautilus_trader.model import Bar, BarType
 
+from engine.pipeline.catalog import BarDataWrangler, ParquetDataCatalog
+from engine.pipeline.models import SyncedArchive, bar_type_for
+from engine.pipeline.sync_binance_file import SyncError, parse_checksum, sha256_file
+from engine.pipeline.validate_data import KLINE_COLUMNS, DataValidationError, validate_kline_frame
 from nautilus_support import Instrument
-from pipeline.catalog import BarDataWrangler, ParquetDataCatalog
-from pipeline.models import SyncedArchive, bar_type_for
-from pipeline.sync_binance_file import SyncError, parse_checksum, sha256_file
-from pipeline.validate_data import KLINE_COLUMNS, DataValidationError, validate_kline_frame
 
 CONVERTER_VERSION = 1
 

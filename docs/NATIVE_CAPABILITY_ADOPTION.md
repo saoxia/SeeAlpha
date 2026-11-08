@@ -5,7 +5,7 @@
 
 | 类别 | 实现与范围 |
 |---|---|
-| 转换后端发现 | 默认使用本机 pipeline/rust_converter/target/release 下的 Rust 构建产物；直接运行项目 Python 即可发现，支持环境变量显式指定路径或 off，不依赖数据存储位置。 |
+| 转换后端发现 | 默认使用本机 engine/pipeline/rust_converter/target/release 下的 Rust 构建产物；直接运行项目 Python 即可发现，支持环境变量显式指定路径或 off，不依赖数据存储位置。 |
 | Catalog 区间 | 委托原生 get_intervals；不再在该查询中自行解析文件名。项目发布命名和指纹校验仍使用自己的文件工具。 |
 | Bar / TradeTick 转换 | DataFrame 列式规范化为 Arrow，原生 process_record_batch_bytes 创建模型对象；移除逐行 Python 构造。浮点列先明确量化，再经十进制字符串转换，防止 3000.10 被截成 3000.09。 |
 | 公共回测 | 原生 Arrow C Stream 扫描，每批最多 50,000 条；run(streaming=True)、clear_data、最终 end。开始闭、结束开，保留跨批次定时器、订单和持仓状态。 |

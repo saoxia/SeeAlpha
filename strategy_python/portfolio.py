@@ -9,7 +9,7 @@ from pathlib import Path
 
 from nautilus_trader.model import BarType, InstrumentId
 
-from pipeline.models import bar_type_for
+from engine.pipeline.models import bar_type_for
 from strategy_python._execution.portfolio_coordinator import (
     PortfolioCoordinator,
     PortfolioCoordinatorConfig,

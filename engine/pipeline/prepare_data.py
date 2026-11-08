@@ -15,16 +15,15 @@ from nautilus_trader.adapters.binance import (
     load_binance_instruments,
 )
 
-from nautilus_support import Instrument
-from pipeline.bar_features import prepare_bar_features
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import DEFAULT_CONFIG_PATH, load_settings
-from pipeline.convert_binance_bars import ConversionError
-from pipeline.convert_binance_trades import (
+from engine.pipeline.bar_features import prepare_bar_features
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import DEFAULT_CONFIG_PATH, load_settings
+from engine.pipeline.convert_binance_bars import ConversionError
+from engine.pipeline.convert_binance_trades import (
     convert_trade_archives,
     validate_converted_trade_archives,
 )
-from pipeline.models import (
+from engine.pipeline.models import (
     DataRequest,
     PipelineConfigError,
     PipelineSettings,
@@ -32,13 +31,14 @@ from pipeline.models import (
     bar_type_for,
     instrument_id_for,
 )
-from pipeline.sync_binance_batch import (
+from engine.pipeline.sync_binance_batch import (
     BatchSyncError,
     parse_utc_datetime,
     plan_daily_archives,
     sync_archives,
 )
-from pipeline.validate_data import DataValidationError
+from engine.pipeline.validate_data import DataValidationError
+from nautilus_support import Instrument
 
 
 class DataNotReadyError(RuntimeError):

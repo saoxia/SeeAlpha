@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import pytest
 from nautilus_trader.model import Bar
 
+from engine.pipeline.catalog import ParquetDataCatalog
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog
 from strategy_python import _backtesting
 from strategy_python.mean_reversion_long_5min.backtest import BACKTEST_SPEC, create_strategy
 

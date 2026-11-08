@@ -28,8 +28,9 @@ ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 
 `ENGINE_URL` 默认就是 `http://127.0.0.1:8766`。本地开发令牌只用于本机进程互认，
 不能当作交易所密钥。公开行情的订阅意图仍写在业务表 `market_data_policies`；
-引擎保存运行期订阅、进度和缺口。单次离线数据任务（归档准备、删除、裁剪）仍由 API
-启动 `pipeline.data_management`。操作账本的只读同步仍在 API 进程调用连接器。
+引擎保存运行期订阅、进度和缺口，并启动单次离线数据任务
+（`engine.pipeline.data_management` 的准备、删除和裁剪）。业务库仍记录这些任务。
+操作账本的只读同步和资产校准 REST 仍在 API 进程调用连接器。
 
 API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文件，
 并使用 Alembic 完成结构迁移。未配置连接时服务不会自动创建或切换到本地数据库。
@@ -274,7 +275,7 @@ PostgreSQL 新建连接最多等待 5 秒；启用 TCP 保活（空闲 30 秒后
 实际文件与新旧配置的删除快照。`POST /api/data/subscriptions` 兼容原字段，另接受可选
 `deletion_snapshot` 和 `confirmation=DELETE 交易对`；需要删除时二者缺一不可。
 
-已确认的裁剪复用现有固定 `pipeline.data_management trim` 子进程及文件任务记录。
+已确认的裁剪复用现有固定 `engine.pipeline.data_management trim` 子进程及文件任务记录。
 成功后才保存新配置并恢复所选服务；失败、取消或 API 中断保留旧日期及暂停状态，
 不得自动恢复旧补齐范围。数据或配置变化后须重新预览。新输入的确认文字和快照不存业务配置。
 不迁移数据库，不新增后台服务。旧 backfill / 显式范围删除入口继续兼容。

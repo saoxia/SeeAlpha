@@ -21,10 +21,10 @@ from nautilus_trader.model import (
 
 from core.market.instruments import bar_type_for
 from engine.feed.pair_store import PairStore
+from engine.pipeline.catalog import ParquetDataCatalog, TradeQuote
+from engine.pipeline.models import PipelineSettings
+from engine.pipeline.pair_deletion import history_trim_plan, trim_pair_history
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog, TradeQuote
-from pipeline.models import PipelineSettings
-from pipeline.pair_deletion import history_trim_plan, trim_pair_history
 
 START = datetime(2026, 8, 15, tzinfo=UTC)
 CUTOFF = int(START.timestamp() * 1000)
@@ -137,7 +137,7 @@ def test_interrupted_cross_boundary_write_preserves_original_data(retained, monk
     plan = history_trim_plan("ETHUSDT", "futures_um", START, settings, project=project)
     def interrupted(*args):
         raise OSError("interrupted")
-    monkeypatch.setattr("pipeline.pair_deletion.os.replace", interrupted)
+    monkeypatch.setattr("engine.pipeline.pair_deletion.os.replace", interrupted)
     with pytest.raises(OSError, match="interrupted"):
         trim_pair_history("ETHUSDT", "futures_um", START, settings, expected_snapshot=plan["snapshot"], project=project)
     assert len(catalog.trade_ticks()) == 3
@@ -184,7 +184,7 @@ def test_configured_parent_folder_names_do_not_change_trim_scope(retained, folde
 
 
 def test_file_name_cannot_hide_retained_rows_during_deletion(retained):
-    from pipeline.catalog import _timestamps_to_filename
+    from engine.pipeline.catalog import _timestamps_to_filename
 
     settings, project, catalog, *_ = retained
     source = next((settings.catalog_dir / "data/trades").rglob("*.parquet"))

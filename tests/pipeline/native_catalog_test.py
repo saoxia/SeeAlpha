@@ -5,8 +5,8 @@ from decimal import Decimal
 import pandas as pd
 from nautilus_trader.model import Bar, BarType, Price, Quantity
 
+from engine.pipeline.catalog import BarDataWrangler, ParquetDataCatalog, TradeTickDataWrangler
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import BarDataWrangler, ParquetDataCatalog, TradeTickDataWrangler
 
 
 def test_native_bar_scanner_is_bounded_and_end_exclusive(tmp_path):
@@ -57,7 +57,7 @@ def test_native_wranglers_preserve_decimal_values_and_aggressor():
 
 
 def test_arrow_quantization_matches_native_instrument_for_half_ticks():
-    from pipeline.catalog import _decimal
+    from engine.pipeline.catalog import _decimal
     instrument = TestInstrumentProvider.ethusdt_perp_binance()
     values = ["103.525","103.515","100.005","100.025"]
     expected = [instrument.make_price(Decimal(value)).as_decimal() for value in values]

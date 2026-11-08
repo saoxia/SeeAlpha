@@ -13,7 +13,7 @@
 Web 任务记录在启用 ORM 后存于业务数据库，旧 JSON 保存在本机 `.local/state/web/`；
 登录口令和服务锁分别保存在本机
 `.local/config/web/` 和 `.local/run/web/`，任务日志保存在本机 `logs/web/`。
-代码、`.venv`、`.local`、Rust 构建目录 `pipeline/rust_converter/target/` 和报告生成源码仍在本机。
+代码、`.venv`、`.local`、Rust 构建目录 `engine/pipeline/rust_converter/target/` 和报告生成源码仍在本机。
 回测报告及账户、成交、持仓明细统一写入 `data/reports/backtest/`。
 
 上述 Web 运行文件不跟随外置数据盘迁移，备份时应另外保留。
@@ -66,8 +66,8 @@ data/
 - 旧 `project_checks/` 与 `dev_checks/` 已清理。Web 项目检查后续写入本机
   `logs/web/checks/`，不会重新创建这两个数据目录；检查功能保留。
 
-行情管线目录由 `pipeline.prepare_data` 按需创建，具体命令和失败规则见
-[`pipeline/README.md`](pipeline/README.md)。
+行情管线目录由 `engine.pipeline.prepare_data` 按需创建，具体命令和失败规则见
+[`engine/pipeline/README.md`](engine/pipeline/README.md)。
 
 
 ## 2026-10-29 行情服务干净切换

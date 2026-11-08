@@ -108,13 +108,13 @@ intervals = ["1s", "1m", "5m", "15m"]
 
 ### Rust 转换核心
 
-生产转换器位于 `pipeline/rust_converter/`。它只保留一个固定大小的 Trade
+生产转换器位于 `engine/pipeline/rust_converter/`。它只保留一个固定大小的 Trade
 RecordBatch 和每个 Bar 周期的聚合结果，不创建逐条 Python 对象；一个日归档最终
 写成一个 TradeTick Parquet 和每周期一个 Bar Parquet。首次使用前构建 release 二进制：
 
 ```bash
 cargo build --release \
-  --manifest-path pipeline/rust_converter/Cargo.toml
+  --manifest-path engine/pipeline/rust_converter/Cargo.toml
 ```
 
 管道会自动发现默认 release 二进制。部署到其他位置时设置
@@ -133,7 +133,7 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 只查看将要使用的 Binance 文件：
 
 ```bash
-.venv/bin/python -m pipeline.sync_binance_batch \
+.venv/bin/python -m engine.pipeline.sync_binance_batch \
   --start 2026-08-01 \
   --end 2026-08-03 \
   --symbols ETH-USDT BTC-USDT \
@@ -143,7 +143,7 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 只同步原始归档：
 
 ```bash
-.venv/bin/python -m pipeline.sync_binance_batch \
+.venv/bin/python -m engine.pipeline.sync_binance_batch \
   --start 2026-08-01 \
   --end 2026-08-03 \
   --symbols ETH-USDT BTC-USDT
@@ -152,7 +152,7 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 完成同步、转换和 Catalog 校验：
 
 ```bash
-.venv/bin/python -m pipeline.prepare_data \
+.venv/bin/python -m engine.pipeline.prepare_data \
   --start 2026-08-01 \
   --end 2026-08-03 \
   --symbols ETH-USDT BTC-USDT
@@ -165,7 +165,7 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 是否修正过历史归档：
 
 ```bash
-.venv/bin/python -m pipeline.prepare_data \
+.venv/bin/python -m engine.pipeline.prepare_data \
   --start 2026-08-01 \
   --end 2026-08-03 \
   --symbols ETH-USDT \
@@ -175,7 +175,7 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 显式重建一天的 TradeTick 和 1m Bar（不会重写 1s、5m、15m）：
 
 ```bash
-.venv/bin/python -m pipeline.prepare_data \
+.venv/bin/python -m engine.pipeline.prepare_data \
   --start 2026-08-01 --end 2026-08-02 \
   --symbols ETH-USDT --bar-intervals 1m --force
 ```
@@ -185,8 +185,8 @@ Rust 先把完整结果写入 Catalog 根目录内的临时 staging 目录；Pyt
 ```python
 from datetime import UTC, datetime
 
-from pipeline.models import DataRequest
-from pipeline.prepare_data import prepare_data
+from engine.pipeline.models import DataRequest
+from engine.pipeline.prepare_data import prepare_data
 
 
 dataset = prepare_data(
@@ -271,8 +271,8 @@ CSV 数值由解析器直接读取，每块只规范化一次；主动买卖标�
 
 ```python
 from datetime import UTC, datetime
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.bar_features import read_bar_features
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.bar_features import read_bar_features
 
 features = read_bar_features(
     ParquetDataCatalog("data/catalog"),
@@ -291,7 +291,7 @@ features = read_bar_features(
 只准备并返回指定周期，其他周期保持不变：
 
 ```bash
-.venv/bin/python -m pipeline.prepare_data \
+.venv/bin/python -m engine.pipeline.prepare_data \
   --bar-intervals 1s 1m \
   --start 2026-08-01 \
   --end 2026-08-03 \

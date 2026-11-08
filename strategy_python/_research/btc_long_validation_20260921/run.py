@@ -21,9 +21,9 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, Money, OmsType
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
 from nautilus_support import instrument_fee_model
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
 from strategy_python._backtesting import load_binance_data
 from strategy_python._execution.entry_constraints import opening_order_allowed
 from strategy_python._research.tfs_stability_20260921.study import fee_instrument, measure

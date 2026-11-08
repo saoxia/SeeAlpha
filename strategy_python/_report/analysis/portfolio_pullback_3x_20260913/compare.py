@@ -67,7 +67,7 @@ def audit(name, prices):
 
 def main():
     from nautilus_trader.persistence.catalog import ParquetDataCatalog
-    from pipeline.config import load_settings
+    from engine.pipeline.config import load_settings
 
     prices = pd.read_parquet(ROOT.parent / 'pullback_short_20260913' / 'minutes.parquet')['close']
     prices.index -= pd.Timedelta(milliseconds=1)

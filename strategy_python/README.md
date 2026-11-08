@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
 Python 调用继续使用 `run_backtest(start, end, interval="1m", check_data=False)`，
 成功时返回报告目录 `Path`，整个区间缺失且关闭检查时返回 `None`。
-Pipeline 的文件复用、缺失补齐和强制重建逻辑仍只在 `pipeline/` 维护。
+Pipeline 的文件复用、缺失补齐和强制重建逻辑仍只在 `engine/pipeline/` 维护。
 
 ## 运行和产物
 

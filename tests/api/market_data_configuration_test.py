@@ -6,10 +6,10 @@ from datetime import UTC, datetime
 import pytest
 from nautilus_trader.model import AggressorSide, Price, Quantity, TradeId, TradeTick
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.models import PipelineSettings
+from engine.pipeline.pair_deletion import trim_pair_history
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.models import PipelineSettings
-from pipeline.pair_deletion import trim_pair_history
 from tests.api.auth_test import login
 from tests.api.market_data_test import context
 
@@ -90,7 +90,7 @@ def test_new_start_applies_only_after_successful_trim(configured, monkeypatch, s
             return self.returncode
 
     def spawn(command, **kwargs):
-        assert command[command.index("-m") + 1:command.index("--request")] == ["pipeline.data_management", "trim"]
+        assert command[command.index("-m") + 1:command.index("--request")] == ["engine.pipeline.data_management", "trim"]
         assert len(kwargs["pass_fds"]) == 2
         parameters = json.loads(command[command.index("--request") + 1])
         if succeed:
@@ -102,7 +102,7 @@ def test_new_start_applies_only_after_successful_trim(configured, monkeypatch, s
             (manager.directory / f"{identity}.json").write_text(json.dumps(result))
         return Process()
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     response = client.post("/api/data/subscriptions", json={**plan["policy"], "deletion_snapshot": plan["deletion"]["snapshot"],
                                                             "confirmation": "DELETE ETHUSDT"})
     assert response.status_code == 200, response.text
@@ -140,7 +140,7 @@ def test_cancelled_trim_keeps_old_start_and_services_paused(configured, monkeypa
         def poll(self):
             return self.returncode
 
-    monkeypatch.setattr("api.market_data.service.subprocess.Popen", lambda *args, **kwargs: Process())
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda *args, **kwargs: Process())
     monkeypatch.setattr(manager, "_stop", lambda process: release.set())
     response = client.post("/api/data/subscriptions", json={**plan["policy"], "deletion_snapshot": plan["deletion"]["snapshot"],
                                                             "confirmation": "DELETE ETHUSDT"})

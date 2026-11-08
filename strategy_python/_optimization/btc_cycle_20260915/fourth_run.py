@@ -22,7 +22,7 @@ from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.model.objects import Money
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 
-from pipeline.config import load_settings
+from engine.pipeline.config import load_settings
 from strategy_python._backtesting import BacktestSpec, load_binance_data
 from strategy_python._optimization.four_strategy_20260914.research import measure
 

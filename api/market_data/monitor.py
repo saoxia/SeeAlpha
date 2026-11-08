@@ -5,7 +5,7 @@ import time
 
 from fastapi import HTTPException
 
-from pipeline.convert_binance_bars import write_record
+from engine.pipeline.convert_binance_bars import write_record
 
 ROLES = ("collection", "history", "calculation")
 

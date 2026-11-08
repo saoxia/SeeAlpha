@@ -6,8 +6,8 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, Bar, BarType, Money, OmsType, OrderSide
 
+from engine.pipeline.catalog import ParquetDataCatalog
 from nautilus_support import TestInstrumentProvider, instrument_fee_model
-from pipeline.catalog import ParquetDataCatalog
 from strategy_python._backtesting import BarStream, data_batches
 from strategy_python._strategy import Strategy
 

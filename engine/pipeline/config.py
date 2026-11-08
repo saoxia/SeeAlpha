@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 
 from core.paths import PROJECT_ROOT
-from pipeline.models import (
+from engine.pipeline.models import (
     SUPPORTED_DATA_TYPES,
     PipelineConfigError,
     PipelineSettings,
