@@ -239,45 +239,46 @@ def aggregate_feature_archive(
     start, end = _bounds(archive.spec.day)
     previous_time = previous_id = None
     chunks = iter_trade_archive(archive.path, chunk_rows) if catalog is None else native_feature_trades(catalog, archive, chunk_rows)
-    for chunk in chunks:
-        first_time, last_time = int(chunk.timestamp.iloc[0]), int(chunk.timestamp.iloc[-1])
-        first_id, last_id = int(chunk.trade_id.iloc[0]), int(chunk.trade_id.iloc[-1])
-        if first_time * 1_000_000 < start or last_time * 1_000_000 >= end:
-            raise DataValidationError("Trade timestamp 超出归档标注的 UTC 日期")
-        if previous_time is not None and first_time < previous_time:
-            raise DataValidationError("Trade timestamp 跨数据块倒序")
-        if previous_id is not None and first_id <= previous_id:
-            raise DataValidationError("Trade ID 跨数据块重复或倒序")
-        previous_time, previous_id = last_time, last_id
-        if writer is not None:
-            write_trade_chunk(writer, chunk)
-            continue
-        values = pd.DataFrame(
-            {
-                "open": chunk.price,
-                "high": chunk.price,
-                "low": chunk.price,
-                "close": chunk.price,
-                "volume": chunk.quantity,
-                "quote_volume": chunk.quote_quantity,
-                "taker_buy_volume": chunk.quantity.where(~chunk.buyer_maker, 0.0),
-                "taker_buy_quote_volume": chunk.quote_quantity.where(~chunk.buyer_maker, 0.0),
-                "trade_count": 1,
-            }
-        )
-        values.index = (chunk.timestamp.to_numpy() // base_period) * base_period
-        parts.append(_aggregate(values))
-    result = {}
-    if source is not None:
-        try:
+    try:
+        for chunk in chunks:
+            first_time, last_time = int(chunk.timestamp.iloc[0]), int(chunk.timestamp.iloc[-1])
+            first_id, last_id = int(chunk.trade_id.iloc[0]), int(chunk.trade_id.iloc[-1])
+            if first_time * 1_000_000 < start or last_time * 1_000_000 >= end:
+                raise DataValidationError("Trade timestamp 超出归档标注的 UTC 日期")
+            if previous_time is not None and first_time < previous_time:
+                raise DataValidationError("Trade timestamp 跨数据块倒序")
+            if previous_id is not None and first_id <= previous_id:
+                raise DataValidationError("Trade ID 跨数据块重复或倒序")
+            previous_time, previous_id = last_time, last_id
+            if writer is not None:
+                write_trade_chunk(writer, chunk)
+                continue
+            values = pd.DataFrame(
+                {
+                    "open": chunk.price,
+                    "high": chunk.price,
+                    "low": chunk.price,
+                    "close": chunk.price,
+                    "volume": chunk.quantity,
+                    "quote_volume": chunk.quote_quantity,
+                    "taker_buy_volume": chunk.quantity.where(~chunk.buyer_maker, 0.0),
+                    "taker_buy_quote_volume": chunk.quote_quantity.where(~chunk.buyer_maker, 0.0),
+                    "trade_count": 1,
+                }
+            )
+            values.index = (chunk.timestamp.to_numpy() // base_period) * base_period
+            parts.append(_aggregate(values))
+        result = {}
+        if source is not None:
             writer.close()
             base = run_aggregator(rust_binary, source, base_period)
-        finally:
+        else:
+            if not parts:
+                raise DataValidationError("Trade 归档没有数据")
+            base = _aggregate(pd.concat(parts))
+    finally:
+        if source is not None:
             source.close()
-    else:
-        if not parts:
-            raise DataValidationError("Trade 归档没有数据")
-        base = _aggregate(pd.concat(parts))
     for interval, period in periods.items():
         frame = base.copy(deep=False)
         if period != base_period:
