@@ -279,6 +279,11 @@ class EngineClient:
             )
             process = self.runtime.workers[started["id"]]["process"]
             return process
+        if self.tenant_manager is not None:
+            # API Python paths do not exist inside Docker; use the image interpreter.
+            if command and Path(command[0]).name.startswith("python"):
+                command = ["python", *command[1:]]
+            log_path = self.tenant_manager.worker_log(tenant_id, log_path)
         started = self._sync("POST", self._account_path(tenant_id, account_id) + "/market/workers", json={
             "command": command, "log_path": str(log_path),
             "access": list(access) if access else None,
