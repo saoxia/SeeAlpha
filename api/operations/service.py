@@ -5,9 +5,9 @@ import logging
 import math
 import time
 
+from core.engine_contracts import QueryError
 from engine.connectors.binance.income import DAY_MS, income_history
 from engine.connectors.binance.operations import operation_history
-from core.engine_contracts import QueryError
 
 from .options import sync_options
 from .repository import Operations

@@ -4,8 +4,6 @@ import asyncio
 from decimal import Decimal
 from traceback import clear_frames
 
-from core.engine_contracts import AccountSnapshot, QueryError
-
 from nautilus_trader.adapters.binance import (
     BinanceDataClientConfig,
     BinanceDataClientFactory,
@@ -20,6 +18,8 @@ from nautilus_trader.common import Environment, LoggerConfig, LogLevel
 from nautilus_trader.live import LiveExecutionEngineConfig, LiveNode
 from nautilus_trader.model import AccountId, OmsType, TraderId
 from nautilus_trader.trading import Strategy
+
+from core.engine_contracts import AccountSnapshot, QueryError
 
 
 def _clear_exception_frames(error):
