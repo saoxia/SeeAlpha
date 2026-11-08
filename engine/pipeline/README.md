@@ -106,6 +106,29 @@ intervals = ["1s", "1m", "5m", "15m"]
 复用，新增周期不会重建已有 TradeTick 或其他周期。补高周期时优先从已有、可整除目标
 周期的低周期 Bar 聚合；没有合适的低周期数据时才解析 trades，只写入缺失的 Bar。
 
+### 可选 Rust 特征基础桶聚合
+
+特征生成阶段的 TradeTick/quote 补充数据扫描仍在 Python/Arrow 边界完成。
+新增独立的 `feature-aggregate` Rust 二进制，对已校验的成交列做逐笔 OHLCV、
+quote volume、主动买量与成交笔数聚合，按时间桶排序输出。
+Rust 仅持有当天实际出现的基础桶；Python 使用临时文件传输，避免积累
+大量 `groupby` 分块中间 DataFrame。滚动 ATR/布林带/均线、缓存指纹、
+Catalog 原子发布逻辑保持原样。
+
+```bash
+cargo build --release --manifest-path engine/pipeline/rust_converter/Cargo.toml --bin feature-aggregate
+.venv/bin/python -m pytest tests/pipeline/rust_feature_aggregate_test.py tests/pipeline/bar_features_test.py
+```
+
+检测到默认 release 二进制后自动启用；`SEEALPHA_RUST_FEATURE_AGGREGATOR=off`
+强制恢复 Python 聚合路径，或设置该变量为自定义可执行路径。
+Rust 报错直接中止生成，不会静默回退并发布不完整结果。
+
+**性能边界**：Rust 降低 Python 聚合中间表内存，但新增 CSV 序列化与临时磁盘 I/O。
+须在真实逐笔归档上对比总耗时、峰值 RSS、CPU、磁盘 I/O 和结果差异；
+未提供实测前不保证整体速度提升。后续可将 Python/Arrow 数据桥换为
+Arrow IPC 或 Rust 原生 Parquet 扫描，避免 CSV 往返。
+
 ### Rust 转换核心
 
 生产转换器位于 `engine/pipeline/rust_converter/`。它只保留一个固定大小的 Trade
