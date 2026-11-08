@@ -15,11 +15,12 @@ export async function fetchAccountNavigation(signal: AbortSignal) {
 export async function fetchPortfolio(
   accountId: number | null,
   signal: AbortSignal,
+  refresh = false,
 ) {
   const path = accountId === null
     ? "/api/exchange-accounts/portfolio"
     : `/api/exchange-accounts/${accountId}/portfolio`;
-  const response = await fetch(path, requestOptions(signal));
+  const response = await fetch(`${path}${refresh ? "?refresh=true" : ""}`, requestOptions(signal));
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { detail?: string } | null;
     throw new Error(payload?.detail || "无法读取账户数据。");

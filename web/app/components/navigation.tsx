@@ -7,7 +7,7 @@ import { ThemeSwitch } from "./appearance/theme-switch";
 
 const navigationItems: Array<{ id: AppView; label: string }> = [
   { id: "live", label: "LIVE" },
-  { id: "dataops", label: "DATA OPS" },
+  { id: "trade", label: "TRADE" },
   { id: "data", label: "DATA" },
   { id: "research", label: "RESEARCH" },
   { id: "settings", label: "SETTINGS" },

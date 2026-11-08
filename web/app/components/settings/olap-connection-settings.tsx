@@ -71,7 +71,7 @@ export function OlapConnectionSettings() {
       }) as OlapSettings;
       setSaved(settings);
       setPassword("");
-      setMessage("OLAP 连接已加密保存，Data Ops 可以直接使用。 ");
+      setMessage("OLAP 连接已加密保存，DATA → 数据监控可以直接使用。");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "保存失败。");
     } finally {
@@ -97,7 +97,7 @@ export function OlapConnectionSettings() {
     <form className="settings-card" onSubmit={saveSettings}>
       <div className="settings-card-head">
         <span>02</span>
-        <div><h2>OLAP 数据库连接</h2><p>配置 ClickHouse 数据源，供 Data Ops 数据水位监控使用。</p></div>
+        <div><h2>OLAP 数据库连接</h2><p>配置 ClickHouse 数据源，供 DATA → 数据监控使用。</p></div>
         <div className="settings-head-actions">
           <i>DATABASE</i>
           <button type="button" className="secondary" disabled={busy || !saved?.password_configured} onClick={() => void testConnection()}>测试连接</button>

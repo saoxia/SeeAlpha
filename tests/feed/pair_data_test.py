@@ -131,7 +131,8 @@ def test_collection_ignores_legacy_id_gaps_and_never_polls_derived_periods(tmp_p
     candle = json.loads(resumed.db.execute("SELECT value FROM candles WHERE interval='1m' AND start_ms=120000").fetchone()[0])
     assert not candle["is_complete"]  # The initial partial minute remains incomplete, regardless of old ID gaps.
     assert candle["volume"] == "4"
-    assert not resumed.db.execute("SELECT 1 FROM candles WHERE interval='1s'").fetchone()
+    assert resumed.db.execute("SELECT 1 FROM candles WHERE interval='1s'").fetchone()
+    assert candle["source_levels"] == ["1s"]
     resumed.close()
 
 
@@ -200,16 +201,90 @@ def test_dirty_updates_recover_after_interrupted_aggregation(tmp_path, monkeypat
     resumed.close()
 
 
-def test_internal_inputs_are_not_retained_datasets_or_public_updates(tmp_path):
+def test_seconds_are_retained_and_visible_but_working_ticks_are_not(tmp_path):
     path = tmp_path / "collection.sqlite"
     store = PairStore(path, "ETHUSDT", "1m", ["5m"])
     store.ticks([trade(1, 100), trade(2, 1100)], 61000)
-    assert "1s" not in store.latest
-    assert not store.db.execute("SELECT 1 FROM candles WHERE interval='1s'").fetchone()
-    assert {value["level"] for value in journal_inventory(path, "ETHUSDT")} == {"1m"}
-    assert journal_preview(path, "1s", 0, 60000, 100) == []
+    assert "1s" in store.latest
+    assert store.db.execute("SELECT 1 FROM candles WHERE interval='1s'").fetchone()
+    assert {value["level"] for value in journal_inventory(path, "ETHUSDT")} == {"1s", "1m"}
+    assert len(journal_preview(path, "1s", 0, 60000, 100)) == 2
     assert journal_preview(path, "tick", 0, 60000, 100) == []
     store.close()
+
+
+def test_high_periods_follow_seconds_directly_and_batch_dirty_windows(tmp_path, monkeypatch):
+    store = PairStore(tmp_path / "collection.sqlite", "ETHUSDT", "tick", ["1m", "5m"])
+    calls = []
+    original = store._rollup
+    def track(source, target, stamp, now):
+        calls.append((source, target, stamp))
+        return original(source, target, stamp, now)
+    monkeypatch.setattr(store, "_rollup", track)
+    store.ticks([trade(i + 1, i * 1000 + 100, str(10 + i)) for i in range(60)], 61000)
+    assert calls == [("1s", "1m", 0), ("1s", "5m", 0)]
+    assert store.latest["1m"]["source_levels"] == ["1s"]
+    assert store.latest["5m"]["source_levels"] == ["1s"]
+    assert store.latest["5m"]["volume"] == "120"
+    # A minute notification must no longer drive the higher target.
+    calls.clear()
+    with store.db:
+        store.db.execute("INSERT INTO pending_updates VALUES ('1m',0)")
+    store.process_changes(61000)
+    assert calls == []
+    # A late second corrects every affected target from de-duplicated seconds.
+    store.ticks([trade(100, 15100, "100")], 62000)
+    assert store.latest["5m"]["volume"] == "122"
+    assert store.latest["5m"]["high"] == "100"
+    assert store.latest["1m"]["volume"] == "122"
+    revision = store.revision
+    store.ticks([trade(100, 15100, "100")], 62000)
+    assert store.revision == revision
+    store.close()
+
+
+def test_seconds_survive_working_tick_cleanup_and_restart(tmp_path):
+    path = tmp_path / "collection.sqlite"
+    store = PairStore(path, "ETHUSDT", "1m")
+    store.ticks([trade(1, 100)], 500)
+    store.ticks([trade(2, 1100)], 1500)
+    store.ticks([trade(3, 181100)], 182000)
+    assert store.db.execute("SELECT id FROM trades ORDER BY id").fetchall() == [(3,)]
+    assert len(journal_preview(path, "1s", 0, 2000, 10)) == 2
+    store.close()
+    resumed = PairStore(path, "ETHUSDT", "1m")
+    resumed.process_changes(182000)
+    assert len(journal_preview(path, "1s", 0, 2000, 10)) == 2
+    resumed.close()
+
+
+def test_switch_to_seconds_cannot_replace_a_complete_close_with_partial_sources(tmp_path):
+    store = PairStore(tmp_path / "collection.sqlite", "ETHUSDT", "tick", ["1m"])
+    old = store.candle("1m", [0, "10", "12", "9", "11", "100", 59999], 61000, source="raw_trades")
+    store.ticks([trade(1, 100, "20")], 61000)
+    assert store.latest["1m"] == old
+    store.close()
+
+
+def test_failed_high_period_keeps_second_receipts_until_restart_replays_all_targets(tmp_path, monkeypatch):
+    path = tmp_path / "collection.sqlite"
+    store = PairStore(path, "ETHUSDT", "tick", ["1m", "5m"])
+    original = store._rollup
+    def interrupted(source, target, stamp, now):
+        if target == "5m":
+            raise RuntimeError("interrupted high target")
+        return original(source, target, stamp, now)
+    monkeypatch.setattr(store, "_rollup", interrupted)
+    with pytest.raises(RuntimeError, match="interrupted high"):
+        store.ticks([trade(1, 100), trade(2, 1100)], 2500)
+    assert store.db.execute("SELECT 1 FROM pending_updates WHERE source='1s'").fetchone()
+    store.close()
+    resumed = PairStore(path, "ETHUSDT", "tick", ["1m", "5m"])
+    resumed.process_changes(2500)
+    assert resumed.latest["1m"]["volume"] == resumed.latest["5m"]["volume"] == "4"
+    assert resumed.latest["5m"]["source_levels"] == ["1s"]
+    assert not resumed.db.execute("SELECT 1 FROM pending_updates").fetchone()
+    resumed.close()
 
 
 def test_forming_revision_survives_restart_and_later_windows_do_not_rewrite_old_buckets(tmp_path):
@@ -232,6 +307,7 @@ def test_forming_revision_survives_restart_and_later_windows_do_not_rewrite_old_
 @pytest.mark.parametrize("zero_event", [False, True])
 def test_live_events_continue_during_handover_failure_and_shutdown_closes_socket(tmp_path, monkeypatch, snapshot_fails, zero_event):
     import asyncio
+    from types import SimpleNamespace
 
     import feed.pair_service as module
     async def scenario():
@@ -280,6 +356,10 @@ def test_live_events_continue_during_handover_failure_and_shutdown_closes_socket
                 gate.set()
             else:
                 raise asyncio.CancelledError
+        elapsed = iter(range(0, 10000, 120))
+        # Multiple minutes pass between loop iterations. A failed snapshot must
+        # not turn into another periodic REST read while this socket stays open.
+        monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: next(elapsed)))
         monkeypatch.setattr(module, "PairREST", Rest)
         monkeypatch.setattr(module, "PairTradeSocket", Socket)
         monkeypatch.setattr(module, "ServerClock", Clock)
@@ -295,6 +375,67 @@ def test_live_events_continue_during_handover_failure_and_shutdown_closes_socket
         store = PairStore(tmp_path / "collection.sqlite", "ETHUSDT", "tick", ["1m"])
         assert store.db.execute("SELECT count(*) FROM trades").fetchone()[0] == 2
         store.close()
+    asyncio.run(scenario())
+
+
+def test_failed_recent_snapshot_is_retried_only_after_new_connection(tmp_path, monkeypatch):
+    import asyncio
+
+    import feed.pair_service as module
+
+    async def scenario():
+        first, second = asyncio.Event(), asyncio.Event()
+        calls, states = [], []
+        class Clock:
+            base_ms = 2001
+            healthy = True
+            async def sync(self, rest):
+                pass
+            def now(self):
+                return 2001
+            def confirmed(self):
+                return 2000
+        class Rest:
+            def __init__(self, **kwargs):
+                pass
+            async def get(self, endpoint, **params):
+                assert endpoint == "trades" and params["limit"] == 1000
+                calls.append(endpoint)
+                if len(calls) == 1:
+                    raise DataError("Public REST retries exhausted")
+                return [trade(3, 1800)]
+        class Socket:
+            async def stream(self, symbol):
+                yield {"kind": "connected"}
+                yield {"kind": "trade", "row": trade(1, 1100)}
+                await first.wait()
+                yield {"kind": "trade", "row": trade(2, 1500)}
+                await second.wait()
+                yield {"kind": "disconnected", "error": "offline"}
+                yield {"kind": "connected"}
+                yield {"kind": "trade", "row": trade(3, 1800)}
+                await asyncio.Event().wait()
+        def publish(root, value):
+            if value["state"] == "STOPPED":
+                return
+            states.append(value)
+            if len(states) == 1:
+                first.set()
+            elif len(states) == 2:
+                assert len(calls) == 1
+                second.set()
+            else:
+                raise asyncio.CancelledError
+        monkeypatch.setattr(module, "PairREST", Rest)
+        monkeypatch.setattr(module, "PairTradeSocket", Socket)
+        monkeypatch.setattr(module, "ServerClock", Clock)
+        monkeypatch.setattr(module, "write_status", publish)
+        with pytest.raises(asyncio.CancelledError):
+            await module.serve_pair({"symbol": "ETHUSDT", "base_level": "tick", "intervals": ["1m"]}, tmp_path, tmp_path / "catalog")
+        assert len(calls) == 2
+        assert [s["state"] for s in states] == ["DEGRADED", "DEGRADED", "READY"]
+        assert states[1]["last_error"].startswith("raw_trade_handover_failed")
+        assert states[2]["last_error"] is None
     asyncio.run(scenario())
 
 
@@ -319,14 +460,14 @@ def test_complete_minute_requires_all_source_seconds_and_late_data_recomputes_it
 
 def test_removing_a_period_keeps_previously_retained_candles(tmp_path):
     path = tmp_path / "collection.sqlite"
-    store = PairStore(path, "ETHUSDT", "tick", ["1s"])
-    store.ticks([trade(1, 100), trade(2, 1100)], 2500)
+    store = PairStore(path, "ETHUSDT", "tick", ["1m"])
+    store.ticks([trade(1, 100), trade(2, 1100)], 61000)
     store.close()
-    resumed = PairStore(path, "ETHUSDT", "tick", ["1m"])
+    resumed = PairStore(path, "ETHUSDT", "tick", ["1s"])
     resumed.ticks([trade(3, 181100)], 182000)
-    assert resumed.db.execute("SELECT count(*) FROM candles WHERE interval='1s' AND start_ms=0").fetchone()[0] == 1
-    assert "1s" in {value["level"] for value in journal_inventory(path, "ETHUSDT")}
-    assert "1s" not in resumed.latest
+    assert resumed.db.execute("SELECT count(*) FROM candles WHERE interval='1m' AND start_ms=0").fetchone()[0] == 1
+    assert "1m" in {value["level"] for value in journal_inventory(path, "ETHUSDT")}
+    assert "1m" not in resumed.latest
     resumed.close()
 
 

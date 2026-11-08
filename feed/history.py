@@ -30,6 +30,34 @@ class CatalogHistory:
             path.unlink()
             return True
 
+    def options_definition(self, symbol):
+        from dataclasses import replace
+
+        from pipeline.config import load_settings
+        from pipeline.options_data import _definition
+
+        return _definition(symbol, replace(load_settings(), catalog_dir=self.path), local_only=True).to_dict()
+
+    def options_evidence(self, symbol, events=(), *, recover=False, repair_from=None, recent=False, definition=None):
+        """Options share this existing bridge; Feed never installs Catalog files."""
+        from dataclasses import replace
+        from datetime import UTC, datetime, timedelta
+
+        from pipeline.config import load_settings
+        from pipeline.models import DataRequest
+        from pipeline.options_data import persist_live, prepare, repair_live
+
+        settings = replace(load_settings(), catalog_dir=self.path)
+        result = persist_live(symbol, events, settings, recover=recover, definition=definition)
+        if repair_from is not None:
+            result["repaired_until_ms"] = repair_live(symbol, repair_from, settings, definition=definition)
+        if recent:
+            now = datetime.now(UTC)
+            request = DataRequest((symbol,), max(now.replace(hour=0, minute=0, second=0, microsecond=0), now - timedelta(seconds=1)),
+                                  now, bar_intervals=(), market="options")
+            prepare(request, settings, managed=True, definition=definition)
+        return result
+
     def read_day(self, symbol, start_ms, end_ms):
         if not self.path.exists():
             return []

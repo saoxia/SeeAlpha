@@ -12,6 +12,8 @@ const allowedDevOrigins = (process.env.SEEALPHA_ALLOWED_DEV_ORIGINS ?? "")
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  // Native account reconciliation and command acknowledgement can exceed 30s.
+  experimental: { proxyTimeout: 90_000 },
   allowedDevOrigins,
   images: {
     unoptimized: true,
@@ -25,6 +27,7 @@ const nextConfig: NextConfig = {
       { source: "/api/system/update/:path+", destination: "/api/system/update" },
       { source: "/api/operations/:path*", destination: `${apiUrl}/api/operations/:path*` },
       { source: "/api/auth/:path*", destination: `${apiUrl}/api/auth/:path*` },
+      { source: "/api/trading/:path*", destination: `${apiUrl}/api/trading/:path*` },
       { source: "/api/management/:path*", destination: `${apiUrl}/api/management/:path*` },
       { source: "/api/health", destination: `${apiUrl}/api/health` },
       { source: "/api/system/olap/:path*", destination: `${apiUrl}/api/system/olap/:path*` },

@@ -11,6 +11,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { EquityCandleSeries } from "../types";
+import { requestEquityRebuild } from "@/app/features/live/equity";
 import { subscribeTheme } from "@/app/features/appearance/theme";
 
 type Props = { accountId: number | null; accountName: string };
@@ -26,7 +27,7 @@ const intervals: { value: Interval; label: string; seconds: number }[] = [
 ];
 
 function money(value: number, currency: string) {
-  return value.toLocaleString("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
 }
 
 function compactNumber(value: number) {
@@ -51,6 +52,49 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
   const [series, setSeries] = useState<EquityCandleSeries | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [rebuild, setRebuild] = useState<{ accountId: number; id: string; status: string; message: string } | null>(null);
+  const rebuildController = useRef<AbortController | null>(null);
+
+  useEffect(() => () => rebuildController.current?.abort(), [accountId]);
+
+  async function startRebuild() {
+    if (accountId === null) return;
+    rebuildController.current?.abort();
+    const controller = new AbortController();
+    rebuildController.current = controller;
+    setRebuild({ accountId, id: "", status: "queued", message: "正在提交重算…" });
+    try {
+      const job = await requestEquityRebuild(accountId, controller.signal);
+      if (!controller.signal.aborted) setRebuild({ accountId, id: job.id, status: job.status, message: "正在重算已保存的资产证据…" });
+    } catch (requestError) {
+      setRebuild((current) => current?.accountId !== accountId ? current : {
+        accountId, id: "", status: controller.signal.aborted ? "unknown" : "failed",
+        message: controller.signal.aborted ? "已停止进度查询，后台任务可能仍在运行。" : requestError instanceof Error ? requestError.message : "重算失败。",
+      });
+    }
+  }
+
+  const rebuilding = rebuild?.accountId === accountId && ["queued", "running"].includes(rebuild.status);
+  const rebuildJobId = rebuilding ? rebuild?.id : undefined;
+  useEffect(() => {
+    if (!rebuildJobId || accountId === null) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      try {
+        const job = await requestEquityRebuild(accountId!, controller.signal, rebuildJobId);
+        if (controller.signal.aborted) return;
+        setRebuild({ accountId: accountId!, id: job.id, status: job.status, message: job.message || "正在重算已保存的资产证据…" });
+        if (["queued", "running"].includes(job.status)) timer = setTimeout(() => void poll(), 1000);
+        else if (job.status === "success") setRefreshVersion((version) => version + 1);
+      } catch (requestError) {
+        if (!controller.signal.aborted) setRebuild({ accountId: accountId!, id: rebuildJobId!, status: "unknown", message: `${requestError instanceof Error ? requestError.message : "无法读取重算进度。"} 后台任务可能仍在运行。` });
+      }
+    }
+    void poll();
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [accountId, rebuildJobId]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -133,7 +177,7 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
     void load();
     const timer = window.setInterval(() => void load(true), 60_000);
     return () => { active = false; controller?.abort(); window.clearInterval(timer); };
-  }, [accountId, interval]);
+  }, [accountId, interval, refreshVersion]);
 
   const intervalSeconds = intervals.find((item) => item.value === interval)?.seconds ?? 300;
   const activeSeries = series?.account_id === accountId && series.interval_seconds === intervalSeconds ? series : null;
@@ -142,31 +186,34 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
   const first = candles.at(0);
   const change = latest && first ? latest.close - first.open : 0;
   const changePercent = first?.open ? change / first.open * 100 : 0;
-  const currency = activeSeries?.currency || "USD";
+  const currency = activeSeries?.currency || "USDT";
 
   useEffect(() => {
     const chart = chartRef.current;
     const candleSeries = candleSeriesRef.current;
     if (!chart || !candleSeries) return;
-    candleSeries.setData(candles);
+    candleSeries.setData([...candles, ...(activeSeries?.gaps ?? []).map((stamp) => ({ time: Math.floor(stamp / 1000) as UTCTimestamp }))].sort((a, b) => Number(a.time) - Number(b.time)));
     if (!candles.length) return;
     const fitKey = `${accountId ?? "overview"}:${interval}`;
     if (fittedKeyRef.current !== fitKey) {
       chart.timeScale().fitContent();
       fittedKeyRef.current = fitKey;
     }
-  }, [accountId, candles, interval]);
+  }, [accountId, activeSeries, candles, interval]);
 
   return (
     <div className="equity-chart">
       <div className="equity-chart-head">
-        <div className="equity-chart-title"><span>{accountName}</span><b>预估资产 {activeSeries?.is_sample ? "（示例数据）" : ""}</b></div>
+        <div className="equity-chart-title"><span>{accountName}</span><b>预估资产</b></div>
         <div className="equity-chart-toolbar" aria-label="预估资产 K 线周期">
           {intervals.map((item) => (
             <button key={item.value} type="button" className={interval === item.value ? "on" : ""} onClick={() => setInterval(item.value)}>
               {item.label}
             </button>
           ))}
+          <button type="button" disabled={accountId === null || rebuilding} onClick={() => void startRebuild()} title={accountId === null ? "请先选择单个账户" : "按已保存的证据重算资产曲线"}>
+            {rebuilding ? "正在重算…" : "重算资产曲线"}
+          </button>
         </div>
         {latest ? (
           <div className="equity-chart-price">
@@ -178,7 +225,9 @@ export function EquityCandlestickChart({ accountId, accountName }: Props) {
       <div ref={containerRef} className="equity-chart-canvas" aria-label={`${accountName} 预估资产 K 线`} />
       {loading && !candles.length ? <p className="equity-chart-state">正在读取预估资产…</p> : null}
       {!loading && error && !candles.length ? <p className="equity-chart-state error">{error}</p> : null}
-      {!loading && !error && !candles.length ? <p className="equity-chart-state">暂无预估资产 K 线。</p> : null}
+      {!loading && !error && !candles.length ? <p className="equity-chart-state">暂无完整资产 K 线，等待账户基准和有效价格。</p> : null}
+      {activeSeries?.warnings?.length ? <p className="equity-chart-warning">{activeSeries.warnings.join(" ")}</p> : null}
+      {rebuild?.accountId === accountId ? <p role="status" className="equity-chart-warning">{rebuild.message}</p> : null}
       {error && candles.length ? <span className="equity-chart-warning">刷新失败，正在显示最近缓存</span> : null}
     </div>
   );

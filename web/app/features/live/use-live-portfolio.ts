@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ExchangeAccount, ExchangePortfolio } from "@/app/components/types";
 import { fetchAccountNavigation, fetchPortfolio } from "./api";
 
@@ -12,6 +12,8 @@ export function useLivePortfolio() {
   const [portfolio, setPortfolio] = useState<ExchangePortfolio | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const forceRefresh = useRef(false);
   const [overviewEquity, setOverviewEquity] = useState<string | null>(null);
   const [accountEquities, setAccountEquities] = useState<Record<number, string | null>>({});
 
@@ -52,8 +54,11 @@ export function useLivePortfolio() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchPortfolio(venue === "overview" ? null : venue, controller.signal)
+    const refresh = forceRefresh.current;
+    forceRefresh.current = false;
+    fetchPortfolio(venue === "overview" ? null : venue, controller.signal, refresh)
       .then((nextPortfolio) => {
+        if (controller.signal.aborted) return;
         setPortfolio(nextPortfolio);
         if (venue === "overview") {
           setOverviewEquity(nextPortfolio.account.total_equity);
@@ -72,7 +77,14 @@ export function useLivePortfolio() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [venue]);
+  }, [venue, refreshVersion]);
+
+  const refreshAssets = useCallback(() => {
+    forceRefresh.current = true;
+    setLoading(true);
+    setError("");
+    setRefreshVersion((current) => current + 1);
+  }, []);
 
   const selectVenue = useCallback((nextVenue: SelectedVenue) => {
     setVenue((current) => {
@@ -93,5 +105,6 @@ export function useLivePortfolio() {
     overviewEquity,
     accountEquities,
     selectVenue,
+    refreshAssets,
   };
 }

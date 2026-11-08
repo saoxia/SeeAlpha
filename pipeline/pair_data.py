@@ -158,6 +158,33 @@ def history_configuration(policy):
         ("product", "symbol", "base_level", "intervals", "history_mode", "history_start", "history_days")}, sort_keys=True).encode()).hexdigest()
 
 
+def _history_archive_available(policy, settings, day, finish):
+    """Probe publication before scanning; never download or convert a missing day."""
+    from urllib.error import HTTPError
+    from urllib.request import Request, urlopen
+
+    from pipeline.sync_binance_batch import local_archive_is_verified
+    from pipeline.sync_binance_file import USER_AGENT, SyncError, fetch_checksum, normalize_source
+
+    spec = plan_daily_archives(DataRequest((policy["symbol"],), day, finish, bar_intervals=()))[0]
+    if local_archive_is_verified(spec, settings.raw_dir) is not None:
+        return True
+    url = normalize_source(spec.source_path)
+    try:
+        fetch_checksum(url, timeout=12, retries=3)
+        with urlopen(Request(url, method="HEAD", headers={"User-Agent": USER_AGENT}), timeout=12):
+            pass
+    except SyncError as exc:
+        if isinstance(exc.__cause__, HTTPError) and exc.__cause__.code == 404:
+            return False
+        raise
+    except HTTPError as exc:
+        if exc.code == 404:
+            return False
+        raise
+    return True
+
+
 async def serve_history(policy, settings, root, *, rest=None):
     """Continuous source backfill. Checkpoints and change delivery are file-owned."""
     root.mkdir(parents=True, exist_ok=True)
@@ -167,11 +194,13 @@ async def serve_history(policy, settings, root, *, rest=None):
     saved = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
     if saved and saved.get("configuration") != digest:
         saved = {}
-    source = "tick" if policy["base_level"] == "tick" else "1s" if policy["base_level"] == "1s" else "1m"
-    # Internal minute inputs for larger minimums stay outside the public Catalog.
+    source = ("1s" if policy["base_level"] == "1s" else
+              "tick" if policy["base_level"] == "tick" or "1s" in policy["intervals"] else "1m")
+    # Seconds require real trades. K-line-only policies keep those working Tick
+    # inputs outside the public Catalog; official minutes cannot invent seconds.
     source_settings = (replace(settings, catalog_dir=root / "source_catalog")
-                       if policy["base_level"] not in {"tick", "1s", "1m", "auto"} and "1m" not in policy["intervals"] else settings)
-    source_policy = {**policy, "base_level": source, "intervals": []}
+                       if source == "tick" and policy["base_level"] != "tick"
+                       or policy["base_level"] not in {"tick", "1s", "1m", "auto"} and "1m" not in policy["intervals"] else settings)
     state = {"state": "WARMING_UP", "backlog": None, "last_error": None}
 
     async def heartbeat():
@@ -193,22 +222,28 @@ async def serve_history(policy, settings, root, *, rest=None):
                     available = datetime.fromtimestamp(int(earliest[0][0]) / 1000, UTC).replace(hour=0, minute=0, second=0, microsecond=0)
                     start = max(start or available, available)
                     saved = {"configuration": digest, "start": start.isoformat(), "next_day": start.isoformat(),
-                             "available_ms": int(earliest[0][0]), "verification_version": 1}
+                             "available_ms": int(earliest[0][0]), "verification_version": 2}
                     write_record(checkpoint, saved)
-                if saved.get("verification_version") != 1:
-                    earliest = await rest.get("klines", symbol=policy["symbol"], interval="1m", startTime=0, limit=1)
-                    if not earliest:
-                        raise ValueError("交易所没有可用历史")
-                    saved.update(next_day=saved["start"], available_ms=int(earliest[0][0]), verification_version=1)
+                if saved.get("verification_version") != 2:
+                    if "available_ms" not in saved:
+                        earliest = await rest.get("klines", symbol=policy["symbol"], interval="1m", startTime=0, limit=1)
+                        if not earliest:
+                            raise ValueError("交易所没有可用历史")
+                        saved["available_ms"] = int(earliest[0][0])
+                    saved.update(next_day=saved["start"], verification_version=2, next_scan_at=0)
                     write_record(checkpoint, saved)
                 day = datetime.fromisoformat(saved["next_day"])
                 end = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+                if source in {"tick", "1s"}:
+                    # At UTC D 00:00, only D-2 and older archive dates are eligible.
+                    end -= timedelta(days=1)
                 unresolved = saved.get("unresolved_days", {})
                 state.update(state="DEGRADED" if unresolved else "READY", backlog=max(0, (end - day).days),
-                             unresolved_days=len(unresolved), last_error="历史存在未解决的对照差异" if unresolved else None)
+                             unresolved_days=len(unresolved), last_error="历史存在未解决的对照差异" if unresolved else None,
+                             reason=None, next_retry_at=None, eligible_before=end.isoformat())
                 if day >= end:
-                    if time.time() >= saved.get("next_scan_at", 0):
-                        saved.update(next_day=saved["start"], next_scan_at=time.time() + 300)
+                    if unresolved and time.time() >= saved.get("next_scan_at", 0):
+                        saved.update(next_day=min(unresolved) + "T00:00:00+00:00", next_scan_at=time.time() + 300)
                         write_record(checkpoint, saved)
                     await asyncio.sleep(30)
                     continue
@@ -217,6 +252,33 @@ async def serve_history(policy, settings, root, *, rest=None):
                     continue
                 finish = day + timedelta(days=1)
                 change = root / "changes" / f"{day.date()}.json"
+                interrupted = False
+                if change.exists():
+                    pending = json.loads(change.read_text())
+                    if pending["state"] == "ready":
+                        state.update(state="WARMING_UP", reason="waiting_calculation", current_day=str(day.date()))
+                        await asyncio.sleep(5)
+                        continue
+                    interrupted = True
+                audit = root / "audits" / f"{day.date()}.json"
+                previous = json.loads(audit.read_text()) if audit.exists() else {}
+                if (not interrupted and previous.get("verified") is True and previous.get("ready") is True
+                        and previous.get("scope") == "saved_kline_ohlcv"
+                        and previous.get("configuration") == digest and previous.get("verification_version") == 2):
+                    unresolved.pop(str(day.date()), None)
+                    if not unresolved:
+                        saved.pop("next_scan_at", None)
+                    saved.update(next_day=finish.isoformat(), unresolved_days=unresolved)
+                    write_record(checkpoint, saved)
+                    continue
+                if source in {"tick", "1s"}:
+                    waiting = saved.get("archive_wait", {})
+                    retry_at = waiting.get("retry_at", 0) if waiting.get("day") == day.isoformat() else 0
+                    if time.time() < retry_at:
+                        state.update(state="DEGRADED" if unresolved else "WARMING_UP", reason="archive_not_published",
+                                     current_day=str(day.date()), next_retry_at=retry_at)
+                        await asyncio.sleep(min(30, retry_at - time.time()))
+                        continue
                 event = {"state": "writing", "start": day.isoformat(), "end": finish.isoformat(),
                          "source": source, "source_catalog": str(source_settings.catalog_dir),
                          "policy": policy, "configuration": digest, "coverage_start": saved["start"]}
@@ -233,17 +295,32 @@ async def serve_history(policy, settings, root, *, rest=None):
                         await asyncio.sleep(5)
                         continue
                     from pipeline.pair_repair import reconcile_day
-                    result = await reconcile_day(source_policy, source_settings, rest, source, day, finish, saved["available_ms"])
-                    write_record(root / "audits" / f"{day.date()}.json", result)
-                    if result["ready"]:
+                    result = await reconcile_day(policy, source_settings, rest, source, day, finish, saved["available_ms"],
+                                                 comparison_catalog=settings.catalog_dir)
+                    needs_calculation = result.get("needs_calculation", False) or interrupted
+                    verified = result["ready"] and not needs_calculation and not result.get("archive_pending")
+                    write_record(audit, {**result, "verified": verified, "configuration": digest, "verification_version": 2})
+                    if verified:
                         unresolved.pop(str(day.date()), None)
-                    else:
+                        if not unresolved:
+                            saved.pop("next_scan_at", None)
+                    elif not result.get("archive_pending"):
                         unresolved[str(day.date())] = result["checked_at"]
                     saved["unresolved_days"] = unresolved
                 # Publish before advancing. A crash in either step safely replays this day.
                 with (root / "changes.lock").open("a") as lease:
                     fcntl.flock(lease, fcntl.LOCK_EX)
-                    write_record(change, {**event, "state": "ready"})
+                    if result.get("archive_pending"):
+                        saved["archive_wait"] = {"day": day.isoformat(), "retry_at": time.time() + 1800}
+                        if not interrupted:
+                            change.unlink()
+                        write_record(checkpoint, saved)
+                        continue
+                    saved.pop("archive_wait", None)
+                    if needs_calculation:
+                        write_record(change, {**event, "state": "ready"})
+                    else:
+                        change.unlink()
                     saved["next_day"] = finish.isoformat()
                     write_record(checkpoint, saved)
                 state["last_processed_ms"] = int(finish.timestamp() * 1000)
@@ -255,11 +332,59 @@ async def serve_history(policy, settings, root, *, rest=None):
         await asyncio.gather(beat, return_exceptions=True)
 
 
-def calculate_history_change(event, destination, *, completed_until):
-    """Derive only complete affected windows, using bounded source streams."""
+def _history_inputs(source, symbol, source_level, start_ms, end_ms):
+    """Read hourly source ranges; expand at most 1,000 Arrow rows at a time.
+
+    Tick shards can interleave, including within one millisecond. Reduce each
+    hour to second OHLCV using (event time, trade ID), before feeding all higher
+    periods directly. Empty seconds are never fabricated.
+    """
     import pyarrow as pa
     from nautilus_trader.model import NautilusDataType
 
+    tick = source_level == "tick"
+    identifier = instrument_id_for(symbol) if tick else bar_type_for(symbol, source_level)
+    data_type = NautilusDataType.TradeTick if tick else NautilusDataType.Bar
+    fields = ["price", "size", "trade_id"] if tick else ["open", "high", "low", "close", "volume"]
+    cursor = start_ms
+    while cursor < end_ms:
+        stop = min((cursor // 3600000 + 1) * 3600000, end_ms)
+        stream = source.native.query_data_arrow_stream(
+            data_type, [identifier], cursor * 1000000, stop * 1000000 - 1, display=False)
+        reader = pa.RecordBatchReader._import_from_c_capsule(stream)
+        summaries = {}
+        try:
+            for batch in reader:
+                for offset in range(0, batch.num_rows, 1000):
+                    piece = batch.slice(offset, 1000)
+                    stamps = piece.column("ts_event").cast(pa.int64()).to_pylist()
+                    for stamp, row in zip(stamps, piece.select(fields).to_pylist(), strict=True):
+                        if not tick:
+                            width = 1000 if source_level == "1s" else 60000
+                            yield stamp // 1000000 + 1 - width, [Decimal(str(row[k])) for k in fields]
+                            continue
+                        price, size = Decimal(str(row["price"])), Decimal(str(row["size"]))
+                        key = stamp, int(row["trade_id"])
+                        opening = stamp // 1000000000 * 1000
+                        bucket = summaries.get(opening)
+                        if bucket is None:
+                            summaries[opening] = [price, price, price, price, size, key, key]
+                        else:
+                            bucket[1], bucket[2] = max(bucket[1], price), min(bucket[2], price)
+                            bucket[4] += size
+                            if key < bucket[5]:
+                                bucket[0], bucket[5] = price, key
+                            if key > bucket[6]:
+                                bucket[3], bucket[6] = price, key
+        finally:
+            reader.close()
+        for opening, values in sorted(summaries.items()):
+            yield opening, values[:5]
+        cursor = stop
+
+
+def calculate_history_change(event, destination, *, completed_until):
+    """Reduce Tick to seconds once, then directly derive all affected high periods."""
     policy = event["policy"]
     source_level = event["source"]
     source = ParquetDataCatalog(event["source_catalog"])
@@ -278,50 +403,48 @@ def calculate_history_change(event, destination, *, completed_until):
     lower_ms = int(datetime.fromisoformat(event.get("coverage_start", event["start"])).timestamp() * 1000)
     upper_ms = int(datetime.fromisoformat(completed_until).timestamp() * 1000)
     levels = list(dict.fromkeys(([policy["base_level"]] if policy["base_level"] not in {"auto", "tick"} else []) + policy["intervals"]))
-    written = 0
+    ranges = {}
     for level in levels:
         if level == source_level:
             continue
         left = bar_window(level, start_ms)[0]
         right = bar_window(level, end_ms - 1)[1]
-        data_type = NautilusDataType.TradeTick if source_level == "tick" else NautilusDataType.Bar
-        identifier = instrument_id_for(policy["symbol"]) if source_level == "tick" else bar_type_for(policy["symbol"], source_level)
-        stream = source.native.query_data_arrow_stream(data_type, [identifier], left * 1000000, right * 1000000 - 1, display=False)
-        reader = pa.RecordBatchReader._import_from_c_capsule(stream)
-        buckets = {}
-        source_ms = 1000 if source_level == "1s" else 60000
-        try:
-            for batch in reader:
-                stamps = batch.column("ts_event").cast(pa.int64()).to_pylist()
-                for index, row in enumerate(batch.to_pylist()):
-                    stamp = stamps[index] // 1000000
-                    opening_ms = stamp if source_level == "tick" else stamp + 1 - source_ms
-                    a, b = bar_window(level, opening_ms)
-                    if a < lower_ms or b > upper_ms:
-                        continue
-                    values = ([Decimal(str(row["price"]))] * 4 + [Decimal(str(row["size"]))]
-                              if source_level == "tick" else [Decimal(str(row[k])) for k in ("open", "high", "low", "close", "volume")])
-                    key = (stamps[index], int(row["trade_id"])) if source_level == "tick" else opening_ms
-                    previous = buckets.get(a)
-                    if previous is None:
-                        buckets[a] = [b, *values, key, key, 1]
-                    else:
-                        previous[2] = max(previous[2], values[1])
-                        previous[3] = min(previous[3], values[2])
-                        previous[5] += values[4]
-                        if source_level == "tick":
-                            # Additive repair shards may interleave at the same millisecond.
-                            if key < previous[6]:
-                                previous[1], previous[6] = values[0], key
-                            if key > previous[7]:
-                                previous[4], previous[7] = values[3], key
-                        else:
-                            if opening_ms != previous[7] + source_ms:
-                                raise ValueError("历史计算来源存在缺口或重复；待办已保留")
-                            previous[4], previous[7] = values[3], key
-                        previous[8] += 1
-        finally:
-            reader.close()
+        # A daily change may touch a week/month which has not closed yet, or
+        # starts before configured coverage. Reject it before opening any stream.
+        if left < lower_ms:
+            left = bar_window(level, lower_ms)[1]
+        if right > upper_ms:
+            right = bar_window(level, upper_ms)[0]
+        if left < right:
+            ranges[level] = left, right
+    if not ranges:
+        return 0
+    aggregates = {level: {} for level in ranges}
+    source_ms = 1000 if source_level == "1s" else 60000
+    inputs = _history_inputs(source, policy["symbol"], source_level,
+                             min(left for left, _ in ranges.values()), max(right for _, right in ranges.values()))
+    try:
+        for opening_ms, values in inputs:
+            for level, (left, right) in ranges.items():
+                if not left <= opening_ms < right:
+                    continue
+                a, b = bar_window(level, opening_ms)
+                buckets = aggregates[level]
+                previous = buckets.get(a)
+                if previous is None:
+                    buckets[a] = [b, *values, opening_ms, opening_ms, 1]
+                else:
+                    previous[2] = max(previous[2], values[1])
+                    previous[3] = min(previous[3], values[2])
+                    previous[5] += values[4]
+                    if source_level != "tick" and opening_ms != previous[7] + source_ms:
+                        raise ValueError("历史计算来源存在缺口或重复；待办已保留")
+                    previous[4], previous[7] = values[3], opening_ms
+                    previous[8] += 1
+    finally:
+        inputs.close()
+    written = 0
+    for level, buckets in aggregates.items():
         bars = []
         for a, (b, opening, high, low, close, volume, first, last, count) in sorted(buckets.items()):
             if source_level != "tick" and (first != a or last + source_ms != b or count * source_ms != b - a):
@@ -347,7 +470,8 @@ def calculate_history_change(event, destination, *, completed_until):
 
 def main():
     parser = argparse.ArgumentParser(description="Explicit historical pair backfill")
-    parser.add_argument("--request", required=True)
+    parser.add_argument("--request")
+    parser.add_argument("--options-config", type=Path)
     parser.add_argument("--job-id")
     parser.add_argument("--service", action="store_true")
     parser.add_argument("--root", type=Path)
@@ -356,6 +480,18 @@ def main():
     if not args.service and not re.fullmatch(r"[0-9a-f]{32}", args.job_id or ""):
         parser.error("Invalid job id")
     from core.market.instruments import INTERVALS, normalize_symbol
+    if args.options_config:
+        if not args.service or args.root is None or not (PROJECT_ROOT / "data").is_dir() or not args.root.resolve().is_relative_to((PROJECT_ROOT / "data").resolve()):
+            parser.error("Invalid options batch root")
+        root = args.root / "history"
+        root.mkdir(parents=True, exist_ok=True)
+        with (root / "writer.lock").open("a") as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            from pipeline.options_data import serve_history_batch
+            asyncio.run(serve_history_batch(args.options_config, load_settings(), args.root.parent))
+        return
+    if not args.request:
+        parser.error("A single request is required")
     policy = json.loads(args.request)
     policy["symbol"] = normalize_symbol(policy["symbol"], policy["product"])
     if policy["base_level"] not in {"auto", "tick", *INTERVALS} or any(level not in INTERVALS for level in policy["intervals"]):
@@ -367,7 +503,11 @@ def main():
         root.mkdir(parents=True, exist_ok=True)
         with (root / "writer.lock").open("a") as lease:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            asyncio.run(serve_history(policy, load_settings(), root))
+            if policy["product"] == "options":
+                from pipeline.options_data import serve_history as serve_options_history
+                asyncio.run(serve_options_history(policy, load_settings(), root))
+            else:
+                asyncio.run(serve_history(policy, load_settings(), root))
         return
     result = asyncio.run(backfill(policy, load_settings()))
     target = PROJECT_ROOT / ".local/state/api/data_jobs" / f"{args.job_id}.json"

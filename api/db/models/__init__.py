@@ -160,3 +160,35 @@ class BacktestReport(Base):
     url: Mapped[str] = mapped_column(Text, primary_key=True)
     modified_at: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+
+
+class EquityEvent(Base):
+    __tablename__ = "equity_events"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ID, nullable=False)
+    environment: Mapped[str] = mapped_column(Text, nullable=False)
+    source_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+    __table_args__ = (Index("equity_events_account_time", account_id, environment, timestamp, id),)
+
+
+class EquityPoint(Base):
+    __tablename__ = "equity_points"
+    event_id: Mapped[int] = mapped_column(ID, ForeignKey("equity_events.id"), primary_key=True)
+    body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+
+
+class EquityState(Base):
+    __tablename__ = "equity_state"
+    account_id: Mapped[int] = mapped_column(ID, primary_key=True)
+    environment: Mapped[str] = mapped_column(Text, primary_key=True)
+    body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+
+
+class EquityRebuild(Base):
+    __tablename__ = "equity_rebuilds"
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ID, nullable=False)
+    environment: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)

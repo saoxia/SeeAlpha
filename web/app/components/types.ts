@@ -1,6 +1,6 @@
 import type { components } from "@/app/api/generated/schema";
 
-export type AppView = "live" | "dataops" | "data" | "research" | "settings";
+export type AppView = "live" | "trade" | "data" | "research" | "settings";
 
 export type ExchangeId = "binance" | "okx";
 

@@ -4,6 +4,7 @@ import asyncio
 import json
 from dataclasses import replace
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.exchanges.service import summary
 from api.main import create_app
+from connectors.binance import assets as asset_queries
 from connectors.binance import queries
 from connectors.binance.queries import account_snapshot as native_account_snapshot
 
@@ -294,41 +296,148 @@ def test_legacy_encrypted_credentials_require_original_key(application):
         assert not key_path.exists()
 
 
-def test_sample_equity_candles(application):
+def test_equity_candles_require_persistent_evidence(application):
     app, _, _ = application
     with TestClient(app) as client:
         path = "/api/exchange-accounts/equity-candles"
         assert client.get(path).status_code == 401
         signin(client)
         account_id = create(client).json()["id"]
-        for interval, seconds in [
-            ("5m", 300),
-            ("15m", 900),
-            ("1h", 3600),
-            ("4h", 14400),
-            ("1d", 86400),
-        ]:
-            response = client.get(path, params={"interval": interval, "limit": 3})
-            assert response.status_code == 200
-            result = response.json()
-            assert result["is_sample"] is True
-            assert result["account_id"] is None
+        for interval, seconds in [("5m", 300), ("15m", 900), ("1h", 3600), ("4h", 14400), ("1d", 86400)]:
+            result = client.get(path, params={"interval": interval, "limit": 3}).json()
+            assert result["is_sample"] is False
             assert result["interval_seconds"] == seconds
-            candles = result["candles"]
-            assert len(candles) == 3
-            assert candles[1]["bucket_start"] - candles[0]["bucket_start"] == seconds * 1000
-            assert all(
-                float(c["low"])
-                <= min(float(c["open"]), float(c["close"]))
-                <= max(float(c["open"]), float(c["close"]))
-                <= float(c["high"])
-                for c in candles
-            )
+            assert result["candles"] == [] and result["status"] == "unavailable"
         result = client.get(f"/api/exchange-accounts/{account_id}/equity-candles").json()
-        assert result["account_id"] == account_id and result["is_sample"] is True
+        assert result["account_id"] == account_id and result["is_sample"] is False
         assert client.get("/api/exchange-accounts/999999/equity-candles").status_code == 404
         assert client.get(path, params={"interval": "2m"}).status_code == 422
         assert client.get(path, params={"limit": 501}).status_code == 422
+
+
+@pytest.fixture
+def mixed_assets(application, monkeypatch):
+    app, _, _ = application
+    original = queries.account_snapshot
+    clock = [100.0]
+    monkeypatch.setattr("api.exchanges.service.time", SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 1785542400))
+
+    async def snapshot(account):
+        result = await original(account)
+        result.balances["BNB"] = "0.001"
+        return result
+
+    monkeypatch.setattr(queries, "account_snapshot", snapshot)
+    evidence = {
+        "multi_assets": False, "observed_at": 1785542400,
+        "totals": {"total_wallet_balance": "101", "total_margin_balance": "106",
+                   "total_unrealized_profit": "5", "total_maint_margin": "1"},
+        "assets": {
+            "USDT": {"walletBalance": Decimal(100), "unrealizedProfit": Decimal(5), "maintMargin": Decimal(1)},
+            "BNB": {"walletBalance": Decimal("0.001"), "unrealizedProfit": Decimal(0), "maintMargin": Decimal(0)},
+        },
+    }
+    monkeypatch.setattr(asset_queries, "asset_account", lambda _: evidence)
+    prices, price_calls = {"USDT": Decimal(1), "BNB": Decimal(1000)}, []
+
+    def price(env, currency):
+        price_calls.append((env, currency))
+        if prices[currency] is None:
+            raise queries.QueryError("资产指数价格读取失败或已过期。")
+        return {"price": prices[currency], "priced_at": 1785542400}
+
+    monkeypatch.setattr(asset_queries, "asset_price", price)
+    return app, evidence, prices, price_calls, clock
+
+
+def test_dust_is_included_and_cached_with_balance_change_and_manual_refresh(mixed_assets):
+    app, evidence, _, price_calls, clock = mixed_assets
+    with TestClient(app) as client:
+        signin(client)
+        account_id = create(client, "lly").json()["id"]
+        url = f"/api/exchange-accounts/{account_id}/portfolio"
+        result = client.get(url).json()
+        assert result["errors"] == {}
+        assert result["account"]["wallet_balance"] == "101.000"
+        assert Decimal(result["account"]["total_equity"]) == 106
+        assert result["account"]["margin_ratio"] is None
+        assert result["valuation_source"] == "estimate"
+        bnb = next(a for a in result["assets"] if a["currency"] == "BNB")
+        assert bnb["small"] and Decimal(bnb["value_usdt"]) == 1
+        assert bnb["account_name"] == "lly"
+        clock[0] += 61
+        client.get(url)
+        assert price_calls.count(("production", "BNB")) == 1
+        evidence["assets"]["BNB"]["walletBalance"] = Decimal("0.005")
+        clock[0] += 11
+        result = client.get(url).json()
+        bnb = next(a for a in result["assets"] if a["currency"] == "BNB")
+        assert not bnb["small"] and Decimal(bnb["value_usdt"]) == 5
+        assert price_calls.count(("production", "BNB")) == 2
+        client.get(url + "?refresh=true")
+        assert price_calls.count(("production", "BNB")) == 3
+        clock[0] += 61
+        client.get(url)
+        assert price_calls.count(("production", "BNB")) == 4
+        assert len(client.get("/api/exchange-accounts/portfolio").json()["assets"]) == 2
+
+
+def test_missing_prices_keep_old_evidence_and_recover_without_zero_values(mixed_assets):
+    app, _, prices, _, clock = mixed_assets
+    with TestClient(app) as client:
+        signin(client)
+        account_id = create(client).json()["id"]
+        url = f"/api/exchange-accounts/{account_id}/portfolio"
+        client.get(url)
+        prices["BNB"] = None
+        result = client.get(url + "?refresh=true").json()
+        assert result["account"]["total_equity"] is None
+        assert "暂不可用" in result["errors"]["account"]
+        bnb = next(a for a in result["assets"] if a["currency"] == "BNB")
+        assert bnb["stale"] and Decimal(bnb["value_usdt"]) == 1
+        assert bnb["priced_at"] == 1785542400
+        assert "暂不可用" in client.get("/api/exchange-accounts/portfolio").json()["errors"]["account"]
+        prices["BNB"] = Decimal(2000)
+        clock[0] += 61
+        result = client.get(url).json()
+        assert result["errors"] == {}
+        assert Decimal(result["account"]["total_equity"]) == 107
+
+
+def test_multi_asset_totals_are_not_double_counted_and_stablecoins_use_real_indices(mixed_assets):
+    app, evidence, prices, _, _ = mixed_assets
+    evidence["multi_assets"] = True
+    prices["USDT"] = Decimal("0.5")
+    prices["BNB"] = None
+    with TestClient(app) as client:
+        signin(client)
+        account_id = create(client).json()["id"]
+        result = client.get(f"/api/exchange-accounts/{account_id}/portfolio").json()
+        assert result["errors"] == {}
+        assert result["valuation_source"] == "exchange"
+        assert Decimal(result["account"]["total_equity"]) == 212
+        assert next(a for a in result["assets"] if a["currency"] == "BNB")["value_usdt"] is None
+        assert "暂未估值" in result["warnings"]["account"]
+
+
+def test_dust_expiry_does_not_slide_and_negative_assets_are_preserved(mixed_assets):
+    app, evidence, prices, calls, clock = mixed_assets
+    evidence["assets"]["BNB"]["walletBalance"] = Decimal("-0.001")
+    with TestClient(app) as client:
+        signin(client)
+        account_id = create(client).json()["id"]
+        url = f"/api/exchange-accounts/{account_id}/portfolio"
+        result = client.get(url).json()
+        assert Decimal(result["account"]["total_equity"]) == 104
+        for instant in (1000, 2000, 3699):
+            clock[0] = instant
+            client.get(url)
+        assert calls.count(("production", "BNB")) == 1
+        clock[0] = 3700
+        prices["BNB"] = Decimal(2000)
+        result = client.get(url).json()
+        assert calls.count(("production", "BNB")) == 2
+        assert Decimal(result["account"]["total_equity"]) == 103
 
 
 def test_market_catalog_uses_native_contract_names_and_caches(monkeypatch):

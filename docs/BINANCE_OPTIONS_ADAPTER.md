@@ -23,7 +23,8 @@
 
 本适配器可被其他代码注册和调用；本轮不新增 HTTP 接口、前端账户产品选项、持续采集服务、
 自动持久化或策略接线。原有页面的期权近期/历史数据管理仍可使用原先入口。
-现有 `feed/` 仍然只管理 USD-M 连续分钟线，页面的期权“实时未接入”指持续采集管理链路，
+2026-11-07 已将期权接入管理端持续采集及官方闭合 K 线补齐，原 USD-M 连续分钟线门禁保持不变。
+此前页面的期权“实时未接入”指当时的持续采集管理链路，
 不能因为底层已有适配器就改成 READY。
 
 ## 原生节点注册
@@ -195,3 +196,11 @@ Reduce Only 显式传入 `reduce_only=True`。策略和风险预算仍由原生 
 - [Binance 期权 market WebSocket](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-options/api/ws-streams/market)
 - [Binance 期权账户 REST](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-options/api/rest-api/account)
 - [Binance 期权订单与持仓 REST](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-options/api/rest-api/trade)
+
+
+2026-11-07 已授权批量行情管理：`batch_market_events` 将至多 64 个合约分组，
+共享公开 K 线与可选 Tick 连接，动态订阅/退订须获得匹配确认；新合约不会重连其他合约。
+原生 DataClient 与批量入口共用 `options_parsing.trade_event/bar_event`，不重复精度或单位逻辑，
+不配置账户/执行客户端，不改变原生交易与风控引擎。单合约公开入口仍可用。
+模拟 1,514 合约全开 Tick 使用 48 条连接，另验证两个真实公开合约的共享订阅确认；
+后者仅为公开协议检查，不代表私有权限或全量长期采集已验收。

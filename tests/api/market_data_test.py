@@ -501,11 +501,11 @@ def test_subscription_configuration_auth_validation_and_missing_mount_stop(conte
     assert not (root / "data/catalog").exists()
     canonical = client.post("/api/data/subscriptions", json={**payload, "base_level": "1m", "intervals": ["1s"]})
     assert canonical.status_code == 200
-    from core.market.instruments import BINANCE_KLINE_INTERVALS
-    assert canonical.json()["policy"]["intervals"] == list(BINANCE_KLINE_INTERVALS)
+    from core.market.instruments import INTERVALS
+    assert canonical.json()["policy"]["intervals"] == list(INTERVALS)
     legacy_second = client.post("/api/data/subscriptions", json={**payload, "base_level": "1s"})
     assert legacy_second.status_code == 200 and legacy_second.json()["policy"]["base_level"] == "1m"
-    assert legacy_second.json()["policy"]["intervals"] == list(BINANCE_KLINE_INTERVALS)
+    assert legacy_second.json()["policy"]["intervals"] == list(INTERVALS)
     assert client.post("/api/data/subscriptions", json={**payload, "symbol": "../private"}).status_code == 422
     # Stopping/configuring history must remain possible while the disk is missing.
     (root / "data").rmdir()
@@ -599,9 +599,9 @@ def test_legacy_auto_save_uses_all_official_periods_and_explicit_runtime(context
     response = client.post("/api/data/subscriptions", json=payload)
     assert response.status_code == 200, response.text
     assert response.json()["policy"]["base_level"] == "1m"
-    from core.market.instruments import BINANCE_KLINE_INTERVALS
+    from core.market.instruments import INTERVALS
     runtime_policy = json.loads(commands[0][commands[0].index("--policy") + 1])
-    assert runtime_policy["intervals"] == list(BINANCE_KLINE_INTERVALS)
+    assert runtime_policy["intervals"] == list(INTERVALS)
     app.state.market_data.subscriptions._read()  # Saved explicit policies also validate on restart.
     assert client.post("/api/data/subscriptions", json={**payload, "intervals": ["1s"]}).status_code == 422
     assert client.post("/api/data/subscriptions", json={**payload, "intervals": ["1s"], "realtime_enabled": False}).status_code == 200
@@ -627,7 +627,7 @@ def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monk
     assert "1M" in capabilities["intervals"] and capabilities["realtime_ticks"]
     response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "1h", "intervals": ["5m"]})
     assert response.status_code == 200
-    assert len(response.json()["policy"]["intervals"]) == 15 and "1s" not in response.json()["policy"]["intervals"]
+    assert len(response.json()["policy"]["intervals"]) == 16 and "1s" in response.json()["policy"]["intervals"]
     assert client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "history_enabled": True, "history_mode": "start"}).status_code == 422
     assert client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "history_enabled": True, "history_mode": "duration", "history_days": 0}).status_code == 422
     captured = []
@@ -1172,3 +1172,515 @@ def test_duration_without_retained_data_uses_today_utc_midnight(context, monkeyp
     saved = response.json()["policy"]
     assert datetime.fromisoformat(saved["history_start"]) == today - timedelta(days=10)
     assert saved["history_mode"] == "start"
+
+
+def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypatch):
+    from types import SimpleNamespace
+
+    from api.market_data.contracts import DataPolicy
+    from feed.pair_store import PairStore
+
+    client, app, _root = context
+    assert client.get('/api/data/chart', params={'symbol': 'ETHUSDT'}).status_code == 401
+    login(client)
+    now = int(time.time() * 1000)
+    left = now // 60000 * 60000
+    policy = DataPolicy(symbol='ETHUSDT', base_level='1m', realtime_enabled=True)
+    subscriptions = app.state.market_data.subscriptions
+    subscriptions.policies = [policy]
+    journal_root = subscriptions.root(policy)
+    journal_root.mkdir(parents=True, exist_ok=True)
+    store = PairStore(journal_root / 'collection.sqlite', 'ETHUSDT', '1m', ['1m'])
+    store.candle('1m', [left - 60000, '10', '12', '9', '11', '2', left - 1], now)
+    # Working, non-retained evidence must never leak into the chart.
+    store.candle('1m', [left - 120000, '10', '12', '9', '11', '2', left - 60001], now, retained=False)
+    store.close()
+    forming = {'interval': '1m', 'start_ms': left, 'end_ms': left + 60000,
+               'open': '11', 'high': '13', 'low': '11', 'close': '12', 'volume': '1', 'is_complete': False, 'is_closed': False, 'updated_ms': now}
+    for role in ('collection', 'calculation'):
+        subscriptions_role = subscriptions.processes if role == 'collection' else subscriptions.auxiliary
+        key = ('futures_um', 'ETHUSDT') if role == 'collection' else ('futures_um', 'ETHUSDT', role)
+        subscriptions_role[key] = SimpleNamespace(poll=lambda: None)
+        path = journal_root / ('status.json' if role == 'collection' else 'calculation/status.json')
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps({'state': 'READY', 'valid_until_ms': now + 15000,
+                                   'bar_updates': [forming, {**forming, 'start_ms': left - 60000, 'end_ms': left,
+                                                            'updated_ms': now - 5000}]}))
+    try:
+        result = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m')
+        assert result.status_code == 200, result.text
+        data = result.json()
+        assert data['live'] and data['quality'] == 'unverified'
+        assert [r['time'] for r in data['candles']] == [(left - 60000) // 1000, left // 1000]
+        assert not data['candles'][-1]['is_closed'] and not data['candles'][-1]['is_complete']
+        # Expired observations cannot keep a forming candle alive.
+        monkeypatch.setattr('api.market_data.monitor.time.time', lambda: (now + 30000) / 1000)
+        data = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m').json()
+        assert not data['live']
+        assert len(data['candles']) == 1
+        assert client.get('/api/data/chart?symbol=ETHUSDT&interval=2s').status_code == 422
+        assert client.get('/api/data/chart?symbol=../ETHUSDT').status_code == 422
+        assert client.get('/api/data/chart?symbol=XRPUSDT').json()['candles'] == []
+    finally:
+        subscriptions.processes.clear()
+        subscriptions.auxiliary.clear()
+
+
+def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(context):
+    import fcntl
+
+    from nautilus_trader.model import Bar, BarType, Price, Quantity
+
+    from core.market.instruments import bar_type_for
+    from pipeline.catalog import ParquetDataCatalog
+
+    client, app, root = context
+    login(client)
+    left = int(time.time() * 1000) // 60000 * 60000
+    kind = BarType.from_str(bar_type_for('ETHUSDT', '1m'))
+    catalog = ParquetDataCatalog(root / 'data/catalog')
+    catalog.write_data([
+        Bar(kind, *(Price.from_str(v) for v in ('10.10', '12.20', '9.30', '11.40')),
+            Quantity.from_str('2.123'), (opening + 60000 - 1) * 1000000,
+            (opening + 60000 - 1) * 1000000)
+        for opening in range(left - 301 * 60000, left, 60000)
+    ])
+    result = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m')
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert len(data['candles']) == 299
+    assert data['candles'][0]['time'] == (left - 299 * 60000) // 1000
+    assert data['candles'][-1]['time'] == (left - 60000) // 1000
+    assert data['candles'][-1]['close'] == '11.40'
+    assert data['candles'][-1]['volume'] == '2.123'
+    assert data['candles'][-1]['is_closed']
+    assert data['candles'][-1]['is_complete'] is None
+    assert not data['live']
+    # A view must obey the same deletion exclusion as other reads.
+    with app.state.market_data._lease('ETHUSDT', access=True) as lease:
+        assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 409
+        fcntl.flock(lease, fcntl.LOCK_UN)
+    import shutil
+    shutil.rmtree(root / 'data')
+    assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 503
+    assert not (root / 'data').exists()
+
+
+def test_all_options_include_new_contracts_and_preserve_existing_configuration(context, monkeypatch):
+    client, app, _root = context
+    login(client)
+    starts = []
+    monkeypatch.setattr(app.state.market_data.subscriptions, "_start", starts.append)
+    first, second = "BTC-261225-85000-C", "ETH-270129-3000-P"
+    markets = [{"symbol": first}]
+
+    async def catalog(_environment, product="futures_um"):
+        assert product == "options"
+        return markets
+
+    app.state.exchanges.catalog = catalog
+    payload = {"symbol": "ALL", "product": "options", "base_level": "1m",
+               "intervals": ["1m", "5m", "15m"], "realtime_enabled": False}
+    login(client, username="viewer")
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 403
+    login(client)
+    assert client.post("/api/data/subscriptions", json=payload,
+                       headers={"origin": "https://evil.example"}).status_code == 403
+    assert client.post("/api/data/subscriptions/plan", json=payload).status_code == 200
+    response = client.post("/api/data/subscriptions", json=payload)
+    assert response.status_code == 200, response.text
+    policies = app.state.market_data.policy_repository.list()
+    assert {p["symbol"] for p in policies} == {"ALL", "BTCUSDT", first}
+    # Existing per-contract settings survive automatic catalogue discovery.
+    response = client.post("/api/data/subscriptions", json={**payload, "symbol": first,
+                                                         "base_level": "tick", "intervals": []})
+    assert response.status_code == 200, response.text
+    markets[:] = [{"symbol": second}, {"symbol": second}]
+    subscriptions = app.state.market_data.subscriptions
+    import asyncio
+    asyncio.run(subscriptions.sync_options(app.state.exchanges))
+    subscriptions.policies = None  # Recover from persisted parameters, not browser state.
+    subscriptions.restore()
+    asyncio.run(subscriptions.sync_options(app.state.exchanges))
+    policies = app.state.market_data.policy_repository.list()
+    assert {p["symbol"] for p in policies} == {"ALL", "BTCUSDT", "ETHUSDT", first, second}
+    assert next(p for p in policies if p["symbol"] == first)["base_level"] == "tick"
+    assert not subscriptions.processes and not subscriptions.auxiliary
+    assert client.get("/api/data/subscriptions").status_code == 200
+    # Discovery outages preserve the scope and all previously included contracts.
+    async def unavailable(*args, **kwargs):
+        raise OSError("offline")
+    app.state.exchanges.catalog = unavailable
+    asyncio.run(subscriptions.sync_options(app.state.exchanges))
+    assert subscriptions.last_error
+    assert app.state.market_data.policy_repository.list() == policies
+    # ALL is never a substitute for a concrete contract in data/deletion requests.
+    assert client.post("/api/data/prepare/plan", json={**PARAMETERS, "symbol": "ALL", "product": "options"}).status_code == 422
+    assert client.post("/api/data/pairs/delete/plan", json={"symbol": "ALL", "product": "options"}).status_code == 422
+    app.state.exchanges.catalog = catalog
+    enabled = {**payload, "realtime_enabled": True, "history_enabled": True}
+    response = client.post("/api/data/subscriptions", json=enabled)
+    assert response.status_code == 200, response.text
+    assert starts[-1].symbol == "ALL"
+    assert all(p["realtime_enabled"] and p["history_enabled"] for p in app.state.market_data.policy_repository.list())
+    third = "BTC-270226-90000-P"
+    markets.append({"symbol": third})
+    asyncio.run(subscriptions.sync_options(app.state.exchanges))
+    assert starts[-1].symbol == third and starts[-1].realtime_enabled and starts[-1].history_enabled
+    disabled = client.post("/api/data/subscriptions", json=payload)
+    assert disabled.status_code == 200
+    assert all(not p["realtime_enabled"] and not p["history_enabled"] for p in app.state.market_data.policy_repository.list())
+    assert client.post("/api/data/subscriptions", json={**payload, "product": "futures_um"}).status_code == 422
+
+
+def test_option_supervision_uses_existing_collect_and_history_roles_and_stops_at_expiry(context, monkeypatch):
+    from api.market_data.contracts import DataPolicy
+
+    client, app, _root = context
+    login(client)
+    subscriptions = app.state.market_data.subscriptions
+    commands = []
+    class Process:
+        def poll(self):
+            return None
+    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
+    monkeypatch.setattr(app.state.market_data, "_stop", lambda process: None)
+    async def catalog(_env, product="futures_um"):
+        return [{"symbol": "BTC-261225-85000-C"}]
+    app.state.exchanges.catalog = catalog
+    payload = {"symbol": "ALL", "product": "options", "base_level": "tick",
+               "intervals": ["1m", "5m", "15m"], "realtime_enabled": True, "history_enabled": True}
+    response = client.post("/api/data/subscriptions", json=payload)
+    assert response.status_code == 200, response.text
+    assert len(commands) == 2
+    assert commands[0][2] == "feed.managed" and "--options-config" in commands[0]
+    assert commands[1][2] == "pipeline.pair_data" and "--service" in commands[1]
+    assert all('"symbol":"ALL"' not in " ".join(cmd) for cmd in commands)
+    child = DataPolicy(**{**payload, "symbol": "BTC-261225-85000-C"})
+    path = subscriptions.root(child) / "status.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"state": "STOPPED", "reason": "expired", "data_ready": False,
+                                "expiry_ms": 1, "valid_until_ms": 1}))
+    subscriptions.restore()
+    assert len(commands) == 2  # Shared processes remain; the worker owns contract expiry.
+    item = next(item for item in client.get("/api/data/subscriptions").json()["items"] if item["policy"]["symbol"] == child.symbol)
+    assert item["runtime"]["reason"] == "expired"
+    assert not item["runtime"]["data_ready"]
+    # Scope edits cannot restart a contract while its deletion is in progress.
+    subscriptions.deleting.add(("options", child.symbol))
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 409
+
+
+def test_all_1514_options_use_two_shared_processes_and_dynamic_manifest(context, monkeypatch):
+    import asyncio
+
+    client, app, root = context
+    login(client)
+    markets = [{"symbol": f"BTC-261225-{10000 + i}-C"} for i in range(1514)]
+    async def catalog(_env, product="futures_um"):
+        return markets
+    app.state.exchanges.catalog = catalog
+    commands = []
+    stopped = []
+    class Process:
+        def poll(self):
+            return None
+    def spawn(command, **kwargs):
+        commands.append((command, kwargs))
+        return Process()
+    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", spawn)
+    monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
+    payload = {"product": "options", "symbol": "ALL", "realtime_enabled": True, "history_enabled": True}
+    assert client.post("/api/data/subscriptions/plan", json=payload).status_code == 200
+    response = client.post("/api/data/subscriptions", json=payload)
+    assert response.status_code == 200, response.text
+    assert len(commands) == 2 and all(len(kwargs["pass_fds"]) == 1 for _cmd, kwargs in commands)
+    path = root / ".local/state/api/data_jobs/options-runtime.json"
+    assert len(json.loads(path.read_text())["policies"]) == 1514
+    assert len(app.state.market_data.policy_repository.list()) == 1516
+    assert [item["policy"]["symbol"] for item in client.get("/api/data/subscriptions?group_options=true").json()["items"]] == ["BTCUSDT"]
+    subscriptions = app.state.market_data.subscriptions
+    assert set(subscriptions.processes) == {("options", "ALL")}
+    assert set(subscriptions.auxiliary) == {("options", "ALL", "history")}
+    # Newly listed contracts update the manifest without starting any new process.
+    markets.append({"symbol": "BTC-270129-20000-P"})
+    asyncio.run(subscriptions.sync_options(app.state.exchanges))
+    assert len(json.loads(path.read_text())["policies"]) == 1515
+    assert len(commands) == 2
+    response = client.post("/api/data/subscriptions", json={**payload, "symbol": markets[0]["symbol"], "base_level": "tick"})
+    assert response.status_code == 200, response.text
+    assert len(commands) == 2 and stopped == []
+    policies = json.loads(path.read_text())["policies"]
+    assert next(p for p in policies if p["symbol"] == markets[0]["symbol"])["base_level"] == "tick"
+    assert next(p for p in policies if p["symbol"] == markets[1]["symbol"])["base_level"] == "1m"
+    # A damaged shared process is restarted once; the other role stays running.
+    class Exited:
+        def poll(self):
+            return 1
+    subscriptions.processes[("options", "ALL")] = Exited()
+    subscriptions.restore()
+    assert len(commands) == 3 and commands[-1][0][2] == "feed.managed"
+    assert client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False, "history_enabled": False}).status_code == 200
+    assert not subscriptions.processes and not subscriptions.auxiliary
+    assert len(stopped) == 2
+
+
+def test_option_pair_delete_waits_for_its_worker_without_stopping_the_batch(context, monkeypatch):
+    import threading
+
+    client, app, _root = context
+    login(client)
+    symbols = ["BTC-261225-85000-C", "BTC-261225-86000-C"]
+    async def catalog(_env, product="futures_um"):
+        return [{"symbol": symbol} for symbol in symbols]
+    app.state.exchanges.catalog = catalog
+    commands, stopped = [], []
+    class Process:
+        def poll(self):
+            return None
+    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
+    monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
+    payload = {"product": "options", "symbol": "ALL", "realtime_enabled": True, "history_enabled": True}
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 200
+    lease = app.state.market_data._lease(symbols[0], "options", access=True, shared=True)
+    timer = threading.Timer(.2, lease.close)
+    timer.start()
+    try:
+        response = client.post("/api/data/pairs/delete/plan", json={"product": "options", "symbol": symbols[0]})
+        assert response.status_code == 200, response.text
+    finally:
+        timer.join()
+        lease.close()
+    assert len(commands) == 2 and stopped == []
+    policies = {p["symbol"]: p for p in app.state.market_data.policy_repository.list()}
+    assert not policies[symbols[0]]["realtime_enabled"] and not policies[symbols[0]]["history_enabled"]
+    assert policies[symbols[1]]["realtime_enabled"] and policies[symbols[1]]["history_enabled"]
+
+
+def test_option_underlying_scope_manages_all_expiries_and_discovers_only_its_contracts(context, monkeypatch):
+    import asyncio
+
+    client, app, _root = context
+    login(client)
+    manager = app.state.market_data
+    monkeypatch.setattr(manager.subscriptions, "_start", lambda policy: None)
+    markets = [{"symbol": s} for s in ("BTC-261225-85000-C", "BTC-270129-90000-P", "ETH-261225-3000-C")]
+
+    async def catalog(_env, product="options"):
+        return markets
+
+    app.state.exchanges.catalog = catalog
+    payload = {"product": "options", "symbol": "BTCUSDT", "base_level": "1m", "realtime_enabled": False}
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 200
+    policies = {p["symbol"]: p for p in manager.policy_repository.list()}
+    assert set(policies) == {"BTCUSDT", "BTC-261225-85000-C", "BTC-270129-90000-P"}
+    assert client.post("/api/data/subscriptions", json={**payload, "base_level": "tick"}).status_code == 200
+    markets.append({"symbol": "BTC-270226-95000-C"})
+    asyncio.run(manager.subscriptions.sync_options(app.state.exchanges))
+    policies = manager.policy_repository.list()
+    assert len(policies) == 4 and all(p["base_level"] == "tick" for p in policies)
+    grouped = client.get("/api/data/subscriptions?group_options=true").json()["items"]
+    assert [item["policy"]["symbol"] for item in grouped] == ["BTCUSDT"]
+    assert len(client.get("/api/data/subscriptions").json()["items"]) == 4
+    assert client.post("/api/data/subscriptions", json={**payload, "symbol": "UNKNOWNUSDT", "realtime_enabled": True}).status_code == 422
+    assert client.post("/api/data/prepare/plan", json={**PARAMETERS, "symbol": "BTCUSDT", "product": "options"}).status_code == 422
+    manager.subscriptions.deleting.add(("options", "BTCUSDT"))
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 409
+    assert client.post("/api/data/subscriptions", json={**payload, "symbol": "BTC-261225-85000-C"}).status_code == 409
+    manager.subscriptions.deleting.clear()
+
+
+def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, monkeypatch):
+    from api.market_data.contracts import DataPolicy
+
+    _client, app, _root = context
+    subscriptions = app.state.market_data.subscriptions
+    symbols = ("BTC-261225-85000-C", "BTC-270129-90000-P")
+    policies = [DataPolicy(product="options", symbol=s) for s in ("BTCUSDT", *symbols)]
+    subscriptions._write(policies)
+    class Process:
+        def poll(self):
+            return None
+    subscriptions.processes[("options", "ALL")] = Process()
+    monkeypatch.setattr(app.state.market_data, "_stop", lambda process: None)
+    now = int(time.time() * 1000)
+    for p in policies[1:]:
+        path = subscriptions.root(p) / "status.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"state": "READY", "data_ready": True, "reason": "collecting",
+                                    "checked_ms": now, "valid_until_ms": now + 60000}))
+    assert subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
+    reader = DataService(app.state.database, project=_root)
+    reader.subscriptions.policies = policies
+    assert reader.subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
+    path.write_text(json.dumps({"state": "READY", "data_ready": True, "checked_ms": 1, "valid_until_ms": 1}))
+    item = subscriptions.items(group_options=True)[0]
+    assert not item["runtime"]["data_ready"] and item["runtime"]["state"] == "DEGRADED"
+    assert item["services"]["collection"]["state"] == "DEGRADED"
+    sample = app.state.market_data.monitor.sample()
+    assert [item["symbol"] for item in sample["items"]] == ["BTCUSDT"]
+
+
+def test_option_group_deletion_pauses_every_contract_but_preserves_other_underlyings(context, monkeypatch):
+    import threading
+
+    from api.market_data.contracts import DataPolicy
+    from pipeline.pair_deletion import delete_pair_data
+
+    client, app, root = context
+    login(client)
+    manager = app.state.market_data
+    monkeypatch.setattr(manager.subscriptions, "_start_options", lambda: None)
+    symbols = ("ALL", "BTCUSDT", "BTC-261225-85000-C", "BTC-270129-90000-P", "ETHUSDT", "ETH-261225-3000-C")
+    manager.subscriptions._write([DataPolicy(product="options", symbol=s) for s in symbols])
+    source = root / "data/raw/options/BTC-261225-85000-C/source.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("evidence")
+    leases = [manager._lease(symbol, "options", access=True, shared=True)
+              for symbol in (symbols[2], symbols[2], symbols[3], symbols[-1])]
+    final_write = source.with_name("last-write.json")
+    def finish_writes():
+        final_write.write_text("last evidence")
+        for lease in leases[:-1]:
+            lease.close()
+    timer = threading.Timer(.2, finish_writes)
+    timer.start()
+    try:
+        response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
+        assert response.status_code == 200, response.text
+        assert final_write.exists()
+        assert response.json()["file_count"] == 2
+        assert all(lease.closed for lease in leases[:-1])
+        assert not leases[-1].closed  # Other underlyings may continue writing.
+    finally:
+        timer.join()
+        for lease in leases:
+            lease.close()
+    policies = {p["symbol"]: p for p in manager.policy_repository.list()}
+    assert not any(p["realtime_enabled"] for s, p in policies.items() if s.startswith("BTC"))
+    assert policies["ETHUSDT"]["realtime_enabled"] and policies["ETH-261225-3000-C"]["realtime_enabled"]
+    snapshot = response.json()["snapshot"]
+    settings = manager.request(DataJobRequest(**PARAMETERS, action="validate"))[1]
+    identity = ""
+    class Worker:
+        returncode = 0
+        def wait(self, timeout):
+            result = delete_pair_data("BTCUSDT", "options", settings, expected_snapshot=snapshot, project=root)
+            (manager.directory / f"{identity}.json").write_text(json.dumps(result))
+    def spawn(command, **kwargs):
+        nonlocal identity
+        identity = command[-1]
+        return Worker()
+    monkeypatch.setattr("api.market_data.service.subprocess.Popen", spawn)
+    response = client.post("/api/data/pairs/delete", json={"symbol": "BTCUSDT", "product": "options",
+                           "deletion_snapshot": snapshot, "confirmation": "DELETE BTCUSDT"})
+    assert response.status_code == 202, response.text
+    for thread in manager.threads:
+        thread.join(timeout=10)
+    detail = client.get(f"/api/data/jobs/{identity}").json()
+    assert detail["status"] == "succeeded", detail
+    assert not source.exists() and not final_write.exists()
+    assert {p["symbol"] for p in manager.policy_repository.list()} == {"ETHUSDT", "ETH-261225-3000-C"}
+    assert [item["policy"]["symbol"] for item in client.get("/api/data/subscriptions?group_options=true").json()["items"]] == ["ETHUSDT"]
+
+
+def test_option_group_delete_timeout_retains_paused_configuration_and_data(context, monkeypatch):
+    from api.market_data.contracts import DataPolicy
+
+    client, app, root = context
+    login(client)
+    manager = app.state.market_data
+    monkeypatch.setattr(manager.subscriptions, "_start_options", lambda: None)
+    symbols = ("BTCUSDT", "BTC-261225-85000-C", "ETHUSDT", "ETH-261225-3000-C")
+    manager.subscriptions._write([DataPolicy(product="options", symbol=s, history_enabled=True) for s in symbols])
+    source = root / "data/raw/options/BTC-261225-85000-C/source.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("evidence")
+    lease = manager._lease(symbols[1], "options", access=True, shared=True)
+    try:
+        response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
+        assert response.status_code == 409, response.text
+        assert "重新预览" in response.json()["detail"]
+        assert not manager.repository.list_jobs()
+        assert source.read_text() == "evidence"
+        policies = {p["symbol"]: p for p in manager.policy_repository.list()}
+        assert set(policies) == set(symbols)
+        assert all(not policies[s]["realtime_enabled"] and not policies[s]["history_enabled"] for s in symbols[:2])
+        assert all(policies[s]["realtime_enabled"] and policies[s]["history_enabled"] for s in symbols[2:])
+    finally:
+        lease.close()
+    response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
+    assert response.status_code == 200, response.text
+    assert response.json()["file_count"] == 1
+
+
+def test_option_underlying_uses_catalogue_pair_instead_of_assuming_usdt(context, monkeypatch):
+    client, app, _root = context
+    login(client)
+    monkeypatch.setattr(app.state.market_data.subscriptions, "_start", lambda policy: None)
+    symbol = "BTC-261225-85000-C"
+    async def catalog(_env, product="options"):
+        return [{"symbol": symbol, "underlying": "BTCUSDC"}]
+    app.state.exchanges.catalog = catalog
+    payload = {"symbol": "BTCUSDC", "product": "options", "realtime_enabled": False}
+    assert client.post("/api/data/subscriptions", json=payload).status_code == 200
+    policies = {p["symbol"]: p for p in app.state.market_data.policy_repository.list()}
+    assert policies[symbol]["underlying"] == "BTCUSDC"
+    grouped = client.get("/api/data/subscriptions?group_options=true").json()["items"]
+    assert [item["policy"]["symbol"] for item in grouped] == ["BTCUSDC"]
+    assert client.post("/api/data/subscriptions", json={**payload, "symbol": symbol, "underlying": "ETHUSDC"}).status_code == 422
+
+
+def test_latest_data_times_read_only_configured_futures_1s(context, monkeypatch):
+    import shutil
+
+    from nautilus_trader.model import Bar, BarType, Price, Quantity
+
+    from api.market_data.contracts import DataPolicy
+    from core.market.instruments import bar_type_for
+    from pipeline.catalog import ParquetDataCatalog
+
+    client, app, root = context
+    assert client.get("/api/data/datasets/latest").status_code == 401
+    login(client, username="viewer")
+    app.state.market_data.subscriptions._write([
+        DataPolicy(symbol="ETHUSDT", realtime_enabled=False),
+        DataPolicy(symbol="ETHUSDC", realtime_enabled=False),
+        DataPolicy(symbol="BTCUSDT", product="options", realtime_enabled=False),
+    ])
+    assert client.get("/api/data/datasets/latest").json() == {"ETHUSDT": None, "ETHUSDC": None}
+    assert not (root / "data/catalog").exists()
+    catalog = ParquetDataCatalog(root / "data/catalog")
+    start = 1_793_750_400_000_000_000
+
+    def write(symbol, interval, stamp):
+        price = Price.from_str("10.10")
+        catalog.write_data([Bar(BarType.from_str(bar_type_for(symbol, interval)),
+                               price, price, price, price, Quantity.from_str("2.123"), stamp, stamp)])
+
+    write("ETHUSDT", "1s", start + 999_000_000)
+    latest = start + 10_999_000_000
+    write("ETHUSDT", "1s", latest)
+    write("ETHUSDT", "1m", start + 59_999_000_000)
+    write("XRPUSDT", "1s", start + 99_999_000_000)  # Unconfigured data never adds a row.
+    write("ETHUSDC", "1m", start + 59_999_000_000)  # No fallback from missing 1s.
+
+    def no_inventory(*args, **kwargs):
+        pytest.fail("latest time must not query instruments, coverage or candle rows")
+
+    monkeypatch.setattr(ParquetDataCatalog, "instruments", no_inventory)
+    monkeypatch.setattr(ParquetDataCatalog, "get_intervals", no_inventory)
+    monkeypatch.setattr(ParquetDataCatalog, "bars", no_inventory)
+    monkeypatch.setattr("api.market_data.router.dataset_inventory", no_inventory)
+    response = client.get("/api/data/datasets/latest")
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ETHUSDT": str(latest), "ETHUSDC": None}
+    # Fresh requests see newly installed 1s data, not a cached timestamp.
+    write("ETHUSDT", "1s", latest + 1_000_000_000)
+    assert client.get("/api/data/datasets/latest").json()["ETHUSDT"] == str(latest + 1_000_000_000)
+    with app.state.market_data._lease("ETHUSDT", access=True):
+        assert client.get("/api/data/datasets/latest").status_code == 409
+    assert client.get("/api/data/datasets/latest").status_code == 200
+    shutil.rmtree(root / "data")
+    assert client.get("/api/data/datasets/latest").status_code == 503
+    assert not (root / "data").exists()

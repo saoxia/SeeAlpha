@@ -107,13 +107,13 @@ def navigation(request: Request, _: CurrentUser):
 
 
 @router.get("/exchange-accounts/portfolio", response_model=ExchangePortfolioResponse)
-async def overview(request: Request, _: CurrentUser):
-    return await request.app.state.exchanges.overview()
+async def overview(request: Request, _: CurrentUser, refresh: bool = False):
+    return await request.app.state.exchanges.overview(fresh=refresh)
 
 
 @router.get("/exchange-accounts/{account_id}/portfolio", response_model=ExchangePortfolioResponse)
-async def portfolio(request: Request, account_id: int, _: CurrentUser):
-    return await request.app.state.exchanges.portfolio(account_id)
+async def portfolio(request: Request, account_id: int, _: CurrentUser, refresh: bool = False):
+    return await request.app.state.exchanges.portfolio(account_id, fresh=refresh)
 
 
 @router.get(

@@ -19,13 +19,15 @@ async def serve_pair(policy, root, catalog, *, calculate=True):
     queue = asyncio.Queue(maxsize=10000)
     connected, last_sync, last_trade = False, 0, None
     error = None
+    snapshot_error = None
 
     def publish(*, stopped=False):
         now = clock.now() if clock.base_ms else int(time.time() * 1000)
         stale = last_trade is None or not 0 <= now - last_trade <= 15000
-        healthy = not stopped and connected and not error and not store.conflicted and clock.healthy and not stale
+        failure = error or snapshot_error
+        healthy = not stopped and connected and not failure and not store.conflicted and clock.healthy and not stale
         write_status(root, {"state": "STOPPED" if stopped else "READY" if healthy else "DEGRADED",
-                     "data_ready": healthy, "reason": "service_stopped" if stopped else error or
+                     "data_ready": healthy, "reason": "service_stopped" if stopped else failure or
                      ("raw_trade_stream_disconnected" if not connected else "raw_trade_conflict" if store.conflicted else
                       "clock_unhealthy" if not clock.healthy else
                       "raw_trades_stale" if stale else "collecting"),
@@ -33,7 +35,7 @@ async def serve_pair(policy, root, catalog, *, calculate=True):
                      "symbols": {} if stopped else {policy["symbol"]: {"last_websocket_ms": last_trade,
                          "last_update_ms": last_trade}},
                      "bar_updates": [] if stopped else list(store.latest.values()),
-                     "last_error": error, "gap_count": 0, "allow_new_risk": False,
+                     "last_error": failure, "gap_count": 0, "allow_new_risk": False,
                      "scope": "managed_public_evidence_no_strategy_readiness",
                      "confirmed_ms": clock.confirmed() if clock.healthy else None,
                      "backlog": queue.qsize() + len(pending_events), "last_processed_ms": last_trade})
@@ -50,7 +52,7 @@ async def serve_pair(policy, root, catalog, *, calculate=True):
 
     receiver = asyncio.create_task(receive())
     pending_events = []
-    retry_snapshot, snapshot_at, retry_delay = False, 0, 1
+    snapshot_pending, retry_delay = False, 1
     try:
         while True:
             if receiver.done():
@@ -73,10 +75,11 @@ async def serve_pair(policy, root, catalog, *, calculate=True):
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(retry_delay * 2, 30)
                 continue
+            retry_delay = 1
             rows = []
             for event in pending_events:
                 if event["kind"] == "connected":
-                    connected, retry_snapshot, snapshot_at = True, True, 0
+                    connected, snapshot_pending, snapshot_error = True, True, None
                 elif event["kind"] == "disconnected":
                     connected = False
                     error = event["error"]
@@ -94,20 +97,18 @@ async def serve_pair(policy, root, catalog, *, calculate=True):
                     store.process_changes(clock.confirmed())
             pending_events = []
             error = None if connected else error
-            # REST repairs connection handovers only; no timer requests every K-line
-            # period. Failed handovers remain pending while live evidence continues.
-            if retry_snapshot and connected and time.monotonic() >= snapshot_at:
+            # One bounded REST read per connection. Failure stays visible, but
+            # only a new connection may request another recent-trade snapshot.
+            if snapshot_pending and connected:
+                snapshot_pending = False
                 try:
                     snapshot = await rest.get("trades", symbol=policy["symbol"], limit=1000)
                 except (DataError, OSError, TimeoutError) as exc:
-                    error = f"raw_trade_handover_pending: {exc}"
-                    snapshot_at = time.monotonic() + 30
+                    snapshot_error = f"raw_trade_handover_failed: {exc}"
                 else:
                     with journal_access(root):
                         store.ticks(snapshot, clock.confirmed(), quarantine_invalid=True, calculate=calculate)
-                    retry_snapshot, retry_delay = False, 1
-            if retry_snapshot:
-                error = error or "raw_trade_handover_pending"
+                    snapshot_error = None
             publish()
     finally:
         receiver.cancel()

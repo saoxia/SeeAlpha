@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selection, realtimeStatus, taskAffects, type FeedStatus } from "./market-data-api.ts";
+import { selection, taskAffects } from "./market-data-api.ts";
 
 test("offline ranges use UTC and exclusive end without a fixed day cap", () => {
   const value = selection("ETHUSDT", "2026-08-01", "2026-08-02", "1m");
@@ -19,19 +19,6 @@ test("historical data level selects ticks only or one bar period", () => {
   for (const period of ["1s", "1m", "5m", "15m"]) {
     assert.deepEqual(selection("ETHUSDT", "2026-08-01", "2026-08-02", period).intervals, [period]);
   }
-});
-
-test("realtime status requires supported level, matching subscription and fresh READY evidence", () => {
-  const feed: FeedStatus = { state: "READY", data_ready: true, reason: "", checked_ms: 1000,
-    valid_until_ms: 3000, symbols: { ETHUSDT: { next_ms: 1000, last_websocket_ms: 1000 } } };
-  assert.equal(realtimeStatus(feed, "ETHUSDT", "1m", 2000), "运行中");
-  assert.equal(realtimeStatus(feed, "ETHUSDT", "tick", 2000), "未接入");
-  assert.equal(realtimeStatus(feed, "ETHUSDT", "5m", 2000), "未接入");
-  assert.equal(realtimeStatus(feed, "BTCUSDT", "1m", 2000), "未订阅");
-  assert.equal(realtimeStatus(feed, "ETHUSDT", "1m", 3001), "已过期");
-  assert.equal(realtimeStatus({ ...feed, data_ready: false }, "ETHUSDT", "1m", 2000), "待确认");
-  assert.equal(realtimeStatus(null, "ETHUSDT", "1m", 2000), "状态未知");
-  assert.equal(realtimeStatus({ ...feed, symbols: {} }, "ETHUSDT", "1m", 2000), "待确认");
 });
 
 test("tasks attach only to their symbol and affected data levels", () => {
@@ -58,25 +45,6 @@ test("operation results ignore initial history and unchanged polling snapshots",
   assert.deepEqual(taskTransitions(new Map(snapshot.map((job) => [job.id, job.status])), snapshot), []);
 });
 
-test("data rows come from stored data, live subscriptions and active tasks without presets", async () => {
-  const { managedItems } = await import("./market-data-api.ts");
-  assert.deepEqual(managedItems([], null, []), []);
-  const stored = [{ symbol: "XRPUSDT", level: "tick", event_ranges_ns: [["1", "2"]], quality: "unverified" }];
-  const jobs = [{ id: "a", status: "running", parameters: { symbol: "ADAUSDT", intervals: ["1m"] } },
-    { id: "old", status: "succeeded", parameters: { symbol: "SOLUSDT", intervals: [] } }];
-  const items = managedItems(stored, { symbols: { XRPUSDT: { next_ms: null, last_websocket_ms: null } } }, jobs);
-  assert.deepEqual(items.map((item) => `${item.symbol}:${item.level}`), ["ADAUSDT:tick", "ADAUSDT:1m", "XRPUSDT:tick", "XRPUSDT:1m"]);
-  assert.deepEqual(items.find((item) => item.symbol === "XRPUSDT" && item.level === "tick")?.event_ranges_ns, [["1", "2"]]);
-});
-
-test("USDC subscriptions and tasks retain their own symbols and data rows", async () => {
-  const { managedItems } = await import("./market-data-api.ts");
-  const items = managedItems([], { symbols: { ETHUSDC: { next_ms: null, last_websocket_ms: null } } },
-    [{ status: "running", parameters: { symbol: "ETHUSDC", intervals: ["1s"] } }]);
-  assert.deepEqual(items.map((item) => item.level), ["1m", "tick", "1s"]);
-  assert.ok(items.every((item) => item.symbol === "ETHUSDC"));
-});
-
 test("option selections carry product without inventing historical Tick", () => {
   const recent = selection("BTC-261225-85000-C", "", "", "tick", "options", true);
   assert.equal(recent.product, "options");
@@ -88,19 +56,7 @@ test("option selections carry product without inventing historical Tick", () => 
   assert.deepEqual(history.intervals, ["1m"]);
 });
 
-test("option K line tasks create only K line rows and never inherit perpetual readiness", async () => {
-  const { managedItems, taskAffects, realtimeStatus, dataQuality } = await import("./market-data-api.ts");
-  const parameters = { symbol: "BTC-261225-85000-C", product: "options", intervals: ["1m"] };
-  const rows = managedItems([], null, [{ status: "running", parameters }]);
-  assert.deepEqual(rows.map((row) => row.level), ["1m"]);
-  assert.equal(rows[0].product, "options");
-  assert.equal(taskAffects({ action: "prepare", parameters }, { ...rows[0], level: "tick" }), false);
-  assert.equal(taskAffects({ action: "prepare", parameters }, { ...rows[0], product: "futures_um" }), false);
-  assert.equal(realtimeStatus(null, parameters.symbol, "1m", Date.now(), "options"), "未接入");
-  assert.equal(dataQuality({ ...rows[0], level: "tick", event_ranges_ns: [["1", "2"]] }), "近期片段 · 不完整");
-});
-
-import { groupDataItems, subscriptionState, type Subscription } from "./market-data-api.ts";
+import { groupDataItems, subscriptionState, hasPairTask, type Subscription } from "./market-data-api.ts";
 
 test("one symbol groups stored levels without inventing coverage of the configured base", () => {
   const config: Subscription = { policy: { symbol: "ETHUSDT", product: "futures_um", base_level: "1m", intervals: ["5m"], realtime_enabled: false },
@@ -124,6 +80,8 @@ test("managed subscription state expires and does not confuse connection with re
   assert.equal(subscriptionState(config, 101), "已过期");
   assert.equal(subscriptionState({ ...config, runtime: { ...config.runtime, data_ready: false, state: "DEGRADED" } }, 50), "补缺或降级");
   assert.equal(groupDataItems([], [config])[0].symbol, "ETHUSDC");
+  assert.equal(subscriptionState({ ...config, policy: { ...config.policy, product: "options" },
+    runtime: { ...config.runtime, state: "STOPPED", data_ready: false, reason: "expired" } }, 1000), "已到期");
 });
 
 test("automatic policies show actual stored levels instead of inventing an auto data level", () => {
@@ -134,7 +92,6 @@ test("automatic policies show actual stored levels instead of inventing an auto 
   assert.equal(groupDataItems([], [policy])[0].level, "5m");
 });
 
-
 test("task exclusion is scoped to product and pair, including unconfirmed workers", async () => {
   const { hasPairTask } = await import("./market-data-api.ts");
   const tasks = [{ status: "running", parameters: { symbol: "ETHUSDT" } }];
@@ -144,7 +101,6 @@ test("task exclusion is scoped to product and pair, including unconfirmed worker
   assert.equal(hasPairTask([{ ...tasks[0], status: "unknown" }], "ETHUSDT"), true);
   assert.equal(hasPairTask([{ ...tasks[0], status: "succeeded" }], "ETHUSDT"), false);
 });
-
 
 test("request timeouts use readable text while preserving the ambiguous-write timeout type", async (t) => {
   const { dataRequest } = await import("./market-data-api.ts");
@@ -171,4 +127,33 @@ test("navigation cancellation keeps AbortError for stale-request suppression", a
   const aborted = new DOMException("cancelled", "AbortError");
   t.mock.method(globalThis, "fetch", async () => { throw aborted; });
   await assert.rejects(dataRequest("datasets"), (error: unknown) => error === aborted);
+});
+
+test("options inventory groups strikes and expiries by underlying and keeps futures separate", () => {
+  const grouped = groupDataItems([
+    { symbol: "BTC-261225-85000-C", product: "options", level: "1m", event_ranges_ns: [["5", "6"]], quality: "unverified" },
+    { symbol: "BTC-270129-90000-P", product: "options", level: "tick", event_ranges_ns: [["1", "9"]], quality: "partial_recent_trades" },
+    { symbol: "ETH-270129-3000-C", product: "options", level: "1m", event_ranges_ns: [], quality: "unverified" },
+    { symbol: "BTCUSDT", level: "1m", event_ranges_ns: [["3", "4"]], quality: "unverified" },
+  ], []);
+  assert.equal(grouped.length, 3);
+  const btc = grouped.find((item) => item.symbol === "BTCUSDT" && item.product === "options")!;
+  assert.deepEqual(btc.levels, ["tick", "1m"]);
+  assert.deepEqual(btc.event_ranges_ns, [["1", "9"], ["5", "6"]]);
+  assert.equal(grouped.some((item) => item.symbol.includes("-")), false);
+  assert.equal(hasPairTask([{ status: "running", parameters: { symbol: "BTC-261225-85000-C", product: "options" } }], "BTCUSDT", "options"), true);
+  assert.equal(hasPairTask([{ status: "running", parameters: { symbol: "BTC-261225-85000-C", product: "options" } }], "ETHUSDT", "options"), false);
+});
+
+test("configured pairs appear without catalogue coverage, including stopped futures and options", () => {
+  const config: Subscription = { policy: { symbol: "ETHUSDC", product: "futures_um", base_level: "tick", intervals: ["1s", "1m"], realtime_enabled: false,
+    history_enabled: true, history_start: "2026-01-01T00:00:00Z" },
+    runtime: { state: "STOPPED", data_ready: false, reason: "disabled", checked_ms: null } };
+  const rows = groupDataItems([], [config, { ...config, policy: { ...config.policy, symbol: "ETHUSDT", base_level: "1m", intervals: ["1m", "5m"], product: "options" } }]);
+  assert.deepEqual(rows.map(({ symbol, product, level, levels }) => ({ symbol, product, level, levels })), [
+    { symbol: "ETHUSDC", product: "futures_um", level: "tick", levels: ["tick", "1s", "1m"] },
+    { symbol: "ETHUSDT", product: "options", level: "1m", levels: ["1m", "5m"] },
+  ]);
+  assert.ok(rows.every((row) => row.event_ranges_ns.length === 0));
+  assert.deepEqual(groupDataItems([], []), []);
 });

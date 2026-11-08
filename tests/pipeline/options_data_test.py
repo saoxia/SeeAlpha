@@ -275,3 +275,189 @@ def test_local_validation_checks_contract_multiplier_and_precision(context, monk
     result = validate(request, settings)
     assert not result["ready"]
     assert any("合约单位" in error for error in result["errors"])
+
+
+def test_managed_live_late_trades_and_historical_holes_merge_atomically(context, monkeypatch):
+    from pipeline.options_data import persist_live
+
+    settings, item = context
+    symbol = item["symbol"]
+    stamp = int(datetime(2026, 8, 1, tzinfo=UTC).timestamp() * 1000)
+    events = [{"level": "tick", "row": trade(identity, stamp + offset)}
+              for identity, offset in ((1, 1000), (3, 3000))]
+    assert persist_live(symbol, events, settings)["records_written"] == 2
+    assert persist_live(symbol, [{"level": "tick", "row": trade(2, stamp + 2000)}], settings)["records_written"] == 1
+    assert persist_live(symbol, [{"level": "tick", "row": trade(4, stamp + 3000)}], settings)["records_written"] == 1
+    assert persist_live(symbol, events, settings)["records_written"] == 0
+    records = ParquetDataCatalog(settings.catalog_dir).trade_ticks(instrument_ids=[instrument_id_for(symbol, "options")])
+    assert [str(row.trade_id) for row in records] == ["1", "2", "3", "4"]
+    with pytest.raises(ValueError, match="冲突"):
+        persist_live(symbol, [{"level": "tick", "row": trade(2, stamp + 2000, "3001.000")}], settings)
+    # A stream can arrive before backfill; history fills the same day's interior hole.
+    bars = [[stamp + i * 60000, "3000", "3010", "2990", "3005", "0.03", stamp + (i + 1) * 60000 - 1]
+            for i in range(3)]
+    persist_live(symbol, [{"level": "1m", "row": row} for row in (bars[0], bars[2])], settings)
+    monkeypatch.setattr(options, "get", lambda endpoint, **kw: bars if kw["startTime"] == stamp else [])
+    result = prepare(bars_request(), settings, managed=True)
+    assert result["records_written"] == 1
+    assert not result["historical_tick_complete"]
+    assert len(ParquetDataCatalog(settings.catalog_dir).bars()) == 3
+    assert prepare(bars_request(), settings, managed=True)["records_written"] == 0
+
+
+def test_managed_live_recovers_source_after_interrupted_install(context, monkeypatch):
+    from pipeline import options_data
+
+    settings, item = context
+    stamp = int(datetime(2026, 8, 1, tzinfo=UTC).timestamp() * 1000)
+    original = options_data._install
+    def interrupted(*args, **kwargs):
+        raise OSError("interrupted")
+    monkeypatch.setattr(options_data, "_install", interrupted)
+    with pytest.raises(OSError, match="interrupted"):
+        options_data.persist_live(item["symbol"], [{"level": "tick", "row": trade(1, stamp)}], settings)
+    assert list(settings.raw_dir.rglob("*.json"))
+    monkeypatch.setattr(options_data, "_install", original)
+    assert options_data.persist_live(item["symbol"], [], settings, recover=True)["records_written"] == 1
+    assert options_data.persist_live(item["symbol"], [], settings, recover=True)["records_written"] == 0
+    with pytest.raises(ValueError, match="未闭合"):
+        options_data.persist_live(item["symbol"], [{"level": "1m", "row": [9999999960000, "1", "1", "1", "1", "0", 9999999960000 + 59999]}], settings)
+
+
+def test_option_history_checkpoint_retries_empty_day_and_resumes(context, monkeypatch, tmp_path):
+    import asyncio
+
+    from pipeline import options_data
+
+    settings, item = context
+    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = today - timedelta(days=1)
+    policy = {"symbol": item["symbol"], "product": "options", "base_level": "tick", "intervals": [],
+              "history_mode": "start", "history_start": start.isoformat()}
+    calls = []
+    monkeypatch.setattr(options, "get", lambda *args, **kw: [[int(start.timestamp() * 1000)]])
+    empty = True
+    def prepare_day(request, settings, *, managed, definition=None):
+        assert managed and request.bar_intervals == ("1m", "5m", "15m")
+        calls.append(request.start)
+        return {"empty_batches": int(empty)}
+    monkeypatch.setattr(options_data, "prepare", prepare_day)
+    original_sleep = asyncio.sleep
+    async def stop_after_attempt(seconds):
+        if seconds == 30:
+            raise asyncio.CancelledError
+        await original_sleep(0)
+    monkeypatch.setattr(asyncio, "sleep", stop_after_attempt)
+    root = tmp_path / "history"
+    async def run():
+        with pytest.raises(asyncio.CancelledError):
+            await options_data.serve_history(policy, settings, root)
+    asyncio.run(run())
+    assert not (root / "checkpoint.json").exists()
+    empty = False
+    asyncio.run(run())
+    saved = json.loads((root / "checkpoint.json").read_text())
+    assert saved["next_day"] == today.isoformat()
+    assert calls == [start, start]
+    asyncio.run(run())
+    assert calls == [start, start]
+
+
+def test_batch_history_limits_writers_and_releases_only_stopped_contract(context, monkeypatch, tmp_path):
+    import asyncio
+    import fcntl
+    import threading
+    import time
+
+    from pipeline import options_data
+
+    settings, template = context
+    rows = [{**template, "symbol": f"BTC-261225-{85000 + index * 1000}-C", "strike": str(85000 + index * 1000)}
+            for index in range(3)]
+    monkeypatch.setattr(options, "markets", lambda: rows)
+    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    stamp = int((today - timedelta(days=1)).timestamp() * 1000)
+    monkeypatch.setattr(options, "get", lambda *args, **kwargs: [[stamp]])
+    active, peak = 0, 0
+    lock = threading.Lock()
+    def prepare_day(request, settings, *, managed, definition):
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        time.sleep(.1)
+        with lock:
+            active -= 1
+        return {"empty_batches": 0}
+    monkeypatch.setattr(options_data, "prepare", prepare_day)
+    policies = [{"symbol": row["symbol"], "product": "options", "base_level": "1m", "history_enabled": True,
+                 "history_mode": "all", "realtime_enabled": False} for row in rows]
+    manifest = tmp_path / "runtime.json"
+    manifest.write_text(json.dumps({"version": 1, "policies": policies}))
+    managed = tmp_path / "managed"
+    managed.mkdir()
+    async def scenario():
+        task = asyncio.create_task(options_data.serve_history_batch(manifest, settings, managed, project=tmp_path))
+        try:
+            async with asyncio.timeout(8):
+                while not all((managed / p["symbol"] / "1m/history/checkpoint.json").exists() for p in policies):
+                    await asyncio.sleep(.05)
+            assert peak == 2
+            for p in policies:
+                saved = json.loads((managed / p["symbol"] / "1m/history/checkpoint.json").read_text())
+                assert saved["next_day"] == today.isoformat()
+            policies[0]["history_enabled"] = False
+            manifest.write_text(json.dumps({"version": 1, "policies": policies}))
+            access = tmp_path / ".local/run/api/data/options" / f"{policies[0]['symbol']}.access.lock"
+            async with asyncio.timeout(5):
+                while True:
+                    with access.open("a") as lease:
+                        try:
+                            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            break
+                        except BlockingIOError:
+                            pass
+                    await asyncio.sleep(.05)
+            other = tmp_path / ".local/run/api/data/options" / f"{policies[1]['symbol']}.access.lock"
+            with other.open("a") as lease, pytest.raises(BlockingIOError):
+                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    asyncio.run(scenario())
+
+
+def test_history_batch_entry_point_uses_shared_runtime_and_mounted_root(context, monkeypatch, tmp_path):
+    from pipeline import options_data, pair_data
+
+    settings, _item = context
+    (tmp_path / "data").mkdir()
+    root = tmp_path / "data/managed/.options"
+    manifest = tmp_path / "runtime.json"
+    manifest.write_text('{"version":1,"policies":[]}')
+    called = []
+    async def serve_batch(path, settings, managed_root):
+        called.append((path, settings, managed_root))
+    monkeypatch.setattr(pair_data, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(pair_data, "load_settings", lambda: settings)
+    monkeypatch.setattr(options_data, "serve_history_batch", serve_batch)
+    monkeypatch.setattr("sys.argv", ["pipeline.pair_data", "--service", "--options-config", str(manifest), "--root", str(root)])
+    pair_data.main()
+    assert called == [(manifest, settings, root.parent)]
+
+
+def test_batch_remembers_contract_units_before_expiry_without_inventing_data(context, monkeypatch):
+    from pipeline.options_data import persist_live
+
+    settings, item = context
+    result = persist_live(item["symbol"], [], settings, definition=options.instrument(item).to_dict())
+    assert result["records_written"] == 0
+    catalog = ParquetDataCatalog(settings.catalog_dir)
+    assert len(catalog.instruments()) == 1
+    assert dataset_inventory(settings, all_levels=True) == []
+    def unavailable():
+        raise AssertionError("Expired contracts must recover their preserved local definition")
+    monkeypatch.setattr(options, "markets", unavailable)
+    recovered = persist_live(item["symbol"], [], settings, recover=True)
+    assert recovered["expiry_ms"] == item["expiry"]
+    assert not recovered["historical_tick_complete"]

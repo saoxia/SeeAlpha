@@ -4,6 +4,115 @@
  */
 export interface components {
   schemas: {
+      ChartCandle: {
+        time: number;
+        open: string;
+        high: string;
+        low: string;
+        close: string;
+        volume: string;
+        is_complete?: boolean | null;
+        is_closed: boolean;
+      };
+      LocalChartResponse: {
+        symbol: string;
+        interval: string;
+        candles: components["schemas"]["ChartCandle"][];
+        checked_at: number;
+        live: boolean;
+        quality?: string;
+      };
+      ManualOrderView: {
+        client_order_id: string;
+        order_id: string | null;
+        symbol: string;
+        side: string;
+        order_type: string;
+        quantity: string;
+        filled: string;
+        price: string | null;
+        trigger_price: string | null;
+        status: string;
+        reduce_only: boolean;
+        timestamp: number;
+        open: boolean;
+      };
+      ManualPosition: {
+        position_side?: "BOTH" | "LONG" | "SHORT";
+        break_even_price?: string | null;
+        liquidation_price?: string | null;
+        id: string;
+        symbol: string;
+        side: string;
+        quantity: string;
+        entry_price: string;
+      };
+      ManualBalance: {
+        total: string;
+        free: string;
+        locked: string;
+      };
+      ManualInstrument: {
+        symbol: string;
+        price_increment: string;
+        size_increment: string;
+        min_quantity: string | null;
+        min_notional: string | null;
+      };
+      ManualStateResponse: {
+        leverage?: number | null;
+        position_mode: "oneway" | "hedge";
+        account_revision: string;
+        checked_at: number;
+        orders: components["schemas"]["ManualOrderView"][];
+        positions: components["schemas"]["ManualPosition"][];
+        balances: Record<string, components["schemas"]["ManualBalance"]>;
+        instrument: components["schemas"]["ManualInstrument"];
+      };
+      ManualMarketSummary: {
+        symbol: string;
+        base: string;
+        quote: "USDT" | "USDC";
+        last_price: string | null;
+        change_percent: string | null;
+        quote_volume: string | null;
+        funding_rate: string | null;
+      };
+      ManualMarketsResponse: {
+        checked_at: number;
+        environment: "production" | "sandbox";
+        markets: components["schemas"]["ManualMarketSummary"][];
+      };
+      ManualOrderRequest: {
+        account_revision: string;
+        request_id: string;
+        symbol: string;
+        side: "buy" | "sell";
+        order_type: "limit" | "market";
+        quantity: string;
+        price?: string | null;
+        time_in_force?: "GTC" | "IOC" | "FOK";
+        post_only?: boolean;
+        reduce_only?: boolean;
+        position_side?: "BOTH" | "LONG" | "SHORT" | null;
+        position_effect?: "open" | "close";
+        expected_position_mode?: "oneway" | "hedge" | null;
+        environment: "production" | "sandbox";
+      };
+      ManualCancelRequest: {
+        account_revision: string;
+        request_id: string;
+        symbol: string;
+        client_order_id: string;
+        environment: "production" | "sandbox";
+      };
+      ManualOrderResponse: {
+        request_id: string;
+        client_order_id?: string | null;
+        status: "completed" | "unknown";
+        message: string;
+        order?: components["schemas"]["ManualOrderView"] | null;
+      };
       ExchangeAccountCreateRequest: {
         exchange: string;
         account_name: string;
@@ -56,6 +165,7 @@ export interface components {
         history_mode?: "all" | "start" | "duration";
         history_start?: string | null;
         history_days?: number;
+        underlying?: string | null;
       };
       DataPolicySave: {
         symbol: string;
@@ -67,6 +177,7 @@ export interface components {
         history_mode?: "all" | "start" | "duration";
         history_start?: string | null;
         history_days?: number;
+        underlying?: string | null;
         deletion_snapshot?: string | null;
         confirmation?: string | null;
       };
@@ -119,6 +230,23 @@ export interface components {
         log_truncated?: boolean;
         cancellable?: boolean;
       };
+      EquityRebuildRequest: {
+        start_ms?: number | null;
+        end_ms?: number | null;
+      };
+      EquityRebuildResponse: {
+        id: string;
+        account_id: number;
+        environment: string;
+        status: string;
+        start_ms?: number | null;
+        end_ms: number;
+        created_at: number;
+        processed?: number;
+        gaps?: number;
+        finished_at?: number | null;
+        message?: string | null;
+      };
       EquityCandleResponse: {
         bucket_start: number;
         open: string;
@@ -134,6 +262,9 @@ export interface components {
         metric?: string;
         interval_seconds?: number;
         is_sample?: boolean;
+        status?: "pending" | "ready" | "gap" | "unavailable";
+        gaps?: number[];
+        warnings?: string[];
         candles?: components["schemas"]["EquityCandleResponse"][];
       };
       ExchangeAccountNavigationResponse: {
@@ -154,10 +285,24 @@ export interface components {
       ExchangePortfolioResponse: {
         checked_at: number;
         account: components["schemas"]["ExchangeAccountSummaryResponse"];
+        assets?: components["schemas"]["ExchangeAssetResponse"][];
+        valuation_source?: "exchange" | "estimate";
         trades?: components["schemas"]["ExchangeTradeResponse"][];
         positions?: components["schemas"]["ExchangePositionResponse"][];
         errors?: Record<string, string>;
         warnings?: Record<string, string>;
+      };
+      ExchangeAssetResponse: {
+        account_id: number;
+        account_name: string;
+        currency: string;
+        balance: string;
+        price_usdt?: string | null;
+        value_usdt?: string | null;
+        priced_at?: number | null;
+        small?: boolean;
+        stale?: boolean;
+        error?: string | null;
       };
       ExchangePositionResponse: {
         id: string;
