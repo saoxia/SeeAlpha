@@ -20,7 +20,7 @@ docker build -f docker/engine.Dockerfile -t seealpha-engine:latest .
 
 镜像包含 NautilusTrader / FastAPI、所需 Python 依赖和 release 版 Rust
 `nautilus-data-converter`。部署新版本时重新构建镜像、按停机流程重建对应租户
-容器；删除容器不会自动删除绑定的数据卷。
+容器；删除容器不会自动删除绑定的数据卷，删除租户时旧目录会进入 `.retired` 隔离区。
 
 ## 开启 Docker 部署
 
@@ -45,8 +45,10 @@ Docker 模式不在失败时偷偷回退到生产进程内执行。
 首次 API 启动时会确保业务库里的活跃租户各有一个 `seealpha-engine-<tenant_id>`
 容器。创建开发租户 / 新用户时也会部署容器。
 开发租户归档会先导出 Engine 切片，然后停止并移除容器；恢复时从持久状态卷
-重建容器并导入切片。删除租户亦会停止并移除容器，但**不会自动删除**
-租户的数据、日志和状态卷，避免误删历史行情。
+重建容器并导入切片。删除租户会停止并移除容器，随后将其旧数据、日志、令牌和状态目录
+**整体隔离保留**在 `.local/tenants/.retired/<tenant_id>-<随机标识>/`；
+不会自动永久删除这些文件。这样即使业务数据库重新使用同一租户 ID，
+新租户也不会继承旧用户的策略、行情或凭据。归档租户不移动目录，仍可恢复。
 
 Docker 使用 `--cpus`、`--memory`、`--memory-swap`、`--pids-limit`，
 并去掉 Linux capabilities、启用 `no-new-privileges`。
