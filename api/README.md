@@ -12,6 +12,16 @@
 `/api/*` 给前端的形状保持不变。接口范围及限制见
 [Binance 原生 API 说明](../docs/BINANCE_NATIVE_API.md)。
 
+
+### 可选：租户独立 Docker Engine
+
+`ENGINE_DEPLOYMENT=docker` 时，API 根据 `tenant_id` 分发到各自的常驻 Engine 容器，
+并为每个租户使用独立 Token、SQLite、历史数据目录及 CPU/内存限制。
+默认 `single` 模式不变；无需 API 数据库迁移。
+**旧单 Engine 的订单/持仓/幂等状态不会自动搬迁，禁止在未迁移的生产环境直接切换。**
+部署、镜像构建、独立数据目录及停机迁移要求见
+[每租户 Docker Engine 部署说明](../docs/TENANT_DOCKER_RUNTIME.md)。
+
 ## 启动
 
 在项目根目录安装锁定依赖，并启动仅本机可访问的开发服务：
