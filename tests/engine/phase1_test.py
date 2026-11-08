@@ -80,7 +80,9 @@ def test_api_does_not_own_live_nodes_feed_processes_or_the_engine_book():
     assert "from engine.runtime import valuation_events" in equity
     assert "subprocess.Popen" not in subscriptions
     assert "engine.supervisor import popen" in subscriptions
-    assert "engine.pipeline.pair_data" in jobs and "from engine.supervisor import popen as start_worker" in jobs
+    assert "subprocess.Popen" not in jobs
+    assert "engine.pipeline.pair_data" in jobs and "engine.pipeline.data_management" in jobs
+    assert "from engine.supervisor import popen as start_worker" in jobs
     config = (PROJECT / "api/config.py").read_text(encoding="utf-8")
     assert 'os.getenv("ENGINE_URL", "http://127.0.0.1:8766")' in config
 
@@ -109,4 +111,4 @@ def test_strategy_packages_remain_at_the_repository_root():
     assert (PROJECT / "engine/pipeline/pair_data.py").is_file()
     assert not (PROJECT / "feed").exists()
     assert not (PROJECT / "connectors").exists()
-    assert not (PROJECT / "pipeline/pair_data.py").exists()
+    assert not (PROJECT / "pipeline").exists()

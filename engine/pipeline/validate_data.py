@@ -8,8 +8,8 @@ from datetime import datetime
 import pandas as pd
 from nautilus_trader.model import Bar
 
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.models import as_utc, interval_delta
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.models import as_utc, interval_delta
 
 KLINE_COLUMNS = (
     "open_time",

@@ -19,6 +19,18 @@ HISTORICAL = (
 )
 
 
+def current_source(project, path):
+    """Historical manifests still name pipeline/ before it moved under engine/."""
+    candidate = project / path
+    if candidate.exists():
+        return candidate
+    if path.startswith("pipeline/"):
+        moved = project / "engine" / path
+        if moved.exists():
+            return moved
+    return None
+
+
 def verify_sources(project=PROJECT):
     baseline = json.loads((project / "tests/baselines/lint_baseline.json").read_text())
     updates_path = project / "tests/baselines/source_updates.json"
@@ -31,7 +43,8 @@ def verify_sources(project=PROJECT):
         archive_verified = False
         for path, expected in manifest["source_sha256"].items():
             checked.add(path)
-            actual = digest(project / path) if (project / path).exists() else None
+            located = current_source(project, path)
+            actual = digest(located) if located is not None else None
             if actual == expected:
                 continue
             update = updates.get(path, {})

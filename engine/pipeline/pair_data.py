@@ -18,17 +18,17 @@ from nautilus_trader.model import Bar, BarType, Price, Quantity, TradeTick
 from core.market.instruments import bar_type_for, bar_window, instrument_id_for
 from core.paths import PROJECT_ROOT
 from engine.connectors.binance.pair_data import PairREST
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
-from pipeline.convert_binance_bars import write_record
-from pipeline.convert_binance_trades import (
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
+from engine.pipeline.convert_binance_bars import write_record
+from engine.pipeline.convert_binance_trades import (
     aggregate_parts_to_bars,
     aggregate_trade_chunk,
     iter_trade_archive,
 )
-from pipeline.models import DataRequest
-from pipeline.prepare_data import ensure_instruments, prepare_data
-from pipeline.sync_binance_batch import plan_daily_archives, sync_archives
+from engine.pipeline.models import DataRequest
+from engine.pipeline.prepare_data import ensure_instruments, prepare_data
+from engine.pipeline.sync_binance_batch import plan_daily_archives, sync_archives
 
 
 def history_bounds(policy, catalog, now, *, retained_start_ns=None):
@@ -163,8 +163,13 @@ def _history_archive_available(policy, settings, day, finish):
     from urllib.error import HTTPError
     from urllib.request import Request, urlopen
 
-    from pipeline.sync_binance_batch import local_archive_is_verified
-    from pipeline.sync_binance_file import USER_AGENT, SyncError, fetch_checksum, normalize_source
+    from engine.pipeline.sync_binance_batch import local_archive_is_verified
+    from engine.pipeline.sync_binance_file import (
+        USER_AGENT,
+        SyncError,
+        fetch_checksum,
+        normalize_source,
+    )
 
     spec = plan_daily_archives(DataRequest((policy["symbol"],), day, finish, bar_intervals=()))[0]
     if local_archive_is_verified(spec, settings.raw_dir) is not None:
@@ -294,7 +299,7 @@ async def serve_history(policy, settings, root, *, rest=None):
                     except BlockingIOError:
                         await asyncio.sleep(5)
                         continue
-                    from pipeline.pair_repair import reconcile_day
+                    from engine.pipeline.pair_repair import reconcile_day
                     result = await reconcile_day(policy, source_settings, rest, source, day, finish, saved["available_ms"],
                                                  comparison_catalog=settings.catalog_dir)
                     needs_calculation = result.get("needs_calculation", False) or interrupted
@@ -487,7 +492,7 @@ def main():
         root.mkdir(parents=True, exist_ok=True)
         with (root / "writer.lock").open("a") as lease:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            from pipeline.options_data import serve_history_batch
+            from engine.pipeline.options_data import serve_history_batch
             asyncio.run(serve_history_batch(args.options_config, load_settings(), args.root.parent))
         return
     if not args.request:
@@ -504,7 +509,7 @@ def main():
         with (root / "writer.lock").open("a") as lease:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if policy["product"] == "options":
-                from pipeline.options_data import serve_history as serve_options_history
+                from engine.pipeline.options_data import serve_history as serve_options_history
                 asyncio.run(serve_options_history(policy, load_settings(), root))
             else:
                 asyncio.run(serve_history(policy, load_settings(), root))

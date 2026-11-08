@@ -8,12 +8,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from pipeline.validate_data import DataValidationError
+from engine.pipeline.validate_data import DataValidationError
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BINARY = (
-    PROJECT_ROOT
-    / "pipeline"
+    Path(__file__).resolve().parent
     / "rust_converter"
     / "target"
     / "release"

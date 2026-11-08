@@ -6,7 +6,7 @@ Phase 1 把行情、连接和订单事实从业务 API 进程里拆出来。本�
 | --- | --- |
 | `engine/connectors/` | Binance 适配器与只读/手动执行客户端。不依赖 feed、pipeline、api、web。 |
 | `engine/feed/` | 连续行情。管理入口 `python -m engine.feed.managed`。 |
-| `engine/pipeline/pair_data.py` | 历史补齐工作进程 `python -m engine.pipeline.pair_data`。归档下载、Rust 转换和 Catalog 实现仍在根目录 `pipeline/`。 |
+| `engine/pipeline/` | 数据管道：历史补齐 `python -m engine.pipeline.pair_data`，一次性任务 `python -m engine.pipeline.data_management`，以及归档、Catalog 和 `rust_converter/`。 |
 | `app.py` / `__main__.py` | 给业务 API 用的内部 HTTP。 |
 
 `strategy_python/` 仍在仓库根目录，本轮不加载实盘策略。
@@ -50,4 +50,5 @@ python -m engine
 ## 尚未纳入
 
 策略商店、策略加载、实盘组合协调器、多租户隔离，以及把操作账本同步和资产校准 REST
-也改成纯事件消费。离线 `pipeline.data_management` 任务仍由 API 启动。
+改成纯事件消费。这两类只读连接器调用仍在 API 进程。研究回测子进程仍由 API 的管理任务启动。
+冻结研究快照里的 `pipeline` 导入保持原字节，不是当前可运行入口。

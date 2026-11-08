@@ -21,23 +21,33 @@ import pyarrow as pa
 from nautilus_trader.model import Bar, CryptoOption, NautilusDataType, TradeTick
 
 from core.paths import PROJECT_ROOT
-from pipeline.catalog import ParquetDataCatalog, TradeTickDataWrangler, _parse_filename_timestamps
-from pipeline.config import load_settings
-from pipeline.convert_binance_bars import read_archive_checksum, read_record, record_path_for
-from pipeline.convert_binance_trades import (
+from engine.pipeline.catalog import (
+    ParquetDataCatalog,
+    TradeTickDataWrangler,
+    _parse_filename_timestamps,
+)
+from engine.pipeline.config import load_settings
+from engine.pipeline.convert_binance_bars import read_archive_checksum, read_record, record_path_for
+from engine.pipeline.convert_binance_trades import (
     catalog_contains_record,
     convert_trade_archives,
     iter_trade_archive,
 )
-from pipeline.models import INTERVALS, DataRequest, SyncedArchive, bar_type_for, instrument_id_for
-from pipeline.prepare_data import prepare_data, validate_request_against_settings
-from pipeline.sync_binance_batch import plan_daily_archives
+from engine.pipeline.models import (
+    INTERVALS,
+    DataRequest,
+    SyncedArchive,
+    bar_type_for,
+    instrument_id_for,
+)
+from engine.pipeline.prepare_data import prepare_data, validate_request_against_settings
+from engine.pipeline.sync_binance_batch import plan_daily_archives
 
 
 def checked_request(symbol, start, end, intervals, settings, *, market="futures_um"):
     request = DataRequest((symbol,), start, end, bar_intervals=tuple(intervals), market=market)
     if market == "options":
-        from pipeline.options_data import check_request
+        from engine.pipeline.options_data import check_request
         check_request(request)
     else:
         validate_request_against_settings(request, replace(settings, symbols=request.symbols, intervals=tuple(INTERVALS)))
@@ -58,7 +68,7 @@ def archive_entries(request, settings):
 
 def coverage(request, settings):
     if request.market == "options":
-        from pipeline.options_data import coverage as option_coverage
+        from engine.pipeline.options_data import coverage as option_coverage
         return option_coverage(request, settings)
     catalog = open_catalog(settings) if settings.catalog_dir.is_dir() else None
     days = []
@@ -171,7 +181,7 @@ def deletion_plan(request, settings, *, delete_archives=False):
         parquet_files(settings.catalog_dir / "features" / bar_type / "data/custom/BarFeatures",
                       "features", dependent=True)
     if request.market == "options":
-        from pipeline.options_data import source_paths
+        from engine.pipeline.options_data import source_paths
         if delete_archives:
             for path in source_paths(request, settings, include_pending=True):
                 add(path, "raw", "archives")
@@ -317,7 +327,7 @@ def preview(settings, symbol, start, end, *, limit=100, cursor=None, interval=No
 
 def validate(request, settings):
     if request.market == "options":
-        from pipeline.options_data import validate as option_validate
+        from engine.pipeline.options_data import validate as option_validate
         return option_validate(request, settings)
     """Hash archives, apply existing normalization, compare every canonical Tick.
 
@@ -394,7 +404,7 @@ def execute(action, request, settings, output, *, expected_snapshot=None, delete
     if action in {"prepare", "materialize"} and any(level in {"3d", "1w", "1M"} for level in request.bar_intervals or ()):
         raise ValueError("跨日周期请使用交易对配置的历史追加任务")
     if request.market == "options" and action != "delete":
-        from pipeline.options_data import execute as option_execute
+        from engine.pipeline.options_data import execute as option_execute
         return option_execute(action, request, settings)
     if action == "delete":
         return delete_data(request, settings, expected_snapshot=expected_snapshot,
@@ -460,11 +470,11 @@ def main():
     result_path = PROJECT_ROOT / ".local/state/api/data_jobs" / f"{args.job_id}.json"
     output = PROJECT_ROOT / "data/exports/ticks" / f"{args.job_id}.csv"
     if args.action == "trim":
-        from pipeline.pair_deletion import trim_pair_history
+        from engine.pipeline.pair_deletion import trim_pair_history
         result = trim_pair_history(payload["symbol"], payload["product"], datetime.fromisoformat(payload["policy"]["history_start"]),
                                    settings, expected_snapshot=payload["deletion_snapshot"])
     elif args.action == "delete_pair":
-        from pipeline.pair_deletion import delete_pair_data
+        from engine.pipeline.pair_deletion import delete_pair_data
         result = delete_pair_data(payload["symbol"], payload["product"], settings,
                                   expected_snapshot=payload["deletion_snapshot"])
     else:

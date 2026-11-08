@@ -23,20 +23,26 @@ from nautilus_trader.model import (
 from nautilus_trader.model.custom import customdataclass
 from nautilus_trader.persistence import ParquetDataCatalog as NativeCatalog
 
-from pipeline.catalog import (
+from engine.pipeline.catalog import (
     ParquetDataCatalog,
     _parse_filename_timestamps,
     _timestamps_to_filename,
 )
-from pipeline.convert_binance_bars import (
+from engine.pipeline.convert_binance_bars import (
     ConversionError,
     read_archive_checksum,
     read_record,
     record_path_for,
 )
-from pipeline.convert_binance_trades import CSV_CHUNK_ROWS, iter_trade_archive
-from pipeline.models import SyncedArchive, as_utc, bar_type_for, interval_delta, normalize_symbol
-from pipeline.validate_data import DataValidationError
+from engine.pipeline.convert_binance_trades import CSV_CHUNK_ROWS, iter_trade_archive
+from engine.pipeline.models import (
+    SyncedArchive,
+    as_utc,
+    bar_type_for,
+    interval_delta,
+    normalize_symbol,
+)
+from engine.pipeline.validate_data import DataValidationError
 
 FEATURE_VERSION = 2
 DAY_NS = 86_400_000_000_000

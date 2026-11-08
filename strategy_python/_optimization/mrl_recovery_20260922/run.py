@@ -22,7 +22,7 @@ from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.objects import Money
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 
-from pipeline.config import load_settings
+from engine.pipeline.config import load_settings
 from strategy_python._backtesting import BacktestSpec, load_binance_data
 from strategy_python._execution.entry_constraints import opening_order_allowed
 from strategy_python._optimization.btc_long_validation_20260921.run import environment

@@ -9,7 +9,7 @@
 - `paths.py`：从源码位置确定项目根目录，供各模块解析逻辑路径。
 
 本层不依赖 connectors、feed、pipeline 或 web，不负责网络、任务编排或配置集中管理。
-`pipeline.models` 和 `engine.feed.models` 继续导出已有公共类型，历史研究入口保持兼容。
+`engine.pipeline.models` 和 `engine.feed.models` 继续导出已有公共类型，历史研究入口保持兼容。
 只供单个模块使用的工具留在其所属模块；文件哈希校验位于测试，不建立通用工具杂物目录。
 
 周期命名包含 3d、1w、1M；`bar_window()` 提供 UTC 周一周界和自然月界。

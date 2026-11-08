@@ -13,8 +13,7 @@ from zipfile import BadZipFile, ZipFile
 import pandas as pd
 from nautilus_trader.model import Bar, BarType, CustomData, DataType, TradeTick
 
-from nautilus_support import Instrument
-from pipeline.catalog import (
+from engine.pipeline.catalog import (
     BarDataWrangler,
     ParquetDataCatalog,
     TradeQuote,
@@ -22,7 +21,7 @@ from pipeline.catalog import (
     _timestamps_to_filename,
     urisafe_identifier,
 )
-from pipeline.convert_binance_bars import (
+from engine.pipeline.convert_binance_bars import (
     ConversionError,
     clear_failure_record,
     read_archive_checksum,
@@ -31,18 +30,19 @@ from pipeline.convert_binance_bars import (
     record_validation_failure,
     write_record,
 )
-from pipeline.models import SyncedArchive, bar_type_for, interval_delta
-from pipeline.rust_trade_converter import (
+from engine.pipeline.models import SyncedArchive, bar_type_for, interval_delta
+from engine.pipeline.rust_trade_converter import (
     RustConversionError,
     find_rust_converter,
     run_rust_trade_converter,
 )
-from pipeline.validate_data import (
+from engine.pipeline.validate_data import (
     TRADE_COLUMNS,
     DataValidationError,
     normalize_trade_frame,
     validate_normalized_trade_frame,
 )
+from nautilus_support import Instrument
 
 TRADE_CONVERTER_VERSION = 4
 CSV_CHUNK_ROWS = 250_000

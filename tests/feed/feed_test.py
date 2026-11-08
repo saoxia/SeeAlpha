@@ -321,8 +321,8 @@ def test_nautilus_conversion_matches_historical_timestamp():
 
 def test_existing_catalog_history_and_rest_bridge(tmp_path):
     from engine.feed.history import CatalogHistory
+    from engine.pipeline.catalog import ParquetDataCatalog
     from nautilus_support import TestInstrumentProvider
-    from pipeline.catalog import ParquetDataCatalog
 
     symbol = "ETHUSDT"
     catalog = ParquetDataCatalog(str(tmp_path / "catalog"))

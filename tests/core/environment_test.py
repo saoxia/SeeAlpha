@@ -28,7 +28,7 @@ def test_activation_without_available_data_uses_local_builds(tmp_path, shell, da
         text=True,
         check=True,
     )
-    assert result.stdout == str(tmp_path / "pipeline/rust_converter/target")
+    assert result.stdout == str(tmp_path / "engine/pipeline/rust_converter/target")
     assert not data.exists()
     assert data.is_symlink() == dangling_link
     assert not (tmp_path / "unavailable").exists()

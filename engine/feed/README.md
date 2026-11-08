@@ -18,7 +18,7 @@
 Binance 接入已迁至 [`connectors/binance/`](../connectors/README.md)，复用 Nautilus 原生
 适配器；本目录保留校时、消息校验、历史衔接、连续性、补洞编排、存储和交付控制。
 公共分钟线类型和命名规则位于 [`core/`](../core/README.md)。
-`history.py` 通过 `pipeline.catalog` 读取历史 Catalog，这是显式的存储桥接；
+`history.py` 通过 `engine.pipeline.catalog` 读取历史 Catalog，这是显式的存储桥接；
 服务入口不再依赖离线管道的配置和命名模块。现有启动命令及数据目录保持不变。
 
 ## 本版范围

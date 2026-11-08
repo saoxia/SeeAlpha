@@ -20,9 +20,9 @@ from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, BarType, InstrumentId, Money, OmsType
 
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.config import load_settings
 from nautilus_support import USDT, instrument_fee_model
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.config import load_settings
 from strategy_python._backtesting import BacktestSpec, load_binance_data
 
 ROOT = Path(__file__).resolve().parent

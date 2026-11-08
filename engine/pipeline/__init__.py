@@ -1,1 +1,1 @@
-"""Resident history worker. Offline archive and research preparation stay in ``pipeline``."""
+"""项目数据流水线。"""

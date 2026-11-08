@@ -1,11 +1,12 @@
 # 当前实际架构与冻结边界
 
-2026-11-08 用户明确授权 Phase 1 架构拆分，并确认顶层目录。常驻交易引擎在 `engine/`：
-`engine/feed/` 是原行情树，`engine/connectors/` 是原连接器，`engine/pipeline/pair_data.py`
-是原 `pipeline.pair_data` 历史工作进程。`api/` 仍是业务后端（用户、会话、加密账户库、
-账本、资产视图和 `/api/*` BFF）。`web/` 与 `strategy_python/` 未移动。
-离线归档、Rust 转换和回测准备仍在根目录 `pipeline/`（含 `pair_repair`、`options_data`、
-`pair_deletion`）；历史工作进程调用它们，本轮不把整个 `pipeline/` 再搬一次。
+2026-11-08 用户明确授权 Phase 1 架构拆分，并在随后授权把剩余数据管道一并移入引擎。
+常驻交易引擎在 `engine/`：`engine/feed/` 是原行情树，`engine/connectors/` 是原连接器，
+`engine/pipeline/` 是完整数据管道（历史工作进程、归档下载、Rust 转换、Catalog、
+`pair_repair`、`options_data`、`pair_deletion` 与 `data_management`）。仓库根目录不再保留
+`pipeline` 包。`api/` 仍是业务后端（用户、会话、加密账户库、账本、资产视图和 `/api/*` BFF）。
+`web/` 与 `strategy_python/` 未移动。一次性离线任务由引擎启动 `engine.pipeline.data_management`；
+业务库仍保存订阅意图和任务索引。
 
 引擎进程 `python -m engine` 默认监听 `127.0.0.1:8766`。业务 API 用 `ENGINE_URL`
 （默认 `http://127.0.0.1:8766`）和 `ENGINE_TOKEN` 调用它。引擎本地 SQLite（WAL）
@@ -61,12 +62,12 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | 模块 | 当前职责与主要依赖 |
 | --- | --- |
 | `core/` | `market/models.py` 定义 `MinuteBar`、时间单位与 `DataError`；`market/instruments.py` 定义现有市场命名；`paths.py` 定位项目根目录。不反向依赖业务模块。 |
-| `engine/` | 常驻交易引擎。内部 HTTP 供 `api/` 调用；SQLite 保存订单、成交、持仓、缺口、幂等请求和运行期订阅。启动/停止 `engine.feed.managed` 与 `engine.pipeline.pair_data`。账户、手动交易和估值 LiveNode 只在这里构建。 |
-| `engine/connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖 `engine.feed`、`pipeline`、`api` 或 `web`。 |
-| `pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。历史工作入口已移到 `engine/pipeline/pair_data.py`。 |
-| `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
+| `engine/` | 常驻交易引擎。内部 HTTP 供 `api/` 调用；SQLite 保存订单、成交、持仓、缺口、幂等请求和运行期订阅。启动/停止 `engine.feed.managed`、`engine.pipeline.pair_data` 与 `engine.pipeline.data_management`。账户、手动交易和估值 LiveNode 只在这里构建。 |
+| `engine/connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖 `engine.feed`、`engine.pipeline`、`api` 或 `web`。 |
+| `engine/pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。`pair_data` 是历史工作进程，`data_management` 是一次性离线任务。 |
+| `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `engine.pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
 | `strategy_python/` | 策略包及共享指标、值对象、风险和执行组件；`_backtesting.py` 组装引擎与数据，`portfolio.py` 按清单组装策略，`portfolio_backtest.py` 启动共用账户回测，`_report/` 输出报告。 |
-| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务。行情订阅意图和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单和估值事件改调引擎；行情采集进程由引擎启动。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。不启动实盘策略。 |
+| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务。行情订阅意图和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单、估值事件、行情采集和一次性离线数据任务都改调引擎。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。不启动实盘策略。 |
 | `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
 
@@ -75,7 +76,7 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 ### 离线数据与回测
 
 ```text
-DataRequest → pipeline.prepare_data.prepare_data() → PreparedDataset
+DataRequest → engine.pipeline.prepare_data.prepare_data() → PreparedDataset
   Binance 日 trades ZIP/CHECKSUM → 校验 → Rust 转换（Python 回退）
   → TradeTick / 多周期 Bar → ParquetDataCatalog → 特征 Parquet
 
@@ -154,7 +155,7 @@ API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accoun
 
 ## 禁止擅自跨越的边界
 
-主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并与 2026-11-08 的 `engine/` 拆分属于该项明确授权，不构成继续搬迁 `strategy_python/`、整个 `pipeline/` 或启用策略实盘的许可。
+主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并、2026-11-08 的 `engine/` 拆分，以及同日把完整数据管道移入 `engine/pipeline/`，属于该项明确授权。这不构成继续搬迁 `strategy_python/`、`web/` 或启用策略实盘的许可。
 
 
 2026-10-28 按用户授权，行情数据管理取消预设交易对：复用既有 Binance 品种查询、

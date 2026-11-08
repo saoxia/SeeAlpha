@@ -33,8 +33,8 @@ class CatalogHistory:
     def options_definition(self, symbol):
         from dataclasses import replace
 
-        from pipeline.config import load_settings
-        from pipeline.options_data import _definition
+        from engine.pipeline.config import load_settings
+        from engine.pipeline.options_data import _definition
 
         return _definition(symbol, replace(load_settings(), catalog_dir=self.path), local_only=True).to_dict()
 
@@ -43,9 +43,9 @@ class CatalogHistory:
         from dataclasses import replace
         from datetime import UTC, datetime, timedelta
 
-        from pipeline.config import load_settings
-        from pipeline.models import DataRequest
-        from pipeline.options_data import persist_live, prepare, repair_live
+        from engine.pipeline.config import load_settings
+        from engine.pipeline.models import DataRequest
+        from engine.pipeline.options_data import persist_live, prepare, repair_live
 
         settings = replace(load_settings(), catalog_dir=self.path)
         result = persist_live(symbol, events, settings, recover=recover, definition=definition)
@@ -61,7 +61,7 @@ class CatalogHistory:
     def read_day(self, symbol, start_ms, end_ms):
         if not self.path.exists():
             return []
-        from pipeline.catalog import ParquetDataCatalog
+        from engine.pipeline.catalog import ParquetDataCatalog
 
         catalog = ParquetDataCatalog(str(self.path))
         rows = catalog.bars(
@@ -103,7 +103,7 @@ class CatalogHistory:
         from nautilus_trader.model import NautilusDataType
 
         from core.market.instruments import instrument_id_for
-        from pipeline.catalog import ParquetDataCatalog
+        from engine.pipeline.catalog import ParquetDataCatalog
 
         catalog = ParquetDataCatalog(str(self.path))
         stream = catalog.native.query_data_arrow_stream(

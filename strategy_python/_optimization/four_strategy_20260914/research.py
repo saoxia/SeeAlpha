@@ -23,7 +23,7 @@ from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.objects import Money, Price, Quantity
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 
-from pipeline.config import load_settings
+from engine.pipeline.config import load_settings
 from strategy_python._backtesting import load_binance_data, with_input_interval
 from strategy_python._optimization.four_strategy_20260914.environment import backtest_spec
 from strategy_python.portfolio import STRATEGY_REGISTRY

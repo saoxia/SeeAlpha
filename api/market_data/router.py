@@ -21,8 +21,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
 from core.market.instruments import INTERVALS, bar_window
-from pipeline.config import load_settings
-from pipeline.data_management import coverage, dataset_inventory, preview, rows
+from engine.pipeline.config import load_settings
+from engine.pipeline.data_management import coverage, dataset_inventory, preview, rows
 
 from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
@@ -139,7 +139,7 @@ def latest_data_times(request: Request, _: CurrentUser):
     from nautilus_trader.model import NautilusDataType
 
     from core.market.instruments import bar_type_for
-    from pipeline.data_management import open_catalog
+    from engine.pipeline.data_management import open_catalog
 
     manager = service(request)
     manager.require_storage()

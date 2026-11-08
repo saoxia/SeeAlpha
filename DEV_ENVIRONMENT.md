@@ -61,13 +61,13 @@ uv sync --locked
 Rust 工具链安装、构建和单元测试入口（macOS ARM64）：
 
 ```bash
-cargo build --release --locked --manifest-path pipeline/rust_converter/Cargo.toml
-cargo test --release --locked --manifest-path pipeline/rust_converter/Cargo.toml
+cargo build --release --locked --manifest-path engine/pipeline/rust_converter/Cargo.toml
+cargo test --release --locked --manifest-path engine/pipeline/rust_converter/Cargo.toml
 ```
 
 先安装 rustup（本机位于 `.local/cargo/bin/`）。Cargo 根据 `rust-toolchain.toml`
 选择工具链，根据 `Cargo.lock` 构建；不再通过项目脚本重复声明版本。
-转换器默认从本机 `pipeline/rust_converter/target/release/` 发现，不依赖激活脚本或数据目录。需要验证 Python 回退时：
+转换器默认从本机 `engine/pipeline/rust_converter/target/release/` 发现，不依赖激活脚本或数据目录。需要验证 Python 回退时：
 
 ```bash
 NAUTILUS_RUST_CONVERTER=off python -m pytest tests/pipeline -q
@@ -83,7 +83,7 @@ NAUTILUS_RUST_CONVERTER=off python -m pytest tests/pipeline -q
 | Python 依赖 | `.venv/` |
 | uv / Python / Rust 工具链和下载缓存 | `.local/` |
 | 行情、Catalog、状态及数据库 | `data` → `/Volumes/ssd1/NautilusTrader/data` |
-| Rust 编译缓存和二进制 | `pipeline/rust_converter/target/`，位于本机 |
+| Rust 编译缓存和二进制 | `engine/pipeline/rust_converter/target/`，位于本机 |
 | 常规策略回测报告 | `data/reports/backtest/`，通过 data 链接存储 |
 
 数据盘配置详见 [DATA_STORAGE.md](DATA_STORAGE.md)。

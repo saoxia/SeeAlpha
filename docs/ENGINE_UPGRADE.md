@@ -25,7 +25,7 @@
 - Python 3.14.10 已发布，但 uv 0.13.5 的托管构建目录及已检查的 python-build-standalone 发布尚不提供该版本；采用可安装的 3.14.9。没有修改系统 Python 或自行拼装运行时。
 - crates.io API 已列出 zip 9.1.2，但官方 Cargo sparse index `https://index.crates.io/3/z/zip` 最新为 9.1.1。尝试 `cargo update -p zip --precise 9.1.2` 返回找不到包，当前锁定 9.1.1。此项是发布索引可用性限制，不是 Nautilus 的版本约束。
 
-Python 依赖以根目录 `uv.lock` 为准，Rust 依赖以 `pipeline/rust_converter/Cargo.lock` 为准。此处版本与可用性结论为升级当日记录。
+Python 依赖以根目录 `uv.lock` 为准，Rust 依赖以 `engine/pipeline/rust_converter/Cargo.lock` 为准。此处版本与可用性结论为升级当日记录。
 
 ## 代码适配
 
@@ -33,13 +33,13 @@ Python 依赖以根目录 `uv.lock` 为准，Rust 依赖以 `pipeline/rust_conve
 - 项目 `_config.py` 保留声明式策略参数、不可变参数及 JSON 往返，原生运行配置由原生构造器持有。
 - 项目 `_strategy.py` 处理 rc7 显式 stop 的 Rust 可变借用冲突，先完成本策略撤单和平仓清理，再进入原生停止流程。
 - `nautilus_support.py` 显式保留 v1 的订单价格取整、参考合约及手续费模型；费率可通过 instrument.info.project_fee_rates 指定，未指定时沿用项目原假设 maker 0.0002、taker 0.0004。该默认值不是实时账户费率查询。
-- `pipeline/catalog.py` 封装 v2 公共 Catalog API；Rust 输出改为 v2 Decimal128、UTC 纳秒时间戳和字典型买卖方向。项目指标表仍独立存储。
+- `engine/pipeline/catalog.py` 封装 v2 公共 Catalog API；Rust 输出改为 v2 Decimal128、UTC 纳秒时间戳和字典型买卖方向。项目指标表仍独立存储。
 - Binance 合约加载使用原生 USD_M 数据客户端配置；行情层随后改为原生 LiveNode 和 BinanceDataClient，包含断线通知、重连、心跳和关闭处理。Python websockets 仅用于开发测试。
 - 当前代码移除旧样式豁免并通过 Ruff；历史研究来源的允许修改有显式哈希登记，原始冻结归档仍被核验。
 
 ## 数据与历史结果
 
-`data` 由本机文件系统链接管理；Rust 构建目录现为本机 `pipeline/rust_converter/target/`。程序不检查外置盘挂载。
+`data` 由本机文件系统链接管理；Rust 构建目录现为本机 `engine/pipeline/rust_converter/target/`。程序不检查外置盘挂载。
 
 - 原始 ZIP：`data/raw/binance`，可继续复用。
 - Catalog：`data/catalog`。
@@ -63,7 +63,7 @@ python -c 'import nautilus_trader; print(nautilus_trader.__version__)'
 python -m pytest -q
 ```
 
-重建使用 `uv sync --locked` 和 `cargo build --release --locked --manifest-path pipeline/rust_converter/Cargo.toml`。
+重建使用 `uv sync --locked` 和 `cargo build --release --locked --manifest-path engine/pipeline/rust_converter/Cargo.toml`。
 已按用户要求清理旧引擎环境、迁移候选环境、旧 Python 运行时、源码备份和下载缓存。
 默认环境仅保留 `.venv`；Catalog 与状态目录统一使用无版本后缀的路径。
 当前源码核验使用 `tests/baselines/current_source_baselines.json`，不再依赖旧源码 ZIP。

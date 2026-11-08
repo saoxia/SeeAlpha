@@ -23,7 +23,7 @@ cd web && npm run test:frontend
 - Ruff：通过。
 - pytest：`2 failed, 1573 passed, 37 skipped, 1 warning, 18 errors`（66 秒）。
   - 失败 2 项：`tests/core/environment_test.py` 要执行 `/bin/zsh`，本环境没有这个解释器（`FileNotFoundError`）。同一测试的 Bash 参数通过。
-  - 错误 18 项：全部是 `tests/pipeline/data_management_test.py` 的 `dataset` 夹具。`find_rust_converter()` 为 `None`，Python 回退在 `pipeline/catalog.py` 的 `_decimal` 把数值转成 `decimal128(38, 16)` 时失败，异常为 `pyarrow.lib.ArrowInvalid: Rescaling Decimal value would cause data loss`。
+  - 错误 18 项：全部是 `tests/pipeline/data_management_test.py` 的 `dataset` 夹具。`find_rust_converter()` 为 `None`，Python 回退在 `engine/pipeline/catalog.py` 的 `_decimal` 把数值转成 `decimal128(38, 16)` 时失败，异常为 `pyarrow.lib.ArrowInvalid: Rescaling Decimal value would cause data loss`。
   - 跳过 37 项：26 项因为未设置 `TEST_POSTGRES_URL`（`tests/api/operations_test.py`、`tests/api/orm_storage_test.py`）；11 项因为 Rust 转换器未构建（`tests/pipeline/convert_binance_trades_test.py`，原因是 `Rust converter has not been built`）。
   - 警告 1 条：依赖里的 `StarletteDeprecationWarning`（`fastapi/testclient.py` 使用 httpx）。项目代码没有再发出时间接口或 `float_precision` 警告。
 - 前端 `npm run test:frontend`：29 项通过，0 项失败。
@@ -34,7 +34,7 @@ cd web && npm run test:frontend
 
 ## 当前实现
 
-默认研究数据集仍是 `pipeline/binance_sources.toml` 中的 BTC-USDT、ETH-USDT、SOL-USDT。
+默认研究数据集仍是 `engine/pipeline/binance_sources.toml` 中的 BTC-USDT、ETH-USDT、SOL-USDT。
 本地开发服务是前端 `127.0.0.1:3000` 和 API `:8000`。
 
 ### 前后端拆分第二阶段（已完成）
@@ -61,9 +61,9 @@ Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.t
 
 - **Binance 期权适配器**：行情客户端 `engine/connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `engine/connectors/binance/options_account.py`，执行客户端 `engine/connectors/binance/options_execution.py`。公开行情解析在 `engine/connectors/binance/options.py` 与 `engine/connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
 - **USD-M 现金流台账**：`engine/connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
-- **期权数据**：离线任务在 `pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集尚未接入 `feed/`。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
-- **常驻交易引擎**：`engine/` 持有连接器、连续行情和 `engine.pipeline.pair_data` 历史工作进程。`python -m engine` 提供内部 HTTP，SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。`api/market_data/subscriptions.py` 只保存业务意图并请求引擎启动采集；API 不再构造账户/手动/估值 LiveNode。策略包仍在 `strategy_python/`。
-- **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线归档任务仍在 `api/market_data/service.py`。
+- **期权数据**：离线任务在 `engine/pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集由引擎的 feed 进程承担。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
+- **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略包仍在 `strategy_python/`。
+- **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线准备、删除和裁剪由引擎执行 `engine.pipeline.data_management`。
 - **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
 
 ### 业务数据库
@@ -81,7 +81,7 @@ Binance 原生只读查询在 `engine/connectors/binance/queries.py`，不经过
 约 180 条上游时间接口弃用提示已随 NautilusTrader 2.0.0rc7 升级消除。本次全量 pytest 的警告汇总里没有这类提示。
 
 去掉参数之前，同一命令还有 **78** 条 pandas `Pandas4Warning`：`The 'float_precision' argument is deprecated. Use the default float precision instead.`
-全部指向当时的 `pipeline/convert_binance_trades.py:76`（`tests/pipeline/bar_features_test.py` 25 条、`convert_binance_trades_test.py` 29 条、`data_management_test.py` 22 条、`pair_repair_test.py` 2 条）。
+全部指向当时的 `engine/pipeline/convert_binance_trades.py`（原 `pipeline/convert_binance_trades.py:76`）（`tests/pipeline/bar_features_test.py` 25 条、`convert_binance_trades_test.py` 29 条、`data_management_test.py` 22 条、`pair_repair_test.py` 2 条）。
 pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_trade_archive` 已不再传入 `float_precision`。
 抽样比较省略该参数与三种旧模式，数值列一致。修改后的全量测试不再出现这条警告。
 

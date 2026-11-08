@@ -104,7 +104,7 @@ uv run ruff check .
 ```
 
 测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`engine/connectors/`、`engine/feed/`、
-`pipeline/`、`strategy_python/` 及其子模块分组，
+`engine/pipeline/`、`strategy_python/` 及其子模块分组，
 文件名继续使用 `*_test.py`。测试按关键行为和出错影响组织，不要求每个 Python 文件
 都有对应的测试文件。
 相关的小用例集中维护，重点覆盖交易规则、风控、数据处理和完整回测流程；
@@ -149,7 +149,7 @@ uv run python -m strategy_python.portfolio_backtest \
 
 每个策略目录中的 `backtest.py` 是该策略自己的回测入口。
 默认读取已有 Catalog；显式添加 `--check-data` 才通过
-`pipeline/prepare_data.py` 检查并准备缺失数据。行情数据统一保存在 `data/`。
+`engine/pipeline/prepare_data.py` 检查并准备缺失数据。行情数据统一保存在 `data/`。
 
 在项目根目录分别运行趋势跟随做多、做空策略：
 
@@ -223,17 +223,17 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 批量准备命令会从同一份 trades 生成 Nautilus `TradeTick` 以及 1s、1m、5m、15m Bar：
 
 ```bash
-.venv/bin/python -m pipeline.prepare_data \
+.venv/bin/python -m engine.pipeline.prepare_data \
   --start 2026-08-01 \
   --end 2026-08-02
 ```
 
-[`pipeline/sync_binance_file.py`](pipeline/sync_binance_file.py) 用于将
+[`engine/pipeline/sync_binance_file.py`](engine/pipeline/sync_binance_file.py) 用于将
 `data.binance.vision` 上指定的单个公开数据归档同步到项目。既可以传完整 URL，
 也可以传以 `data/` 开头的站内路径：
 
 ```bash
-.venv/bin/python -m pipeline.sync_binance_file \
+.venv/bin/python -m engine.pipeline.sync_binance_file \
   data/futures/um/daily/trades/ETHUSDT/ETHUSDT-trades-2026-08-01.zip
 ```
 
@@ -245,11 +245,11 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 接受完整性风险时，才应使用 `--skip-checksum`。查看全部参数：
 
 ```bash
-.venv/bin/python -m pipeline.sync_binance_file --help
+.venv/bin/python -m engine.pipeline.sync_binance_file --help
 ```
 
 批量同步、Nautilus 转换、统一 `prepare_data()` 入口和目录内所有文件的职责，
-详见 [`pipeline/README.md`](pipeline/README.md)。
+详见 [`engine/pipeline/README.md`](engine/pipeline/README.md)。
 
 回测完成后打开结果目录中的 `report.html` 查看中文交互报告，无需联网。
 报告包含常规统计、参数、账户/成交/持仓明细，以及做多、做空、合计三条累计净收益曲线。
@@ -263,7 +263,7 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 
 | 目录 | 职责 |
 |---|---|
-| [`pipeline/`](pipeline/README.md) | 历史归档下载、转换、校验、特征与 Catalog 入库 |
+| [`engine/pipeline/`](engine/pipeline/README.md) | 历史归档下载、转换、校验、特征与 Catalog 入库 |
 | [`engine/`](engine/README.md) | 常驻交易引擎、连接器、连续行情与历史工作进程 |
 | [`connectors/`](connectors/README.md) | 交易所原生适配器配置、桥接与必要扩展 |
 | [`core/`](core/README.md) | 公共行情类型、命名规则和项目路径 |

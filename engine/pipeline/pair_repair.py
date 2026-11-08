@@ -13,9 +13,9 @@ import pyarrow.parquet as pq
 from nautilus_trader.model import Bar, BarType, NautilusDataType, Price, Quantity
 
 from core.market.instruments import bar_type_for, bar_window, instrument_id_for
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.models import DataRequest
-from pipeline.prepare_data import ensure_instruments, prepare_data
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.models import DataRequest
+from engine.pipeline.prepare_data import ensure_instruments, prepare_data
 
 SCAN_PATH = ("1d", "4h", "1h", "15m", "5m", "1m")
 FIELDS = ("open", "high", "low", "close", "volume")

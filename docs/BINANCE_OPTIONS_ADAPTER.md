@@ -105,7 +105,7 @@ history = await client.order_history(symbol, start_ms, end_ms, order_id=cursor, 
 ## 验证与官方依据
 
 ```bash
-.venv/bin/python -m ruff check engine/connectors/binance pipeline/options_data.py tests/connectors/binance
+.venv/bin/python -m ruff check engine/connectors/binance engine/pipeline/options_data.py tests/connectors/binance
 .venv/bin/python -m pytest tests/connectors/binance tests/pipeline/options_data_test.py -q
 ```
 

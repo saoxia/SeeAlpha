@@ -7,11 +7,11 @@ import pytest
 from nautilus_trader.model import Bar, BarType, Price, Quantity
 
 from core.market.instruments import BINANCE_KLINE_INTERVALS, bar_type_for, bar_window
+from engine.pipeline.catalog import ParquetDataCatalog
+from engine.pipeline.models import PipelineSettings
 from engine.pipeline.pair_data import calculate_history_change
+from engine.pipeline.pair_repair import install_tick_slice, reconcile_day, remote_klines
 from nautilus_support import TestInstrumentProvider
-from pipeline.catalog import ParquetDataCatalog
-from pipeline.models import PipelineSettings
-from pipeline.pair_repair import install_tick_slice, reconcile_day, remote_klines
 
 DAY = datetime(2026, 8, 1, tzinfo=UTC)
 LEFT = int(DAY.timestamp() * 1000)
@@ -68,7 +68,7 @@ def test_equal_day_never_requests_smaller_periods(dataset):
 
 
 def test_saved_target_is_read_without_loading_minutes_or_ticks():
-    from pipeline.pair_repair import local_klines
+    from engine.pipeline.pair_repair import local_klines
 
     stamp = (LEFT + 86400000 - 1) * 1000000
     bar = Bar(BarType.from_str(bar_type_for("ETHUSDT", "1d")),
@@ -96,8 +96,8 @@ def test_published_archive_allows_saved_public_bars_check_without_private_ticks(
     def forbidden(*args):
         raise AssertionError("Matching saved K lines must not convert or deduplicate Tick data")
     monkeypatch.setattr("engine.pipeline.pair_data._history_archive_available", probe)
-    monkeypatch.setattr("pipeline.pair_repair.ensure_instruments", forbidden)
-    monkeypatch.setattr("pipeline.pair_repair.repair_candidates", forbidden)
+    monkeypatch.setattr("engine.pipeline.pair_repair.ensure_instruments", forbidden)
+    monkeypatch.setattr("engine.pipeline.pair_repair.repair_candidates", forbidden)
     rest = Rest()
     result = asyncio.run(reconcile_day({"symbol": "ETHUSDT"}, settings, rest, "tick", DAY, DAY + timedelta(days=1), LEFT,
                                       comparison_catalog=public.path))
@@ -114,9 +114,9 @@ def test_unpublished_archive_skips_kline_requests_local_reads_and_repair(dataset
     monkeypatch.setattr("engine.pipeline.pair_data._history_archive_available", lambda *args: False)
     def forbidden(*args):
         raise AssertionError("Unpublished archive must skip comparison and repair")
-    monkeypatch.setattr("pipeline.pair_repair.ParquetDataCatalog", forbidden)
-    monkeypatch.setattr("pipeline.pair_repair.scan_day", forbidden)
-    monkeypatch.setattr("pipeline.pair_repair.repair_candidates", forbidden)
+    monkeypatch.setattr("engine.pipeline.pair_repair.ParquetDataCatalog", forbidden)
+    monkeypatch.setattr("engine.pipeline.pair_repair.scan_day", forbidden)
+    monkeypatch.setattr("engine.pipeline.pair_repair.repair_candidates", forbidden)
     rest = Rest()
     result = asyncio.run(reconcile_day({"symbol": "ETHUSDT"}, settings, rest, source, DAY, DAY + timedelta(days=1), LEFT))
     assert not result["ready"] and result["archive_pending"]
@@ -238,8 +238,8 @@ def test_three_day_week_and_month_close_only_with_their_complete_utc_windows(dat
 
 @pytest.mark.parametrize("wide", [False, True])
 def test_tick_repair_merges_same_millisecond_shards_and_preserves_quotes(tmp_path, monkeypatch, wide):
-    from pipeline.convert_binance_trades import convert_trade_archive
-    from pipeline.models import SyncedArchive
+    from engine.pipeline.convert_binance_trades import convert_trade_archive
+    from engine.pipeline.models import SyncedArchive
     from tests.pipeline.convert_binance_trades_test import trade_row, write_trade_archive
 
     monkeypatch.setenv("NAUTILUS_RUST_CONVERTER", "off")
@@ -277,7 +277,7 @@ def test_tick_repair_merges_same_millisecond_shards_and_preserves_quotes(tmp_pat
 def test_cancelled_repair_waits_for_the_writer_before_releasing_its_caller(dataset, monkeypatch):
     import threading
 
-    import pipeline.pair_repair as module
+    import engine.pipeline.pair_repair as module
     settings, catalog = dataset
     catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
     entered, release = threading.Event(), threading.Event()
@@ -309,7 +309,7 @@ def test_repaired_day_is_completed_only_after_saved_bars_are_generated_and_reche
 
     import engine.pipeline.pair_data as module
     from engine.feed.history import CatalogHistory
-    from pipeline.convert_binance_bars import write_record
+    from engine.pipeline.convert_binance_bars import write_record
 
     settings, catalog = dataset
     catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
