@@ -162,7 +162,7 @@ def install_tick_slice(canonical, catalog, symbol, start_ms, end_ms):
 
 def repair_candidates(policy, settings, catalog, source, candidates, day, instrument):
     """Use official minutes or checked daily trades; never reverse bars into trades."""
-    from pipeline.pair_data import install_bars
+    from engine.pipeline.pair_data import install_bars
 
     written, conflicts = 0, []
     if source == "1m":
@@ -214,7 +214,7 @@ def repair_candidates(policy, settings, catalog, source, candidates, day, instru
 
 async def reconcile_day(policy, settings, rest, source, day, finish, available_ms, *, comparison_catalog=None):
     if source in {"tick", "1s"}:
-        from pipeline.pair_data import _history_archive_available
+        from engine.pipeline.pair_data import _history_archive_available
         if not await asyncio.to_thread(_history_archive_available, policy, settings, day, finish):
             return {"ready": False, "checked_at": datetime.now(UTC).isoformat(), "records_written": 0,
                     "archive_pending": True, "scope": "saved_kline_ohlcv"}

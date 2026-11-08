@@ -16,9 +16,9 @@ from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.exchanges.service import summary
 from api.main import create_app
-from connectors.binance import assets as asset_queries
-from connectors.binance import queries
-from connectors.binance.queries import account_snapshot as native_account_snapshot
+from engine.connectors.binance import assets as asset_queries
+from engine.connectors.binance import queries
+from engine.connectors.binance.queries import account_snapshot as native_account_snapshot
 
 
 @pytest.fixture

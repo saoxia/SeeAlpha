@@ -5,8 +5,8 @@ import json
 import os
 import time
 
-from connectors.binance.options_client import market_events
-from connectors.binance.queries import QueryError
+from engine.connectors.binance.options_client import market_events
+from engine.connectors.binance.queries import QueryError
 
 from .history import CatalogHistory
 from .service import write_status
@@ -167,10 +167,10 @@ async def serve_batch(manifest, managed_root, catalog, *, project=None):
 
     from nautilus_trader.model import CryptoOption
 
-    from connectors.binance import options
-    from connectors.binance.options_client import batch_market_events
     from core.market.instruments import normalize_symbol
     from core.paths import PROJECT_ROOT
+    from engine.connectors.binance import options
+    from engine.connectors.binance.options_client import batch_market_events
 
     project = project or PROJECT_ROOT
     history = CatalogHistory(catalog)

@@ -22,6 +22,9 @@ class Settings:
     require_database_url: bool = False
     operation_sync_seconds: int = 0
     equity_enabled: bool = False
+    engine_url: str = "inprocess"
+    engine_token: str = field(default="seealpha-local-engine", repr=False)
+    engine_market_account_id: str = "market-data"
 
     @classmethod
     def from_environment(cls):
@@ -64,4 +67,7 @@ class Settings:
             allowed_origins=tuple(
                 h.strip() for h in os.getenv("ALLOWED_ORIGINS", "").split(",") if h.strip()
             ),
+            engine_url=os.getenv("ENGINE_URL", "http://127.0.0.1:8766"),
+            engine_token=os.getenv("ENGINE_TOKEN", "seealpha-local-engine"),
+            engine_market_account_id=os.getenv("ENGINE_MARKET_ACCOUNT_ID", "market-data"),
         )

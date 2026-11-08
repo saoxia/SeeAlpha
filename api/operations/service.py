@@ -5,9 +5,9 @@ import logging
 import math
 import time
 
-from connectors.binance.income import DAY_MS, income_history
-from connectors.binance.operations import operation_history
-from connectors.binance.queries import QueryError
+from engine.connectors.binance.income import DAY_MS, income_history
+from engine.connectors.binance.operations import operation_history
+from engine.connectors.binance.queries import QueryError
 
 from .options import sync_options
 from .repository import Operations
@@ -33,7 +33,7 @@ class OperationService:
         do not run database/network I/O on the native execution callback thread.
         Backtests must not call this live-business sink.
         """
-        from connectors.binance.operations import normalize_event
+        from engine.connectors.binance.operations import normalize_event
 
         record = normalize_event(event, order, account)
         return self.repository.ingest(record) if record is not None else None

@@ -33,7 +33,7 @@
 from nautilus_trader.common import Environment
 from nautilus_trader.live import LiveNode
 from nautilus_trader.model import TraderId
-from connectors.binance.options_client import (
+from engine.connectors.binance.options_client import (
     BinanceOptionsDataClientConfig,
     BinanceOptionsDataClientFactory,
 )
@@ -76,7 +76,7 @@ socket 并等待后台任务结束。格式、身份或精度校验失败会停�
 ## 只读账户查询
 
 ```python
-from connectors.binance.options_account import BinanceOptionsAccountClient
+from engine.connectors.binance.options_account import BinanceOptionsAccountClient
 
 # account 由现有后端账户服务鉴权并解密后提供，不在前端传递、不硬编码凭据。
 credentials = account["credentials"]
@@ -105,7 +105,7 @@ history = await client.order_history(symbol, start_ms, end_ms, order_id=cursor, 
 ## 验证与官方依据
 
 ```bash
-.venv/bin/python -m ruff check connectors/binance pipeline/options_data.py tests/connectors/binance
+.venv/bin/python -m ruff check engine/connectors/binance pipeline/options_data.py tests/connectors/binance
 .venv/bin/python -m pytest tests/connectors/binance tests/pipeline/options_data_test.py -q
 ```
 
@@ -124,7 +124,7 @@ history = await client.order_history(symbol, start_ms, end_ms, order_id=cursor, 
 
 ```python
 from nautilus_trader.live import LiveExecutionEngineConfig
-from connectors.binance.options_execution import (
+from engine.connectors.binance.options_execution import (
     BinanceOptionsExecutionClientConfig,
     BinanceOptionsExecutionClientFactory,
 )

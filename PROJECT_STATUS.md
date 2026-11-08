@@ -59,10 +59,11 @@ Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.t
 
 这些功能此前未写入本文件，路径以当前代码为准。
 
-- **Binance 期权适配器**：行情客户端 `connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `connectors/binance/options_account.py`，执行客户端 `connectors/binance/options_execution.py`。公开行情解析在 `connectors/binance/options.py` 与 `connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
-- **USD-M 现金流台账**：`connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
+- **Binance 期权适配器**：行情客户端 `engine/connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `engine/connectors/binance/options_account.py`，执行客户端 `engine/connectors/binance/options_execution.py`。公开行情解析在 `engine/connectors/binance/options.py` 与 `engine/connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
+- **USD-M 现金流台账**：`engine/connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
 - **期权数据**：离线任务在 `pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集尚未接入 `feed/`。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
-- **托管行情数据服务**：`api/market_data/subscriptions.py` 按配置启动 `feed.managed` 的采集与计算，以及 `pipeline.pair_data --service` 历史补齐。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线数据任务在 `api/market_data/service.py`。
+- **常驻交易引擎**：`engine/` 持有连接器、连续行情和 `engine.pipeline.pair_data` 历史工作进程。`python -m engine` 提供内部 HTTP，SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。`api/market_data/subscriptions.py` 只保存业务意图并请求引擎启动采集；API 不再构造账户/手动/估值 LiveNode。策略包仍在 `strategy_python/`。
+- **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线归档任务仍在 `api/market_data/service.py`。
 - **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
 
 ### 业务数据库
@@ -72,7 +73,7 @@ ORM 同时支持 SQLite 和 PostgreSQL（`api/db/database.py`、`api/db/orm.py`�
 API 进程要求显式连接；未配置时不会自行建库，也不会在连接失败后改用另一种数据库。
 连接与迁移见 [API 持久化说明](api/README.md#通用-orm-业务持久化)。
 
-Binance 原生只读查询在 `connectors/binance/queries.py`，不经过旧 CCXT 客户端。
+Binance 原生只读查询在 `engine/connectors/binance/queries.py`，不经过旧 CCXT 客户端。账户快照由引擎进程调用。
 范围见 [Binance 原生 API 说明](docs/BINANCE_NATIVE_API.md)。
 
 ### 警告
@@ -86,10 +87,10 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 
 ## 仍未完成
 
-- [ ] 行情 feed 的长时间运行验收，以及具体策略的预热验收。短时 5 分钟预热验证不替代这两项。运行说明见 [feed/README.md](feed/README.md)。有界连通性检查使用独立目录，不把结果写进仓库：
+- [ ] 行情 feed 的长时间运行验收，以及具体策略的预热验收。短时 5 分钟预热验证不替代这两项。运行说明见 [feed/README.md](engine/feed/README.md)。有界连通性检查使用独立目录，不把结果写进仓库：
 
   ```bash
-  .venv/bin/python -m feed.service serve \
+  .venv/bin/python -m engine.feed.service serve \
     --root /tmp/nautilus-minute-smoke --warmup-minutes 5 --duration-seconds 90
   ```
 
@@ -142,7 +143,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 本版仅分钟 OHLCV，不提供逐笔还原、盘口或主动成交量特征；未自动启用常驻服务，
 未接入交易账户或现行策略下单。
 
-[运行与接入说明](feed/README.md)
+[运行与接入说明](engine/feed/README.md)
 
 ## 查看与复查
 

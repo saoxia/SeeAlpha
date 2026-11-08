@@ -10,13 +10,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
-from connectors.binance.queries import QueryError
+from engine.connectors.binance.queries import QueryError
 
 from .auth.router import router
 from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
+from .engine_client import EngineClient
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -109,6 +110,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             if app.state.management is not None and runtime is not None:
                 runtime.__exit__(None, None, None)
                 app.state.management = None
+            app.state.engine.close()
             database.close()
 
     app = FastAPI(title="SeeAlpha API", version="0.1.0", lifespan=lifespan)
@@ -116,14 +118,19 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.repository = auth_repository(database)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
+    app.state.engine = EngineClient(
+        settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
+        market_account_id=settings.engine_market_account_id,
+    )
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
     app.state.exchanges = ExchangeService(app.state.accounts, settings.database_path.parent / "portfolios",
-                                          app.state.operations.repository)
-    app.state.equity = EquityService(database, app.state.accounts)
+                                          app.state.operations.repository, app.state.engine)
+    app.state.equity = EquityService(database, app.state.accounts, app.state.engine)
     app.state.trading = ManualTrading(app.state.accounts, app.state.exchanges, app.state.operations,
-                                      settings.database_path.parent / "trading")
+                                      app.state.engine.root, app.state.engine)
     app.state.market_data = DataService(database)
+    app.state.market_data.engine = app.state.engine
     app.state.management = None
     app.state.management_project = (
         project if project is not None else PROJECT if settings.require_database_url else None

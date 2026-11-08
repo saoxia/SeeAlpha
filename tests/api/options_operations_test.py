@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 from api.operations import options as module
 from api.operations.options import account_identity, position_view, replay_positions, sync_options
-from connectors.binance.operations import normalize_option_record
-from connectors.binance.queries import QueryError
+from engine.connectors.binance.operations import normalize_option_record
+from engine.connectors.binance.queries import QueryError
 from tests.api import exchanges_test, operations_test
 from tests.api.exchanges_test import collect, create, signin
 

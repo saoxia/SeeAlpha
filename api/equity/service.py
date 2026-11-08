@@ -10,8 +10,8 @@ from contextlib import aclosing, suppress
 
 from fastapi import HTTPException
 
-from connectors.binance import assets, queries
-from connectors.binance.valuation import valuation_events
+from engine.connectors.binance import assets, queries
+from engine.runtime import valuation_events
 
 from .repository import EquityRepository
 from .valuation import decimal, reconcile
@@ -34,9 +34,10 @@ def account_state(evidence, state):
 
 
 class EquityService:
-    def __init__(self, database, accounts):
+    def __init__(self, database, accounts, engine=None):
         self.repository = EquityRepository(database)
         self.accounts = accounts
+        self.engine = engine
         self.owner = None
         self.collectors = {}
         self.jobs = set()
@@ -109,7 +110,9 @@ class EquityService:
                 # Each stream obtains a fresh REST baseline. Mark restarts and
                 # credential changes rather than implying uninterrupted coverage.
                 await persist({"time": int(time.time() * 1000), "reason": "gap", "state": {}})
-                async with aclosing(valuation_events(account)) as events:
+                source = (self.engine.valuation_events(account)
+                          if self.engine is not None and self.engine.remote else valuation_events(account))
+                async with aclosing(source) as events:
                     async for event in events:
                         currencies = {currency for currency, amount in event["wallet"].items() if decimal(amount)}
                         currencies.update(p["currency"] for p in event["positions"])

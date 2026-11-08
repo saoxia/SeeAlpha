@@ -10,9 +10,9 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from connectors.binance import options, options_account
-from connectors.binance.options_account import BinanceOptionsAccountClient
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import options, options_account
+from engine.connectors.binance.options_account import BinanceOptionsAccountClient
+from engine.connectors.binance.queries import QueryError
 
 SYMBOL = "BTC-261225-85000-C"
 KEY, SECRET = "fictional-options-api-key", "fictional-options-secret"

@@ -10,8 +10,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from connectors.binance import income
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import income
+from engine.connectors.binance.queries import QueryError
 
 
 def account(**values):

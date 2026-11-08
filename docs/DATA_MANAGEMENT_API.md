@@ -1,7 +1,9 @@
 # 行情数据管理 API
 
 当前范围为已接入的 Binance USD-M 逐笔 `trades` 日归档、Nautilus `TradeTick` 及派生 K 线。
-API 托管实时接入、历史补齐、K 线计算，并在 API 内定期执行文件监控；不启动实盘策略、不改写研究冻结来源。
+订阅意图存在业务表 `market_data_policies`。实时接入、历史补齐和 K 线计算进程由
+常驻引擎启动（`engine.feed.managed`、`engine.pipeline.pair_data`）；API 不再自行
+`Popen` 这两个入口。API 内仍定期做文件监控。不启动实盘策略、不改写研究冻结来源。
 前端入口为「数据管理 → 行情数据」，历史与实时状态在同一清单展示；保留账户记录，页面不再提供数据导出。
 历史导出路由、任务动作和服务实现保留公共兼容，前端不再创建导出任务或显示下载入口。
 行情记录预览也已从列表菜单及详情弹窗移除；`GET /ticks`、`GET /bars` 保留只读公共兼容，
@@ -228,13 +230,13 @@ USDT / USDC 永续复用既有 USD-M 原生目录、日 trades 归档、Tick 转
 
 ### 存储与来源
 
-新显式粒度通过固定 `feed.managed --policy` 子进程运行，连续数据保存在原 Feed 范围下
+新显式粒度通过固定 `engine.feed.managed --policy` 子进程运行，连续数据保存在原 Feed 范围下
 `data/market_data/binance_um_1m/managed/<symbol>/<base_level>/collection.sqlite`。
 最小粒度变化使用独立目录，不删除、不迁移旧数据。SQLite 使用 WAL/FULL、逐笔编号去重、
 闭合值冲突证据和持久缺口；未闭合 K 线仅存在临时状态。库存和预览读取该日志及已有 Catalog，
 只读操作不会创建缺失目录。历史删除仍保留 Feed 数据，并要求先关闭该品种实时接入。
 
-历史 `pipeline.pair_data` 写入既有 Catalog。Tick 复用校验后的 trades 归档和冻结转换入口；
+历史 `engine.pipeline.pair_data` 写入既有 Catalog。Tick 复用校验后的 trades 归档和冻结转换入口；
 1s 复用归档读取与聚合，但不向正式 Catalog 保留额外 Tick；其他周期使用交易所原生 K 线，
 避免逐日拼接出错误的周/月线。只补未存在的事件范围，不强制重建。归档是来源证据，
 不属于最小粒度所约束的物化 Tick 数据集；现有文件覆盖仍不等于逐笔质量校验。
@@ -285,7 +287,7 @@ prepare/materialize 拒绝 3d/1w/1M，跨日历史通过交易对追加入口获
 ## 2026-10-29 实时优先与数据变化触发的 K 线
 
 本轮按用户要求先完善实时接入，历史归档补齐与回溯留待下一步。沿用独立的
-`feed.managed --policy` 实时进程和 `pipeline.pair_data` 历史任务进程，不启动新的后台服务。
+`engine.feed.managed --policy` 实时进程和 `engine.pipeline.pair_data` 历史任务进程，不启动新的后台服务。
 实时进程接收原始 `@trade` 事件，逐笔去重落盘后登记待计算桶；按照 Tick → 1s → 所有更高周期，
 直接从秒线覆盖重算受影响范围，成功后确认待办。重复事件不重复计量，等价的派生结果不增加版本；
 重启恢复未完成计算，连接交接失败不丢弃继续收到的实时成交。
@@ -327,8 +329,8 @@ prepare/materialize 拒绝 3d/1w/1M，跨日历史通过交易对追加入口获
 
 数据库 `market_data_policies` 只保存产品、交易对、历史起点、最小粒度、周期及启停参数。
 API 每 15 秒重读配置，参数不变不重启服务；读取失败时保留最后有效配置及现有进程。
-`feed.managed --role collection`、`pipeline.pair_data --service`、
-`feed.managed --role calculation` 为三个独立受管进程；第四个监控服务在 API 内每 5 秒采样。
+`engine.feed.managed --role collection`、`engine.pipeline.pair_data --service`、
+`engine.feed.managed --role calculation` 为三个独立受管进程；第四个监控服务在 API 内每 5 秒采样。
 不要求四套独立部署，不增加消息队列或后台宿主。
 
 运行状态仅保存在文件：
@@ -474,14 +476,14 @@ HTTP / CLI 输入兼容。开始日期早于旧配置时，保存后由原历史
 显式保存全选配置时统一应用到已纳入合约；有合约正在删除则拒绝保存，避免重新启用采集。
 目录失败保留原配置并发布同步错误，下轮重试；到期合约及数据不删除，实时订阅到期停止。
 
-采集使用 `feed.managed --options-config` 的一个共享进程，复用期权 connector 的公开传输与
+采集使用 `engine.feed.managed --options-config` 的一个共享进程，复用期权 connector 的公开传输与
 原生行情解析，保存闭合 1m/5m/15m K 线，可额外保存实时 Tick。源证据经原 Feed history 桥交由 Pipeline
 保存到既有 raw/options 和 Catalog，不新增存储层或交易能力。期权不另起本地派生进程。
 有界队列施加背压，订阅确认异常、数值或来源冲突显式降级。重启重放尚未物化的已保存来源，
 重新连接后补取断线以来官方可用的闭合 K 线；近期成交仅补最多 500 笔，
 断线和重启证据保留在 managed 文件，始终不声明历史 Tick 完整，不从 K 线反推成交。
 
-历史沿原 `pipeline.pair_data --service` 进程转入期权管道，按完整 UTC 日获取官方 K 线，
+历史沿原 `engine.pipeline.pair_data --service` 进程转入期权管道，按完整 UTC 日获取官方 K 线，
 检查点在 managed/<symbol>/<base>/history。默认从官方最早可获取记录日开始，
 指定起点早于来源时以实际可用日为准。空来源、解析或写入失败保留当前日重试，
 不以空响应证明历史完整。到期日仅保存到期边界内闭合记录；交易所不再提供的记录不能补造。
@@ -497,7 +499,7 @@ HTTP / CLI 输入兼容。开始日期早于旧配置时，保存后由原历史
 进程和一个期权历史进程，不为每个合约创建进程或向子进程传递整份合约的文件描述符。
 授权参数仍来自业务数据库；`.local/state/api/data_jobs/options-runtime.json` 是可重新生成的
 运行快照。两个进程每秒读取快照，内容损坏或读取失败保留现有工作，不将异常当作空配置。
-独立命令 `feed.managed --policy` 和 `pipeline.pair_data --service --request` 保留兼容。
+独立命令 `engine.feed.managed --policy` 和 `engine.pipeline.pair_data --service --request` 保留兼容。
 
 公开 WebSocket 每组最多 64 个合约，共享一条 market K 线连接和一条 public Tick/盘口
 连接。2026-11-08 按用户要求，管理端所有启用实时的期权均订阅 Tick 和前 10 档盘口（100ms），

@@ -4,11 +4,11 @@ from decimal import Decimal
 
 import pytest
 
-from feed.clock import ServerClock
-from feed.feed import Feed
-from feed.models import DAY, MINUTE, DataError, MinuteBar, State, parse_message
-from feed.service import Coordinator
-from feed.store import Store
+from engine.feed.clock import ServerClock
+from engine.feed.feed import Feed
+from engine.feed.models import DAY, MINUTE, DataError, MinuteBar, State, parse_message
+from engine.feed.service import Coordinator
+from engine.feed.store import Store
 
 BASE = 1_800_000_000_000 // DAY * DAY
 SYMBOL = "BTCUSDT"
@@ -263,7 +263,7 @@ def test_invalid_native_delivery_is_rejected(item):
 def test_native_bar_preserves_closed_minute_boundaries_and_decimals():
     from nautilus_trader.model import Bar, BarType
 
-    from connectors.binance.native import minute_bar
+    from engine.connectors.binance.native import minute_bar
     from nautilus_support import TestInstrumentProvider
 
     inst = TestInstrumentProvider.btcusdt_perp_binance()
@@ -320,7 +320,7 @@ def test_nautilus_conversion_matches_historical_timestamp():
 
 
 def test_existing_catalog_history_and_rest_bridge(tmp_path):
-    from feed.history import CatalogHistory
+    from engine.feed.history import CatalogHistory
     from nautilus_support import TestInstrumentProvider
     from pipeline.catalog import ParquetDataCatalog
 
@@ -358,7 +358,7 @@ def test_existing_catalog_history_and_rest_bridge(tmp_path):
 def test_retry_after_is_respected_without_duplicate_data(monkeypatch):
     from urllib.error import HTTPError
 
-    from connectors.binance.transport import PublicREST
+    from engine.connectors.binance.transport import PublicREST
 
     rest = PublicREST(minimum_interval=0)
     calls, delays = [], []
@@ -375,16 +375,16 @@ def test_retry_after_is_respected_without_duplicate_data(monkeypatch):
         delays.append(delay)
 
     monkeypatch.setattr(rest, "_request", request)
-    monkeypatch.setattr("connectors.binance.transport.asyncio.sleep", sleep)
+    monkeypatch.setattr("engine.connectors.binance.transport.asyncio.sleep", sleep)
     assert asyncio.run(rest.get("time")) == {"serverTime": BASE}
     assert 7 in delays
     assert len(calls) == 2
 
 
 def test_status_command_rejects_expired_ready(tmp_path, monkeypatch, capsys):
-    from feed.service import main, write_status
+    from engine.feed.service import main, write_status
 
     write_status(tmp_path, {"state": "READY", "data_ready": True, "valid_until_ms": 1})
-    monkeypatch.setattr("sys.argv", ["feed.service", "status", "--root", str(tmp_path)])
+    monkeypatch.setattr("sys.argv", ["engine.feed.service", "status", "--root", str(tmp_path)])
     assert main() == 1
     assert json.loads(capsys.readouterr().out)["reason"] == "status_expired"

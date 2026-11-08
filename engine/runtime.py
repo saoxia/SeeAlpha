@@ -1,0 +1,305 @@
+"""Resident engine facts and the only place account, manual, and valuation nodes are built."""
+
+import contextlib
+import fcntl
+import json
+import os
+import signal
+import subprocess
+import threading
+import uuid
+from pathlib import Path
+
+from engine.connectors.binance.queries import QueryError
+from engine.store import Store
+from engine.supervisor import popen
+
+UNKNOWN = "请求已登记，交易结果待核实。请刷新委托，不要重复提交。"
+UNCONFIRMED = "交易结果待核实，请刷新委托并按客户订单号核对，不要重复提交。"
+
+
+class EngineConflict(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+
+def numeric_id(account_id):
+    text = str(account_id)
+    return int(text) if text.isdigit() else account_id
+
+
+class EngineRuntime:
+    """Long-running owner of credentials-in-memory, workers, and the SQLite book."""
+
+    def __init__(self, root, project=None):
+        self.root = Path(root)
+        self.project = Path(project) if project is not None else Path(__file__).resolve().parents[1]
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.store = Store(self.root / "book.sqlite")
+        self.credentials = {}
+        self.workers = {}
+        self.worker_lock = threading.Lock()
+        self.service_lease = None
+
+    def close(self):
+        with self.worker_lock:
+            processes = [item["process"] for item in self.workers.values()]
+        for process in processes:
+            if process.poll() is None:
+                with contextlib.suppress(ProcessLookupError, subprocess.TimeoutExpired):
+                    os.killpg(process.pid, signal.SIGTERM)
+                    process.wait(timeout=3)
+        self.store.close()
+        if self.service_lease is not None:
+            self.service_lease.close()
+            self.service_lease = None
+
+    def register(self, account_id, environment, api_key, api_secret):
+        key = (str(account_id), environment)
+        self.credentials[key] = {"apiKey": api_key, "secret": api_secret}
+        self.store.upsert_connection(account_id, environment, "registered")
+        self.store.add_event(account_id, "connection", {"environment": environment, "status": "registered"})
+        return {"account_id": str(account_id), "environment": environment, "status": "registered"}
+
+    def forget(self, account_id, environment):
+        self.credentials.pop((str(account_id), environment), None)
+        self.store.upsert_connection(account_id, environment, "closed")
+        self.store.add_event(account_id, "connection", {"environment": environment, "status": "closed"})
+
+    def health(self, account_id=None):
+        with self.worker_lock:
+            running = sum(item["process"].poll() is None for item in self.workers.values())
+        body = {"status": "ok", "workers": running}
+        if account_id is not None:
+            body["connections"] = [
+                self.store.connection(account_id, environment)
+                for environment in ("production", "sandbox")
+            ]
+            body["connections"] = [item for item in body["connections"] if item]
+        return body
+
+    def account_dict(self, account_id, environment, api_key=None, api_secret=None):
+        creds = None
+        if api_key is not None and api_secret is not None:
+            creds = {"apiKey": api_key, "secret": api_secret}
+            self.credentials[(str(account_id), environment)] = creds
+        else:
+            creds = self.credentials.get((str(account_id), environment))
+        if creds is None:
+            raise EngineConflict("账户连接未登记，业务端需先下发凭据。")
+        return {"id": numeric_id(account_id), "environment": environment, "credentials": creds}
+
+    def lock_path(self, account_id, environment):
+        directory = self.root / str(account_id) / environment
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        return directory / "account.lock"
+
+    def _remember_order(self, account_id, environment, order, records):
+        if order and order.get("client_order_id"):
+            self.store.upsert_order(account_id, environment, order)
+        for record in records or []:
+            fill_id = record.get("trade_id") or record.get("id") or record.get("event_id")
+            if fill_id:
+                self.store.upsert_fill(account_id, environment, fill_id, record)
+        if order or records:
+            self.store.add_event(account_id, "execution", {
+                "environment": environment,
+                "client_order_id": None if not order else order.get("client_order_id"),
+                "fill_count": len(records or []),
+            })
+
+    def _remember_positions(self, account_id, environment, positions):
+        for position in positions or []:
+            if position.get("id"):
+                self.store.upsert_position(account_id, environment, position)
+
+    async def account_snapshot(self, account):
+        from engine.connectors.binance import queries
+
+        snapshot = await queries.account_snapshot(account)
+        self._remember_positions(account["id"], account["environment"], snapshot.positions)
+        self.store.add_event(account["id"], "account_snapshot", {
+            "environment": account["environment"], "positions": len(snapshot.positions),
+        })
+        return snapshot
+
+    async def manual_execute(self, account, symbol, command):
+        from engine.connectors.binance import manual
+
+        result = await manual.execute(account, symbol, command)
+        self._remember_positions(account["id"], account["environment"], result.get("positions"))
+        order = result.get("result")
+        if isinstance(order, dict):
+            self._remember_order(account["id"], account["environment"], order, result.get("records"))
+        return result
+
+    async def command(self, account, action, values, fingerprint, client_order_id):
+        account_id, environment = account["id"], account["environment"]
+        request_id = str(values["request_id"])
+        path = self.lock_path(account_id, environment)
+        with path.open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise EngineConflict("该账户有交易操作正在处理，请稍后核对委托。") from None
+            existing = self.store.get_request(account_id, request_id)
+            if existing:
+                if existing["fingerprint"] != fingerprint:
+                    raise EngineConflict("请求编号已用于另一笔操作。")
+                return {**existing, "replay": True}
+            response = {
+                "request_id": request_id, "client_order_id": client_order_id,
+                "status": "unknown", "order": None, "message": UNKNOWN,
+            }
+            body = {
+                "fingerprint": fingerprint, "response": response, "symbol": values["symbol"],
+                "account_revision": values.get("account_revision"), "records": [], "ledger_synced": False,
+            }
+            self.store.save_request(account_id, request_id, body)
+            try:
+                result = await self.manual_execute(
+                    account, values["symbol"], {**values, "action": action, "client_order_id": client_order_id},
+                )
+                if "validation_error" in result:
+                    response.update(status="completed", message=result["validation_error"])
+                    self.store.save_request(account_id, request_id, body)
+                    return body
+                order = result.get("result")
+                records = result.pop("records", [])
+                body["records"] = records
+                if order is not None:
+                    response.update(
+                        status="completed", order=order,
+                        message=("撤单被拒绝，当前订单状态：" if result.get("outcome") == "OrderCancelRejected"
+                                 else "交易所订单状态：") + order["status"],
+                    )
+                self.store.save_request(account_id, request_id, body)
+            except QueryError:
+                response["message"] = UNCONFIRMED
+                self.store.save_request(account_id, request_id, body)
+            return body
+
+    def save_request(self, account_id, request_id, body):
+        return self.store.save_request(account_id, request_id, body)
+
+    def note_gap(self, account_id, scope, gap_key, gap):
+        payload = {"scope": scope, "gap_key": gap_key, **gap}
+        self.store.upsert_gap(account_id, scope, gap_key, payload)
+        self.store.add_event(account_id, "gap", payload)
+        return payload
+
+    def note_worker(self, account_id, command):
+        role = "history" if "engine.pipeline.pair_data" in command else "collection"
+        if "--role" in command:
+            role = command[command.index("--role") + 1]
+        product, symbol = "futures_um", None
+        if "--symbol" in command:
+            symbol = command[command.index("--symbol") + 1]
+        elif "--request" in command:
+            policy = json.loads(command[command.index("--request") + 1])
+            symbol = policy.get("symbol")
+            product = policy.get("product") or product
+        elif "--options-config" in command:
+            symbol, product = "ALL", "options"
+        if not symbol:
+            return None
+        progress = {"command_module": command[2] if len(command) > 2 else None}
+        self.store.upsert_subscription(account_id, product, symbol, role, "running", progress)
+        self.store.add_event(account_id, "subscription", {
+            "product": product, "symbol": symbol, "role": role, "state": "running",
+        })
+        return {"account_id": str(account_id), "product": product, "symbol": symbol, "role": role, "state": "running"}
+
+    def _service_lease(self):
+        if self.service_lease is None:
+            path = self.project / ".local/run/engine/workers.lock"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            lease = path.open("a")
+            try:
+                fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lease.close()
+                raise EngineConflict("行情工作进程由另一个引擎实例管理。") from None
+            self.service_lease = lease
+        return self.service_lease
+
+    def spawn_worker(self, command, log_path, *, access=None, hold_lease=False, log_mode="ab"):
+        """Fork a feed or history worker and keep its lock fds until it exits."""
+        log_path = Path(log_path)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        output = log_path.open(log_mode, buffering=0)
+        held = [output]
+        fds = []
+        try:
+            if hold_lease:
+                lease = self._service_lease()
+                fds.append(lease.fileno())
+            if access is not None:
+                symbol, product, shared = access
+                path = self.project / ".local/run/api/data" / product / f"{symbol}.access.lock"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                access_lease = path.open("a")
+                flag = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+                try:
+                    fcntl.flock(access_lease, flag | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    access_lease.close()
+                    raise EngineConflict("该交易对仍有采集或数据读写，请先停止后再删除。") from None
+                held.append(access_lease)
+                fds.append(access_lease.fileno())
+            process = popen(
+                command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                start_new_session=True, pass_fds=tuple(fds),
+                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
+        except Exception:
+            for item in held:
+                item.close()
+            raise
+        worker_id = uuid.uuid4().hex
+        record = {"process": process, "held": held, "command": command, "returncode": None}
+
+        def watch():
+            process.wait()
+            record["returncode"] = process.returncode
+            for item in held:
+                item.close()
+
+        threading.Thread(target=watch, daemon=True).start()
+        with self.worker_lock:
+            self.workers[worker_id] = record
+        return {"id": worker_id, "pid": process.pid, "returncode": None}
+
+    def worker(self, worker_id):
+        with self.worker_lock:
+            record = self.workers.get(worker_id)
+        if record is None:
+            raise EngineConflict("引擎没有该工作进程。")
+        process = record["process"]
+        returncode = process.poll()
+        if returncode is None:
+            returncode = record["returncode"]
+        return {"id": worker_id, "pid": process.pid, "returncode": returncode}
+
+    def stop_worker(self, worker_id):
+        state = self.worker(worker_id)
+        if state["returncode"] is None:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(state["pid"], signal.SIGTERM)
+        return self.worker(worker_id)
+
+
+async def read_account_snapshot(account):
+    """In-process entry used when the API is not pointed at a separate engine port."""
+    from engine.connectors.binance import queries
+
+    return await queries.account_snapshot(account)
+
+
+async def valuation_events(account):
+    """Mark stream. The LiveNode is built here, not in the business API."""
+    from engine.connectors.binance.valuation import valuation_events as native
+
+    async for event in native(account):
+        yield event

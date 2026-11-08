@@ -69,6 +69,36 @@ class Subscriptions:
         paths = [self.root(policy) / "collection.sqlite", *(root / level / "collection.sqlite" for level in ("tick", *INTERVALS))]
         return list(dict.fromkeys(path for path in paths if path.is_file())) if policy.product == "futures_um" else []
 
+    def _launch(self, command, log_name, access=None):
+        """Ask the resident engine to fork feed/history. In-process mode keeps the same lock fds."""
+        directory = self.project / "logs/api/data/feed"
+        directory.mkdir(parents=True, exist_ok=True)
+        log_path = directory / log_name
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return engine.spawn_worker(command, log_path, access=access, hold_lease=self.lease is not None)
+        import contextlib
+
+        from engine.supervisor import popen
+
+        stack = contextlib.ExitStack()
+        output = stack.enter_context(log_path.open("ab", buffering=0))
+        fds = [self.lease.fileno()] if self.lease is not None else []
+        if access is not None:
+            symbol, product, shared = access
+            lease = stack.enter_context(self.manager._lease(symbol, product, access=True, shared=shared))
+            fds.append(lease.fileno())
+        try:
+            process = popen(
+                command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
+                start_new_session=True, pass_fds=tuple(fds), env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            )
+        finally:
+            stack.close()
+        if engine is not None:
+            engine.note_worker(command)
+        return process
+
     def _start(self, policy):
         if policy.product == "options":
             self._start_options()
@@ -80,26 +110,21 @@ class Subscriptions:
                 roles.append("calculation")
             if policy.history_enabled:
                 roles.append("history")
-        directory = self.project / "logs/api/data/feed"
-        directory.mkdir(parents=True, exist_ok=True)
         for role in roles:
             processes = self.processes if role == "collection" else self.auxiliary
             identity = key if role == "collection" else (*key, role)
             existing = processes.get(identity)
             if existing is not None and existing.poll() is None:
                 continue
-            with self.manager._lease(policy.symbol, policy.product, access=True, shared=True) as access_lease, (directory / f"{policy.symbol}-{role}.log").open("ab", buffering=0) as output:
-                command = ([sys.executable, "-m", "pipeline.pair_data", "--service", "--root", str(self.root(policy)),
-                            "--request", policy.model_dump_json()] if role == "history" else
-                           [sys.executable, "-m", "feed.managed", "--symbol", policy.symbol,
-                            "--data-root", str(self.project / "data"), "--root", str(self.root(policy)),
-                            "--catalog", str(self.project / "data/catalog"), "--intervals", "1m",
-                            *(["--policy", policy.model_dump_json(), "--role", role] if policy.base_level != "auto" else policy.intervals)])
-                processes[identity] = subprocess.Popen(
-                    command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
-                    start_new_session=True, pass_fds=(self.lease.fileno(), access_lease.fileno()),
-                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                )
+            command = ([sys.executable, "-m", "engine.pipeline.pair_data", "--service", "--root", str(self.root(policy)),
+                        "--request", policy.model_dump_json()] if role == "history" else
+                       [sys.executable, "-m", "engine.feed.managed", "--symbol", policy.symbol,
+                        "--data-root", str(self.project / "data"), "--root", str(self.root(policy)),
+                        "--catalog", str(self.project / "data/catalog"), "--intervals", "1m",
+                        *(["--policy", policy.model_dump_json(), "--role", role] if policy.base_level != "auto" else policy.intervals)])
+            processes[identity] = self._launch(
+                command, f"{policy.symbol}-{role}.log", access=(policy.symbol, policy.product, True),
+            )
 
     def restore(self):
         from api.db.errors import StorageUnavailable
@@ -213,7 +238,7 @@ class Subscriptions:
         if policy.history_enabled and policy.product == "futures_um":
             start = policy.history_start
             if policy.history_mode == "all":
-                from connectors.binance.pair_data import PairREST
+                from engine.connectors.binance.pair_data import PairREST
                 try:
                     rows = asyncio.run(PairREST(symbols=(policy.symbol,)).get(
                         "klines", symbol=policy.symbol, interval="1m", startTime=0, limit=1))
@@ -226,10 +251,10 @@ class Subscriptions:
                 if old is not None and old.history_mode == "start" and old.history_start is not None:
                     start = old.history_start - timedelta(days=policy.history_days)
                 else:
-                    from feed.pair_store import journal_inventory
+                    from engine.feed.pair_store import journal_inventory
+                    from engine.pipeline.pair_data import history_bounds
                     from pipeline.catalog import ParquetDataCatalog
                     from pipeline.config import load_settings
-                    from pipeline.pair_data import history_bounds
                     settings = load_settings()
                     catalog = ParquetDataCatalog(settings.catalog_dir) if settings.catalog_dir.is_dir() else None
                     starts = [int(item["event_ranges_ns"][0][0])
@@ -307,8 +332,6 @@ class Subscriptions:
     def _start_options(self):
         """Two shared processes; no contract-sized process or inherited FD lists."""
         path = self._publish_options()
-        directory = self.project / "logs/api/data/feed"
-        directory.mkdir(parents=True, exist_ok=True)
         root = self.project / "data/market_data/binance_um_1m/managed/.options"
         for role in ("collection", "history"):
             processes = self.processes if role == "collection" else self.auxiliary
@@ -324,15 +347,12 @@ class Subscriptions:
             if existing is not None and existing.poll() is None:
                 continue
             self.manager.require_storage(write=True)
-            command = ([sys.executable, "-m", "feed.managed", "--options-config", str(path),
+            command = ([sys.executable, "-m", "engine.feed.managed", "--options-config", str(path),
                         "--root", str(root), "--data-root", str(self.project / "data"),
                         "--catalog", str(self.project / "data/catalog")] if role == "collection" else
-                       [sys.executable, "-m", "pipeline.pair_data", "--service", "--options-config", str(path),
+                       [sys.executable, "-m", "engine.pipeline.pair_data", "--service", "--options-config", str(path),
                         "--root", str(root)])
-            with (directory / f"options-{role}.log").open("ab", buffering=0) as output:
-                processes[key] = subprocess.Popen(command, cwd=self.project, stdin=subprocess.DEVNULL,
-                    stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                    pass_fds=(self.lease.fileno(),), env={**os.environ, "PYTHONUNBUFFERED": "1"})
+            processes[key] = self._launch(command, f"options-{role}.log")
 
     def pause_for_deletion(self, symbol, product):
         with self.lock:

@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from nautilus_trader.model import AggressorSide, InstrumentId, Price, Quantity, TradeId, TradeTick
 
-from connectors.binance import options
 from core.market.instruments import instrument_id_for, normalize_symbol
+from engine.connectors.binance import options
 from pipeline.catalog import ParquetDataCatalog
 from pipeline.data_management import (
     checked_request,
@@ -452,7 +452,8 @@ def test_batch_history_limits_writers_and_releases_only_stopped_contract(context
 
 
 def test_history_batch_entry_point_uses_shared_runtime_and_mounted_root(context, monkeypatch, tmp_path):
-    from pipeline import options_data, pair_data
+    from engine.pipeline import pair_data
+    from pipeline import options_data
 
     settings, _item = context
     (tmp_path / "data").mkdir()
@@ -465,7 +466,7 @@ def test_history_batch_entry_point_uses_shared_runtime_and_mounted_root(context,
     monkeypatch.setattr(pair_data, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(pair_data, "load_settings", lambda: settings)
     monkeypatch.setattr(options_data, "serve_history_batch", serve_batch)
-    monkeypatch.setattr("sys.argv", ["pipeline.pair_data", "--service", "--options-config", str(manifest), "--root", str(root)])
+    monkeypatch.setattr("sys.argv", ["engine.pipeline.pair_data", "--service", "--options-config", str(manifest), "--root", str(root)])
     pair_data.main()
     assert called == [(manifest, settings, root.parent)]
 

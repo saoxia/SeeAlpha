@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from connectors.binance.native import NativeMarketData
-from connectors.binance.transport import KlineSocket
+from engine.connectors.binance.native import NativeMarketData
+from engine.connectors.binance.transport import KlineSocket
 
 BASE = 1785542400000
 

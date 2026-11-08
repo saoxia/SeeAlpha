@@ -11,8 +11,8 @@ from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.exchanges.trading import ManualTrading
 from api.main import create_app
-from connectors.binance import manual
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import manual
+from engine.connectors.binance.queries import QueryError
 from tests.api.exchanges_test import create, signin
 
 
@@ -123,7 +123,9 @@ def test_unknown_result_is_reserved_and_never_automatically_resent(trading, monk
         assert first.status_code == 200 and first.json()['status'] == 'unknown'
         assert client.post(route, json=body).json() == first.json()
         assert len(calls) == 1
-        assert len(list(app.state.trading.root.glob('1/production/*.json'))) == 1
+        stored = app.state.trading.engine.get_request(1, body['request_id'])
+        assert stored['response']['status'] == 'unknown'
+        assert not list(app.state.trading.root.glob('1/production/*.json'))
 
 
 def test_account_commands_serialize_and_cancellation_has_separate_identity(trading):

@@ -100,7 +100,7 @@ FixedRiskSizer 与项目风险定仓也有基础公式重叠，但它不能直�
 
 ## 9. 自建行情客户端：传输重复，数据质量层具有独立价值
 
-位置：[REST/WebSocket](/Users/lingyu/Documents/ChatGPT/SeeAlpha/connectors/binance/transport.py)、[Feed](/Users/lingyu/Documents/ChatGPT/SeeAlpha/feed/feed.py:6)、[Store](/Users/lingyu/Documents/ChatGPT/SeeAlpha/feed/store.py:1)。
+位置：[REST/WebSocket](../engine/connectors/binance/transport.py)、[Feed](../engine/feed/feed.py)、[Store](../engine/feed/store.py)。
 
 rc7 已有 BinanceDataClientConfig / Factory 和 LiveNode 接入能力，策略可通过原生请求和订阅获得行情。长期实盘集成时，复用原生适配器可以减少自维护的消息解析、订阅和重连代码。
 

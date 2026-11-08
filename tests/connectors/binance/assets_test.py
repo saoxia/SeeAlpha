@@ -10,8 +10,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from connectors.binance import assets
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import assets
+from engine.connectors.binance.queries import QueryError
 
 
 def opener(monkeypatch, rows):

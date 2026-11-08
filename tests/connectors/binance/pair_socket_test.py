@@ -6,7 +6,7 @@ import json
 from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
 
-from connectors.binance.pair_data import PairTradeSocket
+from engine.connectors.binance.pair_data import PairTradeSocket
 
 
 def test_raw_socket_reconnects_rejects_aggregate_payloads_and_closes(monkeypatch):
@@ -32,7 +32,7 @@ def test_raw_socket_reconnects_rejects_aggregate_payloads_and_closes(monkeypatch
             def local(url, **kwargs):
                 assert url == "wss://fstream.binance.com/ws/ethusdt@trade"
                 return connect(f"ws://127.0.0.1:{port}", **kwargs)
-            monkeypatch.setattr("connectors.binance.pair_data.connect", local)
+            monkeypatch.setattr("engine.connectors.binance.pair_data.connect", local)
             stream = PairTradeSocket().stream("ETHUSDT")
             assert (await anext(stream))["kind"] == "connected"
             assert (await anext(stream))["kind"] == "disconnected"

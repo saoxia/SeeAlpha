@@ -4,13 +4,13 @@ from types import SimpleNamespace
 
 from nautilus_trader.model import AggressorSide, InstrumentId, Price, Quantity, TradeId, TradeTick
 
-from connectors.binance.native import MinuteActor
 from core.market.models import MINUTE
+from engine.connectors.binance.native import MinuteActor
 
 
 def test_native_partial_delivery_is_opt_in_throttled_and_ignores_late_trades(monkeypatch):
     clock = [10.0]
-    monkeypatch.setattr("connectors.binance.native.monotonic", lambda: clock[0])
+    monkeypatch.setattr("engine.connectors.binance.native.monotonic", lambda: clock[0])
     partials, delivered = [], []
     source = SimpleNamespace(on_partial=lambda *args: partials.append(args), deliver=delivered.append,
                              loop=SimpleNamespace(call_soon_threadsafe=lambda callback, *args: callback(*args)))

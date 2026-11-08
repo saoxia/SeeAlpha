@@ -14,7 +14,7 @@ import pytest
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from connectors.binance.queries import QueryError, account_snapshot, instruments
+from engine.connectors.binance.queries import QueryError, account_snapshot, instruments
 from tests.connectors.binance.websocket_transport_test import Handler
 
 
@@ -23,7 +23,7 @@ def test_identical_saved_credentials_fail_before_starting_native_node(monkeypatc
         pytest.fail("Invalid credentials must fail before creating any native clients")
 
     monkeypatch.setattr(
-        "connectors.binance.queries.LiveNode", SimpleNamespace(builder=unexpected_builder)
+        "engine.connectors.binance.queries.LiveNode", SimpleNamespace(builder=unexpected_builder)
     )
     with pytest.raises(QueryError, match="API Key 与 Secret Key 相同") as error:
         asyncio.run(account_snapshot({
@@ -38,7 +38,7 @@ def test_native_build_failure_is_sanitized_without_cross_thread_traceback(monkey
         raise RuntimeError("native failure with private-fixture-secret")
 
     monkeypatch.setattr(
-        "connectors.binance.queries.LiveNode", SimpleNamespace(builder=failing_builder)
+        "engine.connectors.binance.queries.LiveNode", SimpleNamespace(builder=failing_builder)
     )
     with pytest.raises(QueryError, match="Binance 账户查询失败") as error:
         asyncio.run(account_snapshot({

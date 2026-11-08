@@ -20,7 +20,7 @@ from nautilus_trader.model import (
 )
 
 from core.market.instruments import bar_type_for
-from feed.pair_store import PairStore
+from engine.feed.pair_store import PairStore
 from nautilus_support import TestInstrumentProvider
 from pipeline.catalog import ParquetDataCatalog, TradeQuote
 from pipeline.models import PipelineSettings
@@ -145,7 +145,7 @@ def test_interrupted_cross_boundary_write_preserves_original_data(retained, monk
 
 def test_legacy_minute_journal_advances_its_stored_start_and_keeps_unknown_evidence(retained):
     from core.market.models import MinuteBar
-    from feed.store import Store
+    from engine.feed.store import Store
 
     settings, project, _catalog, _source, _monthly, _feature, root, _other = retained
     path = root.parent / "minutes.sqlite"

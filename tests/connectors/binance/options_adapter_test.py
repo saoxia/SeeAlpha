@@ -14,8 +14,8 @@ from nautilus_trader.live import LiveNode
 from nautilus_trader.model import BarType, BookType, InstrumentId, TraderId
 from websockets.asyncio.server import serve
 
-from connectors.binance import options, options_client, options_parsing
-from connectors.binance.options_client import (
+from engine.connectors.binance import options, options_client, options_parsing
+from engine.connectors.binance.options_client import (
     BinanceOptionsDataClient,
     BinanceOptionsDataClientConfig,
     BinanceOptionsDataClientFactory,
@@ -36,7 +36,7 @@ def model(monkeypatch):
 def test_config_identity_and_importable_roundtrip():
     config = BinanceOptionsDataClientConfig(symbols=[SYMBOL])
     restored = ImportableConfig.parse(config.to_importable(ImportableFactoryConfig(
-        "connectors.binance.options_client:BinanceOptionsDataClientFactory")).json()).create()
+        "engine.connectors.binance.options_client:BinanceOptionsDataClientFactory")).json()).create()
     assert restored.symbols == [SYMBOL]
     for symbols in [[SYMBOL, SYMBOL], ["BTCUSDT"]]:
         with pytest.raises(ValueError):

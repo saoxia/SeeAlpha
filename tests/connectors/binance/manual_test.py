@@ -12,7 +12,7 @@ import pytest
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from connectors.binance.manual import ManualValidationError, exact, execute, resolve_command
+from engine.connectors.binance.manual import ManualValidationError, exact, execute, resolve_command
 from tests.connectors.binance.account_queries_test import AccountHandler
 
 
@@ -146,7 +146,7 @@ def test_native_manual_request(action, capfd):
                            'websocket_url': f'ws://127.0.0.1:{server.sockets[0].getsockname()[1]}',
                            'timeout': 12}
                 if action == 'stale':
-                    from connectors.binance.queries import QueryError
+                    from engine.connectors.binance.queries import QueryError
                     with pytest.raises(QueryError):
                         await execute(account, 'ETHUSDT-PERP', command, **{**options, 'timeout': 2})
                     assert not Handler.sent
@@ -183,11 +183,11 @@ def test_native_manual_request(action, capfd):
 def test_partial_fill_does_not_finish_an_outstanding_cancellation(monkeypatch):
     from types import SimpleNamespace
 
-    from connectors.binance.manual import ManualCommand
+    from engine.connectors.binance.manual import ManualCommand
 
     order = SimpleNamespace(is_closed=False)
     finished = []
-    monkeypatch.setattr('connectors.binance.manual.normalize_event', lambda *args: None)
+    monkeypatch.setattr('engine.connectors.binance.manual.normalize_event', lambda *args: None)
     observer = SimpleNamespace(cache=SimpleNamespace(order=lambda _: order), account={},
                                command={'action': 'cancel'}, result='order', records=[],
                                finish=lambda: finished.append(True), outcome=None)
@@ -224,8 +224,8 @@ def test_account_context_uses_signed_readonly_endpoints_and_rejects_invalid_mode
     import hashlib
     import hmac
 
-    from connectors.binance.manual import account_context
-    from connectors.binance.queries import QueryError
+    from engine.connectors.binance.manual import account_context
+    from engine.connectors.binance.queries import QueryError
 
     class ContextHandler(AccountHandler):
         calls: ClassVar[list] = []
@@ -267,8 +267,8 @@ def test_account_context_uses_signed_readonly_endpoints_and_rejects_invalid_mode
 
 @pytest.mark.parametrize("env", ["production", "sandbox"])
 def test_picker_market_snapshots_are_public_bounded_and_keep_decimal_text(monkeypatch, env):
-    from connectors.binance.manual import market_tickers
-    from connectors.binance.transport import PublicREST
+    from engine.connectors.binance.manual import market_tickers
+    from engine.connectors.binance.transport import PublicREST
 
     calls = []
 
@@ -291,9 +291,9 @@ def test_picker_market_snapshots_are_public_bounded_and_keep_decimal_text(monkey
 
 @pytest.mark.parametrize("invalid", ["NaN", "-1"])
 def test_picker_rejects_invalid_public_price_data(monkeypatch, invalid):
-    from connectors.binance.manual import market_tickers
-    from connectors.binance.queries import QueryError
-    from connectors.binance.transport import PublicREST
+    from engine.connectors.binance.manual import market_tickers
+    from engine.connectors.binance.queries import QueryError
+    from engine.connectors.binance.transport import PublicREST
 
     def request(self, endpoint, params):
         return [] if endpoint == "premiumIndex" else [{"symbol": "BTCUSDT", "lastPrice": invalid, "priceChangePercent": "1", "quoteVolume": "100"}]
@@ -310,7 +310,7 @@ def test_picker_rejects_invalid_public_price_data(monkeypatch, invalid):
 def test_optional_leverage_never_fabricates_a_value_or_blocks_snapshot(monkeypatch, config):
     from io import BytesIO
 
-    from connectors.binance.manual import account_context
+    from engine.connectors.binance.manual import account_context
 
     calls = []
 
@@ -330,7 +330,7 @@ def test_optional_leverage_never_fabricates_a_value_or_blocks_snapshot(monkeypat
                 data = config
             return BytesIO(json.dumps(data).encode())
 
-    monkeypatch.setattr('connectors.binance.manual.build_opener', lambda *args: Opener())
+    monkeypatch.setattr('engine.connectors.binance.manual.build_opener', lambda *args: Opener())
     account = {"environment": "sandbox", "credentials": {"apiKey": "fixture-key", "secret": "fixture-secret"}}
     result = account_context(account, 'ETHUSDT-PERP')
     assert result == {"position_mode": "oneway", "positions": {}, "leverage": None}
@@ -340,12 +340,12 @@ def test_optional_leverage_never_fabricates_a_value_or_blocks_snapshot(monkeypat
 
 
 def test_native_failure_logs_only_type_and_location_without_private_exception_text(monkeypatch, caplog):
-    from connectors.binance.queries import QueryError
+    from engine.connectors.binance.queries import QueryError
 
     async def fail(*args, **kwargs):
         raise RuntimeError("private-fixture-secret signed-url?signature=private-signature")
 
-    monkeypatch.setattr('connectors.binance.manual._run', fail)
+    monkeypatch.setattr('engine.connectors.binance.manual._run', fail)
     with pytest.raises(QueryError, match="交易节点失败"):
         asyncio.run(execute({}, 'ETHUSDT-PERP', {"action": "snapshot"}))
     assert "RuntimeError at fail:" in caplog.text
@@ -357,7 +357,7 @@ def test_native_failure_logs_only_type_and_location_without_private_exception_te
 def test_cause_only_native_traceback_is_released_on_its_worker_thread(monkeypatch, boundary):
     import gc
 
-    from connectors.binance.queries import QueryError
+    from engine.connectors.binance.queries import QueryError
 
     created, released = [], []
 
@@ -385,13 +385,13 @@ def test_cause_only_native_traceback_is_released_on_its_worker_thread(monkeypatc
         raise failure
 
     if boundary == "manual":
-        monkeypatch.setattr('connectors.binance.manual._run', fail)
+        monkeypatch.setattr('engine.connectors.binance.manual._run', fail)
     else:
-        monkeypatch.setattr('connectors.binance.queries._account_snapshot', fail)
+        monkeypatch.setattr('engine.connectors.binance.queries._account_snapshot', fail)
     enabled = gc.isenabled()
     gc.disable()
     try:
-        from connectors.binance.queries import account_snapshot
+        from engine.connectors.binance.queries import account_snapshot
 
         with pytest.raises(QueryError):
             asyncio.run(execute({}, 'ETHUSDT-PERP', {'action': 'snapshot'}) if boundary == "manual" else account_snapshot({}))

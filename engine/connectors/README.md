@@ -5,7 +5,8 @@
 Binance 期权通过 Nautilus 公开 Python 扩展接口接入，见下文。
 
 连续行情入口目前支持 Binance USD-M 公开行情，不配置账户或执行客户端。
-账户查询独立通过 `binance/queries.py` 按需创建原生节点；不向现有行情节点加入账户或执行配置。
+账户查询、手动交易和估值节点由常驻 `engine` 调用 `binance/queries.py`、
+`manual.py` 和 `valuation.py` 创建；不向现有公开行情节点加入账户或执行配置。
 
 - `binance/native.py`：data-only LiveNode、原生订阅、历史请求和连接生命周期。
 - `binance/transport.py`：共享原生节点的历史/实时入口，以及独立服务器时间查询。
@@ -13,7 +14,7 @@ Binance 期权通过 Nautilus 公开 Python 扩展接口接入，见下文。
   LiveNode、配置和 factory，不调用适配器私有 HTTP 客户端，不依赖 API、数据库或旧后端。
 - 公共分钟线与错误类型来自 `core.market.models`，市场命名来自 `core.market.instruments`。
 
-连续性、补洞编排、数据就绪、回放交付和持久化属于 `feed/`；
+连续性、补洞编排、数据就绪、回放交付和持久化属于 `engine/feed/`；
 历史归档下载、转换、校验、特征生成和入库属于 `pipeline/`。
 连接器不依赖这两个业务模块，不在这里重复实现原生订单和账户接口。
 账户快照复用原生启动对账并等待就绪，查询结束后关闭和释放节点。
