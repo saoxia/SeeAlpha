@@ -9,7 +9,9 @@ seealpha-package.json    名称、版本、入口、默认参数
 strategy.py               入口模块
 ```
 
-`seealpha-package.json` 的 `format` 固定为 `1`。`name` 是包标识（小写字母开头），`title` 是显示名，`entry_point` 写成 `模块:类`，例如 `strategy:EmaCrossover`。zip 根目录就是这些文件，不要再套一层目录。
+`seealpha-package.json` 不能写注释。`format` 固定为 `1`。`name` 是包标识（小写字母开头），`title` 是显示名，`version` 是版本字符串，`description` 是可选说明。`entry_point` 写成 `模块:类`，例如 `strategy:EmaCrossover`。
+
+`parameters` 与 `prepare()` 接受的字段相同：`symbol`、`fast_period`、`slow_period`、`allocation`、`risk_limit`。下发时进入策略的是交给 `prepare()` 的参数；省略的键用 `strategy.py` 里的 `DEFAULTS`。zip 根目录就是这些文件，不要再套一层目录。
 
 ## 作者只公布目标持仓
 
