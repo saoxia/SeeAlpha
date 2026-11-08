@@ -1,0 +1,58 @@
+name: Tenant Docker Engine
+
+on:
+  pull_request:
+    paths:
+      - "api/**"
+      - "engine/app.py"
+      - "engine/config.py"
+      - "docker/**"
+      - ".dockerignore"
+      - "tests/api/tenant_docker_test.py"
+      - ".github/workflows/tenant-engine.yml"
+  workflow_dispatch:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked
+      - run: uv run ruff check api/config.py api/main.py api/engine_client.py api/tenant_docker.py api/auth/users.py engine/config.py engine/app.py tests/api/tenant_docker_test.py
+      - run: uv run pytest -q tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f docker/engine.Dockerfile -t seealpha-engine:ci .
+      - name: Container tenant-bound HTTP smoke
+        run: |
+          mkdir -p /tmp/seealpha-ci/{state,data,run,logs}
+          docker run -d --name seealpha-engine-ci -p 127.0.0.1:18766:8766 \
+            -e ENGINE_HOST=0.0.0.0 -e ENGINE_PORT=8766 \
+            -e ENGINE_TOKEN=ci-only-engine-token \
+            -e ENGINE_TENANT_ID=42 -e ENGINE_TENANT_PURPOSE=development \
+            -v /tmp/seealpha-ci/state:/app/.local/state/engine \
+            -v /tmp/seealpha-ci/data:/app/data \
+            -v /tmp/seealpha-ci/run:/app/.local/run \
+            -v /tmp/seealpha-ci/logs:/app/logs \
+            seealpha-engine:ci
+          trap 'docker logs seealpha-engine-ci || true; docker rm -f seealpha-engine-ci || true' EXIT
+          for i in $(seq 1 50); do
+            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token' http://127.0.0.1:18766/health; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            http://127.0.0.1:18766/tenants/99/export)" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"purpose":"development"}' \
+            -X PUT http://127.0.0.1:18766/tenants/42)" = 200
