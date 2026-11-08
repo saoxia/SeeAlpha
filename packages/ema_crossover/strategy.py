@@ -1,6 +1,7 @@
 """双均线示例。金叉公布满额多头目标，死叉公布空仓。
 
-K 线进入 ``on_bar``。本模块只维护两条 Nautilus EMA 和交叉判断。
+K 线进入 ``on_bar``，内部按三步分开：读取指标、判断交叉信号、换成目标持仓。
+指标用 Nautilus 已登记的 EMA，信号只留在本包内，不是平台类型。
 交给引擎的唯一出口是 ``publish(...)``，这里不调用 ``submit_order``。
 同一账户的目标由 ``PortfolioCoordinator`` 净额后，再对当前净持仓提交差额。
 """
@@ -85,13 +86,19 @@ def _quantity(value, label):
     return format(amount, "f")
 
 
+# 包内信号，不是平台类型。long 是金叉，flat 是死叉，no-cross 是没有新交叉。
+_LONG = "long"
+_FLAT = "flat"
+_NO_CROSS = "no-cross"
+
+
 class EmaCrossover(Strategy):
     """金叉后目标为满额多头，死叉后目标为 0。通过 publish 交出目标持仓。"""
 
     def __init__(self, config) -> None:
         super().__init__(config)
         # fast / slow 在 on_start 里创建。_previous 是上一组已就绪的快慢线。
-        # _quantity 是内部目标：金叉写成 allocation，死叉写成 0。
+        # _quantity 是最近一次交叉换成的目标：金叉为 allocation，死叉为 0。
         self.fast = None
         self.slow = None
         self._previous = None
@@ -108,27 +115,44 @@ class EmaCrossover(Strategy):
         self.subscribe_bars(self.bar_type)
 
     def on_bar(self, bar) -> None:
-        # 不是这一路 K 线，或任一均线尚未初始化，就不产生信号。
-        if bar.bar_type != self.bar_type or not self.fast.initialized or not self.slow.initialized:
+        # 指标。Nautilus 在进入本方法前已经更新登记过的 EMA，这里只读取。
+        current = self._indicator_values(bar)
+        if current is None:
             return
-        # 指标已在进入本方法前更新，这里只读取当前值。
-        fast = float(self.fast.value)
-        slow = float(self.slow.value)
+        # 信号。第一根两边都就绪的 K 线只留下比较基准，不当成交叉。
         previous = self._previous
-        self._previous = (fast, slow)
-        # 第一根两边都就绪的 K 线只留下比较基准，不当成交叉。
-        if previous is None:
+        self._previous = current
+        signal = self._cross_signal(previous, current)
+        # 没有新的交叉就不改目标，也不再次公布。
+        if signal == _NO_CROSS:
             return
-        previous_fast, previous_slow = previous
-        # 金叉：快线从不超过慢线变成高于慢线，内部信号改为满额多头。
-        if previous_fast <= previous_slow and fast > slow:
-            self._quantity = Decimal(self.parameters["allocation"])
-        # 死叉：快线从不低于慢线变成低于慢线，内部信号改为空仓。
-        elif previous_fast >= previous_slow and fast < slow:
-            self._quantity = Decimal(0)
-        else:
-            # 没有新的交叉就不改目标，也不再次公布。
-            return
-        # quantity 是 Decimal：allocation 为满额多头，0 为空仓。
+        # 目标持仓。quantity 是 Decimal：allocation 为满额多头，0 为空仓。
         # 策略不调用 submit_order。PortfolioCoordinator 汇总目标后，只对净持仓提交差额。
+        self._quantity = self._target_quantity(signal)
         self.publish(symbol=self.parameters["symbol"], quantity=self._quantity)
+
+    def _indicator_values(self, bar):
+        """读取本根 K 线上已经更新过的快慢线。未就绪时不产生信号。"""
+        if bar.bar_type != self.bar_type or not self.fast.initialized or not self.slow.initialized:
+            return None
+        return (float(self.fast.value), float(self.slow.value))
+
+    def _cross_signal(self, previous, current):
+        """比较相邻两组快慢线，返回 long、flat 或 no-cross。"""
+        if previous is None:
+            return _NO_CROSS
+        previous_fast, previous_slow = previous
+        fast, slow = current
+        # 金叉：快线从不超过慢线变成高于慢线。
+        if previous_fast <= previous_slow and fast > slow:
+            return _LONG
+        # 死叉：快线从不低于慢线变成低于慢线。
+        elif previous_fast >= previous_slow and fast < slow:
+            return _FLAT
+        return _NO_CROSS
+
+    def _target_quantity(self, signal):
+        """long 换成 allocation，flat 换成 0。no-cross 不会进到这里。"""
+        if signal == _LONG:
+            return Decimal(self.parameters["allocation"])
+        return Decimal(0)
