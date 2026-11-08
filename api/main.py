@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from engine.connectors.binance.queries import QueryError
 
 from .auth.router import router
+from .auth.users import router as users_router
 from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
@@ -54,11 +55,11 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         runtime = None
         try:
             database.initialize()
-            default_tenant = app.state.tenants.repository.require_default()
-            if default_tenant is not None:
-                app.state.engine.ensure_tenant(
-                    default_tenant["id"], default_tenant["purpose"], default_tenant["status"]
-                )
+            for tenant in app.state.tenants.repository.list_tenants():
+                if tenant["status"] == "active":
+                    app.state.engine.ensure_tenant(
+                        tenant["id"], tenant["purpose"], tenant["status"]
+                    )
             if app.state.management_project is not None:
                 # Another process may already hold the management lock. Startup
                 # still continues; only that holder runs and recovers jobs.
@@ -190,6 +191,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         return {"status": "ok"}
 
     app.include_router(router, prefix="/api")
+    app.include_router(users_router, prefix="/api")
     app.include_router(exchanges_router, prefix="/api")
     app.include_router(trading_router, prefix="/api")
     app.include_router(equity_router, prefix="/api")

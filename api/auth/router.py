@@ -3,9 +3,17 @@
 import time
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from .contracts import AuthResponse, LoginRequest, UserResponse
-from .dependencies import COOKIE_NAME, CurrentUser, SessionCookie
+from .dependencies import (
+    COOKIE_NAME,
+    AdminUser,
+    CurrentContext,
+    SessionContext,
+    SessionCookie,
+    actor_is_admin,
+)
 from .security import (
     DUMMY_PASSWORD_HASH,
     create_session_token,
@@ -51,12 +59,53 @@ def login(payload: LoginRequest, request: Request, response: Response) -> AuthRe
         httponly=True,
         samesite="strict",
     )
-    return AuthResponse(user=UserResponse(id=user["id"], username=user["username"]))
+    signed_in = UserResponse(id=user["id"], username=user["username"])
+    return AuthResponse(user=signed_in, is_admin=actor_is_admin(request, signed_in.username))
+
+
+def _session_response(request: Request, context: SessionContext) -> AuthResponse:
+    return AuthResponse(
+        user=context.user,
+        actor=context.actor if context.impersonating else None,
+        impersonating=context.impersonating,
+        is_admin=actor_is_admin(request, context.actor.username),
+    )
 
 
 @router.get("/me", response_model=AuthResponse)
-def me(user: CurrentUser) -> AuthResponse:
-    return AuthResponse(user=user)
+def me(request: Request, context: CurrentContext) -> AuthResponse:
+    return _session_response(request, context)
+
+
+class ImpersonateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    username: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/impersonate", response_model=AuthResponse)
+def start_impersonation(
+    payload: ImpersonateRequest, request: Request, context: CurrentContext, _: AdminUser,
+) -> AuthResponse:
+    if context.impersonating:
+        raise HTTPException(status_code=409, detail="请先退出当前用户视图。")
+    target = request.app.state.repository.get_user_by_username(payload.username)
+    if target is None:
+        raise HTTPException(status_code=404, detail="用户不存在。")
+    if target["id"] == context.actor.id:
+        raise HTTPException(status_code=409, detail="已经是当前用户。")
+    request.app.state.repository.set_impersonation(context.token_digest, target["id"])
+    return AuthResponse(
+        user=UserResponse(id=target["id"], username=target["username"]),
+        actor=context.actor,
+        impersonating=True,
+        is_admin=True,
+    )
+
+
+@router.post("/impersonate/stop", response_model=AuthResponse)
+def stop_impersonation(request: Request, context: CurrentContext, _: AdminUser) -> AuthResponse:
+    request.app.state.repository.set_impersonation(context.token_digest, None)
+    return AuthResponse(user=context.actor, impersonating=False, is_admin=True)
 
 
 @router.post("/logout", status_code=204)

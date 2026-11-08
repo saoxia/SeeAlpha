@@ -4,16 +4,14 @@ import { useEffect, useState } from "react";
 import { TradingSystemApp } from "../trading-system-app";
 import { LoginPage } from "./login-page";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
+import { sessionFromAuth, type AuthSession } from "../../features/identity/model";
 
-export type AuthUser = {
-  id: number;
-  username: string;
-};
+export type { AuthUser } from "../../features/identity/model";
 
 type AuthState =
   | { status: "loading" }
   | { status: "anonymous" }
-  | { status: "authenticated"; user: AuthUser };
+  | { status: "authenticated"; session: AuthSession };
 
 export function AuthGate() {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
@@ -30,8 +28,8 @@ export function AuthGate() {
           setAuth({ status: "anonymous" });
           return;
         }
-        const data = (await response.json()) as { user: AuthUser };
-        setAuth({ status: "authenticated", user: data.user });
+        const session = sessionFromAuth(await response.json());
+        setAuth(session ? { status: "authenticated", session } : { status: "anonymous" });
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -60,10 +58,16 @@ export function AuthGate() {
   if (auth.status === "anonymous") {
     return (
       <LoginPage
-        onAuthenticated={(user) => setAuth({ status: "authenticated", user })}
+        onAuthenticated={(session) => setAuth({ status: "authenticated", session })}
       />
     );
   }
 
-  return <TradingSystemApp user={auth.user} onLogout={logout} />;
+  return (
+    <TradingSystemApp
+      session={auth.session}
+      onSession={(session) => setAuth({ status: "authenticated", session })}
+      onLogout={logout}
+    />
+  );
 }

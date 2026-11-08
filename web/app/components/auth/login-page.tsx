@@ -1,12 +1,12 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import type { AuthUser } from "./auth-gate";
+import { sessionFromAuth, type AuthSession } from "../../features/identity/model";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
 import { ThemeSwitch } from "../appearance/theme-switch";
 
 type LoginPageProps = {
-  onAuthenticated: (user: AuthUser) => void;
+  onAuthenticated: (session: AuthSession) => void;
 };
 
 export function LoginPage({ onAuthenticated }: LoginPageProps) {
@@ -30,16 +30,20 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
         }),
       });
       const data = (await response.json()) as {
-        user?: AuthUser;
+        user?: { id: number; username: string };
+        actor?: { id: number; username: string } | null;
+        impersonating?: boolean;
+        is_admin?: boolean;
         detail?: unknown;
       };
-      if (!response.ok || !data.user) {
+      const session = sessionFromAuth(data);
+      if (!response.ok || !session) {
         setError(
           typeof data.detail === "string" ? data.detail : "登录失败，请稍后再试。",
         );
         return;
       }
-      onAuthenticated(data.user);
+      onAuthenticated(session);
     } catch {
       setError("无法连接登录服务，请稍后再试。");
     } finally {

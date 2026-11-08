@@ -3,9 +3,9 @@
 import sqlite3
 import time
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
-from api.db.errors import StorageConflict
+from api.db.errors import StorageConflict, StorageUnavailable
 from api.db.models import (
     EquityEvent,
     EquityPoint,
@@ -33,7 +33,7 @@ def _mapping(row, *fields):
 
 _TEMPLATE = ("id", "purpose", "name", "description", "created_at")
 _TENANT = (
-    "id", "template_id", "purpose", "name", "description", "status", "system_key",
+    "id", "template_id", "owner_id", "purpose", "name", "description", "status", "system_key",
     "created_at", "archived_at",
 )
 _VIRTUAL = (
@@ -92,24 +92,31 @@ class TenantRepository:
         with self.database.session() as session:
             return _mapping(session.get(TenantTemplate, template_id), *_TEMPLATE)
 
-    def list_tenants(self):
+    def list_tenants(self, owner_id=None):
         if self.database.backend != "orm":
+            statement = """SELECT id, template_id, owner_id, purpose, name, description, status, system_key,
+                                  created_at, archived_at
+                           FROM tenants"""
+            parameters = ()
+            if owner_id is not None:
+                statement += " WHERE owner_id = ?"
+                parameters = (owner_id,)
+            statement += " ORDER BY id"
             with self.database.connect() as connection:
-                rows = connection.execute(
-                    """SELECT id, template_id, purpose, name, description, status, system_key,
-                              created_at, archived_at
-                       FROM tenants ORDER BY id"""
-                ).fetchall()
+                rows = connection.execute(statement, parameters).fetchall()
             return [_mapping(row, *_TENANT) for row in rows]
         with self.database.session() as session:
-            rows = session.scalars(select(Tenant).order_by(Tenant.id)).all()
+            statement = select(Tenant).order_by(Tenant.id)
+            if owner_id is not None:
+                statement = statement.where(Tenant.owner_id == owner_id)
+            rows = session.scalars(statement).all()
             return [_mapping(row, *_TENANT) for row in rows]
 
     def get_tenant(self, tenant_id):
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 row = connection.execute(
-                    """SELECT id, template_id, purpose, name, description, status, system_key,
+                    """SELECT id, template_id, owner_id, purpose, name, description, status, system_key,
                               created_at, archived_at
                        FROM tenants WHERE id = ?""",
                     (tenant_id,),
@@ -122,7 +129,7 @@ class TenantRepository:
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 row = connection.execute(
-                    """SELECT id, template_id, purpose, name, description, status, system_key,
+                    """SELECT id, template_id, owner_id, purpose, name, description, status, system_key,
                               created_at, archived_at
                        FROM tenants WHERE system_key = 'default'"""
                 ).fetchone()
@@ -131,19 +138,19 @@ class TenantRepository:
             tenant = session.scalar(select(Tenant).where(Tenant.system_key == "default"))
             return _mapping(tenant, *_TENANT)
 
-    def create_tenant(self, template_id, purpose, name, description):
+    def create_tenant(self, template_id, purpose, name, description, owner_id):
         now = int(time.time())
         try:
             if self.database.backend != "orm":
                 with self.database.connect() as connection:
                     cursor = connection.execute(
                         """INSERT INTO tenants (
-                               template_id, purpose, name, description, status, created_at
-                           ) VALUES (?, ?, ?, ?, 'active', ?)""",
-                        (template_id, purpose, name, description, now),
+                               template_id, owner_id, purpose, name, description, status, created_at
+                           ) VALUES (?, ?, ?, ?, ?, 'active', ?)""",
+                        (template_id, owner_id, purpose, name, description, now),
                     )
                     row = connection.execute(
-                        """SELECT id, template_id, purpose, name, description, status, system_key,
+                        """SELECT id, template_id, owner_id, purpose, name, description, status, system_key,
                                   created_at, archived_at
                            FROM tenants WHERE id = ?""",
                         (cursor.lastrowid,),
@@ -151,14 +158,210 @@ class TenantRepository:
                 return _mapping(row, *_TENANT)
             with self.database.session(write=True) as session:
                 tenant = Tenant(
-                    template_id=template_id, purpose=purpose, name=name, description=description,
-                    status="active", created_at=now,
+                    template_id=template_id, owner_id=owner_id, purpose=purpose, name=name,
+                    description=description, status="active", created_at=now,
                 )
                 session.add(tenant)
                 session.flush()
                 return _mapping(tenant, *_TENANT)
         except sqlite3.IntegrityError:
             raise StorageConflict("租户名称不能重复。") from None
+
+    def template_id_for(self, purpose):
+        match = next((row for row in self.list_templates() if row["purpose"] == purpose), None)
+        if match is None:
+            raise StorageUnavailable("缺少空租户模板。")
+        return match["id"]
+
+    def production_for_owner(self, owner_id):
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                row = connection.execute(
+                    """SELECT id, template_id, owner_id, purpose, name, description, status, system_key,
+                              created_at, archived_at
+                       FROM tenants WHERE owner_id = ? AND purpose = 'production'""",
+                    (owner_id,),
+                ).fetchone()
+            return _mapping(row, *_TENANT)
+        with self.database.session() as session:
+            tenant = session.scalar(
+                select(Tenant).where(Tenant.owner_id == owner_id, Tenant.purpose == "production")
+            )
+            return _mapping(tenant, *_TENANT)
+
+    def production_owner_exists(self):
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                row = connection.execute(
+                    """SELECT 1 FROM tenants
+                       WHERE purpose = 'production' AND owner_id IS NOT NULL LIMIT 1"""
+                ).fetchone()
+            return row is not None
+        with self.database.session() as session:
+            return session.scalar(
+                select(Tenant.id).where(Tenant.purpose == "production", Tenant.owner_id.is_not(None)).limit(1)
+            ) is not None
+
+    def ensure_production_tenant(self, user_id, username):
+        current = self.production_for_owner(user_id)
+        if current is not None:
+            return current
+        if not self.production_owner_exists():
+            adopted = self.adopt_legacy_owner(user_id)
+            if adopted is not None:
+                return adopted
+        return self._insert_production(user_id, username)
+
+    def _available_name(self, username, user_id):
+        base = f"正式·{username}"
+        if len(base) > 100:
+            base = base[:100]
+        taken = {row["name"].casefold() for row in self.list_tenants()}
+        if base.casefold() not in taken:
+            return base
+        return f"正式·{user_id}"[:100]
+
+    def _insert_production(self, user_id, username):
+        return self.create_tenant(
+            self.template_id_for("production"),
+            "production",
+            self._available_name(username, user_id),
+            None,
+            user_id,
+        )
+
+    def adopt_legacy_owner(self, user_id):
+        """Give the first owner the unowned default tenant and fold extra production tenants."""
+        if self.database.backend != "orm":
+            return self._adopt_sqlite(user_id)
+        return self._adopt_orm(user_id)
+
+    def _move_exchange_accounts_sqlite(self, connection, source_id, target_id):
+        accounts = connection.execute(
+            "SELECT id, exchange, account_name FROM exchange_accounts WHERE tenant_id = ?",
+            (source_id,),
+        ).fetchall()
+        existing = {
+            (row["exchange"], str(row["account_name"]).casefold())
+            for row in connection.execute(
+                "SELECT exchange, account_name FROM exchange_accounts WHERE tenant_id = ?",
+                (target_id,),
+            )
+        }
+        for row in accounts:
+            name = row["account_name"]
+            if (row["exchange"], str(name).casefold()) in existing:
+                renamed = f"{name}·迁入"
+                if (row["exchange"], renamed.casefold()) in existing:
+                    renamed = f"{renamed}{row['id']}"
+                name = renamed
+            connection.execute(
+                "UPDATE exchange_accounts SET tenant_id = ?, account_name = ? WHERE id = ?",
+                (target_id, name, row["id"]),
+            )
+            existing.add((row["exchange"], str(name).casefold()))
+
+    def _adopt_sqlite(self, user_id):
+        with self.database.connect() as connection:
+            claimed = connection.execute(
+                """UPDATE tenants SET owner_id = ?
+                   WHERE system_key = 'default' AND purpose = 'production' AND owner_id IS NULL""",
+                (user_id,),
+            ).rowcount
+            if not claimed:
+                claimed = connection.execute(
+                    """UPDATE tenants SET owner_id = ?
+                       WHERE id = (
+                           SELECT id FROM tenants
+                           WHERE purpose = 'production' AND owner_id IS NULL
+                           ORDER BY id LIMIT 1
+                       )""",
+                    (user_id,),
+                ).rowcount
+            if not claimed:
+                return None
+            primary = connection.execute(
+                """SELECT id FROM tenants
+                   WHERE owner_id = ? AND purpose = 'production'
+                   ORDER BY id LIMIT 1""",
+                (user_id,),
+            ).fetchone()["id"]
+            extras = connection.execute(
+                """SELECT id FROM tenants
+                   WHERE purpose = 'production' AND owner_id IS NULL
+                   ORDER BY id"""
+            ).fetchall()
+            for row in extras:
+                self._move_exchange_accounts_sqlite(connection, row["id"], primary)
+                connection.execute(
+                    "UPDATE tenants SET purpose = 'development', owner_id = ? WHERE id = ?",
+                    (user_id, row["id"]),
+                )
+            connection.execute(
+                "UPDATE tenants SET owner_id = ? WHERE owner_id IS NULL",
+                (user_id,),
+            )
+        return self.production_for_owner(user_id)
+
+    def _move_exchange_accounts_orm(self, session, source_id, target_id):
+        accounts = session.scalars(
+            select(ExchangeAccount).where(ExchangeAccount.tenant_id == source_id)
+        ).all()
+        existing = {
+            (row.exchange, row.account_name.casefold())
+            for row in session.scalars(
+                select(ExchangeAccount).where(ExchangeAccount.tenant_id == target_id)
+            ).all()
+        }
+        for row in accounts:
+            name = row.account_name
+            if (row.exchange, name.casefold()) in existing:
+                renamed = f"{name}·迁入"
+                if (row.exchange, renamed.casefold()) in existing:
+                    renamed = f"{renamed}{row.id}"
+                name = renamed
+            row.tenant_id = target_id
+            row.account_name = name
+            existing.add((row.exchange, name.casefold()))
+
+    def _adopt_orm(self, user_id):
+        with self.database.session(write=True) as session:
+            claimed = session.execute(
+                update(Tenant)
+                .where(
+                    Tenant.system_key == "default",
+                    Tenant.purpose == "production",
+                    Tenant.owner_id.is_(None),
+                )
+                .values(owner_id=user_id)
+            ).rowcount
+            if not claimed:
+                pending = session.scalar(
+                    select(Tenant)
+                    .where(Tenant.purpose == "production", Tenant.owner_id.is_(None))
+                    .order_by(Tenant.id)
+                )
+                if pending is None:
+                    return None
+                pending.owner_id = user_id
+                session.flush()
+            primary = session.scalar(
+                select(Tenant)
+                .where(Tenant.owner_id == user_id, Tenant.purpose == "production")
+                .order_by(Tenant.id)
+            )
+            extras = session.scalars(
+                select(Tenant)
+                .where(Tenant.purpose == "production", Tenant.owner_id.is_(None))
+                .order_by(Tenant.id)
+            ).all()
+            for extra in extras:
+                self._move_exchange_accounts_orm(session, extra.id, primary.id)
+                extra.purpose = "development"
+                extra.owner_id = user_id
+            session.execute(update(Tenant).where(Tenant.owner_id.is_(None)).values(owner_id=user_id))
+            session.flush()
+            return _mapping(primary, *_TENANT)
 
     def set_status(self, tenant_id, status):
         archived_at = int(time.time()) if status == "archived" else None

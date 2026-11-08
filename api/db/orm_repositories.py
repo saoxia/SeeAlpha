@@ -4,6 +4,7 @@ import time
 
 from sqlalchemy import delete, func, select, update
 
+from .auth_repository import provision_user_tenant
 from .models import ExchangeAccount, LoginFailure, OlapState, Session, User
 
 
@@ -37,7 +38,19 @@ class ORMAuthRepository:
             user = User(username=username, password_hash=password_hash, created_at=now)
             session.add(user)
             session.flush()
-            return {"id": user.id, "username": username, "created_at": now}
+            created = {"id": user.id, "username": username, "created_at": now}
+        provision_user_tenant(self.database, created)
+        return created
+
+    def get_user_by_id(self, user_id):
+        with self.database.session() as session:
+            user = session.get(User, user_id)
+            return row(user, "id", "username", "created_at")
+
+    def list_users(self):
+        with self.database.session() as session:
+            users = session.scalars(select(User).order_by(User.id)).all()
+            return [row(user, "id", "username", "created_at") for user in users]
 
     def get_user_by_username(self, username):
         with self.database.session() as session:
@@ -74,7 +87,10 @@ class ORMAuthRepository:
         with self.database.session() as session:
             result = (
                 session.execute(
-                    select(User.id, User.username, User.created_at, Session.expires_at)
+                    select(
+                        User.id, User.username, User.created_at, Session.expires_at,
+                        Session.impersonate_user_id,
+                    )
                     .join(Session, Session.user_id == User.id)
                     .where(Session.token_hash == token_hash, Session.expires_at > now)
                 )
@@ -82,6 +98,14 @@ class ORMAuthRepository:
                 .first()
             )
             return dict(result) if result else None
+
+    def set_impersonation(self, token_hash, user_id):
+        with self.database.session(write=True) as session:
+            session.execute(
+                update(Session)
+                .where(Session.token_hash == token_hash)
+                .values(impersonate_user_id=user_id)
+            )
 
     def delete_session(self, token_hash):
         with self.database.session(write=True) as session:

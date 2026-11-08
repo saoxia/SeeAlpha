@@ -18,9 +18,20 @@ type NavigationProps = {
   onNavigate: (view: AppView) => void;
   username: string;
   onLogout: () => Promise<void>;
+  isAdmin: boolean;
+  impersonating: boolean;
+  productionTenantName: string;
 };
 
-export function Navigation({ activeView, onNavigate, username, onLogout }: NavigationProps) {
+export function Navigation({
+  activeView,
+  onNavigate,
+  username,
+  onLogout,
+  isAdmin,
+  impersonating,
+  productionTenantName,
+}: NavigationProps) {
   const menuRef = useRef<HTMLDetailsElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -92,7 +103,25 @@ export function Navigation({ activeView, onNavigate, username, onLogout }: Navig
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
           </summary>
           <div className="user-menu-panel">
-            <div className="user-menu-heading"><b>{username}</b><span>当前登录账户</span></div>
+            <div className="user-menu-heading">
+              <b>{username}</b>
+              <span>{impersonating ? "正在查看的用户" : "当前登录账户"}</span>
+              {productionTenantName ? <span>正式租户 · {productionTenantName}</span> : null}
+            </div>
+            <button type="button" className="user-menu-link" onClick={() => {
+              menuRef.current?.removeAttribute("open");
+              onNavigate("tenants");
+            }}>
+              租户
+            </button>
+            {isAdmin && !impersonating && (
+              <button type="button" className="user-menu-link" onClick={() => {
+                menuRef.current?.removeAttribute("open");
+                onNavigate("users");
+              }}>
+                用户管理
+              </button>
+            )}
             <section className="user-menu-appearance" aria-label="主题切换">
               <h2>界面外观</h2>
               <ThemeSwitch />

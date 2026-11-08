@@ -12,7 +12,7 @@
     "start:lan": "next start --hostname 0.0.0.0 --port 3000",
     "lint": "eslint . --ignore-pattern .next",
     "generate:api-types": "../.venv/bin/python scripts/generate_api_types.py",
-    "test:frontend": "node --experimental-strip-types --test app/features/live/*.test.ts app/features/data-management/*.test.ts app/features/research/*.test.ts app/features/trade/*.test.ts"
+    "test:frontend": "node --experimental-strip-types --test app/features/live/*.test.ts app/features/data-management/*.test.ts app/features/research/*.test.ts app/features/trade/*.test.ts app/features/identity/*.test.ts"
   },
   "dependencies": {
     "lightweight-charts": "^5.2.0",

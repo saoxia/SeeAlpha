@@ -37,6 +37,9 @@ def verify_existing_postgres(connection, schema):
         if table.name == "exchange_accounts":
             # tenant_id is added by a later migration. Baseline databases predate it.
             expected.pop("tenant_id", None)
+        if table.name == "sessions":
+            # impersonate_user_id is added by a later migration. Baseline databases predate it.
+            expected.pop("impersonate_user_id", None)
         if not expected.keys() <= actual.keys():
             raise RuntimeError(f"已有数据库的 {table.name} 字段不完整。")
         primary = set(

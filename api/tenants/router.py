@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser
+from ..auth.dependencies import AdminUser, CurrentUser
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -17,8 +17,22 @@ class TemplateCreate(BaseModel):
 
 class TenantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    template_id: int
     name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    purpose: str | None = None
+    template_id: int | None = None
+
+
+class TenantCopy(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class TenantShare(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=100)
+    username: str = Field(min_length=1, max_length=64)
     description: str | None = Field(default=None, max_length=500)
 
 
@@ -66,46 +80,70 @@ def create_template(request: Request, payload: TemplateCreate, _: AdminUser):
 
 
 @router.get("")
-def list_tenants(request: Request, _: AdminUser):
-    return tenants(request).list_tenants()
+def list_tenants(request: Request, user: CurrentUser):
+    return tenants(request).list_tenants(user.id)
 
 
 @router.post("", status_code=201)
-def create_tenant(request: Request, payload: TenantCreate, _: AdminUser):
-    return tenants(request).create_tenant(payload.template_id, payload.name, payload.description)
+def create_tenant(request: Request, payload: TenantCreate, user: CurrentUser):
+    if payload.purpose not in (None, "development", "production"):
+        raise HTTPException(422, "租户类型只能是正式或开发。")
+    if payload.purpose == "production":
+        raise HTTPException(409, "每个用户只能有一个正式租户。")
+    if payload.template_id is not None:
+        template = tenants(request).repository.get_template(payload.template_id)
+        if template is None:
+            raise HTTPException(404, "模板不存在。")
+        if template["purpose"] == "production":
+            raise HTTPException(409, "每个用户只能有一个正式租户。")
+    return tenants(request).create_development(user.id, payload.name, payload.description)
+
+
+@router.post("/{tenant_id}/copy", status_code=201)
+def copy_tenant(request: Request, tenant_id: int, payload: TenantCopy, user: CurrentUser):
+    return tenants(request).copy_for_owner(
+        tenant_id, user.id, payload.name, payload.description
+    )
+
+
+@router.post("/{tenant_id}/share", status_code=201)
+def share_tenant(request: Request, tenant_id: int, payload: TenantShare, user: CurrentUser):
+    return tenants(request).share_with_user(
+        tenant_id, user.id, payload.username, payload.name, payload.description
+    )
 
 
 @router.post("/{tenant_id}/archive")
-def archive_tenant(request: Request, tenant_id: int, _: AdminUser):
-    return tenants(request).archive(tenant_id)
+def archive_tenant(request: Request, tenant_id: int, user: CurrentUser):
+    return tenants(request).archive(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/restore")
-def restore_tenant(request: Request, tenant_id: int, _: AdminUser):
-    return tenants(request).restore(tenant_id)
+def restore_tenant(request: Request, tenant_id: int, user: CurrentUser):
+    return tenants(request).restore(tenant_id, user.id)
 
 
 @router.delete("/{tenant_id}", status_code=204)
-def delete_tenant(request: Request, tenant_id: int, _: AdminUser):
-    tenants(request).delete(tenant_id)
+def delete_tenant(request: Request, tenant_id: int, user: CurrentUser):
+    tenants(request).delete(tenant_id, user.id)
     return Response(status_code=204)
 
 
 @router.get("/{tenant_id}/accounts")
-def list_accounts(request: Request, tenant_id: int, _: AdminUser):
-    return tenants(request).list_accounts(tenant_id)
+def list_accounts(request: Request, tenant_id: int, user: CurrentUser):
+    return tenants(request).list_accounts(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/accounts", status_code=201)
-def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, _: AdminUser):
-    return tenants(request).add_account(tenant_id, payload)
+def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, user: CurrentUser):
+    return tenants(request).add_account(tenant_id, payload, user.id)
 
 
 @router.get("/{tenant_id}/subscriptions")
-def list_subscriptions(request: Request, tenant_id: int, _: AdminUser):
-    return tenants(request).list_subscriptions(tenant_id)
+def list_subscriptions(request: Request, tenant_id: int, user: CurrentUser):
+    return tenants(request).list_subscriptions(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/subscriptions")
-def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, _: AdminUser):
-    return tenants(request).save_subscription(tenant_id, payload)
+def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, user: CurrentUser):
+    return tenants(request).save_subscription(tenant_id, payload, user.id)

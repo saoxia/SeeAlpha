@@ -279,3 +279,23 @@ html[data-interface-theme="glass"] .data-market-picker select { border-color: #c
 .research-links{display:flex;gap:12px;margin-top:8px}
 .research-links a{font-size:8px;font-weight:700;text-decoration:underline}
 @media(max-width:760px){.research-metrics,.research-jobs{grid-template-columns:1fr}.research-list li,.research-list button{grid-template-columns:minmax(0,1fr) auto}}
+
+.impersonation-banner{position:sticky;top:0;z-index:30;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px;padding:8px 28px;background:#111;color:#f4f4ee}
+.impersonation-banner p{display:flex;flex-wrap:wrap;gap:8px 14px;margin:0;font-size:12px}
+.impersonation-banner span{color:#c8c9c4}
+.impersonation-banner button{height:28px;flex:0 0 auto;border:1px solid #f4f4ee;padding:0 12px;color:#f4f4ee;font-size:11px;font-weight:700;cursor:pointer}
+.impersonation-banner button:disabled{cursor:wait;opacity:.55}
+.tenant-list{margin-top:18px}
+.tenant-row{display:grid;grid-template-columns:minmax(0,1.4fr) 72px 72px auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #d7d9dc}
+.tenant-row b,.tenant-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tenant-row b{font-size:12px}
+.tenant-row small{margin-top:4px;color:#777a80;font-size:10px}
+.tenant-badge{display:inline-block;border:1px solid #c5c7cb;padding:4px 8px;font-size:10px;text-align:center}
+.tenant-badge.production{border-color:#111;background:#111;color:#fff}
+.tenant-actions{display:flex;justify-content:flex-end;gap:6px}
+.tenant-actions button{height:28px;border:1px solid #111;padding:0 10px;font-size:10px;font-weight:700;cursor:pointer}
+.tenant-actions button.remove{border-color:#c9a29d;color:#9a4036}
+.tenant-actions button:disabled{cursor:wait;opacity:.45}
+.tenant-actions small{color:#777a80;font-size:10px}
+main:has(.impersonation-banner) .settings-layout{height:calc(100vh - 137px)}
+@media(max-width:760px){.impersonation-banner{align-items:flex-start;flex-direction:column;padding:10px 16px}.tenant-row{grid-template-columns:minmax(0,1fr) auto}.tenant-row>span:nth-of-type(2){display:none}}
