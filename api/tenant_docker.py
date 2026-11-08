@@ -29,9 +29,11 @@ class DockerTenantManager:
     """One long-lived Engine container per tenant on the local Docker host."""
 
     def __init__(self, root: Path, *, image: str, production_cpus: str,
-                 production_memory: str, development_cpus: str, development_memory: str):
+                 production_memory: str, development_cpus: str, development_memory: str, log_root: Path):
         self.root = Path(root).expanduser().resolve()
         self.image = image
+        self.log_root = Path(log_root).expanduser().resolve()
+        self._endpoints = {}
         self.limits = {
             "production": (str(production_cpus), str(production_memory)),
             "development": (str(development_cpus), str(development_memory)),
@@ -137,7 +139,7 @@ class DockerTenantManager:
                 name = self._name(tenant_id)
                 container = self._inspect(name)
                 if container is None:
-                    for path in (state, data, local):
+                    for path in (state, data, local, root / "logs"):
                         path.mkdir(parents=True, exist_ok=True, mode=0o700)
                     token = self._credentials(env_path, tenant_id, purpose, create=True)
                     cpu, memory = self.limits[purpose]
@@ -155,6 +157,7 @@ class DockerTenantManager:
                         "--mount", f"type=bind,src={state},dst=/app/.local/state/engine",
                         "--mount", f"type=bind,src={data},dst=/app/data",
                         "--mount", f"type=bind,src={local},dst=/app/.local/run",
+                        "--mount", f"type=bind,src={root / "logs"},dst=/app/logs",
                         self.image,
                     )
                     container = self._inspect(name)
@@ -173,6 +176,7 @@ class DockerTenantManager:
                             timeout=0.8,
                         )
                         if response.status_code == 200:
+                            self._endpoints[tenant_id] = (address, token)
                             return
                     except httpx.HTTPError:
                         pass
@@ -182,6 +186,8 @@ class DockerTenantManager:
     def endpoint(self, tenant_id):
         tenant_id = self._id(tenant_id)
         with self._lock:
+            if tenant_id in self._endpoints:
+                return self._endpoints[tenant_id]
             _root, _state, _data, _local, env_path = self._paths(tenant_id)
             container = self._inspect(self._name(tenant_id))
             if container is None:
@@ -189,11 +195,13 @@ class DockerTenantManager:
             self._validate_container(container, tenant_id)
             purpose = container["Config"]["Labels"]["seealpha.purpose"]
             token = self._credentials(env_path, tenant_id, purpose, create=False)
-            return self._address(container), token
+            self._endpoints[tenant_id] = (self._address(container), token)
+            return self._endpoints[tenant_id]
 
     def stop(self, tenant_id, *, remove=False):
         tenant_id = self._id(tenant_id)
         with self._lock:
+            self._endpoints.pop(tenant_id, None)
             container = self._inspect(self._name(tenant_id))
             if container is None:
                 return
@@ -203,3 +211,25 @@ class DockerTenantManager:
             if remove:
                 self._docker("rm", self._name(tenant_id))
             # Deliberately preserve state/data/log volumes, even on tenant deletion.
+
+    def worker_log(self, tenant_id, path):
+        """Map an API log path into an isolated tenant mount; preserve the API read path."""
+        tenant_id = self._id(tenant_id)
+        original = Path(path).absolute()
+        try:
+            relative = original.relative_to(self.log_root)
+        except ValueError as exc:
+            raise EngineConflict("日志路径必须位于 API 的 logs 目录。") from exc
+        if ".." in relative.parts:
+            raise EngineConflict("日志路径无效。")
+        target = self.root / tenant_id / "logs" / relative
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        original.parent.mkdir(parents=True, exist_ok=True)
+        if original.is_symlink():
+            if original.resolve() != target:
+                raise EngineConflict("日志符号链接不属于当前租户。")
+        elif original.exists():
+            raise EngineConflict("已有同名日志，请先迁移再切换 Docker 部署。")
+        else:
+            original.symlink_to(target)
+        return str(Path("/app/logs") / relative)
