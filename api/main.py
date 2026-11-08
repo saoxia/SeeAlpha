@@ -140,6 +140,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             production_memory=settings.engine_production_memory,
             development_cpus=settings.engine_development_cpus,
             development_memory=settings.engine_development_memory,
+            log_root=PROJECT / "logs",
         )
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
