@@ -31,6 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f docker/engine.Dockerfile -t seealpha-engine:ci .
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked
+      - name: Docker manager integration
+        run: SEEALPHA_TEST_DOCKER=1 uv run pytest -q tests/api/tenant_docker_integration_test.py
       - name: Container tenant-bound HTTP smoke
         run: |
           mkdir -p /tmp/seealpha-ci/{state,data,run,logs}
