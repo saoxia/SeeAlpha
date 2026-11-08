@@ -25,7 +25,11 @@ strategy.py               入口模块
 
 `quantity` 和 `weight` 二选一，类型是 `Decimal`。`quantity` 是希望持有的带符号数量；`weight` 为 `1` 表示满额 `allocation`，`0` 表示空仓。不要调用 `submit_order` 或 `close_all_positions`。
 
-本示例：快均线上穿慢均线（金叉）公布满额多头数量，下穿（死叉）公布 `0`。
+本示例的 `on_bar` 按三步阅读：
+
+1. 读取指标。Nautilus 在进入 `on_bar` 之前，已经用收盘价更新 `register_indicator_for_bars` 登记的两条 EMA，策略只读当前值。
+2. 判断包内信号：`long`（金叉）、`flat`（死叉）或 `no-cross`（没有新交叉）。这不是平台类型。两条均线第一次同时就绪时只保存上一组数值，不算交叉。
+3. 换成目标数量再 `publish`：`long` 用 `allocation`，`flat` 用 `0`。`no-cross` 直接返回，不再次公布。
 
 `prepare(parameters)` 负责本包的参数。省略 `risk_limit` 时等于本次 `allocation`。返回值必须带 `symbol`、`allocation` 和 `risk_limit`。引擎按 `symbol` 把同一账户的目标交给现有的 `PortfolioCoordinator`，先缩放到最紧的 `risk_limit`，再对当前净持仓只提交差额。订单仍由 Nautilus RiskEngine / ExecutionEngine 检查。
 
