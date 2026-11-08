@@ -19,7 +19,6 @@ from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
 from .engine_client import EngineClient
-from .tenant_docker import DockerTenantManager
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -38,6 +37,7 @@ from .operations.router import router as operations_router
 from .operations.service import OperationService
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
+from .tenant_docker import DockerTenantManager
 from .tenants.router import router as tenants_router
 from .tenants.service import TenantService
 
