@@ -1,13 +1,22 @@
 """Frontend-compatible portfolio composition over native connector snapshots."""
 
 import asyncio
+import fcntl
+import hashlib
+import json
+import logging
+import os
 import time
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from fastapi import HTTPException
 
 from connectors.binance import assets as asset_queries
 from connectors.binance import queries
+
+from ..operations.options import position_view
+from .contracts import ExchangePortfolioResponse
 
 
 def number(value):
@@ -49,12 +58,107 @@ def summary(info):
 
 
 class ExchangeService:
-    def __init__(self, accounts):
+    def __init__(self, accounts, portfolio_root=None, operations_repository=None):
         self.accounts = accounts
         self.cache, self.locks = {}, {}
         self.catalog_cache, self.catalog_locks = {}, {}
         self.asset_cache, self.asset_locks = {}, {}
         self.gate = asyncio.Semaphore(2)
+        self.portfolio_root = Path(portfolio_root) if portfolio_root is not None else None
+        self.portfolio_locks = {}
+        self.operations_repository = operations_repository
+
+    def portfolio_revision(self, row):
+        return hashlib.sha256(json.dumps([
+            row[key] for key in ("id", "exchange", "account_name", "environment", "credentials_encrypted", "updated_at")
+        ]).encode()).hexdigest()
+
+    def read_portfolio(self, account_id, revision):
+        try:
+            saved = json.loads((self.portfolio_root / f"{account_id}.json").read_text())
+            if saved["revision"] != revision or saved["version"] != 1:
+                return None
+            if not isinstance(saved["saved_at"], int):
+                return None
+            saved["portfolio"] = ExchangePortfolioResponse.model_validate(saved["portfolio"]).model_dump()
+            return saved
+        except (FileNotFoundError, ValueError, KeyError, TypeError):
+            return None
+
+    async def persist_portfolio(self, account_id, *, fresh=False):
+        async with self.portfolio_locks.setdefault(account_id, asyncio.Lock()):
+            self.portfolio_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            with (self.portfolio_root / f"{account_id}.lock").open("a") as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return
+                row = await asyncio.to_thread(self.accounts.row, account_id)
+                revision = self.portfolio_revision(row)
+                saved = await asyncio.to_thread(self.read_portfolio, account_id, revision)
+                if not fresh and saved and int(time.time()) // 60 == saved["saved_at"] // 60:
+                    return
+                value = await self.portfolio(account_id, fresh=fresh)
+                if revision != self.portfolio_revision(await asyncio.to_thread(self.accounts.row, account_id)):
+                    return
+                # The revision binds the display snapshot to this exact account configuration.
+                saved = {"version": 1, "revision": revision, "saved_at": int(time.time()), "portfolio": value}
+                # Complete the small atomic file write before cancellation can release the writer lock.
+                self.write_portfolio(account_id, saved)
+
+    def write_portfolio(self, account_id, saved):
+        path = self.portfolio_root / f"{account_id}.json"
+        temporary = path.with_suffix(".tmp")
+        try:
+            with temporary.open("w", encoding="utf-8") as file:
+                os.chmod(temporary, 0o600)
+                json.dump(saved, file, ensure_ascii=False)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, path)
+            directory = os.open(path.parent, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    async def persisted_portfolio(self, account_id, *, fresh=False):
+        if fresh:
+            await self.persist_portfolio(account_id, fresh=True)
+        row = await asyncio.to_thread(self.accounts.row, account_id)
+        saved = await asyncio.to_thread(self.read_portfolio, account_id, self.portfolio_revision(row))
+        if saved is None:
+            value = {"checked_at": int(time.time()), "account": summary({}), "assets": [],
+                    "positions": [], "trades": [], "valuation_source": "exchange",
+                    "errors": {"account": "尚无账户快照，等待后台分钟采集。"}, "warnings": {}}
+        else:
+            value = saved["portfolio"]
+        if saved and (time.time() - saved["saved_at"] >= 120 or saved["saved_at"] > time.time()):
+            value["warnings"]["account"] = "账户快照已过期，正在显示上次采集数据。 " + value["warnings"].get("account", "")
+            for asset in value["assets"]:
+                asset["stale"] = True
+        if self.operations_repository is not None:
+            positions, warning = await asyncio.to_thread(position_view, self.operations_repository, row)
+            value["positions"].extend(positions)
+            value["warnings"]["positions"] = " ".join(filter(None, [value["warnings"].get("positions"), warning]))
+        return value
+
+    async def portfolio_worker(self):
+        while True:
+            started = time.monotonic()
+            try:
+                accounts = await asyncio.to_thread(self.accounts.navigation)
+                for account in accounts:
+                    try:
+                        await self.persist_portfolio(account["id"])
+                    except Exception:  # noqa: BLE001 - Keep collection alive without logging private payloads.
+                        # Do not log connector payloads or private account configuration.
+                        logging.getLogger(__name__).warning("账户 %s 分钟快照更新失败，将稍后重试。", account["id"])
+            except Exception:  # noqa: BLE001 - Storage errors may include private connection details.
+                logging.getLogger(__name__).warning("账户分钟快照采集失败，将稍后重试。")
+            await asyncio.sleep(max(1, 60 - (time.monotonic() - started)))
 
     def invalidate(self, account_id):
         self.cache.pop(account_id, None)
@@ -245,11 +349,14 @@ class ExchangeService:
     async def overview(self, *, fresh=False):
         accounts = await asyncio.to_thread(self.accounts.navigation)
         values = []
-        errors, assets, valuation_warnings = [], [], []
+        errors, assets, valuation_warnings, positions, position_warnings = [], [], [], [], []
         for account in accounts:
             try:
-                value = await self.portfolio(account["id"], fresh=fresh)
+                value = await self.persisted_portfolio(account["id"], fresh=fresh)
                 assets.extend(value["assets"])
+                positions.extend(value["positions"])
+                if value["warnings"].get("positions"):
+                    position_warnings.append(f"{account['account_name']}: {value['warnings']['positions']}")
                 if value["errors"]:
                     errors.append(f"{account['account_name']}: {value['errors']['account']}")
                 else:
@@ -281,8 +388,8 @@ class ExchangeService:
             "account": summary(info),
             "assets": assets,
             "valuation_source": "estimate" if any(v["valuation_source"] == "estimate" for v in values) else "exchange",
-            "positions": [p for v in values for p in v["positions"]],
+            "positions": positions,
             "trades": [],
             "errors": {"account": "；".join(errors)} if errors and not values else {},
-            "warnings": {"positions": "原生标准仓位的缺失字段未做推算。", **warnings},
+            "warnings": {"positions": "；".join(position_warnings) or "原生标准仓位的缺失字段未做推算。", **warnings},
         }

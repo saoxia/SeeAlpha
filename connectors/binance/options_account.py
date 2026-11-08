@@ -22,7 +22,10 @@ from .queries import QueryError
 
 READ_PARAMS = {"marginAccount": set(), "position": {"symbol"}, "openOrders": {"symbol", "limit"},
                "order": {"symbol", "orderId", "clientOrderId"},
-               "historyOrders": {"symbol", "startTime", "endTime", "orderId", "limit"}}
+               "historyOrders": {"symbol", "startTime", "endTime", "orderId", "limit"},
+               "userTrades": {"symbol", "startTime", "endTime", "fromId", "limit"},
+               "bill": {"currency", "startTime", "endTime", "recordId", "limit"},
+               "exerciseRecord": {"symbol", "startTime", "endTime", "limit"}}
 
 
 def signed_request(opener, key, secret, method, endpoint, params, server_ms, *, timeout):
@@ -197,3 +200,75 @@ class BinanceOptionsAccountClient:
         value = await asyncio.to_thread(self._get, "historyOrders", **params)
         return {"orders": self._records(value, "order", symbol), "limit": limit,
                 "possibly_truncated": len(value) >= limit, "start_ms": start_ms, "end_ms": end_ms}
+
+    async def history_pages(self, endpoint, start_ms, end_ms, *, symbol=None):
+        """Validated leaf windows. A saturated millisecond never acknowledges coverage."""
+        if (endpoint not in {"userTrades", "bill", "exerciseRecord"}
+                or type(start_ms) is not int or type(end_ms) is not int
+                or not int(time.time() * 1000) - 88 * 86400000 <= start_ms <= end_ms <= int(time.time() * 1000) + 60000):
+            raise ValueError("期权历史查询范围或类型无效")
+        if endpoint == "userTrades" and symbol is None:
+            raise ValueError("期权成交查询需要合约")
+        symbol = normalize_symbol(symbol, "options") if symbol is not None else None
+        if endpoint == "bill" and symbol is not None:
+            raise ValueError("期权资金流水按币种查询")
+        windows = [(first, min(first + 7 * 86400000 - 1, end_ms))
+                   for first in range(start_ms, end_ms + 1, 7 * 86400000)]
+        pending, requests = list(reversed(windows)), 0
+        while pending:
+            first, last = pending.pop()
+            params = {"startTime": first, "endTime": last, "limit": 1000}
+            if endpoint == "bill":
+                params["currency"] = "USDT"
+            elif symbol is not None:
+                params["symbol"] = symbol
+            requests += 1
+            if requests > 2048:
+                raise QueryError("期权历史超过分页上限，未确认剩余区间。")
+            rows = await asyncio.to_thread(self._get, endpoint, **params)
+            try:
+                if not isinstance(rows, list) or len(rows) > 1000:
+                    raise ValueError
+                seen = set()
+                for row in rows:
+                    identity = row["tradeId" if endpoint == "userTrades" else "id"]
+                    if (isinstance(identity, bool) or not str(identity).isascii() or not str(identity).isdigit()
+                            or str(identity) in seen):
+                        raise ValueError
+                    seen.add(str(identity))
+                    stamp = row["time" if endpoint == "userTrades" else "createDate"]
+                    if type(stamp) is not int or not first <= stamp <= last:
+                        raise ValueError
+                    code = row.get("symbol")
+                    if (endpoint != "bill" or code) and (
+                        normalize_symbol(code, "options") != code or symbol is not None and code != symbol
+                    ):
+                        raise ValueError
+                    fields = ("price", "quantity", "fee") if endpoint == "userTrades" else (
+                        ("quantity", "amount", "fee", "exercisePrice") if endpoint == "exerciseRecord" else ("amount",))
+                    for field in fields:
+                        if (not isinstance(row[field], str) or len(row[field]) > 100
+                                or not Decimal(row[field]).is_finite()):
+                            raise ValueError
+                    currency = row["asset" if endpoint == "bill" else "quoteAsset"]
+                    if not isinstance(currency, str) or not currency.isascii() or not currency.isalnum():
+                        raise ValueError
+                    if endpoint == "bill":
+                        if currency != "USDT" or not isinstance(row["type"], str) or not 1 <= len(row["type"]) <= 64:
+                            raise ValueError
+                    elif endpoint == "userTrades":
+                        if (row["side"] not in {"BUY", "SELL"} or Decimal(row["quantity"]) <= 0
+                                or Decimal(row["price"]) <= 0 or not str(row["orderId"]).isascii()
+                                or not str(row["orderId"]).isdigit() or not isinstance(row["type"], str)):
+                            raise ValueError
+                    elif row["positionSide"] not in {"LONG", "SHORT"} or Decimal(row["quantity"]) < 0:
+                        raise ValueError
+            except (KeyError, TypeError, ValueError, AttributeError, InvalidOperation):
+                raise QueryError("期权历史字段、身份或查询范围不一致，未确认覆盖。") from None
+            if len(rows) == 1000:
+                if first == last:
+                    raise QueryError("期权历史单毫秒满页，无法确认完整记录。")
+                middle = (first + last) // 2
+                pending.extend([(middle + 1, last), (first, middle)])
+                continue
+            yield {"start_ms": first, "end_ms": last, "rows": rows}

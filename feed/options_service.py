@@ -60,13 +60,13 @@ async def serve_options(policy, root, catalog, *, stream_factory=None, definitio
 
     async def repair():
         async with repair_limiter:
-            return await persist(repair_from=repair_from, recent=policy["base_level"] == "tick")
+            return await persist(repair_from=repair_from, recent=True)
 
     try:
         metadata = await persist(recover=True)
         expiry = metadata["expiry_ms"]
         while int(time.time() * 1000) < expiry:
-            stream = (stream_factory or market_events)(policy["symbol"], ["1m", "5m", "15m"], trades=policy["base_level"] == "tick")
+            stream = (stream_factory or market_events)(policy["symbol"], ["1m", "5m", "15m"], trades=True, depth=True)
             repaired = False
             try:
                 async for event in stream:
@@ -109,7 +109,7 @@ async def serve_options(policy, root, catalog, *, stream_factory=None, definitio
                         publish()
                     else:
                         pending.append(event)
-                        if event["level"] != "tick":
+                        if event["level"] not in {"tick", "depth"}:
                             level = event["level"]
                             watermarks[level] = max(watermarks.get(level, 0), event["row"][6] + 1)
                         if len(pending) >= 1000:
@@ -184,7 +184,7 @@ async def serve_batch(manifest, managed_root, catalog, *, project=None):
         access = project / ".local/run/api/data/options" / f"{symbol}.access.lock"
         access.parent.mkdir(parents=True, exist_ok=True)
 
-        async def stream(_symbol, _levels, *, trades):
+        async def stream(_symbol, _levels, *, trades, depth):
             while True:
                 event = await queue.get()
                 if event is None:
@@ -240,7 +240,7 @@ async def serve_batch(manifest, managed_root, catalog, *, project=None):
 
     async def receive(scope):
         items, ticks = scope["selection"]
-        stream = batch_market_events(items, tick_symbols=ticks, scope=scope)
+        stream = batch_market_events(items, tick_symbols=ticks, scope=scope, depth=True)
         try:
             async for event in stream:
                 job = jobs.get(event["symbol"])
@@ -357,10 +357,10 @@ async def serve_batch(manifest, managed_root, catalog, *, project=None):
                 group["members"].add(symbol)
             for group in transports.values():
                 members = sorted(group["members"])
-                selection_key = tuple((symbol, jobs[symbol]["policy"]["base_level"]) for symbol in members)
+                selection_key = tuple(members)
                 if selection_key != group.get("selection_key"):
                     items = [CryptoOption.from_dict(jobs[symbol]["definition"]) for symbol in members]
-                    ticks = {symbol for symbol in members if jobs[symbol]["policy"]["base_level"] == "tick"}
+                    ticks = set(members)
                     group["scope"]["selection"] = (items, ticks)
                     group["selection_key"] = selection_key
                 if group["task"] is None:

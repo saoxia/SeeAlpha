@@ -81,6 +81,10 @@ def list_operations(
     ]
     if any(s["status"] == "failed" for s in result["sync"]):
         result["warnings"].append("部分账户同步失败，当前列表可能不完整。")
+    for state in result["sync"]:
+        option_state = state.get("options", {})
+        if option_state.get("message"):
+            result["warnings"].append(f"账户 {state['account_id']}：{option_state['message']}")
     if not result["sync"]:
         result["warnings"].append("尚无交易所同步覆盖记录；空列表不代表账户没有历史操作。")
     elif any(not s["complete"] for s in result["sync"]):

@@ -324,6 +324,30 @@ def test_managed_live_recovers_source_after_interrupted_install(context, monkeyp
         options_data.persist_live(item["symbol"], [{"level": "1m", "row": [9999999960000, "1", "1", "1", "1", "0", 9999999960000 + 59999]}], settings)
 
 
+@pytest.mark.parametrize("source", ["ws/kline", "eapi/v1/klines"])
+def test_history_fetches_rest_despite_existing_partial_day(context, monkeypatch, source):
+    from pipeline import options_data
+
+    settings, item = context
+    request, calls = bars_request(), []
+    stamp = int(request.start.timestamp() * 1000)
+    options_data.persist_live(item["symbol"], [{"level": "1m", "row":
+        [stamp, "3000.000", "3010.000", "2990.000", "3005.000", "0.03", stamp + 59999]}], settings)
+    if source == "eapi/v1/klines":
+        snapshot = options_data._load(next(settings.raw_dir.rglob("*.json")))
+        snapshot["source"] = source
+        options_data._save(snapshot, settings, options_data._storage(settings))
+    fake_klines(monkeypatch, request, calls)
+
+    assert prepare(request, settings)["records_written"] == 1
+    assert len(calls) == 2
+    assert all(call["symbol"] == item["symbol"] and call["interval"] == "1m" for call in calls)
+    assert validate(request, settings)["ready"]
+    assert len(ParquetDataCatalog(settings.catalog_dir).bars()) == 2
+    assert prepare(request, settings)["records_written"] == 0
+    assert len(calls) == 2
+
+
 def test_option_history_checkpoint_retries_empty_day_and_resumes(context, monkeypatch, tmp_path):
     import asyncio
 
@@ -461,3 +485,33 @@ def test_batch_remembers_contract_units_before_expiry_without_inventing_data(con
     recovered = persist_live(item["symbol"], [], settings, recover=True)
     assert recovered["expiry_ms"] == item["expiry"]
     assert not recovered["historical_tick_complete"]
+
+
+def test_live_depth_persists_exact_raw_snapshots_and_participates_in_deletion(context):
+    from pipeline import options_data
+
+    settings, item = context
+    request = bars_request()
+    stamp = int(request.start.timestamp() * 1000) + 1000
+    row = {"s": item["symbol"], "T": stamp, "u": 42, "received_ns": stamp * 1000000 + 123,
+           "b": [["3000.000", "0.10"], ["2990.000", "0.20"]], "a": [["3010.000", "0.30"]]}
+    events = [{"level": "depth", "row": row}, {"level": "tick", "row": trade(1, stamp)}]
+    result = options_data.persist_live(item["symbol"], events, settings)
+    assert result["records_written"] == 1
+    paths = options_data.source_paths(request, settings)
+    depth = next(path for path in paths if path.parent.parent.name == "depth")
+    snapshot = options_data._load(depth)
+    assert snapshot["source"] == "ws/depth"
+    assert snapshot["payload"] == [row]
+    _, decoded = options_data._decode(snapshot)
+    assert decoded[0][0].sequence == 42
+    assert decoded[0][0].ts_init == row["received_ns"]
+    assert str(decoded[0][0].bids[0].price) == "3000.000"
+    assert options_data.persist_live(item["symbol"], (), settings, recover=True)["records_written"] == 0
+    plan = deletion_plan(request, settings, delete_archives=True)
+    assert any(entry["path"] == depth.relative_to(settings.raw_dir).as_posix() for entry in plan["files"])
+    assert depth.exists()
+    with pytest.raises(ValueError, match="交叉"):
+        options_data.persist_live(item["symbol"], [{"level": "depth", "row": {**row, "a": [["2990.000", "0.10"]]}}], settings)
+    assert options_data._load(depth)["payload"] == [row]
+    assert len(list(depth.parent.glob("*.json"))) == 1
