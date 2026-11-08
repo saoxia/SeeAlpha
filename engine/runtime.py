@@ -352,6 +352,22 @@ class EngineRuntime:
                 os.killpg(state["pid"], signal.SIGTERM)
         return self.worker(worker_id)
 
+    def receive_strategy(self, tenant_id, payload):
+        from engine.strategies.loading import accept_load
+
+        return accept_load(self, tenant_id, payload)
+
+    def preview_strategy(self, tenant_id, account_id, bars):
+        from engine.strategies.loading import preview_loads
+
+        row = self.store.tenant(tenant_id)
+        if row is None or row["status"] != "active":
+            raise EngineConflict("已归档或不存在的租户不能预览策略。")
+        loads = self.store.strategy_loads(tenant_id, account_id)
+        if not loads:
+            raise EngineConflict("该租户账户没有已下发的策略。")
+        return preview_loads(loads, bars)
+
     def export_tenant(self, tenant_id):
         return self.store.export_tenant(tenant_id)
 

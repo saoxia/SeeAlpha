@@ -100,6 +100,11 @@ class EngineClient:
             return self.runtime.assert_runnable(tenant_id, action)
         return self._sync("POST", f"/tenants/{tenant_id}/runnable", json={"action": action})
 
+    def receive_strategy(self, tenant_id, payload):
+        if self.runtime is not None:
+            return self.runtime.receive_strategy(tenant_id, payload)
+        return self._sync("POST", f"/tenants/{tenant_id}/strategy-loads", json=payload)
+
     def register(self, account):
         creds = account["credentials"]
         tenant_id = account["tenant_id"]

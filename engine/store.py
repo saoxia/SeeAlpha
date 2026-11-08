@@ -87,6 +87,17 @@ CREATE TABLE IF NOT EXISTS events (
     body_json TEXT NOT NULL,
     created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS strategy_loads (
+    tenant_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    issuance_id TEXT NOT NULL,
+    code_key TEXT NOT NULL,
+    version TEXT NOT NULL,
+    grant_purpose TEXT NOT NULL,
+    parameters_json TEXT NOT NULL,
+    loaded_at INTEGER NOT NULL,
+    PRIMARY KEY (tenant_id, account_id, issuance_id)
+);
 """
 
 RUNTIME_TABLES = (
@@ -98,8 +109,17 @@ RUNTIME_TABLES = (
     "gaps",
     "subscriptions",
     "events",
+    "strategy_loads",
 )
 LEGACY_TENANT_ID = "1"
+
+
+def _strategy_load(row):
+    if row is None:
+        return None
+    item = dict(row)
+    item["parameters"] = json.loads(item.pop("parameters_json"))
+    return item
 
 
 class Store:
@@ -421,6 +441,57 @@ class Store:
             }
             for row in rows
         ]
+
+    def upsert_strategy_load(
+        self, tenant_id, account_id, issuance_id, code_key, version, grant_purpose, parameters,
+    ):
+        now = int(time.time() * 1000)
+        self._write(
+            """INSERT INTO strategy_loads (
+                   tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
+                   parameters_json, loaded_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(tenant_id, account_id, issuance_id) DO UPDATE SET
+                 code_key=excluded.code_key, version=excluded.version,
+                 grant_purpose=excluded.grant_purpose,
+                 parameters_json=excluded.parameters_json, loaded_at=excluded.loaded_at""",
+            (
+                str(tenant_id), str(account_id), str(issuance_id), code_key, version, grant_purpose,
+                json.dumps(parameters, ensure_ascii=False, sort_keys=True), now,
+            ),
+        )
+        return self.strategy_load(tenant_id, account_id, issuance_id)
+
+    def strategy_load(self, tenant_id, account_id, issuance_id):
+        self._ensure()
+        row = self.db.execute(
+            """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
+                      parameters_json, loaded_at
+               FROM strategy_loads
+               WHERE tenant_id=? AND account_id=? AND issuance_id=?""",
+            (str(tenant_id), str(account_id), str(issuance_id)),
+        ).fetchone()
+        return _strategy_load(row)
+
+    def strategy_loads(self, tenant_id, account_id=None):
+        self._ensure()
+        if account_id is None:
+            rows = self.db.execute(
+                """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
+                          parameters_json, loaded_at
+                   FROM strategy_loads WHERE tenant_id=?
+                   ORDER BY account_id, issuance_id""",
+                (str(tenant_id),),
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
+                          parameters_json, loaded_at
+                   FROM strategy_loads WHERE tenant_id=? AND account_id=?
+                   ORDER BY issuance_id""",
+                (str(tenant_id), str(account_id)),
+            ).fetchall()
+        return [_strategy_load(row) for row in rows]
 
     def export_tenant(self, tenant_id):
         self._ensure()

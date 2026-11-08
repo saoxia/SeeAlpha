@@ -34,6 +34,8 @@ from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
+from .strategies.router import router as strategies_router
+from .strategies.service import StrategyStore
 from .tenants.router import router as tenants_router
 from .tenants.service import TenantService
 
@@ -139,6 +141,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.market_data = DataService(database)
     app.state.market_data.engine = app.state.engine
     app.state.tenants = TenantService(database, app.state.engine, app.state.accounts)
+    app.state.strategies = StrategyStore(database, app.state.engine, app.state.tenants)
     app.state.management = None
     app.state.management_project = (
         project if project is not None else PROJECT if settings.require_database_url else None
@@ -195,6 +198,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(market_data_router, prefix="/api")
     app.include_router(management_router, prefix="/api")
     app.include_router(tenants_router, prefix="/api")
+    app.include_router(strategies_router, prefix="/api")
     return app
 
 

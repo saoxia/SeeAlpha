@@ -108,6 +108,43 @@ class Database:
                 );
                 CREATE INDEX IF NOT EXISTS exchange_accounts_exchange_idx
                     ON exchange_accounts(exchange, created_at, id);
+                CREATE TABLE IF NOT EXISTS strategy_packages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code_key TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    created_at INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_code_key_unique
+                    ON strategy_packages(code_key);
+                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_name_unique
+                    ON strategy_packages(lower(name));
+                CREATE TABLE IF NOT EXISTS strategy_package_versions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    package_id INTEGER NOT NULL REFERENCES strategy_packages(id),
+                    version TEXT NOT NULL,
+                    parameters TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(package_id, version)
+                );
+                CREATE TABLE IF NOT EXISTS strategy_grants (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version_id INTEGER NOT NULL REFERENCES strategy_package_versions(id),
+                    purpose TEXT NOT NULL CHECK (purpose IN ('production', 'development')),
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(version_id, purpose)
+                );
+                CREATE TABLE IF NOT EXISTS strategy_issuances (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                    account_id TEXT NOT NULL,
+                    version_id INTEGER NOT NULL REFERENCES strategy_package_versions(id),
+                    purpose TEXT NOT NULL CHECK (purpose IN ('production', 'development')),
+                    parameters TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS strategy_issuances_tenant_idx
+                    ON strategy_issuances(tenant_id, id);
             """)
             now = int(time.time())
             connection.execute(

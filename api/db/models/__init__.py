@@ -248,3 +248,66 @@ class EquityRebuild(Base):
     account_id: Mapped[int] = mapped_column(ID, nullable=False)
     environment: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+
+
+class StrategyPackage(Base):
+    __tablename__ = "strategy_packages"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    code_key: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        Index("strategy_packages_code_key_unique", code_key, unique=True),
+        Index("strategy_packages_name_unique", func.lower(name), unique=True),
+    )
+
+
+class StrategyPackageVersion(Base):
+    __tablename__ = "strategy_package_versions"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    package_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("strategy_packages.id"), nullable=False, index=True,
+    )
+    version: Mapped[str] = mapped_column(Text, nullable=False)
+    parameters: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        Index("strategy_package_versions_unique", "package_id", "version", unique=True),
+    )
+
+
+class StrategyGrant(Base):
+    """Which tenant purpose may receive this package version. Production is never implied."""
+
+    __tablename__ = "strategy_grants"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    version_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("strategy_package_versions.id"), nullable=False,
+    )
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        CheckConstraint(
+            "purpose in ('production','development')", name="strategy_grants_purpose_check",
+        ),
+        Index("strategy_grants_version_purpose_unique", "version_id", "purpose", unique=True),
+    )
+
+
+class StrategyIssuance(Base):
+    __tablename__ = "strategy_issuances"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(ID, ForeignKey("tenants.id"), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    version_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("strategy_package_versions.id"), nullable=False,
+    )
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    parameters: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        CheckConstraint(
+            "purpose in ('production','development')", name="strategy_issuances_purpose_check",
+        ),
+    )
