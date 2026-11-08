@@ -1,10 +1,12 @@
-"""Authorize a package version, then issue it to the engine for one tenant."""
+"""Authorize a package version, then issue its archive to the engine for one tenant."""
+
+import base64
 
 from fastapi import HTTPException
 
 from api.db.errors import StorageConflict
 from engine.runtime import EngineConflict
-from engine.strategies.registry import ParameterError, require_package, validate
+from engine.strategies.package import PackageError, digest, open_package
 
 from .repository import StrategyRepository
 
@@ -21,32 +23,30 @@ class StrategyStore:
             versions = []
             for version in self.repository.list_versions(package["id"]):
                 grants = [row["purpose"] for row in self.repository.list_grants(version["id"])]
-                versions.append({**version, "grants": grants})
+                versions.append({**_public_version(version), "grants": grants})
             packages.append({**package, "versions": versions})
         return packages
 
-    def create_package(self, code_key, name, description):
+    def create_package(self, archive_b64, parameters):
+        metadata, prepared, archive = _open(archive_b64, parameters)
         try:
-            require_package(code_key)
-        except ParameterError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        try:
-            return self.repository.create_package(code_key, name.strip(), description)
+            package = self.repository.create_package(
+                metadata.name, metadata.title, metadata.description,
+            )
         except StorageConflict as exc:
             raise HTTPException(409, "策略包名称或实现不能重复。") from exc
+        version = self._store_version(package, metadata, prepared, archive)
+        return {**package, "version": _public_version(version)}
 
-    def create_version(self, package_id, version, parameters):
+    def create_version(self, package_id, archive_b64, parameters):
         package = self.repository.get_package(package_id)
         if package is None:
             raise HTTPException(404, "策略包不存在。")
-        try:
-            stored = validate(package["code_key"], parameters or {})
-        except ParameterError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        try:
-            return self.repository.create_version(package["id"], version, stored)
-        except StorageConflict as exc:
-            raise HTTPException(409, "同一策略包的版本号不能重复。") from exc
+        metadata, prepared, archive = _open(archive_b64, parameters)
+        if metadata.name != package["code_key"]:
+            raise HTTPException(422, "策略包名称与归档不一致。")
+        version = self._store_version(package, metadata, prepared, archive)
+        return _public_version(version)
 
     def grant(self, version_id, purpose):
         if purpose not in {"production", "development"}:
@@ -72,6 +72,8 @@ class StrategyStore:
                 **issuance,
                 "code_key": None if package is None else package["code_key"],
                 "version": None if version is None else version["version"],
+                "entry_point": None if version is None else version["entry_point"],
+                "package_hash": None if version is None else version["package_hash"],
                 "status": "loaded",
             })
         return loads
@@ -90,11 +92,14 @@ class StrategyStore:
             raise HTTPException(409, "该策略版本还不能加载到开发租户。")
         account = str(account_id).strip()
         self._require_account(tenant, account)
-        merged = {**version["parameters"], **(overrides or {})}
         try:
-            parameters = validate(package["code_key"], merged)
-        except ParameterError as exc:
+            _metadata, parameters = open_package(
+                version["archive"], {**version["parameters"], **(overrides or {})},
+            )
+        except PackageError as exc:
             raise HTTPException(422, str(exc)) from exc
+        if digest(version["archive"]) != version["package_hash"]:
+            raise HTTPException(409, "策略包哈希不一致。")
         issuance = self.repository.create_issuance(
             tenant["id"], account, version["id"], tenant["purpose"], parameters,
         )
@@ -106,6 +111,9 @@ class StrategyStore:
                 "version": version["version"],
                 "grant_purpose": tenant["purpose"],
                 "parameters": parameters,
+                "entry_point": version["entry_point"],
+                "package_hash": version["package_hash"],
+                "archive": base64.b64encode(version["archive"]).decode(),
             })
         except EngineConflict as exc:
             self.repository.delete_issuance(issuance["id"])
@@ -114,8 +122,19 @@ class StrategyStore:
             **issuance,
             "code_key": package["code_key"],
             "version": version["version"],
+            "entry_point": version["entry_point"],
+            "package_hash": version["package_hash"],
             "status": "loaded",
         }
+
+    def _store_version(self, package, metadata, prepared, archive):
+        try:
+            return self.repository.create_version(
+                package["id"], metadata.version, prepared, metadata.entry_point,
+                metadata.digest, archive,
+            )
+        except StorageConflict as exc:
+            raise HTTPException(409, "同一策略包的版本号不能重复。") from exc
 
     def _require_account(self, tenant, account_id):
         if tenant["purpose"] == "development":
@@ -124,3 +143,17 @@ class StrategyStore:
             rows = self.tenants.accounts.repository.list_exchange_accounts(tenant["id"])
         if not any(str(row["id"]) == account_id for row in rows):
             raise HTTPException(404, "账户不属于该租户。")
+
+
+def _open(archive_b64, parameters):
+    try:
+        archive = base64.b64decode(archive_b64, validate=True)
+        metadata, prepared = open_package(archive, parameters or {})
+    except (ValueError, PackageError) as exc:
+        message = str(exc) if isinstance(exc, PackageError) and str(exc) else "策略包无效。"
+        raise HTTPException(422, message) from exc
+    return metadata, prepared, archive
+
+
+def _public_version(version):
+    return {key: value for key, value in version.items() if key != "archive"}

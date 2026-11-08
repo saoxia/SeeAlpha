@@ -62,7 +62,7 @@ Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.t
 - **Binance 期权适配器**：行情客户端 `engine/connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `engine/connectors/binance/options_account.py`，执行客户端 `engine/connectors/binance/options_execution.py`。公开行情解析在 `engine/connectors/binance/options.py` 与 `engine/connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
 - **USD-M 现金流台账**：`engine/connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
 - **期权数据**：离线任务在 `engine/pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集由引擎的 feed 进程承担。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
-- **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略包仍在 `strategy_python/`。
+- **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略以 `packages/` 中的可下发包登记，不再使用已删除的研究目录。
 - **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线准备、删除和裁剪由引擎执行 `engine.pipeline.data_management`。
 - **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
 
@@ -110,7 +110,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 - [x] 16组完整历史回放及逐项门槛检查完成，三种新增规则均未通过。主候选最长持仓缩至24小时，但原费率BTC净收益从−29.74降至−50.40 USDT，ETH从−52.15降至−97.47 USDT；费用压力后也未通过，不替换默认策略。
 - [x] 三组可对照基线逐笔复现历史参考，全部回放通过开仓约束、价格精度、持仓归零和现金流检查；保留已有撤单目标不存在记录、分钟数据缺口及统计工具修订说明。
 
-[结果与原因](strategy_python/_optimization/mrl_regime_20260922/INTERPRETATION.md) · [全部16组结果](strategy_python/_optimization/mrl_regime_20260922/RESULTS.md) · [独立研究方案](strategy_python/_optimization/mrl_regime_20260922/PROTOCOL.md) · [研究复核入口](strategy_python/_optimization/mrl_regime_20260922/README.md)
+上述研究材料已随 `strategy_python/` 删除，不再作为可运行来源。
 
 ## 入场质量优化（2026-09-22）
 
@@ -119,7 +119,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 - [x] 主候选原费率最大回撤由BTC 14.26%／ETH 22.53%降至9.45%／16.82%，但净收益由−29.74／−52.15降至−36.06／−68.19 USDT；费用压力下亏损减少，仍未形成跨市场一致改进，不替换默认策略。
 - [x] 完成现金流、过期订单、退出贡献和月度不确定性复核；当日全项目 **1,186项测试通过**，冻结来源保持一致。
 
-[结论与原因](strategy_python/_optimization/mrl_entry_20260922/INTERPRETATION.md) · [完整对照](strategy_python/_optimization/mrl_entry_20260922/RESULTS.md) · [复现与验收](strategy_python/_optimization/mrl_entry_20260922/README.md)
+上述研究材料已随 `strategy_python/` 删除，不再作为可运行来源。
 
 ## 收复后持续走强优化（2026-09-22）
 
@@ -128,7 +128,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 - [x] 相较上一轮，原费率BTC净收益从−36.06改善至−26.02 USDT，回撤9.45%降至6.63%；ETH净收益从−68.19降至−69.22，回撤16.82%降至15.44%。费用压力下累计亏损减少，6组全期及近期收益仍全部为负，不替换默认策略。
 - [x] 新候选平均单笔净亏损增加，主动成交费用更高；保留全部失败结果、入场时序、价格上限及成本分解。当日全项目 **1,203项测试通过**，冻结来源核验通过。
 
-[结论与原因](strategy_python/_optimization/mrl_recovery_20260922/INTERPRETATION.md) · [完整对照](strategy_python/_optimization/mrl_recovery_20260922/RESULTS.md) · [复现与验收](strategy_python/_optimization/mrl_recovery_20260922/README.md)
+上述研究材料已随 `strategy_python/` 删除，不再作为可运行来源。
 
 ## 连续分钟行情层（2026-09-28）
 
@@ -147,7 +147,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 
 ## 查看与复查
 
-[BTC 四策略及历史结论](strategy_python/BTC_STRATEGIES.md) · [运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md)
+[运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md) · [策略包示例](packages/ema_crossover/README.md)
 
 2026-10-26 的开发环境记录是当日验收：当时 pytest 为 1,345 项通过。该数字不是上面的当前结果。
 详情见 [开发环境说明](DEV_ENVIRONMENT.md)。

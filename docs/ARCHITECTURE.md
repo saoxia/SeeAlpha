@@ -5,7 +5,7 @@
 `engine/pipeline/` 是完整数据管道（历史工作进程、归档下载、Rust 转换、Catalog、
 `pair_repair`、`options_data`、`pair_deletion` 与 `data_management`）。仓库根目录不再保留
 `pipeline` 包。`api/` 仍是业务后端（用户、会话、加密账户库、账本、资产视图和 `/api/*` BFF）。
-`web/` 与 `strategy_python/` 未移动。一次性离线任务由引擎启动 `engine.pipeline.data_management`；
+`web/` 未移动。2026-11-08 用户随后授权删除 `strategy_python/`。一次性离线任务由引擎启动 `engine.pipeline.data_management`；
 业务库仍保存订阅意图和任务索引。
 
 引擎进程 `python -m engine` 默认监听 `127.0.0.1:8766`。业务 API 用 `ENGINE_URL`
@@ -17,10 +17,12 @@ LiveNode 由引擎执行，不再由 API 进程构造。操作账本同步仍从
 接口，资产校准的只读 REST 也仍在 API；二者都不是账户/手动/估值 LiveNode。
 策略商店在业务后端登记可加载的包和版本，并记录该版本可以加载到哪一类租户。
 开发授权和正式授权是两条记录，正式授权默认没有。业务端授权后按交易所密钥的同一下发方式
-把包交给引擎；引擎只接收已下发的包，并用 `tenant_id` 隔离。示例包是单品种 EMA 金叉/死叉，
-只公布目标持仓。引擎复用研究侧已有的 `PortfolioCoordinator` 与 `target_netting`：先按账户风险额度
+把包交给引擎；引擎只接收已下发的包，并用 `tenant_id` 隔离。包是带
+`seealpha-package.json` 的 zip，入口由归档自己声明，引擎不再按策略名字做允许清单。
+示例包是 `packages/ema_crossover/`：单品种 EMA 金叉公布满额多头，死叉公布空仓。
+策略只公布目标持仓。引擎用 `PortfolioCoordinator` 与 `target_netting`：先按账户风险额度
 截断合计目标，再对当前净持仓做目标轧差，差额仍走 Nautilus RiskEngine / ExecutionEngine。
-不从 `strategy_python/` 装入既有策略。预览使用模拟 venue，不读取密钥，也不发真实订单。
+预览使用模拟 venue，不读取密钥，也不发真实订单。
 业务库中的租户与空模板已接入：正式租户可保存交易所密钥，开发租户只保存虚拟账户；
 行情订阅意图、账户和引擎账本按租户隔离。模板不含品种、资金或密钥。
 详见下文「租户」和「策略商店」。
@@ -74,7 +76,7 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | `engine/connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖 `engine.feed`、`engine.pipeline`、`api` 或 `web`。 |
 | `engine/pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。`pair_data` 是历史工作进程，`data_management` 是一次性离线任务。 |
 | `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `engine.pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
-| `strategy_python/` | 策略包及共享指标、值对象、风险和执行组件；`_backtesting.py` 组装引擎与数据，`portfolio.py` 按清单组装策略，`portfolio_backtest.py` 启动共用账户回测，`_report/` 输出报告。 |
+| `packages/` | 可登记的策略包。当前示例是 `ema_crossover/`：元数据、入口和只公布目标持仓的实现。引擎不内置策略名字清单。 |
 | `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理、租户和策略商店，以及检查/回测任务。行情订阅意图、策略包授权和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单、估值事件、行情采集、策略下发和一次性离线数据任务都改调引擎。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。策略商店不启动交易所实盘。 |
 | `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
@@ -88,11 +90,10 @@ DataRequest → engine.pipeline.prepare_data.prepare_data() → PreparedDataset
   Binance 日 trades ZIP/CHECKSUM → 校验 → Rust 转换（Python 回退）
   → TradeTick / 多周期 Bar → ParquetDataCatalog → 特征 Parquet
 
-已有 Catalog → 单策略 backtest.py / portfolio_backtest.py
-  → _backtesting.py → Nautilus 引擎 + Strategy → CSV/JSON/HTML 报告
+已有 Catalog → 引擎按租户加载已下发策略包 → 预览只消费目标持仓
 ```
 
-回测默认只读取已有 Catalog；显式 `--check-data` 才准备缺失数据，`--force` 与 `--refresh-archives` 仍需该开关。默认补缺失，不因版本或配置变化自动重建；不得在策略信号或执行模块直接下载、修复数据。报告位于 `data/reports/backtest/<策略>/<run_id>/`，组合位于其 `portfolio/` 子目录。
+数据准备默认补缺失，不因版本或配置变化自动重建。策略包不直接下载或修复数据。
 
 ### 连续分钟行情
 
@@ -119,12 +120,11 @@ Market Data → Indicators / Features → Signal → Position Target
 `Portfolio.net_position` 的差额。Nautilus 的 RiskEngine 继续检查这张订单；
 OMS 的 NETTING 只合并成交后的持仓，不能代替下单前的目标对冲。
 单策略回测和清单 `execution=independent` 保持各策略自己下单。
-已下发到引擎的策略不再走这条下单入口：策略只公布目标持仓，引擎侧协调器合并后轧差。
+已下发到引擎的策略不走下单入口：策略只公布目标持仓，引擎侧协调器合并后轧差。
+指标和信号留在策略包内，不是平台对象。作者约定见
+[双均线示例](../packages/ema_crossover/README.md)。
 本轮不包含市场状态调权、FOF 动态再平衡、期权对冲或账户级最大回撤锁仓。
 保护性止损和应急退出先记在协调器里，触发后再进入净目标，避免静默丢掉风险退出。
-详见 [组合说明](../strategy_python/PORTFOLIO.md)。
-
-`strategy.py` 保持生命周期和事件编排；信号不访问订单，执行不判断指标，风险不产生 Alpha。配置与运行状态分离；具体策略不互相导入，共享组件不依赖具体策略。组合层可以组装具体策略，策略不反向依赖组合与回测入口。公共回测入口包括 `StrategyBacktest`、`run_backtest_cli`；兼容导出按根目录规范核实真实调用和支持承诺后处理，不得破坏公共接口。具体约束见 [策略工程约定](../strategy_python/README.md) 和 `tests/strategy_python/architecture_test.py`。
 
 ### 管理端、账户与账本
 
@@ -164,7 +164,7 @@ API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accoun
 
 ## 禁止擅自跨越的边界
 
-主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并、2026-11-08 的 `engine/` 拆分，以及同日把完整数据管道移入 `engine/pipeline/`，属于该项明确授权。这不构成继续搬迁 `strategy_python/`、`web/` 或启用策略实盘的许可。
+主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并、2026-11-08 的 `engine/` 拆分，以及同日把完整数据管道移入 `engine/pipeline/`，属于该项明确授权。同日稍后授权删除 `strategy_python/`，改为可下发的策略包。这不构成搬迁 `web/` 或启用策略实盘的许可。
 
 
 2026-10-28 按用户授权，行情数据管理取消预设交易对：复用既有 Binance 品种查询、
@@ -385,15 +385,15 @@ ExchangeService 与 API 生命周期实现进程内分钟采集，最新展示�
 
 2026-11-08 用户要求业务后端拥有策略商店，并由引擎按租户加载已下发的包。
 商店在 `api/strategies/`，不是新的进程。表为 `strategy_packages`、`strategy_package_versions`、
-`strategy_grants`、`strategy_issuances`。包必须使用引擎登记表里的 `code_key`；
-`strategy_python/` 不在登记表中，目录保持不动。
+`strategy_grants`、`strategy_issuances`。版本保存入口、包哈希和 zip 归档。
+`code_key` 来自归档里的 `name`，不是引擎允许清单。`strategy_python/` 已删除。
 
 授权按租户类型分开。新建版本没有任何授权。开发租户要先有 `development` 授权才能下发；
 正式租户必须另有 `production` 授权，开发授权不能代替它。下发调用引擎
 `POST /tenants/{tenant_id}/strategy-loads`，与密钥下发一样由业务端发起，引擎拒绝用途不匹配、
 未登记和已归档的加载。运行记录在引擎 SQLite `strategy_loads`，随租户导出、归档和删除。
 
-当前唯一示例是 `ema_crossover`：Nautilus `ExponentialMovingAverage` 快慢线，
+当前唯一示例是 `packages/ema_crossover/`：Nautilus `ExponentialMovingAverage` 快慢线，
 金叉公布满额多头数量，死叉公布零。策略不调用 `submit_order` 或 `close_all_positions`。
 同一账户上的目标进入既有 `PortfolioCoordinator`；引擎先按各下发参数里最紧的 `risk_limit`
 截断合计目标，协调器再用 `target_netting` 对 `Portfolio.net_position` 计算差额，

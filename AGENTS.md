@@ -36,7 +36,7 @@
 
 ## 实施边界
 
-- `core` 不依赖上层业务；`engine/connectors` 不依赖 `engine/feed`、`engine/pipeline`、`api` 或 `web`。连续行情在 `engine/feed`，数据管道在 `engine/pipeline`。策略内部单向依赖、双管理端及存储边界以架构说明为准。2026-11-08 用户授权把交易引擎和完整数据管道放进 `engine/`，不包含移动 `strategy_python/` 或 `web/`。
+- `core` 不依赖上层业务；`engine/connectors` 不依赖 `engine/feed`、`engine/pipeline`、`api` 或 `web`。连续行情在 `engine/feed`，数据管道在 `engine/pipeline`。策略内部单向依赖、双管理端及存储边界以架构说明为准。2026-11-08 用户授权把交易引擎和完整数据管道放进 `engine/`，不包含移动 `web/`。同日授权删除 `strategy_python/`，策略改为可下发的包。
 - 优先复用已接入的 NautilusTrader 公共能力；不得复制引擎、访问上游私有接口或擅自替换依赖。新增市场、账户或执行能力属于单独评审事项，不能假设已经可用。
 - 保留交易安全、异常恢复、数据一致性和必要测试：不得弱化风险预算、精度校验、订单生命周期、预热与闭合周期规则、行情就绪门禁、断线恢复、原子写入、事务或幂等保护。不得把回放当实时信号，把样例或回测结果当真实账户数据。
 - 保留鉴权、请求来源检查和凭据加密；密钥及私有数据库连接不得写入源码、日志或前端。不得擅自执行实盘交易、数据重建、数据库迁移或删除运行数据。
@@ -60,7 +60,7 @@
 ## 使用现有检查机制
 
 - Python：在项目根目录用 `.venv/bin/python -m ruff check <受影响的文件或目录>`，并运行 `.venv/bin/python -m pytest <相关 tests 路径> -q`；测试集中放在 `tests/`，文件名保持 `*_test.py`。
-- 涉及依赖方向或策略结构：运行 `tests/strategy_python/architecture_test.py`；涉及冻结源码与研究来源：运行 `tests/source_baselines_test.py`，必要时连同 `tests/source_baselines_validation_test.py`。
+- 涉及策略包加载或目标持仓：运行 `tests/engine/strategy_load_test.py` 与 `tests/api/strategy_store_test.py`；涉及冻结源码与研究来源：运行 `tests/source_baselines_test.py`，必要时连同 `tests/source_baselines_validation_test.py`。
 - 跨模块公共行为、风险/执行、数据契约或持久化改动：扩大到生产者和消费者的相关测试；影响广泛时运行 `.venv/bin/python -m ruff check .` 与 `.venv/bin/python -m pytest -q`。不得用单个局部测试替代受影响链路验证。
 - 前端：在 `web/` 运行 `npm run lint`、`npm run test:frontend`；影响类型、路由或构建时再运行 `npm run build`。API 契约变动须核对 `web/scripts/generate_api_types.py` 及生成类型与调用方是否同步，核心接口变更仍受架构冻结约束。
 - Rust 转换逻辑：运行 `cargo test --manifest-path engine/pipeline/rust_converter/Cargo.toml` 及 `tests/pipeline/` 中相关 Python 转换测试，保留 Python 回退与输出一致性验证。

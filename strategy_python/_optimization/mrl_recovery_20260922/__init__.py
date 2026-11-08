@@ -1,1 +1,0 @@
-"""Fixed recovery continuation experiment."""

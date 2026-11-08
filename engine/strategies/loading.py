@@ -1,27 +1,37 @@
 """Receive an issued package and preview its target holdings.
 
-The coordinator and the netting arithmetic are the gen-4 implementations.
-This module only clips the aggregated target, then lets that coordinator
+The coordinator and the netting arithmetic clip the aggregated target, then
 target-net against the current position and submit the delta. Preview uses a
 simulated venue. It does not read credentials or send exchange orders.
 """
 
+import base64
+import shutil
+import tempfile
 from collections import defaultdict
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from pathlib import Path
+from uuid import uuid4
 
 from nautilus_trader.backtest import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggerConfig
 from nautilus_trader.model import AccountType, Bar, BarType, Money, OmsType
 
 from engine.runtime import EngineConflict
-from engine.strategies.registry import ParameterError, build, validate
+from engine.strategies.package import (
+    PackageError,
+    build_strategy,
+    extract,
+    load_entry,
+    namespace_for,
+    parse_metadata,
+    prepare_parameters,
+    release_namespace,
+)
+from engine.strategies.portfolio_coordinator import PortfolioCoordinator, PortfolioCoordinatorConfig
+from engine.strategies.target_netting import MemberTarget, net_signed_quantity
 from engine.strategies.targets import signed_quantity
 from nautilus_support import TestInstrumentProvider, instrument_fee_model
-from strategy_python._execution.portfolio_coordinator import (
-    PortfolioCoordinator,
-    PortfolioCoordinatorConfig,
-)
-from strategy_python._execution.target_netting import MemberTarget, net_signed_quantity
 
 
 def clip_member_targets(targets, risk_limit: Decimal):
@@ -62,22 +72,33 @@ def accept_load(runtime, tenant_id, payload):
         if row["purpose"] == "production":
             raise EngineConflict("正式租户只能加载正式授权。")
         raise EngineConflict("下发用途与租户类型不一致。")
-    code_key = payload.get("code_key")
-    if not isinstance(code_key, str) or "strategy_python" in code_key:
-        raise EngineConflict("不能从 strategy_python 加载策略。")
-    try:
-        parameters = validate(code_key, payload.get("parameters"))
-    except ParameterError as exc:
-        raise EngineConflict(str(exc)) from exc
     account_id = str(payload.get("account_id") or "")
     issuance_id = str(payload.get("issuance_id") or "")
     version = str(payload.get("version") or "")
+    code_key = payload.get("code_key")
+    entry_point = payload.get("entry_point")
+    package_hash = payload.get("package_hash")
     if not account_id or not issuance_id or not version:
         raise EngineConflict("策略下发缺少账户、编号或版本。")
     if len(account_id) > 40 or len(issuance_id) > 64 or len(version) > 40:
         raise EngineConflict("策略下发字段过长。")
+    if not isinstance(code_key, str) or not isinstance(entry_point, str) or not isinstance(package_hash, str):
+        raise EngineConflict("策略下发缺少包标识、入口或哈希。")
+    try:
+        archive = _decode_archive(payload.get("archive"))
+        metadata = parse_metadata(archive)
+        if metadata.digest != package_hash or metadata.name != code_key or metadata.version != version:
+            raise EngineConflict("策略包与下发记录不一致。")
+        if metadata.entry_point != entry_point:
+            raise EngineConflict("策略包入口与下发记录不一致。")
+        parameters = _prepare_archive(
+            archive, metadata, payload.get("parameters"), tenant_id, issuance_id,
+        )
+    except PackageError as exc:
+        raise EngineConflict(str(exc)) from exc
     return runtime.store.upsert_strategy_load(
         tenant_id, account_id, issuance_id, code_key, version, purpose, parameters,
+        entry_point, package_hash, archive,
     )
 
 
@@ -125,19 +146,26 @@ def _preview_symbol(symbol, group, rows):
     )
     coordinator.risk_limit = risk_limit
     bound = []
-    for index, load in enumerate(group):
-        strategy = build(load["code_key"], load["parameters"], instrument, bar_type, f"E{index}")
-        allocation = Decimal(load["parameters"]["allocation"])
-
-        def sink(strategy, holding, coordinator=coordinator, allocation=allocation, symbol=symbol):
-            if holding.symbol != symbol:
-                raise EngineConflict("目标持仓的品种与下发参数不一致。")
-            coordinator.report_target(str(strategy.strategy_id), signed_quantity(holding, allocation))
-
-        strategy.target_sink = sink
-        bound.append((load, strategy))
-    engine = BacktestEngine(BacktestEngineConfig(logging=LoggerConfig(bypass_logging=True)))
+    namespaces = []
+    directories = []
+    engine = None
     try:
+        for index, load in enumerate(group):
+            strategy, namespace, directory = _load_member(load, instrument, bar_type, f"E{index}")
+            namespaces.append(namespace)
+            directories.append(directory)
+            allocation = Decimal(load["parameters"]["allocation"])
+
+            def sink(strategy, holding, coordinator=coordinator, allocation=allocation, symbol=symbol):
+                if holding.symbol != symbol:
+                    raise EngineConflict("目标持仓的品种与下发参数不一致。")
+                coordinator.report_target(
+                    str(strategy.strategy_id), signed_quantity(holding, allocation),
+                )
+
+            strategy.target_sink = sink
+            bound.append((load, strategy))
+        engine = BacktestEngine(BacktestEngineConfig(logging=LoggerConfig(bypass_logging=True)))
         engine.add_venue(
             instrument.id.venue,
             OmsType.NETTING,
@@ -171,7 +199,67 @@ def _preview_symbol(symbol, group, rows):
             "member_ids": member_ids,
         }
     finally:
-        engine.dispose()
+        if engine is not None:
+            engine.dispose()
+        for namespace in namespaces:
+            release_namespace(namespace)
+        for directory in directories:
+            shutil.rmtree(directory, ignore_errors=True)
+
+
+def _decode_archive(value):
+    if not isinstance(value, str) or not value:
+        raise PackageError("策略包无效。")
+    try:
+        archive = base64.b64decode(value, validate=True)
+    except ValueError:
+        raise PackageError("策略包无效。") from None
+    return archive
+
+
+def _prepare_archive(archive, metadata, parameters, tenant_id, issuance_id):
+    directory = Path(tempfile.mkdtemp())
+    namespace = namespace_for(tenant_id, issuance_id, uuid4().hex)
+    try:
+        extract(archive, directory)
+        module, _strategy_type = load_entry(directory, metadata.entry_point, namespace)
+        return prepare_parameters(module, parameters)
+    finally:
+        release_namespace(namespace)
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def _load_member(load, instrument, bar_type, order_id_tag):
+    archive = load.get("archive")
+    if not isinstance(archive, (bytes, bytearray)) or not archive:
+        raise EngineConflict("策略下发缺少包内容。")
+    directory = Path(tempfile.mkdtemp())
+    namespace = namespace_for(load["tenant_id"], load["issuance_id"], uuid4().hex)
+    try:
+        metadata = extract(archive, directory)
+        if (
+            metadata.digest != load["package_hash"]
+            or metadata.name != load["code_key"]
+            or metadata.version != load["version"]
+            or metadata.entry_point != load["entry_point"]
+        ):
+            raise EngineConflict("策略包与下发记录不一致。")
+        module, strategy_type = load_entry(directory, metadata.entry_point, namespace)
+        parameters = prepare_parameters(module, load["parameters"])
+        if parameters != load["parameters"]:
+            raise EngineConflict("策略参数与已下发记录不一致。")
+        strategy = build_strategy(
+            strategy_type, parameters, instrument, bar_type, order_id_tag,
+        )
+    except PackageError as exc:
+        release_namespace(namespace)
+        shutil.rmtree(directory, ignore_errors=True)
+        raise EngineConflict(str(exc)) from exc
+    except Exception:
+        release_namespace(namespace)
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    return strategy, namespace, directory
 
 
 def _instrument(symbol):

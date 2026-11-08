@@ -1,1 +1,1 @@
-"""Loadable strategy packages. Research strategies under strategy_python stay outside this registry."""
+"""Load an issued strategy package and aggregate its target holdings."""

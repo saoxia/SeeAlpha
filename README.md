@@ -14,7 +14,7 @@ SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密�
 | 能力 | 当前实现 |
 | --- | --- |
 | 数据准备与行情 | Binance USD-M 永续合约公开行情，默认 BTC、ETH、SOL；连续行情层输出闭合分钟 OHLCV |
-| 策略研究与回测 | 现有 BTC/ETH 策略、组合回测及报告 |
+| 策略 | 可下发的策略包。示例是双均线，只公布目标持仓 |
 | Web 管理端 | 独立 Next.js 前端与 FastAPI；项目检查、BTC/ETH 策略回测、报告和任务日志在 RESEARCH 页 |
 | 账户与实盘执行 | 已提供 Binance 原生只读账户接口，尚未使用真实账户凭据验收；未接入实盘下单 |
 | 业务持久化 | 通过 ORM 支持 PostgreSQL/SQLite；本机已连接 PostgreSQL 并完成迁移 |
@@ -39,20 +39,14 @@ v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_U
 
 先启动 API，再启动 Next.js 前端，浏览器打开
 [综合管理端](http://127.0.0.1:3000) 的 RESEARCH 页，即可查看项目检查、
-发起 BTC/ETH 策略回测、查看任务日志及历史报告。使用现有本地数据及策略参数，
+查看任务日志及历史报告。研究回测目录已删除，页面不再列出那些策略。使用现有本地数据，
 登录沿用 API 用户会话。详见 [前端说明](web/README.md) 与 [API 说明](api/README.md)。
 
 ## 当前进度与检查
 
 [项目状态及待办](PROJECT_STATUS.md) · [Web 管理端说明](web/README.md)
 
-BTC 现行四策略已完成历史诊断，目前没有版本通过对应的收益或稳定性门槛。旧机器的前向观察模块及专用运维工具已于 2026-10-27 移除。
-
-2026-09-22新增的[日线过滤与有限持仓周期研究](strategy_python/_optimization/mrl_regime_20260922/INTERPRETATION.md)已完成16组完整回放：持仓时间缩短，但主候选净收益恶化，三种新增规则均未通过门槛。研究代码和全部结果独立保存。
-
-后续[入场质量优化](strategy_python/_optimization/mrl_entry_20260922/INTERPRETATION.md)已落地成本门槛与跌破收复确认，完成10组新增回放和8组参考核验。主候选降低回撤、减少费用压力下的亏损，但原费率全期净收益仍低于原策略，未通过替换门槛。该轮全项目检查1,186项测试通过。
-
-最新[收复后持续走强研究](strategy_python/_optimization/mrl_recovery_20260922/INTERPRETATION.md)完成6组新增回放和10组参考核验。BTC原费率净亏损减至26.02 USDT，回撤降至6.63%；ETH仍亏损69.22 USDT，回撤15.44%。未形成跨市场一致改进，继续保留独立研究版本。最新全项目1,203项测试通过。
+旧的 BTC/ETH 研究策略和 2026-09 的几轮优化记录已随 `strategy_python/` 删除，不再作为可运行来源。旧机器的前向观察模块及专用运维工具已于 2026-10-27 移除。
 
 本机开发检查使用：
 
@@ -103,119 +97,19 @@ uv run pytest
 uv run ruff check .
 ```
 
-测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`engine/connectors/`、`engine/feed/`、
-`engine/pipeline/`、`strategy_python/` 及其子模块分组，
+测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`engine/` 及其子模块分组，
 文件名继续使用 `*_test.py`。测试按关键行为和出错影响组织，不要求每个 Python 文件
 都有对应的测试文件。
-相关的小用例集中维护，重点覆盖交易规则、风控、数据处理和完整回测流程；
-具体约定见 [`strategy_python/README.md`](strategy_python/README.md#文件和测试命名)。
+策略包的写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
 
 仅在需要时添加特定交易所的集成。密钥必须放在 `.env` 或其他已忽略的本地
 文件中，禁止提交真实交易密钥。
 
-## 策略
+## 策略包
 
-BTC 的现行研究主清单为趋势跟随多空、均值回归多空四个策略，统一入口和历史版本说明见
-[BTC策略清单](strategy_python/BTC_STRATEGIES.md)。已合并的重复名称只指向同一份实现，
-历史候选不计作额外的现行策略。
-
-项目包含 ETHUSDT v4 均值回归做多、均值回归做空、趋势跟随做多和趋势跟随做空四个策略。每个策略都是独立包，
-目录和依赖约束详见 [`strategy_python/README.md`](strategy_python/README.md)：
-
-- [`strategy_python/mean_reversion_long_5min/`](strategy_python/mean_reversion_long_5min/)：
-  ETHUSDT v4 均值回归做多策略，在布林带下轨挂首仓，保留四层风险定仓、分段止盈、
-  MA99 过滤及多头 MA52 恢复规则。
-- [`strategy_python/mean_reversion_short_5min/`](strategy_python/mean_reversion_short_5min/)：
-  从原策略独立拆出的均值回归做空策略，在布林带上轨挂首仓，保留原空头风险定仓和
-  6 小时 MA52 恢复门槛，便于单独优化。
-- [`strategy_python/trend_following_long_5min/`](strategy_python/trend_following_long_5min/)：趋势跟随做多。
-- [`strategy_python/trend_following_short_5min/`](strategy_python/trend_following_short_5min/)：趋势跟随做空。
-  两者分别配置与回测，采用 MA52/MA99 交叉入场及峰值浮盈保护。
-
-两个均值回归策略也可以通过 [`portfolio_backtest.py`](strategy_python/PORTFOLIO.md)
-组合入口共用一个账户回测。默认总资金 500 USDT，总计划风险比例 30%，多空各占一半风险预算。
-
-```bash
-uv run python -m strategy_python.portfolio_backtest \
-  --start 2026-08-01 --end 2026-08-08
-```
-
-可用 `--config strategy_python/_portfolio/mean_reversion.json` 选择运行清单。
-清单定义启用的策略、各自参数、成员风险权重和账户设置，也支持同一策略的多个参数实例。
-结果输出在 `data/reports/backtest/portfolio/<清单名称>/`，包含唯一账户、
-各策略贡献统计及独立成交、持仓明细。
-
-## Binance ETHUSDT 合约回测
-
-每个策略目录中的 `backtest.py` 是该策略自己的回测入口。
-默认读取已有 Catalog；显式添加 `--check-data` 才通过
-`engine/pipeline/prepare_data.py` 检查并准备缺失数据。行情数据统一保存在 `data/`。
-
-在项目根目录分别运行趋势跟随做多、做空策略：
-
-```bash
-.venv/bin/python -m strategy_python.trend_following_long_5min.backtest
-.venv/bin/python -m strategy_python.trend_following_short_5min.backtest
-```
-
-做多默认使用 UTC `[2021-01-01, 2026-09-01)`，做空默认使用
-`[2026-03-01, 2026-09-01)` 区间，均完整包含 2026 年 8 月 31 日。
-可用 `--start`、`--end` 指定区间。两个入口各自固定方向，无 `--strategy-mode` 开关。
-
-运行均值回归做多策略：
-
-```bash
-uv run python -m strategy_python.mean_reversion_long_5min.backtest \
-  --start 2026-08-01 --end 2026-08-08
-```
-
-运行独立的均值回归做空策略：
-
-```bash
-uv run python -m strategy_python.mean_reversion_short_5min.backtest \
-  --start 2026-08-01 --end 2026-08-08
-```
-
-两个均值回归策略方向固定，不再接受 `--strategy-mode`；原 `mean_reversion_5min`
-入口已移除。各自的 `hard_stop_distance` / `cycle_risk_fraction` 替代原带方向前缀的参数。
-两者默认均额外加载开始时间之前 135 天的 1 分钟线，预热 120 天风险锚点、312 小时近期
-窗口和各级均线，预热期不下单。回测沿用 `OmsType.HEDGING`、500 USDT 初始资金
-和 5 倍杠杆；配置、订单标记和报告名称明确区分方向，结果分别写入各自策略目录。
-
-迁移实现保留策略规则，但不会伪造 LEAN 的虚拟成交账户。限价、止损、滑点、
-保证金和手续费均由 NautilusTrader venue/execution 模型执行，所以 LEAN 归档中的
-PnL 只能用于迁移对照，不能直接当作本引擎的预期结果。上实盘前应先用同一批
-1 分钟原始数据逐笔核对成交和退出原因。
-
-默认仅读取已有本地数据；添加 `--check-data` 后才检查并下载、转换缺失归档，
-之后复用本地校验通过的数据。通过 `--check-data --refresh-archives` 可以在回测前
-重新检查 Binance 是否更新过历史归档。
-
-程序会输出账户、成交和持仓三个基础报表，并自动保存到统一报告目录
-`data/reports/backtest/<策略名称>/<run_id>/`，同时记录参数快照和引擎汇总指标。该回测使用 K 线级撮合，无法还原
-K 线内部的价格路径、点差、盘口深度和真实排队情况。
-
-所有单策略及组合回测均支持 `--interval 1s|1m|5m`，默认沿用原输入周期。
-高周期信号从输入线按 UTC 边界在内存聚合，只消费完整闭合周期；3m、15m 等无法
-组成当前策略 5m 信号的输入会被拒绝。更换输入周期可能改变成交模拟和止损检查结果。
-
-所有单策略和组合回测默认读取已有 Catalog，缺失日期和 K 线跳过，不下载、不补齐、
-不重建；整个区间都没有数据时提示并跳过。显式添加 `--check-data` 才使用 Pipeline
-检查归档并补齐数据。`--force` 和 `--refresh-archives` 需同时启用 `--check-data`。
-组合的 `--catalog-only` 保留兼容，等同于默认行为。原 `--no-check-data` 参数已移除。
-
-例如（只读已有数据）：
-
-```bash
-.venv/bin/python -m strategy_python.mean_reversion_long_5min.backtest \
-  --start 2026-08-01 --end 2026-08-02 --interval 1m
-```
-
-Pipeline 默认只补缺失，已有 Parquet 不因配置或版本变化而重建。
-需要重建时显式添加 `--check-data --force`；回测中的强制范围包含预热日期，重建该范围的
-TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含重建。
-组合的 `--catalog-only` 不允许与 `--check-data`、`--force` 或
-`--refresh-archives` 同时使用。
+策略是一份可解压的 zip，由业务端登记、按开发或正式用途授权，再下发到一个租户。
+引擎不保存策略名字清单。示例是双均线：金叉公布满额多头，死叉公布空仓。
+写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
 
 ## 同步 Binance 公开归档
 

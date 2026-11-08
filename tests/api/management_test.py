@@ -44,7 +44,7 @@ def test_management_requires_login_and_admin_to_mutate(api):
     assert "csrf_token" not in body
     assert body["checks"]["stale"] and body["checks"]["data"] is None
     assert body["jobs"] == body["reports"] == []
-    assert len(body["strategies"]) == 8 and len(body["actions"]) == 3
+    assert body["strategies"] == [] and len(body["actions"]) == 3
     assert client.post("/api/management/jobs", json={"action": "check_quick"}).status_code == 403
     assert client.post("/api/management/jobs/missing/cancel", json={}).status_code == 403
     assert body["jobs"] == []

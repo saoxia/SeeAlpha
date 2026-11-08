@@ -1,5 +1,9 @@
 """Strategy catalog, tenant-type grants, and issuance onto a development tenant."""
 
+import base64
+import io
+import json
+import zipfile
 from decimal import Decimal
 
 from alembic import command
@@ -12,7 +16,7 @@ from api.db.auth_repository import auth_repository
 from api.db.models import ExchangeAccount
 from api.main import create_app
 from tests.api.auth_test import login
-from tests.engine.strategy_load_test import crossover_bars
+from tests.engine.strategy_load_test import crossover_bars, ema_archive
 
 
 def _client(tmp_path):
@@ -38,48 +42,70 @@ def _tenant(http, purpose, name):
     return response.json()
 
 
-def _package(http, name="双均线"):
-    created = http.post("/api/strategy-packages", json={
-        "code_key": "ema_crossover", "name": name, "description": "金叉满额，死叉空仓",
-    })
-    assert created.status_code == 201, created.text
-    version = http.post(f"/api/strategy-packages/{created.json()['id']}/versions", json={
-        "version": "1",
-        "parameters": {"symbol": "ETHUSDT", "fast_period": 3, "slow_period": 5, "allocation": "1"},
-    })
-    assert version.status_code == 201, version.text
-    return created.json(), version.json()
+def _encoded(archive):
+    return base64.b64encode(archive).decode()
+
+
+def _package(http, parameters=None, version="1"):
+    body = {
+        "archive": _encoded(ema_archive(version)),
+        "parameters": parameters if parameters is not None else {
+            "symbol": "ETHUSDT", "fast_period": 3, "slow_period": 5, "allocation": "1",
+        },
+    }
+    if version == "1":
+        created = http.post("/api/strategy-packages", json=body)
+        assert created.status_code == 201, created.text
+        payload = created.json()
+        return payload, payload["version"]
+    raise AssertionError("additional versions use the version route")
 
 
 def test_catalog_grant_and_development_issue_round_trip(tmp_path):
     app = _client(tmp_path)
     with TestClient(app) as http:
         login(http)
-        rejected = http.post("/api/strategy-packages", json={
-            "code_key": "strategy_python_btc", "name": "研究包",
-        })
+        rejected = http.post("/api/strategy-packages", json={"archive": "not-a-zip"})
         assert rejected.status_code == 422
-        unknown = http.post("/api/strategy-packages", json={"code_key": "not_registered", "name": "未登记"})
-        assert unknown.status_code == 422
+        slipped = io.BytesIO()
+        with zipfile.ZipFile(slipped, "w") as archive:
+            archive.writestr("seealpha-package.json", json.dumps({
+                "format": 1, "name": "imported_tree", "title": "研究包", "version": "1",
+                "entry_point": "strategy:Hold",
+            }))
+            archive.writestr("strategy.py", "import strategy_python\n")
+        research = http.post("/api/strategy-packages", json={"archive": _encoded(slipped.getvalue())})
+        assert research.status_code == 422
+        assert "strategy_python" in research.json()["detail"]
         package, version = _package(http)
         listed = http.get("/api/strategy-packages").json()
         assert listed[0]["code_key"] == "ema_crossover"
         assert listed[0]["versions"][0]["version"] == "1"
+        assert listed[0]["versions"][0]["entry_point"] == "strategy:EmaCrossover"
+        assert listed[0]["versions"][0]["package_hash"] == version["package_hash"]
+        assert "archive" not in listed[0]["versions"][0]
         assert listed[0]["versions"][0]["grants"] == []
         assert listed[0]["versions"][0]["parameters"]["risk_limit"] == "1"
-        duplicate = http.post("/api/strategy-packages", json={"code_key": "ema_crossover", "name": "另一个名字"})
+        duplicate = http.post("/api/strategy-packages", json={"archive": _encoded(ema_archive())})
         assert duplicate.status_code == 409
         bad = http.post(f"/api/strategy-packages/{package['id']}/versions", json={
-            "version": "2", "parameters": {"fast_period": 21, "slow_period": 8},
+            "archive": _encoded(ema_archive("2")),
+            "parameters": {"fast_period": 21, "slow_period": 8},
         })
         assert bad.status_code == 422
         secret = http.post(f"/api/strategy-packages/{package['id']}/versions", json={
-            "version": "3", "parameters": {"api_key": "no"},
+            "archive": _encoded(ema_archive("3")),
+            "parameters": {"api_key": "no"},
         })
         assert secret.status_code == 422
 
+        other_archive = _hold_archive(tmp_path / "hold")
+        other = http.post("/api/strategy-packages", json={"archive": _encoded(other_archive)})
+        assert other.status_code == 201, other.text
+        assert other.json()["code_key"] == "hold_long"
+
         development = _tenant(http, "development", "开发甲")
-        other = _tenant(http, "development", "开发乙")
+        other_tenant = _tenant(http, "development", "开发乙")
         account = http.post(f"/api/tenants/{development['id']}/accounts", json={
             "account_name": "paper", "initial_capital": "1000", "quote_currency": "USDT",
         })
@@ -107,14 +133,18 @@ def test_catalog_grant_and_development_issue_round_trip(tmp_path):
         assert body["status"] == "loaded"
         assert body["purpose"] == "development"
         assert body["code_key"] == "ema_crossover"
+        assert body["entry_point"] == "strategy:EmaCrossover"
         assert "api_key" not in issued.text
+        assert "archive" not in body
         loads = http.get(f"/api/tenants/{development['id']}/strategy-loads").json()
         assert [row["id"] for row in loads] == [body["id"]]
-        assert http.get(f"/api/tenants/{other['id']}/strategy-loads").json() == []
+        assert http.get(f"/api/tenants/{other_tenant['id']}/strategy-loads").json() == []
         engine_rows = app.state.engine.runtime.store.strategy_loads(development["id"])
         assert len(engine_rows) == 1
         assert engine_rows[0]["grant_purpose"] == "development"
-        assert app.state.engine.runtime.store.strategy_loads(other["id"]) == []
+        assert engine_rows[0]["package_hash"] == version["package_hash"]
+        assert "archive" not in engine_rows[0]
+        assert app.state.engine.runtime.store.strategy_loads(other_tenant["id"]) == []
         preview = app.state.engine.runtime.preview_strategy(
             development["id"], account.json()["id"], crossover_bars(),
         )
@@ -129,7 +159,7 @@ def test_production_load_needs_its_own_grant(tmp_path):
     app = _client(tmp_path)
     with TestClient(app) as http:
         login(http)
-        _package_row, version = _package(http, "正式候选")
+        package, version = _package(http)
         http.post(
             f"/api/strategy-packages/versions/{version['id']}/grants",
             json={"purpose": "development"},
@@ -173,11 +203,11 @@ def test_production_load_needs_its_own_grant(tmp_path):
         dev_account = http.post(f"/api/tenants/{development['id']}/accounts", json={
             "account_name": "paper", "initial_capital": "10", "quote_currency": "USDT",
         })
-        second = http.post("/api/strategy-packages", json={"code_key": "ema_crossover", "name": "仅正式"})
+        second = http.post("/api/strategy-packages", json={"archive": _encoded(ema_archive())})
         assert second.status_code == 409
         only_production = http.post(
-            f"/api/strategy-packages/{_package_row['id']}/versions",
-            json={"version": "prod-only"},
+            f"/api/strategy-packages/{package['id']}/versions",
+            json={"archive": _encoded(ema_archive("prod-only"))},
         )
         assert only_production.status_code == 201, only_production.text
         http.post(
@@ -189,3 +219,9 @@ def test_production_load_needs_its_own_grant(tmp_path):
         })
         assert dev_blocked.status_code == 409
         assert "开发" in dev_blocked.json()["detail"]
+
+
+def _hold_archive(root):
+    from tests.engine.strategy_load_test import _package_archive
+
+    return _package_archive(root, "1")

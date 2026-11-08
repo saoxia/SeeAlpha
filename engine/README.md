@@ -9,8 +9,8 @@ Phase 1 把行情、连接和订单事实从业务 API 进程里拆出来。本�
 | `engine/pipeline/` | 数据管道：历史补齐 `python -m engine.pipeline.pair_data`，一次性任务 `python -m engine.pipeline.data_management`，以及归档、Catalog 和 `rust_converter/`。 |
 | `app.py` / `__main__.py` | 给业务 API 用的内部 HTTP。 |
 
-`strategy_python/` 仍在仓库根目录。引擎不加载其中的研究策略。
-可加载的示例在 `engine/strategies/`，并且只有业务端下发之后才会进入某个 `tenant_id`。
+可加载的示例在 `packages/ema_crossover/`。引擎不按策略名字保存实现；
+只有业务端下发归档之后，才会按 `tenant_id` 单独加载。
 
 ## 启动
 
@@ -56,11 +56,12 @@ python -m engine
 - `GET /tenants/{tenant_id}/strategy-loads` 只返回该租户的记录。
 - `POST /tenants/{tenant_id}/accounts/{account_id}/strategy-preview` 在模拟 venue 上喂入 K 线。
 
-示例 `ema_crossover` 只公布目标持仓。引擎复用 `PortfolioCoordinator` 和 `target_netting`，
-先按 `risk_limit` 截断合计目标，再对当前净持仓提交差额。预览不连接交易所。
+示例 `ema_crossover` 只公布目标持仓。作者说明在 `packages/ema_crossover/README.md`。
+引擎用 `PortfolioCoordinator` 和 `target_netting`，先按 `risk_limit` 截断合计目标，
+再对当前净持仓提交差额。预览不连接交易所。
 
 ## 尚未纳入
 
 把操作账本同步和资产校准 REST 改成纯事件消费。这两类只读连接器调用仍在 API 进程。
-研究回测子进程仍由 API 的管理任务启动。已下发策略的预览不是交易所实盘。
+已下发策略的预览不是交易所实盘。管理端不再启动已删除的研究回测目录。
 冻结研究快照里的 `pipeline` 导入保持原字节，不是当前可运行入口。

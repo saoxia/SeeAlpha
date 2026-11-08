@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     func,
@@ -271,6 +272,9 @@ class StrategyPackageVersion(Base):
     )
     version: Mapped[str] = mapped_column(Text, nullable=False)
     parameters: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)
+    entry_point: Mapped[str] = mapped_column(Text, nullable=False)
+    package_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    archive: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     __table_args__ = (
         Index("strategy_package_versions_unique", "package_id", "version", unique=True),
