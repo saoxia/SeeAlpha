@@ -56,6 +56,13 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         runtime = None
         try:
             database.initialize()
+            if manager is not None:
+                default = app.state.tenants.repository.require_default()
+                if default is not None:
+                    root = project if project is not None else PROJECT
+                    manager.bind_primary_data(
+                        default["id"], root / "data", root / ".local/state/api/data_jobs",
+                    )
             for tenant in app.state.tenants.repository.list_tenants():
                 if tenant["status"] == "active":
                     app.state.engine.ensure_tenant(
@@ -140,7 +147,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             production_memory=settings.engine_production_memory,
             development_cpus=settings.engine_development_cpus,
             development_memory=settings.engine_development_memory,
-            log_root=PROJECT / "logs",
+            log_root=(project if project is not None else PROJECT) / "logs",
         )
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
