@@ -227,6 +227,15 @@ def aggregate_feature_archive(
         return {}
     # 先压缩成所有请求周期的公约数时间桶，高周期只扫描聚合结果。
     base_period = gcd(*periods.values())
+    from engine.pipeline.rust_feature_aggregate import (
+        feature_aggregator_binary, run_aggregator, write_trade_chunk,
+    )
+    import csv
+    import tempfile
+
+    rust_binary = feature_aggregator_binary()
+    source = tempfile.TemporaryFile(mode="w+t", encoding="utf-8", newline="") if rust_binary else None
+    writer = csv.writer(source) if source else None
     parts: list[pd.DataFrame] = []
     start, end = _bounds(archive.spec.day)
     previous_time = previous_id = None
@@ -241,6 +250,9 @@ def aggregate_feature_archive(
         if previous_id is not None and first_id <= previous_id:
             raise DataValidationError("Trade ID 跨数据块重复或倒序")
         previous_time, previous_id = last_time, last_id
+        if writer is not None:
+            write_trade_chunk(writer, chunk)
+            continue
         values = pd.DataFrame(
             {
                 "open": chunk.price,
@@ -257,9 +269,15 @@ def aggregate_feature_archive(
         values.index = (chunk.timestamp.to_numpy() // base_period) * base_period
         parts.append(_aggregate(values))
     result = {}
-    if not parts:
-        raise DataValidationError("Trade 归档没有数据")
-    base = _aggregate(pd.concat(parts))
+    if source is not None:
+        try:
+            base = run_aggregator(rust_binary, source, base_period)
+        finally:
+            source.close()
+    else:
+        if not parts:
+            raise DataValidationError("Trade 归档没有数据")
+        base = _aggregate(pd.concat(parts))
     for interval, period in periods.items():
         frame = base.copy(deep=False)
         if period != base_period:
