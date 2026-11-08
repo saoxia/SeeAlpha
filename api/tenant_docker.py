@@ -105,15 +105,14 @@ class DockerTenantManager:
                 raise EngineConflict("租户 Engine 令牌不存在，拒绝连接已有容器。")
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
             descriptor = os.open(env_path, flags, 0o600)
-            try:
-                with os.fdopen(descriptor, "w", encoding="utf-8") as file:
-                    file.write(f"ENGINE_TOKEN={secrets.token_urlsafe(48)}\n")
-                    file.write(f"ENGINE_TENANT_ID={tenant_id}\n")
-                    file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
-                    file.write("ENGINE_HOST=0.0.0.0\n")
-                    file.write("ENGINE_PORT=8766\n")
-                    file.write("ENGINE_PROJECT=/app\n")
-                    file.write("ENGINE_STATE=/app/.local/state/engine\n")
+            with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+                file.write(f"ENGINE_TOKEN={secrets.token_urlsafe(48)}\n")
+                file.write(f"ENGINE_TENANT_ID={tenant_id}\n")
+                file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
+                file.write("ENGINE_HOST=0.0.0.0\n")
+                file.write("ENGINE_PORT=8766\n")
+                file.write("ENGINE_PROJECT=/app\n")
+                file.write("ENGINE_STATE=/app/.local/state/engine\n")
         if env_path.is_symlink() or env_path.stat().st_mode & 0o077:
             raise EngineConflict("租户 Engine 凭据文件权限不安全。")
         values = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
