@@ -228,14 +228,13 @@ def aggregate_feature_archive(
     # 先压缩成所有请求周期的公约数时间桶，高周期只扫描聚合结果。
     base_period = gcd(*periods.values())
     from engine.pipeline.rust_feature_aggregate import (
-        feature_aggregator_binary, run_aggregator, write_trade_chunk,
+        INPUT_SCHEMA, feature_aggregator_binary, run_aggregator, write_trade_chunk,
     )
-    import csv
     import tempfile
 
     rust_binary = feature_aggregator_binary()
-    source = tempfile.TemporaryFile(mode="w+t", encoding="utf-8", newline="") if rust_binary else None
-    writer = csv.writer(source) if source else None
+    source = tempfile.TemporaryFile(mode="w+b") if rust_binary else None
+    writer = pa.ipc.new_stream(source, INPUT_SCHEMA) if source else None
     parts: list[pd.DataFrame] = []
     start, end = _bounds(archive.spec.day)
     previous_time = previous_id = None
@@ -271,6 +270,7 @@ def aggregate_feature_archive(
     result = {}
     if source is not None:
         try:
+            writer.close()
             base = run_aggregator(rust_binary, source, base_period)
         finally:
             source.close()
