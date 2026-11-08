@@ -24,8 +24,8 @@ class FakeTenantManager:
     def endpoint(self, tenant_id):
         return f"http://127.0.0.1:{8700 + int(tenant_id)}", f"secret-{tenant_id}"
 
-    def stop(self, tenant_id, *, remove=False):
-        self.stopped.append((str(tenant_id), remove))
+    def stop(self, tenant_id, *, remove=False, retire=False):
+        self.stopped.append((str(tenant_id), remove, retire))
 
     def worker_log(self, tenant_id, path):
         self.logs.append((str(tenant_id), str(path)))
@@ -131,7 +131,8 @@ def test_docker_worker_paths_are_translated_and_stopped(tmp_path, monkeypatch):
     assert worker.poll() == 0
     assert calls[1][1] == "http://127.0.0.1:8707/workers/w1"
     client.drop_tenant(7)
-    assert manager.stopped == [("7", True)]
+    client.drop_tenant(8, remove=True)
+    assert manager.stopped == [("7", True, False), ("8", True, True)]
 
 
 def test_docker_log_paths_must_be_isolated_and_not_overwritten(tmp_path):
@@ -159,3 +160,44 @@ def test_docker_log_paths_must_be_isolated_and_not_overwritten(tmp_path):
             production_cpus="0", production_memory="4g",
             development_cpus="4", development_memory="8g", log_root=log_root,
         )
+
+
+def test_deleted_tenant_is_quarantined_to_prevent_id_reuse(tmp_path, monkeypatch):
+    root = tmp_path / "tenants"
+    manager = DockerTenantManager(
+        root, image="seealpha-engine:test",
+        production_cpus="2", production_memory="4g",
+        development_cpus="4", development_memory="8g",
+        log_root=tmp_path / "logs",
+    )
+    tenant = root / "7"
+    data = tenant / "data"
+    data.mkdir(parents=True)
+    (data / "marker").write_text("old-owner", encoding="utf-8")
+    monkeypatch.setattr(manager, "_inspect", lambda name: None)
+
+    manager.stop("7", remove=True, retire=True)
+
+    assert not tenant.exists()
+    preserved = list((root / ".retired").glob("7-*"))
+    assert len(preserved) == 1
+    assert (preserved[0] / "data" / "marker").read_text() == "old-owner"
+    (tenant / "data").mkdir(parents=True)
+    assert not (tenant / "data" / "marker").exists()
+
+
+def test_archiving_does_not_quarantine_tenant_files(tmp_path, monkeypatch):
+    root = tmp_path / "tenants"
+    manager = DockerTenantManager(
+        root, image="seealpha-engine:test",
+        production_cpus="2", production_memory="4g",
+        development_cpus="4", development_memory="8g",
+        log_root=tmp_path / "logs",
+    )
+    (root / "9").mkdir(parents=True)
+    monkeypatch.setattr(manager, "_inspect", lambda name: None)
+
+    manager.stop("9", remove=True, retire=False)
+
+    assert (root / "9").is_dir()
+    assert not (root / ".retired").exists()
