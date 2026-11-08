@@ -113,7 +113,7 @@ class EngineClient:
             return self.runtime.drop_tenant(tenant_id, remove=remove)
         result = self._sync("POST", f"/tenants/{tenant_id}/drop", params={"remove": remove})
         if self.tenant_manager is not None:
-            self.tenant_manager.stop(tenant_id, remove=True)
+            self.tenant_manager.stop(tenant_id, remove=True, retire=remove)
         return result
 
     def import_tenant(self, tenant_id, purpose, payload):
