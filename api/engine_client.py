@@ -1,6 +1,7 @@
 """Business-backend client for the resident engine. Secrets stay in the request body."""
 
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -35,12 +36,15 @@ class RemoteProcess:
 
 
 class EngineClient:
-    def __init__(self, root, url="inprocess", token="seealpha-local-engine", market_account_id="market-data", project=None):
+    def __init__(self, root, url="inprocess", token="seealpha-local-engine", market_account_id="market-data",
+                 project=None, tenant_manager=None):
         self.root = Path(root)
         self.url = url.rstrip("/")
         self.token = token
         self.market_account_id = str(market_account_id)
-        self.remote = self.url.startswith("http")
+        self.tenant_manager = tenant_manager
+        self._worker_tenants = {}
+        self.remote = tenant_manager is not None or self.url.startswith("http")
         self.runtime = None if self.remote else EngineRuntime(self.root, project)
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
@@ -48,10 +52,24 @@ class EngineClient:
         if self.runtime is not None:
             self.runtime.close()
 
-    def _sync(self, method, path, timeout=60, **kwargs):
+    def _target(self, path, tenant_id=None):
+        if self.tenant_manager is None:
+            return self.url, self.headers
+        match = re.match(r"^/tenants/([1-9][0-9]*)(?:/|$)", path)
+        if tenant_id is None:
+            if match is None:
+                raise EngineConflict("无法确定 Engine 请求的租户。")
+            tenant_id = match.group(1)
+        elif match is not None and match.group(1) != str(tenant_id):
+            raise EngineConflict("Engine 路由租户不匹配。")
+        url, token = self.tenant_manager.endpoint(tenant_id)
+        return url, {"Authorization": f"Bearer {token}"}
+
+    def _sync(self, method, path, timeout=60, *, tenant_id=None, **kwargs):
+        url, headers = self._target(path, tenant_id)
         try:
             with httpx.Client(timeout=timeout) as client:
-                response = client.request(method, self.url + path, headers=self.headers, **kwargs)
+                response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
         if response.status_code == 409:
@@ -61,9 +79,10 @@ class EngineClient:
         return response.json() if response.content else None
 
     async def _async(self, method, path, **kwargs):
+        url, headers = self._target(path)
         try:
             async with httpx.AsyncClient(timeout=120) as client:
-                response = await client.request(method, self.url + path, headers=self.headers, **kwargs)
+                response = await client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
         if response.status_code == 409:
@@ -76,6 +95,10 @@ class EngineClient:
         return f"/tenants/{tenant_id}/accounts/{account_id}"
 
     def ensure_tenant(self, tenant_id, purpose, status="active"):
+        if self.tenant_manager is not None:
+            self.tenant_manager.ensure(tenant_id, purpose, status)
+            if status == "archived":
+                return {"tenant_id": str(tenant_id), "status": status}
         if self.runtime is not None:
             return self.runtime.ensure_tenant(tenant_id, purpose, status)
         return self._sync("PUT", f"/tenants/{tenant_id}", json={"purpose": purpose, "status": status})
@@ -88,9 +111,14 @@ class EngineClient:
     def drop_tenant(self, tenant_id, *, remove=False):
         if self.runtime is not None:
             return self.runtime.drop_tenant(tenant_id, remove=remove)
-        return self._sync("POST", f"/tenants/{tenant_id}/drop", params={"remove": remove})
+        result = self._sync("POST", f"/tenants/{tenant_id}/drop", params={"remove": remove})
+        if self.tenant_manager is not None:
+            self.tenant_manager.stop(tenant_id, remove=True, retire=remove)
+        return result
 
     def import_tenant(self, tenant_id, purpose, payload):
+        if self.tenant_manager is not None:
+            self.tenant_manager.ensure(tenant_id, purpose)
         if self.runtime is not None:
             return self.runtime.import_tenant(tenant_id, purpose, payload)
         return self._sync("POST", f"/tenants/{tenant_id}/import", json={"purpose": purpose, "payload": payload})
@@ -251,15 +279,23 @@ class EngineClient:
             )
             process = self.runtime.workers[started["id"]]["process"]
             return process
+        if self.tenant_manager is not None:
+            # API Python paths do not exist inside Docker; use the image interpreter.
+            if command and Path(command[0]).name.startswith("python"):
+                command = ["python", *command[1:]]
+            log_path = self.tenant_manager.worker_log(tenant_id, log_path)
         started = self._sync("POST", self._account_path(tenant_id, account_id) + "/market/workers", json={
             "command": command, "log_path": str(log_path),
             "access": list(access) if access else None,
             "hold_lease": hold_lease, "log_mode": log_mode,
         })
+        if self.tenant_manager is not None:
+            self._worker_tenants[started["id"]] = str(tenant_id)
         return RemoteProcess(self, started["id"], started["pid"])
 
     def worker(self, worker_id):
-        return self._sync("GET", f"/workers/{worker_id}")
+        tenant_id = self._worker_tenants.get(worker_id) if self.tenant_manager else None
+        return self._sync("GET", f"/workers/{worker_id}", tenant_id=tenant_id)
 
     async def valuation_events(self, account):
         if self.runtime is not None:
@@ -273,10 +309,12 @@ class EngineClient:
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
         }
+        path = self._account_path(account["tenant_id"], account["id"]) + "/valuation"
+        url, headers = self._target(path)
         async with httpx.AsyncClient(timeout=None) as client, client.stream(
             "POST",
-            f"{self.url}/tenants/{account['tenant_id']}/accounts/{account['id']}/valuation",
-            headers=self.headers,
+            url + path,
+            headers=headers,
             json=payload,
         ) as response:
                 response.raise_for_status()

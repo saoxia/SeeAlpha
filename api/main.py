@@ -37,6 +37,7 @@ from .operations.router import router as operations_router
 from .operations.service import OperationService
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
+from .tenant_docker import DockerTenantManager
 from .tenants.router import router as tenants_router
 from .tenants.service import TenantService
 
@@ -55,6 +56,13 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         runtime = None
         try:
             database.initialize()
+            if manager is not None:
+                default = app.state.tenants.repository.require_default()
+                if default is not None:
+                    root = project if project is not None else PROJECT
+                    manager.bind_primary_data(
+                        default["id"], root / "data", root / ".local/state/api/data_jobs",
+                    )
             for tenant in app.state.tenants.repository.list_tenants():
                 if tenant["status"] == "active":
                     app.state.engine.ensure_tenant(
@@ -128,9 +136,23 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.repository = auth_repository(database)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
+    if settings.engine_deployment not in {"single", "docker"}:
+        raise ValueError("ENGINE_DEPLOYMENT must be single or docker")
+    manager = None
+    if settings.engine_deployment == "docker":
+        manager = DockerTenantManager(
+            settings.engine_tenant_root or PROJECT / ".local/tenants",
+            image=settings.engine_docker_image,
+            production_cpus=settings.engine_production_cpus,
+            production_memory=settings.engine_production_memory,
+            development_cpus=settings.engine_development_cpus,
+            development_memory=settings.engine_development_memory,
+            log_root=(project if project is not None else PROJECT) / "logs",
+        )
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
         market_account_id=settings.engine_market_account_id,
+        tenant_manager=manager,
     )
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)

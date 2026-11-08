@@ -14,6 +14,8 @@ class EngineConfig:
     host: str = "127.0.0.1"
     port: int = 8766
     project: Path = PROJECT
+    tenant_id: str | None = None
+    tenant_purpose: str | None = None
 
     @classmethod
     def from_environment(cls):
@@ -26,4 +28,6 @@ class EngineConfig:
             host=os.getenv("ENGINE_HOST", "127.0.0.1"),
             port=int(os.getenv("ENGINE_PORT", "8766")),
             project=Path(os.getenv("ENGINE_PROJECT", str(PROJECT))),
+            tenant_id=os.getenv("ENGINE_TENANT_ID"),
+            tenant_purpose=os.getenv("ENGINE_TENANT_PURPOSE"),
         )

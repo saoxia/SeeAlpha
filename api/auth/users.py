@@ -58,4 +58,6 @@ def create_user(
         status = 409 if str(exc) == "用户已存在。" else 422
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     user = request.app.state.repository.get_user_by_username(payload.username)
+    tenant = request.app.state.tenants.repository.production_for_owner(user["id"])
+    request.app.state.engine.ensure_tenant(tenant["id"], "production")
     return _published(request, user)

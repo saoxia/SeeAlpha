@@ -4,8 +4,8 @@ import hmac
 import json
 from contextlib import aclosing
 
-from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.config import EngineConfig
@@ -126,6 +126,15 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
     app = FastAPI(title="SeeAlpha Engine", version="0.1.0", dependencies=[Depends(authorized)])
     app.state.runtime = runtime
 
+    @app.middleware("http")
+    async def tenant_boundary(request: Request, call_next):
+        # A tenant Engine must reject another tenant's HTTP operations.
+        if config.tenant_id is not None and request.url.path.startswith("/tenants/"):
+            target = request.url.path[len("/tenants/"):].split("/", 1)[0]
+            if target != config.tenant_id:
+                return JSONResponse({"detail": "Engine 租户不匹配。"}, status_code=403)
+        return await call_next(request)
+
     def conflict(error: EngineConflict):
         raise HTTPException(409, error.message) from None
 
@@ -135,6 +144,8 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     @app.put("/tenants/{tenant_id}")
     def ensure_tenant(tenant_id: str, body: TenantBody):
+        if config.tenant_purpose is not None and body.purpose != config.tenant_purpose:
+            raise HTTPException(403, "Engine 租户类型不匹配。")
         try:
             return runtime.ensure_tenant(tenant_id, body.purpose, body.status)
         except EngineConflict as error:

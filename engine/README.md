@@ -12,6 +12,16 @@ Phase 1 把行情、连接和订单事实从业务 API 进程里拆出来。本�
 可加载的示例在 `packages/ema_crossover/`。引擎不按策略名字保存实现；
 只有业务端下发归档之后，才会按 `tenant_id` 单独加载。
 
+
+## 可选 Docker 运行模式
+
+业务 API 可在 `ENGINE_DEPLOYMENT=docker` 下，为每个活跃租户管理一个本地 Docker Engine。
+所有租户容器仍运行此 `python -m engine`，通过 `ENGINE_TENANT_ID` 和
+`ENGINE_TENANT_PURPOSE` 固定租户身份，拒绝跨租户请求；每个容器拥有独立资源限额和持久状态。
+开发租户的历史数据各自保存，不执行跨租户共享缓存或重复回测数据预加载。
+详见 [租户 Docker Engine 运行说明](../docs/TENANT_DOCKER_RUNTIME.md)。
+切换现有生产环境前必须迁移旧 Engine 状态，不能直接启动空 SQLite。
+
 ## 启动
 
 在仓库根目录：

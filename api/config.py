@@ -25,6 +25,13 @@ class Settings:
     engine_url: str = "inprocess"
     engine_token: str = field(default="seealpha-local-engine", repr=False)
     engine_market_account_id: str = "market-data"
+    engine_deployment: str = "single"
+    engine_docker_image: str = "seealpha-engine:latest"
+    engine_tenant_root: Path | None = None
+    engine_production_cpus: str = "2"
+    engine_production_memory: str = "4g"
+    engine_development_cpus: str = "4"
+    engine_development_memory: str = "8g"
 
     @classmethod
     def from_environment(cls):
@@ -70,4 +77,11 @@ class Settings:
             engine_url=os.getenv("ENGINE_URL", "http://127.0.0.1:8766"),
             engine_token=os.getenv("ENGINE_TOKEN", "seealpha-local-engine"),
             engine_market_account_id=os.getenv("ENGINE_MARKET_ACCOUNT_ID", "market-data"),
+            engine_deployment=os.getenv("ENGINE_DEPLOYMENT", "single"),
+            engine_docker_image=os.getenv("ENGINE_DOCKER_IMAGE", "seealpha-engine:latest"),
+            engine_tenant_root=Path(os.getenv("ENGINE_TENANT_ROOT", str(PROJECT / ".local/tenants"))),
+            engine_production_cpus=os.getenv("ENGINE_PRODUCTION_CPUS", "2"),
+            engine_production_memory=os.getenv("ENGINE_PRODUCTION_MEMORY", "4g"),
+            engine_development_cpus=os.getenv("ENGINE_DEVELOPMENT_CPUS", "4"),
+            engine_development_memory=os.getenv("ENGINE_DEVELOPMENT_MEMORY", "8g"),
         )
