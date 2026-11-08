@@ -22,7 +22,7 @@ type Section = "overview" | "checks" | "backtest" | "reports" | "jobs";
 const sections: Array<{ id: Section; number: string; label: string; description: string }> = [
   { id: "overview", number: "01", label: "总览", description: "检查与最近任务" },
   { id: "checks", number: "02", label: "项目检查", description: "规范与测试" },
-  { id: "backtest", number: "03", label: "策略回测", description: "本地 Catalog" },
+  { id: "backtest", number: "03", label: "策略回测", description: "开发租户已下发包" },
   { id: "reports", number: "04", label: "报告", description: "已生成结果" },
   { id: "jobs", number: "05", label: "任务记录", description: "日志与取消" },
 ];
@@ -36,10 +36,6 @@ export function ResearchPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ResearchJob | null>(null);
   const [query, setQuery] = useState("");
-  const [strategy, setStrategy] = useState("");
-  const [start, setStart] = useState("2026-08-01");
-  const [end, setEnd] = useState("2026-08-08");
-  const [interval, setIntervalValue] = useState("1m");
 
   const refresh = useCallback(async () => {
     try {
@@ -126,8 +122,6 @@ export function ResearchPage() {
   const running = hasRunningJob(state?.jobs ?? []);
   const checks = state ? checkHeadline(state.checks) : null;
   const reports = (state?.reports ?? []).filter((item) => reportMatches(item, query));
-  const chosen = state?.strategies.find((item) => item.id === strategy);
-
   return (
     <section className="settings-page research-page" id="research">
       <div className="settings-layout">
@@ -167,7 +161,7 @@ export function ResearchPage() {
                   <span>01</span>
                   <div>
                     <h2>运行总览</h2>
-                    <p>项目检查、可用策略和最近任务。过期检查不能视为当前正常。</p>
+                    <p>项目检查和最近任务。过期检查不能视为当前正常。历史回测不在这个目录启动。</p>
                   </div>
                   <i>WORKSPACE</i>
                 </div>
@@ -180,7 +174,7 @@ export function ResearchPage() {
                   <article>
                     <small>任务</small>
                     <b>{running ? "有任务运行" : "空闲"}</b>
-                    <span>同一时间只运行一个检查或回测。</span>
+                    <span>同一时间只运行一个检查。</span>
                   </article>
                   <article>
                     <small>报告</small>
@@ -229,43 +223,14 @@ export function ResearchPage() {
                   <span>03</span>
                   <div>
                     <h2>策略回测</h2>
-                    <p>使用策略现行参数和已有本地 K 线。结束时间不包含在区间内，单次最多 366 天。不会下载或补齐数据。</p>
+                    <p>研究目录不再启动已删除的策略。历史回测在开发租户上运行已下发的策略包。</p>
                   </div>
                   <i>BACKTEST</i>
                 </div>
-                <form className="form-grid" onSubmit={(event) => {
-                  event.preventDefault();
-                  void submit("backtest", { strategy, start, end, interval });
-                }}>
-                  <label className="field field-wide">
-                    <span>回测策略</span>
-                    <select value={strategy} required onChange={(event) => setStrategy(event.target.value)}>
-                      <option value="">请选择策略</option>
-                      {(state?.strategies ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>{item.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="research-note">{chosen?.description || "BTC、ETH 的趋势跟随与均值回归多空入口。"}</p>
-                  <label className="field">
-                    <span>开始日期 UTC</span>
-                    <input type="date" required value={start} onChange={(event) => setStart(event.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>结束日期 UTC</span>
-                    <input type="date" required value={end} onChange={(event) => setEnd(event.target.value)} />
-                  </label>
-                  <label className="field">
-                    <span>K 线周期</span>
-                    <select value={interval} onChange={(event) => setIntervalValue(event.target.value)}>
-                      <option value="1m">1 分钟</option>
-                      <option value="5m">5 分钟</option>
-                    </select>
-                  </label>
-                  <div className="settings-head-actions research-actions">
-                    <button type="submit" className="primary" disabled={submitting || running || !state}>开始回测</button>
-                  </div>
-                </form>
+                <p className="research-note">
+                  开发租户声明自己的行情订阅后，用该租户的虚拟账户对已下发的包运行历史区间。
+                  结束时间不包含在区间内，单次最多 366 天。不会下载或补齐数据，也不会读取交易所密钥。
+                </p>
               </>
             )}
 
@@ -309,7 +274,7 @@ export function ResearchPage() {
                   <span>05</span>
                   <div>
                     <h2>任务记录</h2>
-                    <p>状态、输出日志和取消。回测最多两小时，超时会终止。重启后未完成任务标记为中断，不会自动恢复。</p>
+                    <p>状态、输出日志和取消。检查最多 30 分钟，超时会终止。重启后未完成任务标记为中断，不会自动恢复。</p>
                   </div>
                   <i>JOBS</i>
                 </div>
@@ -352,7 +317,7 @@ function JobList({
   selectedId: string | null;
   onSelect: (identity: string) => void;
 }) {
-  if (jobs.length === 0) return <p className="exchange-empty">暂无任务记录。可以从总览发起检查，或创建一次回测。</p>;
+  if (jobs.length === 0) return <p className="exchange-empty">暂无任务记录。可以从总览发起检查。</p>;
   return (
     <ul className="research-list">
       {jobs.map((job) => (

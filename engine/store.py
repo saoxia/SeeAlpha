@@ -437,6 +437,33 @@ class Store:
         ).fetchall()
         return [{**dict(row), "progress": json.loads(row["progress_json"])} for row in rows]
 
+    def tenant_subscriptions(self, tenant_id):
+        self._ensure()
+        rows = self.db.execute(
+            """SELECT tenant_id, account_id, product, symbol, role, state, progress_json, updated_at
+               FROM subscriptions WHERE tenant_id=?
+               ORDER BY product, symbol, role""",
+            (str(tenant_id),),
+        ).fetchall()
+        return [{**dict(row), "progress": json.loads(row["progress_json"])} for row in rows]
+
+    def latest_event(self, tenant_id, account_id, kind):
+        self._ensure()
+        row = self.db.execute(
+            """SELECT id, kind, body_json, created_at FROM events
+               WHERE tenant_id=? AND account_id=? AND kind=?
+               ORDER BY id DESC LIMIT 1""",
+            (str(tenant_id), str(account_id), kind),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "kind": row["kind"],
+            "body": json.loads(row["body_json"]),
+            "created_at": row["created_at"],
+        }
+
     def add_event(self, tenant_id, account_id, kind, body):
         now = int(time.time() * 1000)
         with self.lock:

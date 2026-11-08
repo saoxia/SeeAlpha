@@ -55,10 +55,14 @@ python -m engine
 - `POST /tenants/{tenant_id}/strategy-loads` 接收包版本。用途必须与租户类型一致，正式租户不接受开发授权。
 - `GET /tenants/{tenant_id}/strategy-loads` 只返回该租户的记录。
 - `POST /tenants/{tenant_id}/accounts/{account_id}/strategy-preview` 在模拟 venue 上喂入 K 线。
+- `POST /tenants/{tenant_id}/accounts/{account_id}/backtests` 用该租户已声明的订阅，
+  读取 `data/catalog` 里的历史 K 线，并以请求中的虚拟账户资金回测。仅开发租户。
+- `GET /tenants/{tenant_id}/accounts/{account_id}/backtests/latest` 返回最近一次结果。
 
 示例 `ema_crossover` 只公布目标持仓。作者说明在 `packages/ema_crossover/README.md`。
 引擎用 `PortfolioCoordinator` 和 `target_netting`，先按 `risk_limit` 截断合计目标，
-再对当前净持仓提交差额。预览不连接交易所。
+再对当前净持仓提交差额。预览和历史回测都不连接交易所。归档租户不能运行。
+正式租户不能使用这条历史回测。
 
 ## 尚未纳入
 

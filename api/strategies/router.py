@@ -32,6 +32,13 @@ class LoadCreate(BaseModel):
     parameters: dict | None = None
 
 
+class BacktestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    start: str = Field(min_length=10, max_length=40)
+    end: str = Field(min_length=10, max_length=40)
+    interval: str = Field(default="1m", pattern=r"^(1m|5m)$")
+
+
 def store(request: Request):
     service = getattr(request.app.state, "strategies", None)
     if service is None:
@@ -67,3 +74,15 @@ def list_loads(request: Request, tenant_id: int, _: AdminUser):
 @router.post("/tenants/{tenant_id}/strategy-loads", status_code=201)
 def issue_load(request: Request, tenant_id: int, payload: LoadCreate, _: AdminUser):
     return store(request).issue(tenant_id, payload.account_id, payload.version_id, payload.parameters)
+
+
+@router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests")
+def start_backtest(
+    request: Request, tenant_id: int, account_id: int, payload: BacktestRequest, _: AdminUser,
+):
+    return store(request).backtest(tenant_id, account_id, payload.start, payload.end, payload.interval)
+
+
+@router.get("/tenants/{tenant_id}/accounts/{account_id}/backtests/latest")
+def latest_backtest(request: Request, tenant_id: int, account_id: int, _: AdminUser):
+    return store(request).latest_backtest(tenant_id, account_id)

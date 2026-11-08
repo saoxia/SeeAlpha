@@ -136,6 +136,41 @@ class StrategyStore:
         except StorageConflict as exc:
             raise HTTPException(409, "同一策略包的版本号不能重复。") from exc
 
+    def backtest(self, tenant_id, account_id, start, end, interval):
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "历史回测只在开发租户上运行。")
+        account = self._virtual_account(tenant, str(account_id).strip())
+        try:
+            self.engine.runnable(tenant["id"], "backtest")
+            return self.engine.run_backtest(
+                tenant["id"], account["id"], start, end, interval or "1m",
+                account["initial_capital"], account["quote_currency"],
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+
+    def latest_backtest(self, tenant_id, account_id):
+        tenant = self.tenants.require_tenant(tenant_id)
+        self._virtual_account(tenant, str(account_id).strip())
+        try:
+            found = self.engine.latest_backtest(tenant["id"], str(account_id).strip())
+        except EngineConflict as exc:
+            status = 404 if "不存在" in exc.message else 409
+            raise HTTPException(status, exc.message) from exc
+        if found is None:
+            raise HTTPException(404, "还没有回测结果。")
+        return found
+
+    def _virtual_account(self, tenant, account_id):
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "历史回测只使用开发租户的虚拟账户。")
+        rows = self.tenants.repository.list_virtual_accounts(tenant["id"])
+        found = next((row for row in rows if str(row["id"]) == account_id), None)
+        if found is None:
+            raise HTTPException(404, "账户不属于该租户。")
+        return found
+
     def _require_account(self, tenant, account_id):
         if tenant["purpose"] == "development":
             rows = self.tenants.repository.list_virtual_accounts(tenant["id"])

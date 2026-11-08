@@ -368,6 +368,76 @@ class EngineRuntime:
             raise EngineConflict("该租户账户没有已下发的策略。")
         return preview_loads(loads, bars)
 
+    def run_backtest(
+        self, tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
+    ):
+        """Run this tenant's issued loads on catalog history and keep the latest result."""
+        from decimal import Decimal, InvalidOperation
+
+        from nautilus_trader.model import Money
+
+        from engine.strategies.backtest import catalog_directory, parse_window, read_history
+        from engine.strategies.loading import run_issued_history
+
+        start_at, end_at, interval = parse_window(start, end, interval)
+        self.assert_runnable(tenant_id, "backtest")
+        row = self.store.tenant(tenant_id)
+        if row["purpose"] != "development":
+            raise EngineConflict("历史回测只在开发租户上运行。")
+        loads = self.store.strategy_loads(tenant_id, account_id, include_archive=True)
+        if not loads:
+            raise EngineConflict("该租户账户没有已下发的策略。")
+        if any(
+            item["grant_purpose"] != "development" or str(item["tenant_id"]) != str(tenant_id)
+            for item in loads
+        ):
+            raise EngineConflict("开发回测只能运行本租户已下发的开发授权。")
+        symbols = {item["parameters"]["symbol"] for item in loads}
+        if len(symbols) != 1:
+            raise EngineConflict("一次回测只支持同一品种的已下发策略。")
+        symbol = next(iter(symbols))
+        if not self._has_subscription_intent(tenant_id, symbol):
+            raise EngineConflict("开发租户尚未声明该品种的行情订阅。")
+        try:
+            amount = Decimal(str(starting_balance))
+        except (InvalidOperation, ValueError) as exc:
+            raise EngineConflict("初始资金无效。") from exc
+        if not amount.is_finite() or amount <= 0:
+            raise EngineConflict("初始资金无效。")
+        if not isinstance(quote_currency, str) or quote_currency != "USDT":
+            raise EngineConflict("虚拟账户报价币种与策略品种不一致。")
+        try:
+            starting = Money.from_str(f"{format(amount, 'f')} {quote_currency}")
+        except (TypeError, ValueError) as exc:
+            raise EngineConflict("初始资金与报价币种精度不匹配。") from exc
+        bars = read_history(catalog_directory(self.project), symbol, interval, start_at, end_at)
+        if not bars:
+            raise EngineConflict("指定区间没有可用的本地 K 线。")
+        result = run_issued_history(loads, bars, starting)
+        result.update(
+            interval=interval,
+            start=start_at.isoformat(),
+            end=end_at.isoformat(),
+            starting_balance=format(amount, "f"),
+        )
+        self.store.add_event(tenant_id, account_id, "backtest", result)
+        return result
+
+    def latest_backtest(self, tenant_id, account_id):
+        if self.store.tenant(tenant_id) is None:
+            raise EngineConflict("租户不存在。")
+        event = self.store.latest_event(tenant_id, account_id, "backtest")
+        if event is None:
+            return None
+        return event["body"]
+
+    def _has_subscription_intent(self, tenant_id, symbol):
+        wanted = str(symbol).upper()
+        return any(
+            str(row["symbol"]).upper() == wanted and row["role"] == "intent"
+            for row in self.store.tenant_subscriptions(tenant_id)
+        )
+
     def export_tenant(self, tenant_id):
         return self.store.export_tenant(tenant_id)
 

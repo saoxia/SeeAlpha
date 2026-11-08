@@ -208,7 +208,7 @@ time.sleep(60)
 
 
 def test_research_backtest_catalog_is_empty(manager):
-    with pytest.raises(ValueError, match="支持的策略"):
+    with pytest.raises(ValueError, match="不再启动已删除的策略"):
         manager.start("backtest", backtest_parameters())
     assert manager.list_jobs() == []
 

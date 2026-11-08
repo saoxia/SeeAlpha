@@ -90,7 +90,8 @@ DataRequest → engine.pipeline.prepare_data.prepare_data() → PreparedDataset
   Binance 日 trades ZIP/CHECKSUM → 校验 → Rust 转换（Python 回退）
   → TradeTick / 多周期 Bar → ParquetDataCatalog → 特征 Parquet
 
-已有 Catalog → 引擎按租户加载已下发策略包 → 预览只消费目标持仓
+已有 Catalog → 开发租户声明订阅意图 → 引擎只加载已下发给该租户的包
+  → 虚拟账户资金 → PortfolioCoordinator 目标轧差 → 回测结果（成交 / 权益）
 ```
 
 数据准备默认补缺失，不因版本或配置变化自动重建。策略包不直接下载或修复数据。
@@ -401,5 +402,16 @@ ExchangeService 与 API 生命周期实现进程内分钟采集，最新展示�
 `POST /tenants/{tenant_id}/accounts/{account_id}/strategy-preview` 用模拟 venue 喂入 K 线，
 用来证明这条路径。它不是实盘，也不读取交易所密钥。
 
+开发租户在声明自己的行情订阅后，可以用虚拟账户的初始资金和报价币种，
+对已下发的包跑一段历史：`POST /api/tenants/{tenant_id}/accounts/{account_id}/backtests`，
+结果用 `GET .../backtests/latest` 读取。K 线来自现有 Catalog（`data/catalog`），
+不另建行情库，也不下载。结束时间不包含在区间内，单次最多 366 天。
+引擎先走已有 `POST /tenants/{id}/runnable` 的 `backtest` 门禁（归档租户拒绝），
+再要求租户类型是开发。正式租户即使已加载正式授权，也不能走这条研究回测；
+开发授权也不能加载到正式租户。回测不读取密钥、不发真实订单，也不新增任务表。
+
+研究目录 `/api/management` 的回测动作不再启动已删除的 `strategy_python` 策略。
+项目检查仍走原来的管理任务。
+
 管理路由在 `/api/strategy-packages` 与 `/api/tenants/{tenant_id}/strategy-loads`，均要求管理员会话。
-本轮没有前端页面，也不新增交易任务或纸交易租户。
+本轮没有新的租户页面，也不新增交易任务或纸交易租户。

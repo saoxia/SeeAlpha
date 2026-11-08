@@ -1,8 +1,9 @@
-"""Receive an issued package and preview its target holdings.
+"""Receive an issued package and run its target holdings on a simulated venue.
 
 The coordinator and the netting arithmetic clip the aggregated target, then
-target-net against the current position and submit the delta. Preview uses a
-simulated venue. It does not read credentials or send exchange orders.
+target-net against the current position and submit the delta. Preview and
+historical backtests use that venue. They do not read credentials or send
+exchange orders.
 """
 
 import base64
@@ -109,19 +110,63 @@ def preview_loads(loads, bars):
     groups = defaultdict(list)
     for load in loads:
         groups[load["parameters"]["symbol"]].append(load)
+    pieces = []
+    for symbol, group in groups.items():
+        instrument = _instrument(symbol)
+        bar_type = BarType.from_str(f"{instrument.id}-1-MINUTE-LAST-EXTERNAL")
+        pieces.append(_run_symbol(
+            symbol, group, instrument, bar_type,
+            _nautilus_bars(instrument, bar_type, rows),
+            Money(100_000, instrument.quote_currency),
+        ))
+    return _assemble(loads, pieces, include_account=False)
+
+
+def run_issued_history(loads, bars, starting: Money):
+    """Run already issued loads on catalog bars. The caller has checked the tenant."""
+    if not loads:
+        raise EngineConflict("该租户账户没有已下发的策略。")
+    if not bars:
+        raise EngineConflict("指定区间没有可用的本地 K 线。")
+    groups = defaultdict(list)
+    for load in loads:
+        groups[load["parameters"]["symbol"]].append(load)
+    if len(groups) != 1:
+        raise EngineConflict("一次回测只支持同一品种的已下发策略。")
+    symbol, group = next(iter(groups.items()))
+    instrument = _instrument(symbol)
+    if starting.currency != instrument.quote_currency:
+        raise EngineConflict("虚拟账户报价币种与策略品种不一致。")
+    bar_type = bars[0].bar_type
+    if any(bar.bar_type != bar_type for bar in bars):
+        raise EngineConflict("K 线周期不一致。")
+    if not str(bar_type).startswith(str(instrument.id)):
+        raise EngineConflict("K 线品种与策略不一致。")
+    piece = _run_symbol(symbol, group, instrument, bar_type, bars, starting)
+    result = _assemble(loads, [piece], include_account=True)
+    result["symbol"] = symbol
+    result["bar_count"] = len(bars)
+    result["quote_currency"] = instrument.quote_currency.code
+    result["starting_balance"] = format(starting.as_decimal(), "f")
+    result["ending_balance"] = piece["ending_balance"]
+    return result
+
+
+def _assemble(loads, pieces, *, include_account):
     holdings = []
     orders = []
+    fills = []
     positions = []
     coordinator_ids = []
     member_ids = []
-    for symbol, group in groups.items():
-        piece = _preview_symbol(symbol, group, rows)
+    for piece in pieces:
         holdings.extend(piece["holdings"])
         orders.extend(piece["orders"])
+        fills.extend(piece["fills"])
         positions.append(piece["position"])
         coordinator_ids.append(piece["coordinator_id"])
         member_ids.extend(piece["member_ids"])
-    return {
+    result = {
         "tenant_id": str(loads[0]["tenant_id"]),
         "account_id": str(loads[0]["account_id"]),
         "holdings": holdings,
@@ -130,11 +175,12 @@ def preview_loads(loads, bars):
         "coordinator_ids": coordinator_ids,
         "member_ids": member_ids,
     }
+    if include_account:
+        result["fills"] = fills
+    return result
 
 
-def _preview_symbol(symbol, group, rows):
-    instrument = _instrument(symbol)
-    bar_type = BarType.from_str(f"{instrument.id}-1-MINUTE-LAST-EXTERNAL")
+def _run_symbol(symbol, group, instrument, bar_type, data, starting: Money):
     risk_limit = min(Decimal(item["parameters"]["risk_limit"]) for item in group)
     coordinator = RiskClippedCoordinator(
         PortfolioCoordinatorConfig(
@@ -170,13 +216,13 @@ def _preview_symbol(symbol, group, rows):
             instrument.id.venue,
             OmsType.NETTING,
             AccountType.MARGIN,
-            [Money(100_000, instrument.quote_currency)],
+            [starting],
             default_leverage=Decimal(5),
             fee_model=instrument_fee_model(instrument),
         )
         engine.add_instrument(instrument)
         engine.add_strategies([coordinator, *[strategy for _load, strategy in bound]])
-        engine.add_data(_nautilus_bars(instrument, bar_type, rows))
+        engine.add_data(data)
         engine.run()
         holdings = []
         member_ids = []
@@ -191,10 +237,13 @@ def _preview_symbol(symbol, group, rows):
                     "weight": None if holding.weight is None else format(holding.weight, "f"),
                 })
         position = engine.portfolio.net_position(instrument.id)
+        orders = list(engine.cache.orders())
         return {
             "holdings": holdings,
-            "orders": [_order_view(order) for order in engine.cache.orders()],
+            "orders": [_order_view(order) for order in orders],
+            "fills": [view for view in (_fill_view(order) for order in orders) if view],
             "position": {"symbol": symbol, "quantity": _decimal_text(position)},
+            "ending_balance": _ending_balance(engine, instrument),
             "coordinator_id": str(coordinator.strategy_id),
             "member_ids": member_ids,
         }
@@ -265,7 +314,7 @@ def _load_member(load, instrument, bar_type, order_id_tag):
 def _instrument(symbol):
     if symbol == "ETHUSDT":
         return TestInstrumentProvider.ethusdt_perp_binance()
-    raise EngineConflict("该策略品种还不能在引擎里预览。")
+    raise EngineConflict("该策略品种还不能在引擎里运行。")
 
 
 def _normalize_bars(bars):
@@ -321,6 +370,32 @@ def _order_view(order):
         "tags": [str(tag) for tag in (order.tags or [])],
         "strategy_id": str(order.strategy_id),
     }
+
+
+def _fill_view(order):
+    filled = order.filled_qty.as_decimal()
+    if filled <= 0:
+        return None
+    price = getattr(order, "avg_px", None)
+    return {
+        "side": order.side.name if hasattr(order.side, "name") else str(order.side),
+        "quantity": format(filled, "f"),
+        "price": None if price is None else _decimal_text(price),
+        "tags": [str(tag) for tag in (order.tags or [])],
+        "strategy_id": str(order.strategy_id),
+    }
+
+
+def _ending_balance(engine, instrument):
+    account = engine.portfolio.account(instrument.id.venue)
+    cash = account.balance_total(instrument.quote_currency).as_decimal()
+    unrealized = getattr(engine.portfolio, "unrealized_pnls", None)
+    if unrealized is not None:
+        pnls = unrealized(instrument.id.venue) or {}
+        money = pnls.get(instrument.quote_currency)
+        if money is not None:
+            cash += money.as_decimal()
+    return format(cash, "f")
 
 
 def _decimal_text(position):

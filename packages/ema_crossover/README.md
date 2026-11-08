@@ -27,4 +27,4 @@ strategy.py               入口模块
 
 `prepare(parameters)` 负责本包的参数。省略 `risk_limit` 时等于本次 `allocation`。返回值必须带 `symbol`、`allocation` 和 `risk_limit`。引擎按 `symbol` 把同一账户的目标交给现有的 `PortfolioCoordinator`，先缩放到最紧的 `risk_limit`，再对当前净持仓只提交差额。订单仍由 Nautilus RiskEngine / ExecutionEngine 检查。
 
-登记、授权和加载走业务端已有的策略商店：`/api/strategy-packages` 上传归档，版本授权分成 `development` 和 `production`，下发到一个租户的一个账户。开发授权不能加载到正式租户。
+登记、授权和加载走业务端已有的策略商店：`/api/strategy-packages` 上传归档，版本授权分成 `development` 和 `production`，下发到一个租户的一个账户。开发授权不能加载到正式租户。开发租户声明该品种的订阅后，可以用虚拟账户资金对已下发的包做历史回测：`POST /api/tenants/{tenant_id}/accounts/{account_id}/backtests`。
