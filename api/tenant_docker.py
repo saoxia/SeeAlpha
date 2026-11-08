@@ -223,19 +223,27 @@ class DockerTenantManager:
             self._endpoints[tenant_id] = (self._address(container), token)
             return self._endpoints[tenant_id]
 
-    def stop(self, tenant_id, *, remove=False):
+    def stop(self, tenant_id, *, remove=False, retire=False):
         tenant_id = self._id(tenant_id)
+        if retire and not remove:
+            raise ValueError("Retiring a tenant requires removing its container")
         with self._lock:
             self._endpoints.pop(tenant_id, None)
             container = self._inspect(self._name(tenant_id))
-            if container is None:
-                return
-            self._validate_container(container, tenant_id)
-            if container["State"]["Running"]:
-                self._docker("stop", "--time", "20", self._name(tenant_id))
-            if remove:
-                self._docker("rm", self._name(tenant_id))
-            # Deliberately preserve state/data/log volumes, even on tenant deletion.
+            if container is not None:
+                self._validate_container(container, tenant_id)
+                if container["State"]["Running"]:
+                    self._docker("stop", "--time", "20", self._name(tenant_id))
+                if remove:
+                    self._docker("rm", self._name(tenant_id))
+            if retire:
+                # SQLite can reuse an integer ID after deletion. Preserve old files
+                # without letting the next tenant with that ID inherit them.
+                original = self.root / tenant_id
+                if original.exists() or original.is_symlink():
+                    retired = self.root / ".retired"
+                    retired.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    original.rename(retired / f"{tenant_id}-{secrets.token_hex(16)}")
 
     def worker_log(self, tenant_id, path):
         """Map an API log path into an isolated tenant mount; preserve the API read path."""
