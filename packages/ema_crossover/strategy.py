@@ -1,7 +1,8 @@
-"""Dual EMA crossover. Golden cross publishes a full long target; death cross publishes flat.
+"""双均线示例。金叉公布满额多头目标，死叉公布空仓。
 
-Market bars enter ``on_bar``. This module owns the two Nautilus EMAs and the
-cross decision. The only value it hands to SeeAlpha is ``publish(...)``.
+K 线进入 ``on_bar``。本模块只维护两条 Nautilus EMA 和交叉判断。
+交给引擎的唯一出口是 ``publish(...)``，这里不调用 ``submit_order``。
+同一账户的目标由 ``PortfolioCoordinator`` 净额后，再对当前净持仓提交差额。
 """
 
 from decimal import Decimal, InvalidOperation
@@ -9,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from nautilus_trader.indicators import ExponentialMovingAverage
 from nautilus_trader.trading import Strategy
 
+# 下发参数缺省值。prepare 只接受这些键。
 DEFAULTS = {
     "symbol": "ETHUSDT",
     "fast_period": 8,
@@ -19,13 +21,21 @@ DEFAULTS = {
 
 
 def prepare(parameters):
-    """Normalize issued parameters. Unknown fields and secrets are rejected by the engine."""
+    """整理下发参数，返回引擎要的字典。
+
+    返回值包含 ``symbol``、``fast_period``、``slow_period``、``allocation`` 和
+    ``risk_limit``。``symbol`` 是交易品种；``allocation`` 是满额多头数量；
+    ``risk_limit`` 是该成员目标的风险额度。``allocation`` 与 ``risk_limit`` 以十进制字符串返回。
+    调用方省略 ``risk_limit`` 时，它等于本次 ``allocation``。
+    未知字段在这里拒绝；密钥字段由引擎在调用本函数之前拒绝。
+    """
     if not isinstance(parameters, dict):
         raise TypeError("策略参数无效。")
     unknown = set(parameters) - set(DEFAULTS)
     if unknown:
         raise ValueError("策略参数包含未知字段。")
     merged = {**DEFAULTS, **parameters}
+    # 调用方没写 risk_limit 时，风险额度等于合并后的 allocation。
     if "risk_limit" not in parameters:
         merged["risk_limit"] = merged["allocation"]
     symbol = str(merged["symbol"]).upper()
@@ -47,6 +57,7 @@ def prepare(parameters):
 
 
 def _period(value, label):
+    """均线周期：2 到 500 的整数。纯数字字符串会先转成 int。"""
     if isinstance(value, bool):
         raise TypeError(f"{label}必须是整数。")
     if isinstance(value, str) and value.isdigit():
@@ -57,6 +68,7 @@ def _period(value, label):
 
 
 def _quantity(value, label):
+    """大于零的十进制数，最多 8 位小数、30 位有效数字，返回普通小数字符串。"""
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError):
@@ -74,36 +86,49 @@ def _quantity(value, label):
 
 
 class EmaCrossover(Strategy):
-    """Long the full allocation after a golden cross, otherwise flat."""
+    """金叉后目标为满额多头，死叉后目标为 0。通过 publish 交出目标持仓。"""
 
     def __init__(self, config) -> None:
         super().__init__(config)
+        # fast / slow 在 on_start 里创建。_previous 是上一组已就绪的快慢线。
+        # _quantity 是内部目标：金叉写成 allocation，死叉写成 0。
         self.fast = None
         self.slow = None
         self._previous = None
         self._quantity = Decimal(0)
 
     def on_start(self) -> None:
+        # 用 prepare 得到的周期创建 Nautilus EMA。样本数达到周期后 initialized 才为真。
         self.fast = ExponentialMovingAverage(self.parameters["fast_period"])
         self.slow = ExponentialMovingAverage(self.parameters["slow_period"])
+        # 登记后，每来一根该 bar_type 的 K 线，Nautilus 在 on_bar 之前用收盘价更新指标。
         self.register_indicator_for_bars(self.bar_type, self.fast)
         self.register_indicator_for_bars(self.bar_type, self.slow)
+        # bar_type 由引擎在启动前放好，这里只订阅这一路行情。
         self.subscribe_bars(self.bar_type)
 
     def on_bar(self, bar) -> None:
+        # 不是这一路 K 线，或任一均线尚未初始化，就不产生信号。
         if bar.bar_type != self.bar_type or not self.fast.initialized or not self.slow.initialized:
             return
+        # 指标已在进入本方法前更新，这里只读取当前值。
         fast = float(self.fast.value)
         slow = float(self.slow.value)
         previous = self._previous
         self._previous = (fast, slow)
+        # 第一根两边都就绪的 K 线只留下比较基准，不当成交叉。
         if previous is None:
             return
         previous_fast, previous_slow = previous
+        # 金叉：快线从不超过慢线变成高于慢线，内部信号改为满额多头。
         if previous_fast <= previous_slow and fast > slow:
             self._quantity = Decimal(self.parameters["allocation"])
+        # 死叉：快线从不低于慢线变成低于慢线，内部信号改为空仓。
         elif previous_fast >= previous_slow and fast < slow:
             self._quantity = Decimal(0)
         else:
+            # 没有新的交叉就不改目标，也不再次公布。
             return
+        # quantity 是 Decimal：allocation 为满额多头，0 为空仓。
+        # 策略不调用 submit_order。PortfolioCoordinator 汇总目标后，只对净持仓提交差额。
         self.publish(symbol=self.parameters["symbol"], quantity=self._quantity)
