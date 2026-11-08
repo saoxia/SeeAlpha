@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1"
 arrow-array = "60"
+arrow-ipc = "60"
 arrow-schema = "60"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
