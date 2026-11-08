@@ -51,9 +51,58 @@ class LoginFailure(Base):
     __table_args__ = (Index("orm_login_failures_lookup", "identity_hash", "attempted_at"),)
 
 
+class TenantTemplate(Base):
+    """Empty creation preset. It is not a runnable tenant and holds no market or account data."""
+
+    __tablename__ = "tenant_templates"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        CheckConstraint("purpose in ('production','development')", name="tenant_templates_purpose_check"),
+        Index("tenant_templates_name_unique", func.lower(name), unique=True),
+    )
+
+
+class Tenant(Base):
+    __tablename__ = "tenants"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    template_id: Mapped[int] = mapped_column(ID, nullable=False)
+    purpose: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="active", server_default="active")
+    system_key: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    archived_at: Mapped[int | None] = mapped_column(BigInteger)
+    __table_args__ = (
+        CheckConstraint("purpose in ('production','development')", name="tenants_purpose_check"),
+        CheckConstraint("status in ('active','archived')", name="tenants_status_check"),
+        Index("tenants_name_unique", func.lower(name), unique=True),
+        Index("tenants_system_key_unique", system_key, unique=True),
+    )
+
+
+class VirtualAccount(Base):
+    __tablename__ = "virtual_accounts"
+    id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(ID, nullable=False, index=True)
+    account_name: Mapped[str] = mapped_column(Text, nullable=False)
+    initial_capital: Mapped[str] = mapped_column(Text, nullable=False)
+    quote_currency: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    __table_args__ = (
+        Index("virtual_accounts_name_unique", "tenant_id", func.lower(account_name), unique=True),
+    )
+
+
 class ExchangeAccount(Base):
     __tablename__ = "exchange_accounts"
     id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(ID, nullable=False)
     exchange: Mapped[str] = mapped_column(Text, nullable=False)
     account_name: Mapped[str] = mapped_column(Text, nullable=False)
     environment: Mapped[str] = mapped_column(Text, nullable=False)
@@ -68,7 +117,13 @@ class ExchangeAccount(Base):
     __table_args__ = (
         CheckConstraint("environment in ('production','sandbox')"),
         CheckConstraint("last_test_status is null or last_test_status in ('success','failed')"),
-        Index("orm_account_name_unique", exchange, func.lower(account_name), unique=True),
+        Index(
+            "orm_account_tenant_name_unique",
+            "tenant_id",
+            exchange,
+            func.lower(account_name),
+            unique=True,
+        ),
     )
 
 
@@ -150,6 +205,7 @@ class ManagementJob(Base):
 
 class MarketDataPolicy(Base):
     __tablename__ = "market_data_policies"
+    tenant_id: Mapped[int] = mapped_column(ID, primary_key=True)
     product: Mapped[str] = mapped_column(Text, primary_key=True)
     symbol: Mapped[str] = mapped_column(Text, primary_key=True)
     parameters: Mapped[dict] = mapped_column(DOCUMENT, nullable=False)

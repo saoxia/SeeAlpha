@@ -7,6 +7,7 @@ from pathlib import Path
 
 from api.config import Settings
 from api.db.database import create_database
+from api.tenants.repository import TenantRepository
 from core.paths import PROJECT_ROOT
 
 from .contracts import DataPolicy
@@ -36,10 +37,11 @@ def main():
             except BlockingIOError:
                 parser.error("Stop the API and managed services before importing configuration")
             repository = PolicyRepository(database)
-            existing = [DataPolicy.model_validate(item) for item in repository.list()]
+            tenant_id = TenantRepository(database).require_default()["id"]
+            existing = [DataPolicy.model_validate(item) for item in repository.list(tenant_id=tenant_id)]
             keys = {(p.product, p.symbol) for p in existing}
             added = [p for p in policies if (p.product, p.symbol) not in keys]
-            repository.save([*existing, *added])
+            repository.save([*existing, *added], tenant_id=tenant_id)
             print(f"Imported {len(added)} pair configurations; existing parameters and source file preserved.")
 
     finally:

@@ -164,7 +164,7 @@ class ManualTrading:
             self.cache[identity] = (time.monotonic(), result)
             return result
 
-    async def _sync_ledger(self, account_id, stored):
+    async def _sync_ledger(self, tenant_id, account_id, stored):
         if stored.get("ledger_synced") or not stored.get("records"):
             return
         request_id = stored["response"]["request_id"]
@@ -173,10 +173,10 @@ class ManualTrading:
                 await asyncio.to_thread(self.operations.repository.ingest, record)
         except (StorageUnavailable, StorageConflict):
             stored["response"]["message"] += "；执行证据已保存在本机，账本暂未同步。"
-            self.engine.save_request(account_id, request_id, stored)
+            self.engine.save_request(tenant_id, account_id, request_id, stored)
         else:
             stored["ledger_synced"] = True
-            self.engine.save_request(account_id, request_id, stored)
+            self.engine.save_request(tenant_id, account_id, request_id, stored)
 
     async def command(self, account_id, payload, action):
         # The engine reserves request_id in SQLite before any native node can send.
@@ -196,7 +196,7 @@ class ManualTrading:
             if not stored.get("replay"):
                 self.cache.clear()
                 self.exchanges.invalidate(account_id)
-            await self._sync_ledger(account_id, stored)
+            await self._sync_ledger(account["tenant_id"], account_id, stored)
             return stored["response"]
 
 
@@ -223,7 +223,7 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
     account = await asyncio.to_thread(service.accounts.private, account_id)
     if account["environment"] != environment:
         raise HTTPException(409, "账户环境已变化，不能用新环境核对原委托。")
-    stored = service.engine.get_request(account_id, request_id)
+    stored = service.engine.get_request(account["tenant_id"], account_id, request_id)
     if stored is None:
         raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
     response = stored["response"]

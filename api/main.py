@@ -34,6 +34,8 @@ from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
+from .tenants.router import router as tenants_router
+from .tenants.service import TenantService
 
 
 def create_app(settings: Settings | None = None, *, project: Path | None = None) -> FastAPI:
@@ -50,6 +52,11 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         runtime = None
         try:
             database.initialize()
+            default_tenant = app.state.tenants.repository.require_default()
+            if default_tenant is not None:
+                app.state.engine.ensure_tenant(
+                    default_tenant["id"], default_tenant["purpose"], default_tenant["status"]
+                )
             if app.state.management_project is not None:
                 # Another process may already hold the management lock. Startup
                 # still continues; only that holder runs and recovers jobs.
@@ -131,6 +138,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                                       app.state.engine.root, app.state.engine)
     app.state.market_data = DataService(database)
     app.state.market_data.engine = app.state.engine
+    app.state.tenants = TenantService(database, app.state.engine, app.state.accounts)
     app.state.management = None
     app.state.management_project = (
         project if project is not None else PROJECT if settings.require_database_url else None
@@ -186,6 +194,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(olap_router, prefix="/api")
     app.include_router(market_data_router, prefix="/api")
     app.include_router(management_router, prefix="/api")
+    app.include_router(tenants_router, prefix="/api")
     return app
 
 

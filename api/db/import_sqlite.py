@@ -98,6 +98,8 @@ def import_legacy(source: Path, database, *, backup_directory: Path):
             while rows := cursor.fetchmany(500):
                 for original_row in rows:
                     value = {k: original_row[k] for k in list(original_row.keys()) if k in allowed}
+                    if table_name == "exchange_accounts" and "tenant_id" not in value:
+                        value["tenant_id"] = 1
                     if "body" in value:
                         value["body"] = json.loads(value["body"])
                     session.add(model(**value))

@@ -18,9 +18,10 @@ class Credentials(BaseModel):
     api_key: str = Field(min_length=1)
     api_secret: str = Field(min_length=1)
 
-    def account(self, account_id):
+    def account(self, tenant_id, account_id):
         return {
             "id": int(account_id) if str(account_id).isdigit() else account_id,
+            "tenant_id": str(tenant_id),
             "environment": self.environment,
             "credentials": {"apiKey": self.api_key, "secret": self.api_secret},
         }
@@ -46,6 +47,20 @@ class WorkerBody(BaseModel):
     log_mode: str = "ab"
 
 
+class TenantBody(BaseModel):
+    purpose: str = Field(pattern=r"^(production|development)$")
+    status: str = Field(default="active", pattern=r"^(active|archived)$")
+
+
+class RunnableBody(BaseModel):
+    action: str = Field(pattern=r"^(live|backtest)$")
+
+
+class ImportBody(BaseModel):
+    purpose: str = Field(pattern=r"^(production|development)$")
+    payload: dict
+
+
 class GapBody(BaseModel):
     scope: str
     gap_key: str
@@ -54,6 +69,14 @@ class GapBody(BaseModel):
 
 class WorkerNote(BaseModel):
     command: list[str]
+
+
+class SubscriptionBody(BaseModel):
+    product: str
+    symbol: str
+    role: str
+    state: str
+    progress: dict = Field(default_factory=dict)
 
 
 def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None = None) -> FastAPI:
@@ -72,26 +95,58 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
         raise HTTPException(409, error.message) from None
 
     @app.get("/health")
-    def health(account_id: str | None = None):
-        return runtime.health(account_id)
+    def health(tenant_id: str | None = None, account_id: str | None = None):
+        return runtime.health(tenant_id, account_id)
 
-    @app.post("/accounts/{account_id}/connections")
-    def connect(account_id: str, body: Credentials):
-        return runtime.register(account_id, body.environment, body.api_key, body.api_secret)
-
-    @app.delete("/accounts/{account_id}/connections")
-    def disconnect(account_id: str, environment: str):
-        runtime.forget(account_id, environment)
-        return {"account_id": account_id, "environment": environment, "status": "closed"}
-
-    @app.get("/accounts/{account_id}/health")
-    def account_health(account_id: str):
-        return runtime.health(account_id)
-
-    @app.post("/accounts/{account_id}/snapshots")
-    async def snapshot(account_id: str, body: Credentials):
+    @app.put("/tenants/{tenant_id}")
+    def ensure_tenant(tenant_id: str, body: TenantBody):
         try:
-            result = await runtime.account_snapshot(body.account(account_id))
+            return runtime.ensure_tenant(tenant_id, body.purpose, body.status)
+        except EngineConflict as error:
+            conflict(error)
+
+    @app.post("/tenants/{tenant_id}/runnable")
+    def runnable(tenant_id: str, body: RunnableBody):
+        try:
+            return runtime.assert_runnable(tenant_id, body.action)
+        except EngineConflict as error:
+            conflict(error)
+
+    @app.get("/tenants/{tenant_id}/export")
+    def export_tenant(tenant_id: str):
+        return runtime.export_tenant(tenant_id)
+
+    @app.post("/tenants/{tenant_id}/drop")
+    def drop_tenant(tenant_id: str, remove: bool = False):
+        return runtime.drop_tenant(tenant_id, remove=remove)
+
+    @app.post("/tenants/{tenant_id}/import")
+    def import_tenant(tenant_id: str, body: ImportBody):
+        return runtime.import_tenant(tenant_id, body.purpose, body.payload)
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/connections")
+    def connect(tenant_id: str, account_id: str, body: Credentials):
+        try:
+            return runtime.register(tenant_id, account_id, body.environment, body.api_key, body.api_secret)
+        except EngineConflict as error:
+            conflict(error)
+
+    @app.delete("/tenants/{tenant_id}/accounts/{account_id}/connections")
+    def disconnect(tenant_id: str, account_id: str, environment: str):
+        runtime.forget(tenant_id, account_id, environment)
+        return {
+            "tenant_id": tenant_id, "account_id": account_id,
+            "environment": environment, "status": "closed",
+        }
+
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/health")
+    def account_health(tenant_id: str, account_id: str):
+        return runtime.health(tenant_id, account_id)
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/snapshots")
+    async def snapshot(tenant_id: str, account_id: str, body: Credentials):
+        try:
+            result = await runtime.account_snapshot(body.account(tenant_id, account_id))
         except EngineConflict as error:
             conflict(error)
         return {
@@ -99,79 +154,89 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             "positions": result.positions, "observed_at": result.observed_at,
         }
 
-    @app.post("/accounts/{account_id}/manual")
-    async def manual(account_id: str, body: ManualBody):
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/manual")
+    async def manual(tenant_id: str, account_id: str, body: ManualBody):
         try:
-            return await runtime.manual_execute(body.account(account_id), body.symbol, body.command)
-        except EngineConflict as error:
-            conflict(error)
-
-    @app.post("/accounts/{account_id}/orders")
-    async def order(account_id: str, body: CommandBody):
-        try:
-            return await runtime.command(
-                body.account(account_id), body.action, body.values, body.fingerprint, body.client_order_id,
+            return await runtime.manual_execute(
+                body.account(tenant_id, account_id), body.symbol, body.command
             )
         except EngineConflict as error:
             conflict(error)
 
-    @app.get("/accounts/{account_id}/orders")
-    def orders(account_id: str, environment: str):
-        return {"orders": runtime.store.orders(account_id, environment)}
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/orders")
+    async def order(tenant_id: str, account_id: str, body: CommandBody):
+        try:
+            return await runtime.command(
+                body.account(tenant_id, account_id),
+                body.action, body.values, body.fingerprint, body.client_order_id,
+            )
+        except EngineConflict as error:
+            conflict(error)
 
-    @app.get("/accounts/{account_id}/fills")
-    def fills(account_id: str, environment: str):
-        return {"fills": runtime.store.fills(account_id, environment)}
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/orders")
+    def orders(tenant_id: str, account_id: str, environment: str):
+        return {"orders": runtime.store.orders(tenant_id, account_id, environment)}
 
-    @app.get("/accounts/{account_id}/positions")
-    def positions(account_id: str, environment: str):
-        return {"positions": runtime.store.positions(account_id, environment)}
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/fills")
+    def fills(tenant_id: str, account_id: str, environment: str):
+        return {"fills": runtime.store.fills(tenant_id, account_id, environment)}
 
-    @app.get("/accounts/{account_id}/gaps")
-    def gaps(account_id: str, scope: str | None = None):
-        return {"gaps": runtime.store.gaps(account_id, scope)}
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/positions")
+    def positions(tenant_id: str, account_id: str, environment: str):
+        return {"positions": runtime.store.positions(tenant_id, account_id, environment)}
 
-    @app.post("/accounts/{account_id}/gaps")
-    def put_gap(account_id: str, body: GapBody):
-        return runtime.note_gap(account_id, body.scope, body.gap_key, body.gap)
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/gaps")
+    def gaps(tenant_id: str, account_id: str, scope: str | None = None):
+        return {"gaps": runtime.store.gaps(tenant_id, account_id, scope)}
 
-    @app.get("/accounts/{account_id}/requests/{request_id}")
-    def request_row(account_id: str, request_id: str):
-        stored = runtime.store.get_request(account_id, request_id)
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/gaps")
+    def put_gap(tenant_id: str, account_id: str, body: GapBody):
+        return runtime.note_gap(tenant_id, account_id, body.scope, body.gap_key, body.gap)
+
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/requests/{request_id}")
+    def request_row(tenant_id: str, account_id: str, request_id: str):
+        stored = runtime.store.get_request(tenant_id, account_id, request_id)
         if stored is None:
             raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
         return stored
 
-    @app.put("/accounts/{account_id}/requests/{request_id}")
-    def save_request(account_id: str, request_id: str, body: dict):
-        return runtime.save_request(account_id, request_id, body)
+    @app.put("/tenants/{tenant_id}/accounts/{account_id}/requests/{request_id}")
+    def save_request(tenant_id: str, account_id: str, request_id: str, body: dict):
+        return runtime.save_request(tenant_id, account_id, request_id, body)
 
-    @app.get("/accounts/{account_id}/events")
-    def events(account_id: str, after: int = 0):
-        rows = runtime.store.events(account_id, after)
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/events")
+    def events(tenant_id: str, account_id: str, after: int = 0):
+        rows = runtime.store.events(tenant_id, account_id, after)
         return {"events": rows, "next": rows[-1]["id"] if rows else after}
 
-    @app.get("/accounts/{account_id}/market/subscriptions")
-    def subscriptions(account_id: str):
-        return {"subscriptions": runtime.store.subscriptions(account_id)}
+    @app.get("/tenants/{tenant_id}/accounts/{account_id}/market/subscriptions")
+    def subscriptions(tenant_id: str, account_id: str):
+        return {"subscriptions": runtime.store.subscriptions(tenant_id, account_id)}
 
-    @app.post("/accounts/{account_id}/market/workers/note")
-    def note_worker(account_id: str, body: WorkerNote):
-        noted = runtime.note_worker(account_id, body.command)
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/market/subscriptions")
+    def put_subscription(tenant_id: str, account_id: str, body: SubscriptionBody):
+        return runtime.note_subscription(
+            tenant_id, account_id, body.product, body.symbol, body.role, body.state, body.progress
+        )
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/market/workers/note")
+    def note_worker(tenant_id: str, account_id: str, body: WorkerNote):
+        noted = runtime.note_worker(tenant_id, account_id, body.command)
         if noted is None:
             raise HTTPException(422, "无法从命令识别行情订阅。")
         return noted
 
-    @app.post("/accounts/{account_id}/market/workers")
-    def start_worker(account_id: str, body: WorkerBody):
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/market/workers")
+    def start_worker(tenant_id: str, account_id: str, body: WorkerBody):
         try:
             started = runtime.spawn_worker(
-                body.command, body.log_path, access=tuple(body.access) if body.access else None,
+                body.command, body.log_path, tenant_id=tenant_id,
+                access=tuple(body.access) if body.access else None,
                 hold_lease=body.hold_lease, log_mode=body.log_mode,
             )
         except EngineConflict as error:
             conflict(error)
-        runtime.note_worker(account_id, body.command)
+        runtime.note_worker(tenant_id, account_id, body.command)
         return started
 
     @app.get("/workers/{worker_id}")
@@ -188,15 +253,15 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
         except EngineConflict as error:
             raise HTTPException(404, error.message) from None
 
-    @app.post("/accounts/{account_id}/valuation")
-    async def valuation(account_id: str, body: Credentials):
-        account = body.account(account_id)
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/valuation")
+    async def valuation(tenant_id: str, account_id: str, body: Credentials):
+        account = body.account(tenant_id, account_id)
 
         async def lines():
             try:
                 async with aclosing(valuation_events(account)) as events:
                     async for event in events:
-                        runtime.store.add_event(account_id, "valuation", {
+                        runtime.store.add_event(tenant_id, account_id, "valuation", {
                             "environment": body.environment, "reason": event.get("reason"), "time": event.get("time"),
                         })
                         yield json.dumps(event, ensure_ascii=False) + "\n"

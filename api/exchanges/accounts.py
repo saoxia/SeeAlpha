@@ -74,13 +74,21 @@ class Accounts:
             "market_symbols": json.loads(row["market_symbols_json"]),
         }
 
+    def default_tenant_id(self):
+        from api.tenants.repository import TenantRepository
+
+        return TenantRepository(self.database).require_default()["id"]
+
     def list(self):
-        return [self.public(row) for row in self.repository.list_exchange_accounts()]
+        return [
+            self.public(row)
+            for row in self.repository.list_exchange_accounts(self.default_tenant_id())
+        ]
 
     def navigation(self):
         return [
             {name: row[name] for name in ("id", "exchange", "account_name")}
-            for row in self.repository.list_exchange_accounts()
+            for row in self.repository.list_exchange_accounts(self.default_tenant_id())
         ]
 
     def private(self, account_id):
@@ -89,7 +97,7 @@ class Accounts:
             raise HTTPException(422, "当前原生账户查询仅支持 Binance USD-M。")
         return {**dict(row), "credentials": self.decrypt(row)}
 
-    def save(self, payload, account_id=None):
+    def save(self, payload, account_id=None, tenant_id=None):
         old = self.row(account_id) if account_id is not None else None
         exchange = old["exchange"] if old else payload.exchange
         if exchange != "binance":
@@ -128,7 +136,11 @@ class Accounts:
             if old:
                 row = self.repository.update_exchange_account(account_id, **values)
             else:
-                row = self.repository.create_exchange_account(exchange=exchange, **values)
+                row = self.repository.create_exchange_account(
+                    tenant_id=tenant_id if tenant_id is not None else self.default_tenant_id(),
+                    exchange=exchange,
+                    **values,
+                )
         except (sqlite3.IntegrityError, StorageConflict):
             raise HTTPException(409, "同一交易所内账户名称不能重复。") from None
         return self.public(row)

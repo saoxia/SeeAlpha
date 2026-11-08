@@ -34,6 +34,9 @@ def verify_existing_postgres(connection, schema):
             column["name"]: column for column in inspector.get_columns(table.name, schema=schema)
         }
         expected = {column.name: column for column in table.columns}
+        if table.name == "exchange_accounts":
+            # tenant_id is added by a later migration. Baseline databases predate it.
+            expected.pop("tenant_id", None)
         if not expected.keys() <= actual.keys():
             raise RuntimeError(f"已有数据库的 {table.name} 字段不完整。")
         primary = set(
@@ -114,6 +117,13 @@ def verify_existing_postgres(connection, schema):
         )
 
     for table, expressions, predicate in checks:
-        if not any(matches(value, table, expressions, predicate) for value in definitions):
+        if table == "exchange_accounts":
+            shapes = (expressions, ("tenant_id", "exchange", "lower(account_name)"))
+            found = any(
+                matches(value, table, shape, predicate) for value in definitions for shape in shapes
+            )
+        else:
+            found = any(matches(value, table, expressions, predicate) for value in definitions)
+        if not found:
             raise RuntimeError(f"已有数据库的 {table} 唯一索引不匹配。")
     return True
