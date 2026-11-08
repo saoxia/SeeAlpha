@@ -21,39 +21,33 @@ SCAN_PATH = ("1d", "4h", "1h", "15m", "5m", "1m")
 FIELDS = ("open", "high", "low", "close", "volume")
 
 
-def local_klines(catalog, symbol, source, level, start_ms, end_ms):
-    """Aggregate actual source rows, never infer contents from file coverage."""
-    identifier = instrument_id_for(symbol) if source == "tick" else bar_type_for(symbol, source)
-    data_type = NautilusDataType.TradeTick if source == "tick" else NautilusDataType.Bar
-    step = 1000 if source == "1s" else 60000
-    stream = catalog.native.query_data_arrow_stream(
-        data_type, [identifier], start_ms * 1000000, end_ms * 1000000 - 1, display=False)
-    reader = pa.RecordBatchReader._import_from_c_capsule(stream)
+def local_klines(catalog, symbol, level, start_ms, end_ms):
+    """Read saved target candles; old minute-only catalogs need at most 1,440 rows."""
+    bars = catalog.bars(bar_types=[bar_type_for(symbol, level)],
+                        start=start_ms * 1000000, end=end_ms * 1000000 - 1)
+    source = level
+    if not bars and level != "1m":
+        source = "1m"
+        bars = catalog.bars(bar_types=[bar_type_for(symbol, source)],
+                            start=start_ms * 1000000, end=end_ms * 1000000 - 1)
     buckets = {}
-    try:
-        for batch in reader:
-            for offset in range(0, batch.num_rows, 1000):
-                piece = batch.slice(offset, 1000)
-                stamps = piece.column("ts_event").cast(pa.int64()).to_pylist()
-                for stamp, row in zip(stamps, piece.to_pylist(), strict=True):
-                    opening = stamp // 1000000 if source == "tick" else stamp // 1000000 + 1 - step
-                    left, _ = bar_window(level, opening)
-                    values = ([Decimal(str(row["price"]))] * 4 + [Decimal(str(row["size"]))]
-                              if source == "tick" else [Decimal(str(row[name])) for name in FIELDS])
-                    key = (stamp, int(row["trade_id"])) if source == "tick" else (stamp, 0)
-                    if left not in buckets:
-                        buckets[left] = {"values": values, "first": key, "last": key, "count": 1}
-                    else:
-                        bucket = buckets[left]
-                        old = bucket["values"]
-                        if key < bucket["first"]:
-                            old[0], bucket["first"] = values[0], key
-                        if key > bucket["last"]:
-                            old[3], bucket["last"] = values[3], key
-                        old[1], old[2], old[4] = max(old[1], values[1]), min(old[2], values[2]), old[4] + values[4]
-                        bucket["count"] += 1
-    finally:
-        reader.close()
+    for bar in bars:
+        opening, closing = bar_window(source, bar.ts_event // 1000000)
+        if bar.ts_event != (closing - 1) * 1000000:
+            raise ValueError("已保存 K 线时间边界无效；不标记核验完成")
+        left, right = bar_window(level, opening)
+        values = [getattr(bar, field).as_decimal() for field in FIELDS]
+        if left not in buckets:
+            buckets[left] = {"values": values, "end": closing,
+                             "complete": opening == left and closing <= right}
+        else:
+            bucket = buckets[left]
+            old = bucket["values"]
+            bucket["complete"] &= opening == bucket["end"]
+            old[1], old[2], old[3], old[4] = max(old[1], values[1]), min(old[2], values[2]), values[3], old[4] + values[4]
+            bucket["end"] = closing
+    for left, bucket in buckets.items():
+        bucket["complete"] &= bucket["end"] == bar_window(level, left)[1]
     return buckets
 
 
@@ -83,18 +77,10 @@ async def remote_klines(rest, symbol, level, start_ms, end_ms, available_ms):
     return result
 
 
-def differs(local, remote, source, available_ms):
+def differs(local, remote, source):
     if local is None:
         return not (source in {"tick", "1s"} and remote["count"] == 0 and remote["values"][4] == 0)
-    if local["values"] != remote["values"]:
-        return True
-    if source == "tick":
-        return local["count"] != remote["count"]
-    if source == "1m":
-        # Missing zero-volume minutes must not disappear behind equal OHLCV.
-        begin = max(remote["start_ms"], available_ms // 60000 * 60000)
-        return local["count"] != (remote["end_ms"] - begin) // 60000
-    return False  # Legacy seconds have no fabricated buckets for no-trade seconds.
+    return local["values"] != remote["values"] or not local["complete"]
 
 
 async def scan_day(rest, catalog, symbol, source, start_ms, end_ms, available_ms):
@@ -104,10 +90,10 @@ async def scan_day(rest, catalog, symbol, source, start_ms, end_ms, available_ms
     async def descend(level_index, left, right):
         level = SCAN_PATH[level_index]
         remote = await remote_klines(rest, symbol, level, left, right, available_ms)
-        local = await asyncio.to_thread(local_klines, catalog, symbol, source, level, left, right)
+        local = await asyncio.to_thread(local_klines, catalog, symbol, level, left, right)
         found = False
         for item in remote:
-            if not differs(local.get(item["start_ms"]), item, source, available_ms):
+            if not differs(local.get(item["start_ms"]), item, source):
                 continue
             found = True
             if level == "1m":
@@ -226,27 +212,50 @@ def repair_candidates(policy, settings, catalog, source, candidates, day, instru
     return written, conflicts
 
 
-async def reconcile_day(policy, settings, rest, source, day, finish, available_ms):
-    catalog = ParquetDataCatalog(settings.catalog_dir)
-    instrument = (await asyncio.to_thread(ensure_instruments, catalog, (policy["symbol"],)))[policy["symbol"]]
+async def reconcile_day(policy, settings, rest, source, day, finish, available_ms, *, comparison_catalog=None):
+    if source in {"tick", "1s"}:
+        from pipeline.pair_data import _history_archive_available
+        if not await asyncio.to_thread(_history_archive_available, policy, settings, day, finish):
+            return {"ready": False, "checked_at": datetime.now(UTC).isoformat(), "records_written": 0,
+                    "archive_pending": True, "scope": "saved_kline_ohlcv"}
+    comparison = ParquetDataCatalog(comparison_catalog or settings.catalog_dir)
     start_ms, end_ms = int(day.timestamp() * 1000), int(finish.timestamp() * 1000)
-    candidates, unresolved = await scan_day(rest, catalog, policy["symbol"], source, start_ms, end_ms, available_ms)
-    writing = asyncio.create_task(asyncio.to_thread(repair_candidates, policy, settings, catalog, source, candidates, day, instrument))
-    try:
-        written, conflicts = await asyncio.shield(writing)
-    except asyncio.CancelledError:
-        # Keep the caller's file lease until the worker has actually stopped writing.
-        await writing
-        raise
-    remaining, after_errors = (await scan_day(rest, catalog, policy["symbol"], source, start_ms, end_ms, available_ms)
-                               if written else (candidates, []))
-    return {"ready": not remaining and not unresolved and not conflicts and not after_errors,
+    candidates, unresolved = await scan_day(rest, comparison, policy["symbol"], source, start_ms, end_ms, available_ms)
+    written, conflicts = 0, []
+    if candidates:
+        catalog = ParquetDataCatalog(settings.catalog_dir)
+        instrument = (await asyncio.to_thread(ensure_instruments, catalog, (policy["symbol"],)))[policy["symbol"]]
+        writing = asyncio.create_task(asyncio.to_thread(repair_candidates, policy, settings, catalog, source, candidates, day, instrument))
+        try:
+            written, conflicts = await asyncio.shield(writing)
+        except asyncio.CancelledError:
+            # Keep the caller's file lease until the worker has actually stopped writing.
+            await writing
+            raise
+    remaining, after_errors = (await scan_day(rest, comparison, policy["symbol"], source, start_ms, end_ms, available_ms)
+                               if written and source == "1m" else (candidates, []))
+    needs_calculation = (bool(candidates) and source != "1m" and not conflicts
+                         or bool(written) and any(level != source for level in policy.get("intervals", [])))
+    if not remaining and not unresolved and not conflicts and not after_errors:
+        # A matching minute-only catalog is valid comparison evidence, but do not
+        # finish an explicit managed policy before its requested outputs exist.
+        active = comparison.bars(bar_types=[bar_type_for(policy["symbol"], "1m"), bar_type_for(policy["symbol"], "1d")],
+                                 start=start_ms * 1000000, end=end_ms * 1000000 - 1)
+        if any(bar.volume.as_decimal() > 0 for bar in active):
+            for level in policy.get("intervals", []):
+                if level in {"1s", *SCAN_PATH} and not any(
+                        first < end_ms * 1000000 and last >= start_ms * 1000000
+                        for first, last in comparison.get_intervals(Bar, bar_type_for(policy["symbol"], level))):
+                    needs_calculation = True
+                    break
+    return {"ready": not remaining and not unresolved and not conflicts and not after_errors and not needs_calculation,
             "checked_at": datetime.now(UTC).isoformat(), "records_written": written,
+            "needs_calculation": needs_calculation,
             "candidates": len(candidates), "remaining_minutes": [item["start_ms"] for item in remaining],
             "conflicts": conflicts + unresolved + after_errors,
             "differences": [{"start_ms": item["start_ms"], "expected": dict(zip(FIELDS, map(str, item["values"]), strict=True)),
                              "expected_trade_count": item["count"],
                              "observed": dict(zip(FIELDS, map(str, item["local"]["values"]), strict=True)) if item["local"] else None,
-                             "observed_source_rows": item["local"]["count"] if item["local"] else 0}
+                             "observed_complete": item["local"]["complete"] if item["local"] else False}
                             for item in remaining],
-            "scope": "hierarchical_ohlcv_and_available_trade_count"}
+            "scope": "saved_kline_ohlcv"}

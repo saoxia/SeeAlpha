@@ -5,7 +5,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
-from itertools import pairwise
+from heapq import merge
 
 from core.market.instruments import INTERVALS, bar_window
 from core.market.models import DataError
@@ -40,6 +40,8 @@ class PairStore:
     def __init__(self, path, symbol, base_level, intervals=()):
         self.symbol, self.base_level = symbol, base_level
         self.retained = set(intervals) | ({base_level} if base_level != "tick" else set())
+        if self.retained:
+            self.retained.add("1s")
         if self.retained - set(INTERVALS):
             raise ValueError("Unsupported candle interval")
         self.forming = {}
@@ -123,7 +125,8 @@ class PairStore:
             # venue closes and conflicting raw identities retain their original evidence.
             derived = (source in {"raw_trades", "1s", "1m"} and len(previous["source_levels"]) == 1
                        and previous["source_levels"][0] in {"raw_trades", "1s", "1m"})
-            if previous["is_complete"] and not value["is_complete"] and (not derived or not differs):
+            if previous["is_complete"] and not value["is_complete"] and (
+                    not derived or not differs or previous["source_levels"] != value["source_levels"]):
                 prior = self.latest.get(interval)
                 if retained and interval in self.retained and (prior is None or left >= prior["start_ms"]):
                     self.latest[interval] = previous
@@ -217,30 +220,34 @@ class PairStore:
                 ORDER BY CASE source WHEN 'tick' THEN 0 WHEN '1s' THEN 1 WHEN '1m' THEN 2 ELSE 3 END,start_ms LIMIT 1""").fetchone():
             source, stamp = row
             if source == "tick" and self.retained:
-                # New managed policies use official minutes directly. Explicit
-                # legacy second retention keeps its public CLI behaviour only.
-                target = "1s" if "1s" in self.retained else "1m"
-                left, right = bar_window(target, stamp)
+                left, right = bar_window("1s", stamp)
                 trades = self.db.execute("SELECT timestamp_ms,price,size FROM trades WHERE timestamp_ms>=? AND timestamp_ms<? ORDER BY timestamp_ms,id",
                                          (left, right)).fetchall()
                 if trades:
                     prices = [Decimal(value[1]) for value in trades]
-                    complete = (self.started_ms is not None and left >= self.started_ms
-                                and (target == "1s" or len({value[0] // 1000 for value in trades}) == 60))
-                    self.candle(target, [left, str(prices[0]), str(max(prices)), str(min(prices)), str(prices[-1]),
+                    complete = self.started_ms is not None and left >= self.started_ms
+                    self.candle("1s", [left, str(prices[0]), str(max(prices)), str(min(prices)), str(prices[-1]),
                                 str(sum((Decimal(value[2]) for value in trades), Decimal(0))), right - 1],
-                                now_ms, complete=complete, source="raw_trades", retained=target in self.retained)
+                                now_ms, complete=complete, source="raw_trades", retained=True)
                 with self.db:
                     self.db.execute("DELETE FROM pending_updates WHERE source='tick' AND start_ms>=? AND start_ms<?", (left, right))
             elif source == "1s" and self.retained - {"1s"}:
-                self._rollup("1s", "1m", stamp, now_ms)
-            elif source == "1m":
+                # Coalesce each affected high window before reading its seconds.
+                # A failed target leaves every source receipt available for replay.
+                seconds = [value[0] for value in self.db.execute(
+                    "SELECT start_ms FROM pending_updates WHERE source='1s' ORDER BY start_ms")]
                 for interval in INTERVALS:
-                    if interval in self.retained - {"1s", "1m"}:
-                        self._rollup("1m", interval, stamp, now_ms)
+                    if interval in self.retained - {"1s"}:
+                        windows = dict.fromkeys(bar_window(interval, value)[0] for value in seconds)
+                        for opening in windows:
+                            self._rollup("1s", interval, opening, now_ms)
+                with self.db:
+                    self.db.executemany("DELETE FROM pending_updates WHERE source='1s' AND start_ms=?",
+                                        ((value,) for value in seconds))
+                continue
             with self.db:
                 self.db.execute("DELETE FROM pending_updates WHERE source=? AND start_ms=?", row)
-        # Internal seconds/minutes are bounded working inputs, not retained datasets.
+        # Clean only legacy internal caches; retained seconds remain durable data.
         before = min((bar_window(level, max(0, bar_window(level, now_ms)[0] - 1))[0]
                       for level in self.retained - {"1s", "1m"}), default=now_ms - 120000)
         with self.db:
@@ -252,22 +259,29 @@ class PairStore:
 
     def _rollup(self, source, target, stamp, now_ms):
         left, right = bar_window(target, stamp)
-        rows = {value["start_ms"]: value for record in self.db.execute(
+        forming = {start: value for (interval, start), value in self.forming.items()
+                   if interval == source and left <= start < right}
+        records = self.db.execute(
             "SELECT value FROM candles WHERE interval=? AND start_ms>=? AND end_ms<=? ORDER BY start_ms",
-            (source, left, right)) if (value := json.loads(record[0]))}
-        rows.update({start: value for (interval, start), value in self.forming.items()
-                     if interval == source and left <= start < right})
-        values = sorted(rows.values(), key=lambda value: value["start_ms"])
-        if not values:
+            (source, left, right))
+        closed = (value for record in records if (value := json.loads(record[0]))["start_ms"] not in forming)
+        values = merge(closed, sorted(forming.values(), key=lambda value: value["start_ms"]),
+                       key=lambda value: value["start_ms"])
+        opening = high = low = close = None
+        volume, previous_end, complete = Decimal(0), left, True
+        for value in values:
+            if opening is None:
+                opening = value["open"]
+            high = max(high, Decimal(value["high"])) if high is not None else Decimal(value["high"])
+            low = min(low, Decimal(value["low"])) if low is not None else Decimal(value["low"])
+            close = value["close"]
+            volume += Decimal(value["volume"])
+            complete = complete and value["is_complete"] and value["start_ms"] == previous_end
+            previous_end = value["end_ms"]
+        if opening is None:
             return
-        complete = (values[0]["start_ms"] == left and values[-1]["end_ms"] == right
-                    and all(value["is_complete"] for value in values)
-                    and all(a["end_ms"] == b["start_ms"] for a, b in pairwise(values)))
-        self.candle(target, [left, values[0]["open"],
-                    str(max(Decimal(value["high"]) for value in values)),
-                    str(min(Decimal(value["low"]) for value in values)), values[-1]["close"],
-                    str(sum((Decimal(value["volume"]) for value in values), Decimal(0))), right - 1],
-                    now_ms, complete=complete, source=source, retained=target in self.retained)
+        self.candle(target, [left, opening, str(high), str(low), close, str(volume), right - 1],
+                    now_ms, complete=complete and previous_end == right, source=source, retained=target in self.retained)
 
     def close(self):
         self.db.close()
@@ -312,6 +326,20 @@ def journal_preview(path, level, start_ms, end_ms, limit, offset=0):
                  "is_complete": str(value["is_complete"])}
                 for row in db.execute("SELECT value FROM candles WHERE interval=? AND end_ms>? AND end_ms<=? AND coalesce(json_extract(value,'$.retained'),1)=1 ORDER BY start_ms LIMIT ? OFFSET ?",
                                       (level, start_ms, end_ms, limit, offset)) if (value := json.loads(row[0]))]
+    finally:
+        db.close()
+
+
+def journal_chart(path, level, start_ms, end_ms):
+    """Read retained chart evidence without creating or changing a journal."""
+    if not path.is_file():
+        return []
+    db = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    try:
+        return [json.loads(row[0]) for row in db.execute(
+            "SELECT value FROM candles WHERE interval=? AND start_ms>=? AND start_ms<? "
+            "AND coalesce(json_extract(value,'$.retained'),1)=1 ORDER BY start_ms DESC LIMIT 300",
+            (level, start_ms, end_ms))]
     finally:
         db.close()
 

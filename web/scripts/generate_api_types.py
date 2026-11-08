@@ -14,6 +14,18 @@ from api.main import app
 
 OUTPUT_PATH = WEB_ROOT / "app" / "api" / "generated" / "schema.ts"
 SCHEMA_NAMES = (
+    "ChartCandle",
+    "LocalChartResponse",
+    "ManualOrderView",
+    "ManualPosition",
+    "ManualBalance",
+    "ManualInstrument",
+    "ManualStateResponse",
+    "ManualMarketSummary",
+    "ManualMarketsResponse",
+    "ManualOrderRequest",
+    "ManualCancelRequest",
+    "ManualOrderResponse",
     "ExchangeAccountCreateRequest",
     "ExchangeAccountUpdateRequest",
     "ExchangeAccountResponse",
@@ -25,11 +37,14 @@ SCHEMA_NAMES = (
     "DataMarket",
     "DataDeletionPlan",
     "DataJobResponse",
+    "EquityRebuildRequest",
+    "EquityRebuildResponse",
     "EquityCandleResponse",
     "EquityCandleSeriesResponse",
     "ExchangeAccountNavigationResponse",
     "ExchangeAccountSummaryResponse",
     "ExchangePortfolioResponse",
+    "ExchangeAssetResponse",
     "ExchangePositionResponse",
     "ExchangeTradeResponse",
 )

@@ -13,6 +13,7 @@ REST_URL = "https://fapi.binance.com/fapi/v1/"
 
 
 class PublicREST:
+    base_url = REST_URL
     allowed_endpoints = frozenset({"time"})
 
     def __init__(
@@ -28,11 +29,11 @@ class PublicREST:
 
     def _request(self, endpoint, params):
         request = Request(
-            REST_URL + endpoint + "?" + urlencode(params),
+            self.base_url + endpoint + "?" + urlencode(params),
             headers={"User-Agent": "Nautilus-unified-minute-feed/1"},
         )
         with urlopen(request, timeout=self.timeout) as response:
-            if not response.url.startswith(REST_URL):
+            if not response.url.startswith(self.base_url):
                 raise DataError("Unexpected REST redirect")
             raw = response.read(4 * 1024 * 1024 + 1)
         if len(raw) > 4 * 1024 * 1024:

@@ -35,6 +35,47 @@ def pair_deletion_roots(settings, project):
 
 
 def pair_deletion_plan(symbol, product, settings, *, project=PROJECT_ROOT):
+    if product == "options" and "-" not in symbol:
+        symbol = normalize_symbol(symbol)
+        roots = pair_deletion_roots(settings, project)
+        contracts = set()
+        underlyings = {}
+        if settings.catalog_dir.is_dir():
+            from .catalog import ParquetDataCatalog
+            for instrument in ParquetDataCatalog(settings.catalog_dir).instruments():
+                metadata = (instrument.info or {}).get("binance_options", {})
+                if metadata.get("underlying"):
+                    underlyings[str(instrument.id).removesuffix(".BINANCE")] = metadata["underlying"]
+        folders = [roots["raw"] / "options", roots["state"] / "options", roots["feed"],
+                   roots["catalog"] / "data/trades", roots["catalog"] / "data/bars",
+                   roots["catalog"] / "features", roots["catalog"] / "supplements"]
+        for folder in folders:
+            if folder.is_symlink():
+                raise ValueError("删除范围包含符号链接，请先检查存储")
+            if not folder.is_dir():
+                continue
+            for entry in folder.iterdir():
+                name = entry.name.split(".BINANCE", 1)[0]
+                if underlyings.get(name, name.split("-", 1)[0] + "USDT") != symbol:
+                    continue
+                try:
+                    contracts.add(normalize_symbol(name, "options"))
+                except ValueError:
+                    continue
+        plans = [pair_deletion_plan(contract, product, settings, project=project) for contract in sorted(contracts)]
+        files = [item for plan in plans for item in plan["files"]]
+        snapshot = hashlib.sha256(json.dumps({"symbol": symbol, "contracts": [(p["symbol"], p["snapshot"]) for p in plans],
+                    "roots": {k: str(v.resolve()) for k, v in roots.items()}}, sort_keys=True).encode()).hexdigest()
+        groups = {}
+        for item in files:
+            group = groups.setdefault(item["group"], {"files": 0, "bytes": 0})
+            group["files"] += 1
+            group["bytes"] += item["bytes"]
+        return {"symbol": symbol, "product": product, "snapshot": snapshot, "files": files,
+                "file_count": len(files), "total_bytes": sum(item["bytes"] for item in files), "groups": groups,
+                "contracts": {p["symbol"]: p["snapshot"] for p in plans},
+                "start": "", "end": "", "delete_archives": True,
+                "message": "删除该标的所有到期日、方向及行权价的期权行情、来源归档和托管数据；保留合约定义、账户、交易记录及研究报告。"}
     symbol = normalize_symbol(symbol, product)
     roots = pair_deletion_roots(settings, project)
     identifier = instrument_id_for(symbol, product)
@@ -45,7 +86,9 @@ def pair_deletion_plan(symbol, product, settings, *, project=PROJECT_ROOT):
         folders.extend([("catalog", Path("data/bars") / bar_type, "bars"),
                         ("catalog", Path("features") / bar_type, "features")])
     if product == "options":
-        folders.append(("raw", Path("options") / symbol, "archives"))
+        folders.extend([("raw", Path("options") / symbol, "archives"),
+                        ("state", Path("options") / symbol, "state"),
+                        ("feed", Path(symbol), "feed")])
     else:
         for cadence in ("daily", "monthly"):
             for kind in ("trades", "aggTrades", "klines"):
@@ -103,6 +146,29 @@ def pair_deletion_plan(symbol, product, settings, *, project=PROJECT_ROOT):
 
 
 def delete_pair_data(symbol, product, settings, *, expected_snapshot, project=PROJECT_ROOT):
+    if product == "options" and "-" not in symbol:
+        plan = pair_deletion_plan(symbol, product, settings, project=project)
+        if plan["snapshot"] != expected_snapshot:
+            raise ValueError("数据已变化，请重新预览删除范围")
+        count, size = 0, 0
+        # Lock one concrete contract at a time, retaining the exact preview for
+        # every contract. This avoids opening thousands of inherited descriptors.
+        for contract, snapshot in plan["contracts"].items():
+            with ExitStack() as leases:
+                for kind in ("job", "access"):
+                    path = project / ".local/run/api/data/options" / f"{contract}.{kind}.lock"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    lease = leases.enter_context(path.open("a"))
+                    try:
+                        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        raise ValueError("期权合约仍有采集或数据任务运行，请停止后重新预览") from None
+                result = delete_pair_data(contract, product, settings, expected_snapshot=snapshot, project=project)
+            count += result["deleted_files"]
+            size += result["deleted_bytes"]
+        if pair_deletion_plan(symbol, product, settings, project=project)["file_count"]:
+            raise ValueError("删除期间出现新数据，配置保留；请停止其他写入并重新预览")
+        return {"deleted_files": count, "deleted_bytes": size, "groups": plan["groups"], "snapshot": plan["snapshot"]}
     with ExitStack() as stack:
         plan = pair_deletion_plan(symbol, product, settings, project=project)
         # Refuse deletion of a manually running managed collector, even with a stale API state.

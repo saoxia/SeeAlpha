@@ -296,13 +296,7 @@ class BinanceOptionsDataClient(MarketDataClient):
         item = self._instrument(command.instrument_id)
 
         def parse(row):
-            if row["e"] != "trade" or row["s"] != str(item.raw_symbol) or row["X"] not in {"MARKET", "BLOCK"}:
-                raise ValueError("期权成交类型无效")
-            if type(row["m"]) is not bool:
-                raise ValueError("期权成交主动方无效")
-            return parsing.trade(item, {"symbol": row["s"], "time": row["T"], "id": row["t"],
-                                       "price": row["p"], "qty": row["q"], "side": -1 if row["m"] else 1},
-                                 ts_init=self.clock.timestamp_ns())
+            return parsing.trade_event(item, row, ts_init=self.clock.timestamp_ns())[0]
 
         await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@optionTrade", parse)
 
@@ -335,16 +329,243 @@ class BinanceOptionsDataClient(MarketDataClient):
         item, period = self._bar_level(command.bar_type)
 
         def parse(row):
-            k = row["k"]
-            if row["s"] != str(item.raw_symbol) or k["s"] != row["s"] or k["i"] != period or type(k["x"]) is not bool:
-                raise ValueError("期权 K 线流身份无效")
-            if not k["x"]:
-                return None
-            return parsing.bar(item, period, [k["t"], k["o"], k["h"], k["l"], k["c"], k["v"], k["T"]],
-                               ts_init=self.clock.timestamp_ns())
+            return parsing.bar_event(item, period, row, ts_init=self.clock.timestamp_ns())[0]
 
         await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}", parse, market=True)
 
     async def _unsubscribe_bars(self, command):
         item, period = self._bar_level(command.bar_type)
         await self._unsubscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}")
+
+
+async def market_events(symbol, intervals, *, trades=False):
+    """Public data-only native node stream for the managed collector.
+
+    Native objects stay on this event loop. A bounded callback queue fails
+    explicitly on overflow; transport state never claims missed Tick recovery.
+    """
+    from nautilus_trader.common import DataActor, Environment, LoggerConfig, LogLevel
+    from nautilus_trader.live import LiveNode
+    from nautilus_trader.model import BarType, InstrumentId, TraderId
+
+    symbol = normalize_symbol(symbol, "options")
+    if not intervals or any(level not in PERIODS for level in intervals):
+        raise ValueError("期权采集周期无效")
+    output = asyncio.Queue(maxsize=10000)
+    clients = []
+    overflow = False
+
+    class Factory(BinanceOptionsDataClientFactory):
+        @staticmethod
+        def create(**kwargs):
+            client = BinanceOptionsDataClientFactory.create(**kwargs)
+            clients.append(client)
+            return client
+
+    class Observer(DataActor):
+        def emit(self, value):
+            nonlocal overflow
+            try:
+                output.put_nowait(value)
+            except asyncio.QueueFull:
+                overflow = True
+
+        def on_start(self):
+            client_id = clients[0].client_id
+            identifier = InstrumentId.from_str(f"{symbol}.BINANCE")
+            if trades:
+                self.subscribe_trades(identifier, client_id=client_id)
+            for level in intervals:
+                self.subscribe_bars(BarType.from_str(bar_type_for(symbol, level, "options")), client_id=client_id)
+
+        def on_trade(self, value):
+            self.emit({"level": "tick", "row": {"symbol": symbol, "id": int(str(value.trade_id)),
+                       "time": value.ts_event // 1000000, "price": str(value.price), "qty": str(value.size),
+                       "side": 1 if str(value.aggressor_side) == "BUY" else -1}})
+
+        def on_bar(self, value):
+            level = next(level for level in intervals if str(value.bar_type) == bar_type_for(symbol, level, "options"))
+            right = (value.ts_event + 1) // 1000000
+            self.emit({"level": level, "row": [right - int(interval_delta(level).total_seconds() * 1000),
+                       *[str(getattr(value, field)) for field in ("open", "high", "low", "close", "volume")], right - 1]})
+
+    builder = LiveNode.builder("options-collection", TraderId("OPTIONS-COLLECTOR"), Environment.LIVE)
+    builder.with_logging(LoggerConfig(stdout_level=LogLevel.OFF))
+    builder.with_delay_post_stop_secs(0).with_delay_shutdown_secs(0)
+    builder.with_timeout_connection(30).with_timeout_disconnection_secs(3)
+    builder.add_data_client("BINANCE_OPTIONS", Factory(), BinanceOptionsDataClientConfig(symbols=[symbol]))
+    node = builder.build()
+    node.add_actor(Observer())
+    task = asyncio.create_task(node.run_async())
+    last_status = 0
+    try:
+        while not task.done():
+            if overflow:
+                raise QueryError("期权采集缓冲已满；存在未恢复的 Tick 缺口")
+            try:
+                value = await asyncio.wait_for(output.get(), 1)
+            except TimeoutError:
+                value = None
+            if value is not None:
+                yield value
+            states = clients[0].stream_status if clients else {}
+            expected = len(intervals) + int(trades)
+            connected = len(states) == expected and all(state["connected"] for state in states.values())
+            failed = any(state["last_error"] and not state["connected"] for state in states.values())
+            if monotonic() - last_status >= 1 or failed:
+                yield {"level": "status", "connected": connected,
+                       "gap_count": sum(state["gap_count"] for state in states.values())}
+                last_status = monotonic()
+            if failed:
+                raise QueryError("期权实时流断线或校验失败，将恢复订阅；缺口保留")
+        await task
+        raise QueryError("期权行情节点已停止")
+    finally:
+        node.handle().stop()
+        try:
+            await asyncio.wait_for(asyncio.shield(task), 8)
+        except (Exception, asyncio.CancelledError):  # noqa: BLE001 - Always dispose on owning loop.
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        node.dispose()
+
+
+async def batch_market_events(instruments, *, tick_symbols=(), scope=None):
+    """Combined streams, at most 64 contracts per socket group, with live updates.
+
+    Native parsing and contract units are shared with the DataClient. The optional
+    scope is owned by the collector's event loop; selection replacement is atomic.
+    All queues are bounded and apply backpressure instead of dropping evidence.
+    """
+    import time
+
+    instruments = {str(item.raw_symbol): item for item in instruments}
+    ticks = set(tick_symbols)
+    if not instruments or not ticks <= instruments.keys() or scope is not None and len(instruments) > 64:
+        raise ValueError("期权批量订阅范围无效")
+    output = asyncio.Queue(maxsize=4096)
+    channels, gaps = {}, {}
+
+    def selection(members):
+        if scope is None:
+            return {symbol: instruments[symbol] for symbol in members}, ticks
+        values, wanted_ticks = scope["selection"]
+        values = {str(item.raw_symbol): item for item in values}
+        if len(values) > 64 or not set(wanted_ticks) <= values.keys():
+            raise ValueError("期权动态订阅范围无效")
+        return values, set(wanted_ticks)
+
+    async def receive(members, *, market):
+        channel = "bars" if market else "trades"
+        delay = 1
+        while True:
+            active = []
+            try:
+                items, wanted_ticks = selection(members)
+                active = list(items) if market else [symbol for symbol in items if symbol in wanted_ticks]
+                if not active:
+                    await asyncio.sleep(1)
+                    continue
+                async with connect(MARKET_WS if market else PUBLIC_WS, open_timeout=10, close_timeout=3,
+                                   ping_interval=20, ping_timeout=20, max_size=1024 * 1024, max_queue=32) as socket:
+                    streams, confirmed, pending, retired, latest = {}, set(), {}, set(), {}
+                    request_id, last_status, last_scope = 0, 0, None
+                    while True:
+                        items, wanted_ticks = selection(members)
+                        active = list(items) if market else [symbol for symbol in items if symbol in wanted_ticks]
+                        desired = {f"{symbol.lower()}@kline_{level}" if market else f"{symbol.lower()}@optionTrade": (symbol, level)
+                                   for symbol in active for level in (PERIODS if market else ("tick",))}
+                        signature = tuple(sorted(desired))
+                        if signature != last_scope:
+                            added, removed = desired.keys() - streams.keys(), streams.keys() - desired.keys()
+                            for method, names in (("SUBSCRIBE", added), ("UNSUBSCRIBE", removed)):
+                                if names:
+                                    request_id += 1
+                                    await socket.send(json.dumps({"method": method, "params": sorted(names), "id": request_id}))
+                                    pending[request_id] = (method, set(names), monotonic() + 10)
+                                    latest.update({name: request_id for name in names})
+                            retired.update(removed)
+                            retired.difference_update(added)
+                            confirmed.difference_update(removed)
+                            streams, last_scope = desired, signature
+                        if not streams:
+                            break
+                        if any(deadline < monotonic() for _method, _names, deadline in pending.values()):
+                            raise TimeoutError("期权批量订阅确认超时")
+                        try:
+                            packet = json.loads(await asyncio.wait_for(socket.recv(), 1))
+                        except TimeoutError:
+                            packet = None
+                        if packet is not None:
+                            if not isinstance(packet, dict):
+                                raise ValueError("期权批量响应格式无效")
+                            if "id" in packet:
+                                identity = packet["id"]
+                                if identity not in pending or packet.get("result", "missing") is not None or "code" in packet:
+                                    raise ValueError("期权批量订阅确认无效")
+                                method, names, _deadline = pending.pop(identity)
+                                if method == "SUBSCRIBE":
+                                    confirmed.update(name for name in names & streams.keys() if latest.get(name) == identity)
+                            else:
+                                row = packet.get("data", packet)
+                                if not isinstance(row, dict):
+                                    raise ValueError("期权批量数据格式无效")
+                                name = packet.get("stream")
+                                if name is None:
+                                    name = (f"{row['s'].lower()}@optionTrade" if row.get("e") == "trade" else
+                                            f"{row['s'].lower()}@kline_{row['k']['i']}")
+                                if name in retired:
+                                    continue  # Already unsubscribed, with explicitly identified in-flight data.
+                                if name not in streams:
+                                    raise ValueError("期权批量流身份不匹配")
+                                symbol, level = streams[name]
+                                item = items[symbol]
+                                value, payload = (parsing.bar_event(item, level, row) if market else parsing.trade_event(item, row))
+                                if value is not None:
+                                    if value.ts_event > time.time_ns() + 5_000_000_000 or value.ts_event > item.expiration_ns:
+                                        raise ValueError("期权实时事件时间超前或超过到期日")
+                                    await output.put({"level": level, "symbol": symbol, "row": payload})
+                        if monotonic() - last_status >= 1:
+                            for symbol in active:
+                                expected = {name for name, (owner, _level) in streams.items() if owner == symbol}
+                                await output.put({"level": "transport", "symbol": symbol, "channel": channel,
+                                                  "connected": expected <= confirmed})
+                            last_status, delay = monotonic(), 1
+            except (ConnectionClosed, ConnectionError, OSError, TimeoutError, ValueError, KeyError, TypeError):
+                for symbol in active:
+                    await output.put({"level": "transport", "symbol": symbol, "channel": channel,
+                                      "connected": False, "gap": True})
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
+
+    tasks = []
+    symbols = sorted(instruments)
+    for offset in range(0, len(symbols), 64):
+        members = symbols[offset:offset + 64]
+        tasks.append(asyncio.create_task(receive(members, market=True)))
+        if scope is not None or any(symbol in ticks for symbol in members):
+            tasks.append(asyncio.create_task(receive(members, market=False)))
+    try:
+        while True:
+            try:
+                event = await asyncio.wait_for(output.get(), 1)
+            except TimeoutError:
+                for task in tasks:
+                    if task.done():
+                        await task
+                        raise QueryError("期权批量接收意外停止")
+                continue
+            symbol = event["symbol"]
+            if event["level"] == "transport":
+                channel_state = channels.setdefault(symbol, {})
+                channel_state[event["channel"]] = event["connected"]
+                gaps[symbol] = gaps.get(symbol, 0) + int(event.get("gap", False))
+                current_ticks = ticks if scope is None else selection(symbols)[1]
+                connected = channel_state.get("bars", False) and (symbol not in current_ticks or channel_state.get("trades", False))
+                yield {"level": "status", "symbol": symbol, "connected": connected, "gap_count": gaps[symbol]}
+            else:
+                yield event
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)

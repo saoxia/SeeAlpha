@@ -21,6 +21,18 @@ from nautilus_trader.model import AccountId, OmsType, TraderId
 from nautilus_trader.trading import Strategy
 
 
+def _clear_exception_frames(error):
+    """Release native frame locals before an error can be collected on another thread."""
+    pending, seen = [error], set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        clear_frames(current.__traceback__)
+        pending.extend(related for related in (current.__cause__, current.__context__) if related is not None)
+
+
 class QueryError(RuntimeError):
     """A sanitized connector error, safe to return to the caller."""
 
@@ -94,10 +106,7 @@ async def account_snapshot(
             message = str(exc) if isinstance(exc, QueryError) else None
             # Failed tasks retain native objects through exception frame locals.
             # Release those references here, before another thread can collect them.
-            error = exc
-            while error is not None:
-                clear_frames(error.__traceback__)
-                error = error.__context__
+            _clear_exception_frames(exc)
             if message is not None:
                 return message
             return "Binance 账户查询失败，请检查凭证、权限、环境和网络。"
@@ -108,21 +117,9 @@ async def account_snapshot(
     return result
 
 
-async def _account_snapshot(
-    account,
-    *,
-    http_url=None,
-    websocket_url=None,
-    timeout=30,
-    log_level=LogLevel.OFF,
-    operation_records=None,
-    reconciliation_lookback_minutes=1,
-):
-    """Bounded native node; snapshots are single-flight/cached by the owning service.
-
-    Reconciliation loads the complete USD-M instrument scope, not just UI watchlist symbols.
-    Configuration never sets futures leverage/margin type or installs trading strategies.
-    """
+def account_node(account, *, http_url=None, websocket_url=None, timeout=30,
+                 log_level=LogLevel.OFF, reconciliation_lookback_minutes=1, manual=False, manual_position_side=None):
+    """Build a public native account node; manual execution requires explicit opt-in."""
     account_id = AccountId(f"BINANCE-{account['id']}")
     credentials = account["credentials"]
     if credentials["apiKey"] == credentials["secret"]:
@@ -139,17 +136,17 @@ async def _account_snapshot(
         base_url_http=http_url,
         base_url_ws=websocket_url,
         use_ws_trading=False,
-        oms_type=OmsType.HEDGING,
+        oms_type=OmsType.NETTING if manual and manual_position_side == "BOTH" else OmsType.HEDGING,
         use_position_ids=True,
         instrument_provider=BinanceInstrumentProviderConfig(
             load_all=True,
             query_commission_rates=False,
         ),
-        max_retries=1,
+        max_retries=0 if manual else 1,
     )
     builder = LiveNode.builder(
-        f"account-read-{account['id']}",
-        TraderId(f"READ-{account['id']:03d}"),
+        f"account-{'manual' if manual else 'read'}-{account['id']}",
+        TraderId(f"{'MANUAL' if manual else 'READ'}-{account['id']:03d}"),
         Environment.LIVE,
     )
     builder.with_delay_post_stop_secs(0).with_delay_shutdown_secs(0)
@@ -181,10 +178,32 @@ async def _account_snapshot(
             instrument_provider=BinanceInstrumentProviderConfig(
                 load_all=True, query_commission_rates=False
             ),
-            max_retries=1,
+            max_retries=0 if manual else 1,
         ),
     )
     node = builder.build()
+    return node, account_id
+
+
+async def _account_snapshot(
+    account,
+    *,
+    http_url=None,
+    websocket_url=None,
+    timeout=30,
+    log_level=LogLevel.OFF,
+    operation_records=None,
+    reconciliation_lookback_minutes=1,
+):
+    """Bounded native node; snapshots are single-flight/cached by the owning service.
+
+    Reconciliation loads the complete USD-M instrument scope, not just UI watchlist symbols.
+    Configuration never sets futures leverage/margin type or installs trading strategies.
+    """
+    node, account_id = account_node(
+        account, http_url=http_url, websocket_url=websocket_url, timeout=timeout,
+        log_level=log_level, reconciliation_lookback_minutes=reconciliation_lookback_minutes,
+    )
     observer = SnapshotReady()
     ready = observer.ready
     node.add_strategy(observer)
@@ -247,4 +266,8 @@ async def _account_snapshot(
         except (Exception, asyncio.CancelledError):  # noqa: BLE001 - Always release the node task.
             task.cancel()
         await asyncio.gather(task, waiter, return_exceptions=True)
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                _clear_exception_frames(error)
         node.dispose()

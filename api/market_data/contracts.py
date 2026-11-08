@@ -4,6 +4,16 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+def option_pair(symbol):
+    """Fallback for legacy USDT contract configurations without venue metadata."""
+    return symbol.split("-", 1)[0] + "USDT" if "-" in symbol else symbol
+
+
+def normalize_scope(symbol, product):
+    from core.market.instruments import normalize_symbol
+    return normalize_symbol(symbol, "futures_um" if product == "options" and "-" not in symbol else product)
+
+
 class DataRange(BaseModel):
     model_config = ConfigDict(extra="forbid")
     symbol: str = Field(min_length=1, max_length=30)
@@ -71,7 +81,7 @@ class DataCapabilities(BaseModel):
     max_preview_minutes: int = 15
     realtime_ticks: bool = True
     realtime_base_levels: list[str] = Field(default_factory=lambda: ["tick", "1s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"])
-    realtime_products: list[str] = Field(default_factory=lambda: ["futures_um"])
+    realtime_products: list[str] = Field(default_factory=lambda: ["futures_um", "options"])
     products: list[str] = Field(default_factory=lambda: ["futures_um", "options"])
     option_intervals: list[str] = Field(default_factory=lambda: ["1m", "5m", "15m"])
     option_historical_ticks: bool = False
@@ -119,12 +129,27 @@ class DataPolicy(BaseModel):
     history_mode: Literal["all", "start", "duration"] = "all"
     history_start: datetime | None = None
     history_days: int = Field(default=30, ge=1, le=36500)
+    underlying: str | None = Field(default=None, description="期权目录提供的标的交易对；旧合约配置可为空。")
+
+    @property
+    def pair(self):
+        return self.underlying or option_pair(self.symbol)
 
     @model_validator(mode="after")
     def validate_policy(self):
-        from core.market.instruments import BINANCE_KLINE_INTERVALS, INTERVALS, normalize_symbol
+        from core.market.instruments import INTERVALS
 
-        self.symbol = normalize_symbol(self.symbol, self.product)
+        # ALL and underlying pairs are configuration scopes; data requests require a contract.
+        if not (self.product == "options" and self.symbol == "ALL"):
+            self.symbol = normalize_scope(self.symbol, self.product)
+        if self.underlying is not None:
+            if self.product != "options" or "-" not in self.symbol:
+                raise ValueError("标的元数据仅用于具体期权合约")
+            self.underlying = normalize_scope(self.underlying, "options")
+            if self.underlying[:-4] != self.symbol.split("-", 1)[0]:
+                raise ValueError("期权合约与标的元数据不一致")
+        if self.product == "options" and self.base_level == "auto":
+            self.base_level = "1m"
         order = ["tick", *INTERVALS]
         self.intervals = list(dict.fromkeys(self.intervals))
         if any(value not in INTERVALS for value in self.intervals):
@@ -132,7 +157,7 @@ class DataPolicy(BaseModel):
         if self.product == "futures_um" and self.base_level != "auto":
             if self.base_level == "1s":
                 self.base_level = "1m"
-            self.intervals = list(BINANCE_KLINE_INTERVALS)
+            self.intervals = list(INTERVALS)
         elif self.base_level != "auto" and any(order.index(value) < order.index(self.base_level) for value in self.intervals):
             raise ValueError("生成周期不能小于最小保存粒度")
         if self.history_start is not None:
@@ -144,13 +169,9 @@ class DataPolicy(BaseModel):
             raise ValueError("请选择早于今天的 UTC 历史起点")
         if self.base_level == "auto" and self.realtime_enabled and any(level not in {"1m", "5m", "15m"} for level in self.intervals):
             raise ValueError("旧自动来源仅支持分钟实时；请使用 Tick 或全部官方周期配置")
-        if self.product == "options":
-            if self.base_level not in {"auto", "tick", "1m", "5m", "15m"} or any(value not in {"1m", "5m", "15m"} for value in self.intervals):
-                raise ValueError("期权当前仅支持 Tick、1m、5m、15m")
-            if self.realtime_enabled:
-                raise ValueError("期权持续采集尚未接入")
-            if self.history_enabled and self.base_level == "tick":
-                raise ValueError("期权仅提供近期逐笔，不能追加完整历史 Tick")
+        if self.product == "options" and (self.base_level not in {"auto", "tick", "1m", "5m", "15m"}
+                                          or any(value not in {"1m", "5m", "15m"} for value in self.intervals)):
+            raise ValueError("期权当前仅支持 Tick、1m、5m、15m")
         return self
 
 
@@ -178,8 +199,7 @@ class PairDeletePlanRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_symbol(self):
-        from core.market.instruments import normalize_symbol
-        self.symbol = normalize_symbol(self.symbol, self.product)
+        self.symbol = normalize_scope(self.symbol, self.product)
         return self
 
 
@@ -198,3 +218,23 @@ class PairDeleteRequest(PairDeletePlanRequest):
 class PolicyTrimRequest(PairDeleteRequest):
     action: Literal["trim"] = "trim"
     policy: DataPolicy
+
+
+class ChartCandle(BaseModel):
+    time: int
+    open: str
+    high: str
+    low: str
+    close: str
+    volume: str
+    is_complete: bool | None = None
+    is_closed: bool
+
+
+class LocalChartResponse(BaseModel):
+    symbol: str
+    interval: str
+    candles: list[ChartCandle]
+    checked_at: int
+    live: bool
+    quality: Literal["unverified"] = "unverified"

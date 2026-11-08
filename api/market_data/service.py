@@ -16,7 +16,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from core.market.instruments import normalize_symbol
 from core.paths import PROJECT_ROOT
 from pipeline.config import load_settings
 from pipeline.data_management import checked_request, coverage, deletion_plan
@@ -113,7 +112,8 @@ class DataService:
                 lease.close()
 
     def _lease(self, symbol, product="futures_um", *, access=False, shared=False):
-        symbol = normalize_symbol(symbol, product)
+        from .contracts import normalize_scope
+        symbol = normalize_scope(symbol, product)
         kind = "access" if access else "job"
         path = self.project / ".local/run/api/data" / product / f"{symbol}.{kind}.lock"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -204,6 +204,9 @@ class DataService:
                 return {"policy": policy.model_dump(mode="json"), "job": self.start(PolicyTrimRequest(
                     symbol=policy.symbol, product=policy.product, policy=policy,
                     deletion_snapshot=proposal["file_snapshot"], confirmation=confirmation))}
+            if policy.product == "options" and policy.symbol == "ALL":
+                # Scope parameters have no market files and must not acquire a contract lease.
+                return self.subscriptions._save(policy)
             with ExitStack() as lease:
                 if proposal["deletion"] is not None:
                     lease.enter_context(self._lease(policy.symbol, policy.product))

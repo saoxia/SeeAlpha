@@ -21,6 +21,7 @@ class Settings:
     database_schema: str = ""
     require_database_url: bool = False
     operation_sync_seconds: int = 0
+    equity_enabled: bool = False
 
     @classmethod
     def from_environment(cls):
@@ -44,6 +45,7 @@ class Settings:
             database_url=database_url,
             database_schema=os.getenv("DATABASE_SCHEMA", ""),
             require_database_url=True,
+            equity_enabled=os.getenv("EQUITY_ENABLED", "true").lower() not in {"0", "false", "no"},
             operation_sync_seconds=max(0, int(os.getenv("OPERATION_SYNC_SECONDS", "300"))),
             cookie_secure=os.getenv("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"},
             admin_username=os.getenv("UPDATE_ADMIN_USERNAME", "admin"),

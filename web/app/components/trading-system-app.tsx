@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { DataOpsPage } from "./data-ops/data-ops-page";
 import { DataManagementPage } from "./data-management/data-management-page";
+import { TradePage } from "./trade/trade-page";
 import { LiveDashboard } from "./live/live-dashboard";
 import { Navigation } from "./navigation";
 import { ResearchPage } from "./research/research-page";
@@ -27,7 +27,7 @@ export function TradingSystemApp({ user, onLogout }: TradingSystemAppProps) {
         onLogout={onLogout}
       />
       {activeView === "live" && <LiveDashboard />}
-      {activeView === "dataops" && <DataOpsPage />}
+      {activeView === "trade" && <TradePage />}
       {activeView === "data" && <DataManagementPage />}
       {activeView === "research" && <ResearchPage />}
       {activeView === "settings" && <SettingsPage />}

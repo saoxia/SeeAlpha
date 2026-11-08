@@ -17,10 +17,13 @@ from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
+from .equity.router import router as equity_router
+from .equity.service import EquityService
 from .exchanges.accounts import Accounts
-from .exchanges.equity_sample import router as equity_sample_router
 from .exchanges.router import router as exchanges_router
 from .exchanges.service import ExchangeService
+from .exchanges.trading import ManualTrading
+from .exchanges.trading import router as trading_router
 from .management.router import router as management_router
 from .management.service import management_runtime
 from .market_data.router import router as market_data_router
@@ -53,11 +56,13 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
             await asyncio.to_thread(app.state.market_data.subscriptions.restore)
+            await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
             async def reconcile_configuration():
                 while True:
                     await asyncio.sleep(15)
                     await asyncio.to_thread(app.state.market_data.subscriptions.restore)
+                    await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
             async def monitor_services():
                 while True:
@@ -80,8 +85,11 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 task = asyncio.create_task(
                     app.state.operations.worker(settings.operation_sync_seconds)
                 )
+            if settings.equity_enabled and database.backend == "orm":
+                await app.state.equity.start(settings.database_path.parent / "equity.lock")
             yield
         finally:
+            await app.state.equity.close()
             for background in (configuration_task, monitor_task):
                 if background is not None:
                     background.cancel()
@@ -109,6 +117,9 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
     app.state.exchanges = ExchangeService(app.state.accounts)
     app.state.operations = OperationService(database, app.state.accounts)
+    app.state.equity = EquityService(database, app.state.accounts)
+    app.state.trading = ManualTrading(app.state.accounts, app.state.exchanges, app.state.operations,
+                                      settings.database_path.parent / "trading")
     app.state.market_data = DataService(database)
     app.state.management = None
     app.state.management_project = (
@@ -159,7 +170,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
 
     app.include_router(router, prefix="/api")
     app.include_router(exchanges_router, prefix="/api")
-    app.include_router(equity_sample_router, prefix="/api")
+    app.include_router(trading_router, prefix="/api")
+    app.include_router(equity_router, prefix="/api")
     app.include_router(operations_router, prefix="/api")
     app.include_router(olap_router, prefix="/api")
     app.include_router(market_data_router, prefix="/api")

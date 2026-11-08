@@ -24,7 +24,7 @@ INTERVALS: dict[str, tuple[int, str, timedelta | None]] = {
 }
 
 
-# /fapi/v1/klines rejects 1s; retain it only for legacy storage and working buckets.
+# /fapi/v1/klines rejects 1s; locally derived seconds are not venue K-line intervals.
 BINANCE_KLINE_INTERVALS = tuple(interval for interval in INTERVALS if interval != "1s")
 
 

@@ -5,7 +5,7 @@ import json
 import time
 from contextlib import suppress
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import (
@@ -20,13 +20,14 @@ from fastapi import (
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
-from core.market.instruments import BINANCE_KLINE_INTERVALS, INTERVALS
+from core.market.instruments import INTERVALS, bar_window
 from pipeline.config import load_settings
-from pipeline.data_management import coverage, dataset_inventory, preview
+from pipeline.data_management import coverage, dataset_inventory, preview, rows
 
 from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
 from .contracts import (
+    ChartCandle,
     DataCapabilities,
     DataDeletePlanRequest,
     DataDeletionPlan,
@@ -36,8 +37,10 @@ from .contracts import (
     DataPolicy,
     DataPolicySave,
     DataRange,
+    LocalChartResponse,
     PairDeletePlanRequest,
     PairDeleteRequest,
+    option_pair,
 )
 
 router = APIRouter(prefix="/data", tags=["market-data"])
@@ -60,7 +63,7 @@ def capabilities(request: Request, user: CurrentUser):
     settings = load_settings()
     manager = service(request)
     return {"market": settings.market, "symbols": [],
-            "intervals": list(BINANCE_KLINE_INTERVALS),
+            "intervals": list(INTERVALS),
             "can_operate": (user.username.casefold() == request.app.state.settings.admin_username.casefold()
                             and manager.policy_repository is not None)}
 
@@ -77,8 +80,16 @@ async def data_markets(request: Request, _: AdminUser, product: Literal["futures
 async def require_download_market(request, payload):
     symbol = payload.symbol
     if payload.product == "options":
+        if symbol == "ALL" and isinstance(payload, DataPolicy):
+            return
         items = await request.app.state.exchanges.catalog("production", product="options")
-        if not any(item["symbol"] == symbol for item in items):
+        configured = any(p.symbol == symbol and p.product == "options"
+                         for p in service(request).subscriptions._read())
+        match = next((item for item in items if item["symbol"] == symbol), None)
+        if match and isinstance(payload, DataPolicy):
+            payload.underlying = match.get("underlying") or option_pair(symbol)
+        if not configured and not any(item["symbol"] == symbol or isinstance(payload, DataPolicy)
+                                      and (item.get("underlying") or option_pair(item["symbol"])) == symbol for item in items):
             raise HTTPException(422, "该合约不在 Binance 当前期权目录中。")
         return
     items = await request.app.state.exchanges.catalog("production")
@@ -122,6 +133,30 @@ def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_
     return {"items": items}
 
 
+@router.get("/datasets/latest", response_model=dict[str, str | None])
+def latest_data_times(request: Request, _: CurrentUser):
+    """Latest persisted 1s bar event times for configured perpetual pairs only."""
+    from nautilus_trader.model import NautilusDataType
+
+    from core.market.instruments import bar_type_for
+    from pipeline.data_management import open_catalog
+
+    manager = service(request)
+    manager.require_storage()
+    symbols = [policy.symbol for policy in manager.subscriptions._read()
+               if policy.product == "futures_um"]
+    settings = load_settings()
+    if not symbols or not settings.catalog_dir.is_dir():
+        return dict.fromkeys(symbols)
+    catalog = open_catalog(settings)
+    result = {}
+    for symbol in symbols:
+        with manager._lease(symbol, "futures_um", access=True, shared=True):
+            stamp = catalog.native.query_last_timestamp(NautilusDataType.Bar, bar_type_for(symbol, "1s"))
+        result[symbol] = str(stamp) if stamp is not None else None
+    return result
+
+
 @router.get("/coverage")
 def data_coverage(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends(query_range)]):
     manager = service(request)
@@ -154,6 +189,63 @@ def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
         return service(request).delete_plan(payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
+
+
+@router.get("/chart", response_model=LocalChartResponse)
+def local_chart(request: Request, _: CurrentUser,
+                symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC)$"),
+                interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"] = "1m"):
+    """Bounded display projection only; never provides strategy readiness."""
+    from feed.pair_store import journal_chart
+
+    manager = service(request)
+    manager.require_storage()
+    now = int(time.time() * 1000)
+    left = bar_window(interval, now)[0]
+    width = int(INTERVALS[interval][2].total_seconds() * 1000)
+    start = left - 299 * width
+    policy = next((p for p in manager.subscriptions._read()
+                   if p.symbol == symbol and p.product == "futures_um"), None)
+    candles = {}
+    live = False
+    with manager._lease(symbol, "futures_um", access=True, shared=True):
+        settings = load_settings()
+        if settings.catalog_dir.is_dir():
+            source = rows(settings, symbol, datetime.fromtimestamp(start / 1000, UTC),
+                          datetime.fromtimestamp(now / 1000, UTC), interval=interval)
+            try:
+                for row in source:
+                    stamp = int(row["ts_event_ns"]) // 1000000
+                    opening, _ = bar_window(interval, stamp)
+                    candles[opening] = ChartCandle(time=opening // 1000, is_closed=True,
+                        **{key: row[key] for key in ("open", "high", "low", "close", "volume")})
+            finally:
+                source.close()
+        if policy:
+            values = {}
+            # Prefer the active retention over journals from older configurations.
+            for path in reversed(manager.subscriptions.journal_paths(policy)):
+                for value in journal_chart(path, interval, start, now + 1):
+                    values[value["start_ms"]] = value
+            state = manager.subscriptions._public(policy)
+            collection = state["services"]["collection"]
+            calculation = state["services"]["calculation"]
+            live = bool(collection.get("healthy") and calculation.get("healthy"))
+            for observation in (collection, calculation):
+                if observation.get("healthy"):
+                    for value in observation.get("bar_updates", []):
+                        if value.get("interval") == interval and start <= value["start_ms"] <= now:
+                            previous = values.get(value["start_ms"])
+                            if previous and (previous["updated_ms"] > value["updated_ms"]
+                                             or previous["is_closed"] and not value["is_closed"]):
+                                continue
+                            values[value["start_ms"]] = value
+            for opening, value in values.items():
+                candles[opening] = ChartCandle(time=opening // 1000,
+                    is_complete=value["is_complete"], is_closed=value["is_closed"],
+                    **{key: value[key] for key in ("open", "high", "low", "close", "volume")})
+    return LocalChartResponse(symbol=symbol, interval=interval, checked_at=now, live=live,
+                              candles=[candles[key] for key in sorted(candles)[-300:]])
 
 
 @router.get("/bars")
@@ -346,8 +438,8 @@ async def task_stream(websocket: WebSocket, _: AdminUser, job_id: str = ""):
 
 
 @router.get("/subscriptions")
-def subscriptions(request: Request, _: CurrentUser):
-    return {"items": service(request).subscriptions.items()}
+def subscriptions(request: Request, _: CurrentUser, group_options: bool = False):
+    return {"items": service(request).subscriptions.items(group_options=group_options)}
 
 
 @router.get("/services")
@@ -387,11 +479,12 @@ async def save_subscription(request: Request, payload: DataPolicySave, _: AdminU
     if payload.realtime_enabled or payload.history_enabled:
         await require_download_market(request, payload)
     manager = service(request)
-    if payload.history_enabled and payload.product != "futures_um":
-        raise HTTPException(422, "期权追加请使用已有历史获取入口；近期 Tick 不支持完整历史")
     policy = DataPolicy.model_validate(payload.model_dump(exclude={"deletion_snapshot", "confirmation"}))
     try:
-        return await run_in_threadpool(manager.save_configuration, policy,
-                                      deletion_snapshot=payload.deletion_snapshot, confirmation=payload.confirmation)
+        result = await run_in_threadpool(manager.save_configuration, policy,
+                                        deletion_snapshot=payload.deletion_snapshot, confirmation=payload.confirmation)
+        if policy.product == "options" and "-" not in policy.symbol:
+            await manager.subscriptions.sync_options(request.app.state.exchanges)
+        return result
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None

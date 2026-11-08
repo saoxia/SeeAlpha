@@ -94,3 +94,55 @@ def test_sqlite_read_marks_do_not_invalidate_confirmation_but_data_changes_do(st
         plan = pair_deletion_plan("ETHUSDT", "futures_um", settings, project=root)
     result = delete_pair_data("ETHUSDT", "futures_um", settings, expected_snapshot=plan["snapshot"], project=root)
     assert result["deleted_files"] == 3
+
+
+def test_option_underlying_deletion_groups_expiries_and_preserves_other_products(storage, monkeypatch):
+    from types import SimpleNamespace
+
+    settings, root = storage
+    symbols = ("BTC-261225-85000-C", "BTC-270129-90000-P")
+    monkeypatch.setattr("pipeline.catalog.ParquetDataCatalog.instruments", lambda self: [
+        SimpleNamespace(id=instrument_id_for(symbol, "options"), info={"binance_options": {"underlying": "BTCUSDT"}})
+        for symbol in symbols])
+    paths = [settings.raw_dir / "options" / symbols[0] / "source.json",
+             settings.catalog_dir / "data/bars" / bar_type_for(symbols[1], "1m", "options") / "bars.parquet"]
+    keep = [settings.raw_dir / "options/ETH-261225-3000-C/source.json",
+            settings.raw_dir / "futures/um/daily/trades/BTCUSDT/archive.zip",
+            settings.catalog_dir / "data/crypto_option" / instrument_id_for(symbols[0], "options") / "definition.parquet"]
+    for path in paths + keep:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"data")
+    plan = pair_deletion_plan("BTCUSDT", "options", settings, project=root)
+    assert plan["file_count"] == 2 and set(plan["contracts"]) == set(symbols)
+    paths[1].write_bytes(b"changed")
+    with pytest.raises(ValueError, match="数据已变化"):
+        delete_pair_data("BTCUSDT", "options", settings, expected_snapshot=plan["snapshot"], project=root)
+    plan = pair_deletion_plan("BTCUSDT", "options", settings, project=root)
+    lock = root / ".local/run/api/data/options" / f"{symbols[0]}.access.lock"
+    lock.parent.mkdir(parents=True)
+    with lock.open("a") as lease:
+        fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        with pytest.raises(ValueError, match="仍有采集"):
+            delete_pair_data("BTCUSDT", "options", settings, expected_snapshot=plan["snapshot"], project=root)
+    assert all(p.exists() for p in paths)
+    result = delete_pair_data("BTCUSDT", "options", settings, expected_snapshot=plan["snapshot"], project=root)
+    assert result["deleted_files"] == 2 and all(p.exists() for p in keep)
+    assert pair_deletion_plan("BTCUSDT", "options", settings, project=root)["file_count"] == 0
+
+
+def test_option_underlying_deletion_uses_venue_settlement_metadata(storage, monkeypatch):
+    from types import SimpleNamespace
+
+    settings, root = storage
+    symbols = {"BTC-261225-85000-C": "BTCUSDT", "BTC-270129-90000-P": "BTCUSDC"}
+    monkeypatch.setattr("pipeline.catalog.ParquetDataCatalog.instruments", lambda self: [
+        SimpleNamespace(id=instrument_id_for(symbol, "options"), info={"binance_options": {"underlying": pair}})
+        for symbol, pair in symbols.items()])
+    settings.catalog_dir.mkdir(parents=True)
+    for symbol in symbols:
+        path = settings.raw_dir / "options" / symbol / "source.json"
+        path.parent.mkdir(parents=True)
+        path.write_text("evidence")
+    for pair in ("BTCUSDT", "BTCUSDC"):
+        plan = pair_deletion_plan(pair, "options", settings, project=root)
+        assert set(plan["contracts"]) == {symbol for symbol, underlying in symbols.items() if underlying == pair}

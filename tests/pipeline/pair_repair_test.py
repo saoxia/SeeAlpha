@@ -67,6 +67,62 @@ def test_equal_day_never_requests_smaller_periods(dataset):
     assert [request["interval"] for request in rest.requests] == ["1d"]
 
 
+def test_saved_target_is_read_without_loading_minutes_or_ticks():
+    from pipeline.pair_repair import local_klines
+
+    stamp = (LEFT + 86400000 - 1) * 1000000
+    bar = Bar(BarType.from_str(bar_type_for("ETHUSDT", "1d")),
+              *(Price.from_str(value) for value in ("10.00", "12.00", "9.00", "11.00")),
+              Quantity.from_str("1440.000"), stamp, stamp)
+    class SavedBarsOnly:
+        def bars(self, *, bar_types, start, end):
+            assert bar_types == [bar_type_for("ETHUSDT", "1d")]
+            return [bar]
+    result = local_klines(SavedBarsOnly(), "ETHUSDT", "1d", LEFT, LEFT + 86400000)
+    assert result[LEFT]["complete"]
+    assert result[LEFT]["values"][4] == 1440
+
+
+def test_published_archive_allows_saved_public_bars_check_without_private_ticks(dataset, monkeypatch):
+    settings, _source = dataset
+    public = ParquetDataCatalog(settings.catalog_dir.parent / "public")
+    minutes(public)
+    private = ParquetDataCatalog(settings.catalog_dir)
+    private.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
+    probes = []
+    def probe(*args):
+        probes.append(args)
+        return True
+    def forbidden(*args):
+        raise AssertionError("Matching saved K lines must not convert or deduplicate Tick data")
+    monkeypatch.setattr("pipeline.pair_data._history_archive_available", probe)
+    monkeypatch.setattr("pipeline.pair_repair.ensure_instruments", forbidden)
+    monkeypatch.setattr("pipeline.pair_repair.repair_candidates", forbidden)
+    rest = Rest()
+    result = asyncio.run(reconcile_day({"symbol": "ETHUSDT"}, settings, rest, "tick", DAY, DAY + timedelta(days=1), LEFT,
+                                      comparison_catalog=public.path))
+    assert result["ready"] and result["scope"] == "saved_kline_ohlcv"
+    assert result["records_written"] == 0
+    assert len(probes) == 1
+    assert [request["interval"] for request in rest.requests] == ["1d"]
+
+
+@pytest.mark.parametrize("source", ["tick", "1s"])
+def test_unpublished_archive_skips_kline_requests_local_reads_and_repair(dataset, monkeypatch, source):
+    settings, catalog = dataset
+    catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
+    monkeypatch.setattr("pipeline.pair_data._history_archive_available", lambda *args: False)
+    def forbidden(*args):
+        raise AssertionError("Unpublished archive must skip comparison and repair")
+    monkeypatch.setattr("pipeline.pair_repair.ParquetDataCatalog", forbidden)
+    monkeypatch.setattr("pipeline.pair_repair.scan_day", forbidden)
+    monkeypatch.setattr("pipeline.pair_repair.repair_candidates", forbidden)
+    rest = Rest()
+    result = asyncio.run(reconcile_day({"symbol": "ETHUSDT"}, settings, rest, source, DAY, DAY + timedelta(days=1), LEFT))
+    assert not result["ready"] and result["archive_pending"]
+    assert rest.requests == []
+
+
 def test_missing_minute_inside_existing_file_is_located_and_added_once(dataset):
     settings, catalog = dataset
     minutes(catalog, missing=(500,))
@@ -226,7 +282,7 @@ def test_cancelled_repair_waits_for_the_writer_before_releasing_its_caller(datas
     catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
     entered, release = threading.Event(), threading.Event()
     async def scan(*args):
-        return [], []
+        return [{}], []
     def write(*args):
         entered.set()
         assert release.wait(5)
@@ -245,3 +301,53 @@ def test_cancelled_repair_waits_for_the_writer_before_releasing_its_caller(datas
         with pytest.raises(asyncio.CancelledError):
             await task
     asyncio.run(scenario())
+
+
+def test_repaired_day_is_completed_only_after_saved_bars_are_generated_and_rechecked(dataset, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    import pipeline.pair_data as module
+    from feed.history import CatalogHistory
+    from pipeline.convert_binance_bars import write_record
+
+    settings, catalog = dataset
+    catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
+    project = settings.catalog_dir.parent
+    root = project / "data/history"
+    root.mkdir(parents=True)
+    cutoff = DAY + timedelta(days=1)
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cutoff
+    clock = [1000]
+    monkeypatch.setattr(module, "PROJECT_ROOT", project)
+    monkeypatch.setattr(module, "datetime", FrozenDatetime)
+    monkeypatch.setattr(module, "time", SimpleNamespace(time=lambda: clock[0]))
+    policy = {"symbol": "ETHUSDT", "product": "futures_um", "base_level": "1m", "intervals": ["1m", "1h", "1d"],
+              "history_mode": "start", "history_start": DAY.isoformat()}
+    checkpoint = root / "checkpoint.json"
+    write_record(checkpoint, {"configuration": module.history_configuration(policy), "start": DAY.isoformat(),
+                 "next_day": DAY.isoformat(), "available_ms": LEFT, "verification_version": 2})
+    rest = Rest()
+    async def stop(_delay):
+        raise asyncio.CancelledError
+    monkeypatch.setattr(module.asyncio, "sleep", stop)
+    def run():
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(module.serve_history(policy, settings, root, rest=rest))
+    run()
+    audit = root / "audits" / f"{DAY.date()}.json"
+    assert not json.loads(audit.read_text())["verified"]
+    event = next((root / "changes").glob("*.json"))
+    assert CatalogHistory(catalog.path).consume_change(event)
+    assert not event.exists()
+    clock[0] = 1301
+    run()
+    assert json.loads(audit.read_text())["verified"]
+    assert len(catalog.bars(bar_types=[bar_type_for("ETHUSDT", "1h")])) == 24
+    assert catalog.bars(bar_types=[bar_type_for("ETHUSDT", "1d")])[0].volume.as_decimal() == 1440
+    rest.requests.clear()
+    run()
+    assert rest.requests == []

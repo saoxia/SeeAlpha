@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -57,7 +59,10 @@ class EquityCandleSeriesResponse(BaseModel):
     currency: str
     metric: str = Field(default="total_equity", pattern=r"^total_equity$")
     interval_seconds: int = 300
-    is_sample: bool = True
+    is_sample: bool = False
+    status: Literal["pending", "ready", "gap", "unavailable"] = "pending"
+    gaps: list[int] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     candles: list[EquityCandleResponse] = Field(default_factory=list)
 
 
@@ -86,13 +91,13 @@ class ExchangeBalancesResponse(BaseModel):
 
 
 class ExchangeAccountSummaryResponse(BaseModel):
-    """Public portfolio values; total equity is wallet balance plus unrealized PnL."""
+    """Display values; equity is wallet plus PnL, with source on the portfolio."""
 
     currency: str
     margin_ratio: str | None = None
     maintenance_margin: str | None = None
     total_equity: str | None = Field(
-        default=None, description="Actual account value: wallet balance plus unrealized PnL."
+        default=None, description="Wallet balance plus unrealized PnL; see portfolio valuation_source."
     )
     position_value: str | None = None
     effective_leverage: str | None = None
@@ -144,9 +149,24 @@ class ExchangePositionResponse(BaseModel):
     margin_mode: str = ""
 
 
+class ExchangeAssetResponse(BaseModel):
+    account_id: int
+    account_name: str
+    currency: str
+    balance: str
+    price_usdt: str | None = None
+    value_usdt: str | None = None
+    priced_at: int | None = None
+    small: bool = False
+    stale: bool = False
+    error: str | None = None
+
+
 class ExchangePortfolioResponse(BaseModel):
     checked_at: int
     account: ExchangeAccountSummaryResponse
+    assets: list[ExchangeAssetResponse] = Field(default_factory=list)
+    valuation_source: Literal["exchange", "estimate"] = "exchange"
     trades: list[ExchangeTradeResponse] = Field(default_factory=list)
     positions: list[ExchangePositionResponse] = Field(default_factory=list)
     errors: dict[str, str] = Field(default_factory=dict)

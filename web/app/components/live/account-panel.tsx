@@ -11,6 +11,19 @@ type AccountPanelProps = {
 };
 
 export function AccountPanel({ account, portfolio, loading, error, overview, scopeName }: AccountPanelProps) {
+  const assets = portfolio?.assets ?? [];
+  const smallAssets = assets.filter((asset) => asset.small && !asset.stale && typeof asset.value_usdt === "string");
+  const mainAssets = assets.filter((asset) => !smallAssets.includes(asset));
+  const renderAssets = (items: typeof assets) => items.map((asset) => (
+    <li key={`${asset.account_id}-${asset.currency}`}>
+      <b>{asset.currency}{overview ? ` · ${asset.account_name}` : ""}</b>
+      <span>{asset.balance}</span>
+      <span>{asset.stale || typeof asset.value_usdt !== "string" ? "暂未估值" : `≈ ${fixedDecimal(asset.value_usdt, 4)} USDT`}</span>
+      {asset.priced_at && <small>价格时间：{new Date(asset.priced_at * 1000).toLocaleString("zh-CN")}</small>}
+      {asset.stale && typeof asset.value_usdt === "string" && <small>上次估值：{fixedDecimal(asset.value_usdt, 4)} USDT（旧价参考）</small>}
+      {asset.error && <small className="error">{asset.error}</small>}
+    </li>
+  ));
   return (
     <>
       <h2>{scopeName ? `${scopeName} · 账户` : "账户"}</h2>
@@ -44,6 +57,15 @@ export function AccountPanel({ account, portfolio, loading, error, overview, sco
               </section>
             </section>
           </>)}
+      {!loading && !error && assets.length > 0 && <section className="account-assets" aria-label="分币种资产">
+        <h3>资产明细 · USDT 估值</h3>
+        <ul>{renderAssets(mainAssets)}</ul>
+        {smallAssets.length > 0 && <details>
+          <summary>小额资产（低于 5 USDT）· {smallAssets.length} 项</summary>
+          <p>小额资产仍计入估值，价格最多缓存 1 小时；点击“刷新资产”立即更新。</p>
+          <ul>{renderAssets(smallAssets)}</ul>
+        </details>}
+      </section>}
     </>
   );
 }

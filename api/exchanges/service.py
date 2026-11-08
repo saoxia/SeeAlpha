@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import HTTPException
 
+from connectors.binance import assets as asset_queries
 from connectors.binance import queries
 
 
@@ -52,10 +53,12 @@ class ExchangeService:
         self.accounts = accounts
         self.cache, self.locks = {}, {}
         self.catalog_cache, self.catalog_locks = {}, {}
+        self.asset_cache, self.asset_locks = {}, {}
         self.gate = asyncio.Semaphore(2)
 
     def invalidate(self, account_id):
         self.cache.pop(account_id, None)
+        self.asset_cache.pop(account_id, None)
 
     async def snapshot(self, account_id, *, fresh=False):
         async with self.locks.setdefault(account_id, asyncio.Lock()):
@@ -119,9 +122,81 @@ class ExchangeService:
             self.catalog_cache[key] = (time.monotonic() + 300, values)
             return values
 
-    async def portfolio(self, account_id):
+    async def asset_values(self, account_id, *, fresh=False):
+        async with self.asset_locks.setdefault(account_id, asyncio.Lock()):
+            account = await asyncio.to_thread(self.accounts.private, account_id)
+            identity = tuple(account[k] for k in ("environment", "credentials_encrypted", "updated_at"))
+            cached = self.asset_cache.get(account_id)
+            if cached is None or cached["identity"] != identity:
+                cached = {"identity": identity, "expires": 0, "prices": {}}
+                self.asset_cache[account_id] = cached
+            if fresh or cached["expires"] <= time.monotonic():
+                async with self.gate:
+                    cached["evidence"] = await asyncio.to_thread(asset_queries.asset_account, account)
+                cached["expires"] = time.monotonic() + 10
+            evidence = cached["evidence"]
+            # USD indices share the same denominator. Do not assume USDC/USD or USDT/USD = 1.
+            currencies = {"USDT", *evidence["assets"]}
+            rates, rows = {}, []
+            for currency in sorted(currencies):
+                amount = evidence["assets"].get(currency, {}).get("walletBalance", Decimal(0))
+                previous = cached["prices"].get(currency)
+                if (fresh or previous is None or previous["amount"] != amount
+                        or previous["expires"] <= time.monotonic()):
+                    try:
+                        async with self.gate:
+                            quote = await asyncio.to_thread(asset_queries.asset_price, account["environment"], currency)
+                        # The threshold is applied below after conversion to USDT.
+                        previous = {**quote, "amount": amount, "fetched_at": time.monotonic(), "expires": time.monotonic() + 60,
+                                    "error": None}
+                    except queries.QueryError as exc:
+                        previous = {**(previous or {}), "amount": amount,
+                                    "expires": time.monotonic() + 60, "error": str(exc)}
+                    cached["prices"][currency] = previous
+                rates[currency] = previous
+            denominator = rates["USDT"]
+            valid_denominator = denominator.get("price") is not None and not denominator["error"]
+            for currency, values in evidence["assets"].items():
+                quote = rates[currency]
+                price = (quote["price"] / denominator["price"]
+                         if quote.get("price") is not None and denominator.get("price") is not None else None)
+                stale = bool(quote["error"] or denominator["error"])
+                value = values["walletBalance"] * price if price is not None else None
+                small = value is not None and abs(value) < 5
+                if not stale and small and currency != "USDT":
+                    # Keep dust prices for one hour, without sliding the expiry on reads.
+                    quote["expires"] = quote["fetched_at"] + 3600
+                elif not stale:
+                    quote["expires"] = quote["fetched_at"] + 60
+                rows.append({"account_id": account_id, "currency": currency,
+                             "balance": text(values["walletBalance"]), "price_usdt": text(price),
+                             "value_usdt": text(value), "priced_at": min(quote.get("priced_at", 0), denominator.get("priced_at", 0)) or None,
+                             "small": small, "stale": stale,
+                             "error": quote["error"] or denominator["error"]})
+            current = await asyncio.to_thread(self.accounts.private, account_id)
+            if identity != tuple(current[k] for k in ("environment", "credentials_encrypted", "updated_at")):
+                self.asset_cache.pop(account_id, None)
+                raise queries.QueryError("账户配置已变化，请重新查询。")
+            if evidence["multi_assets"] and valid_denominator:
+                result = summary({key: text(number(value) / denominator["price"])
+                                  for key, value in evidence["totals"].items()})
+                source = "exchange"
+            elif valid_denominator and all(not row["stale"] and row["value_usdt"] is not None for row in rows):
+                totals = {"total_wallet_balance": Decimal(0), "total_unrealized_profit": Decimal(0)}
+                for row in rows:
+                    values = evidence["assets"][row["currency"]]
+                    rate = number(row["price_usdt"])
+                    totals["total_wallet_balance"] += values["walletBalance"] * rate
+                    totals["total_unrealized_profit"] += values["unrealizedProfit"] * rate
+                result = summary(totals)
+                source = "estimate"
+            else:
+                result, source = summary({}), "estimate"
+            return result, rows, source, evidence["observed_at"]
+
+    async def portfolio(self, account_id, *, fresh=False):
         row = await asyncio.to_thread(self.accounts.row, account_id)
-        snapshot = await self.snapshot(account_id)
+        snapshot = await self.snapshot(account_id, fresh=fresh)
         account = summary(snapshot.info)
         positions = [
             {
@@ -132,38 +207,55 @@ class ExchangeService:
             }
             for p in snapshot.positions
         ]
-        errors = {}
+        errors, warnings = {}, {}
+        assets = [{"account_id": account_id, "currency": "USDT", "balance": account["wallet_balance"],
+                   "price_usdt": "1", "value_usdt": account["wallet_balance"], "priced_at": snapshot.observed_at,
+                   "small": account["wallet_balance"] is not None and abs(number(account["wallet_balance"])) < 5,
+                   "stale": False, "error": None}] if account["wallet_balance"] is not None else []
+        source, checked_at = "exchange", snapshot.observed_at
         if any(
             currency != "USDT" and number(amount) != 0
             for currency, amount in snapshot.balances.items()
-        ):
-            account = summary({})
-            errors["account"] = "非 USDT 抵押资产的汇总计价尚未验收；余额可分币种查询。"
+        ) or any(not position["symbol"].endswith(":USDT") for position in snapshot.positions):
+            try:
+                account, assets, source, checked_at = await self.asset_values(account_id, fresh=fresh)
+                warnings["account"] = ("按交易所 USD 汇总折算 USDT。" if source == "exchange" else
+                                       "按资产指数估值，含小额资产；估值不用于保证金或交易风控。")
+                if any(item["stale"] or item["value_usdt"] is None for item in assets):
+                    warnings["account"] += " 部分资产暂未估值，保留的旧价仅供参考。"
+            except queries.QueryError as exc:
+                account, assets = summary({}), []
+                errors["account"] = str(exc)
         if any(account[k] is None for k in ("total_equity", "wallet_balance", "unrealized_pnl")):
-            errors.setdefault("account", "当前原生账户快照缺少完整权益字段。")
+            errors.setdefault("account", "账户权益数据不完整：资产价格暂不可用或缺少钱包余额、未实现盈亏。")
         return {
-            "checked_at": snapshot.observed_at,
+            "checked_at": checked_at,
             "account": account,
+            "assets": [{**item, "account_name": row["account_name"]} for item in assets],
+            "valuation_source": source,
             "positions": positions,
             "trades": [],
             "errors": errors,
             "warnings": {
-                "account": "原生快照尚未提供仓位估值与实际杠杆。",
+                "account": warnings.get("account", "原生快照尚未提供仓位估值与实际杠杆。"),
                 "positions": "原生标准仓位未提供标记价、强平价、逐仓模式等字段；缺失值显示为 --。",
             },
         }
 
-    async def overview(self):
+    async def overview(self, *, fresh=False):
         accounts = await asyncio.to_thread(self.accounts.navigation)
         values = []
-        errors = []
+        errors, assets, valuation_warnings = [], [], []
         for account in accounts:
             try:
-                value = await self.portfolio(account["id"])
+                value = await self.portfolio(account["id"], fresh=fresh)
+                assets.extend(value["assets"])
                 if value["errors"]:
-                    errors.append(f"{account['account_name']}: 账户数据不完整。")
+                    errors.append(f"{account['account_name']}: {value['errors']['account']}")
                 else:
                     values.append(value)
+                    if value["valuation_source"] == "estimate" or any(a["stale"] for a in value["assets"]):
+                        valuation_warnings.append(f"{account['account_name']}: {value['warnings']['account']}")
             except queries.QueryError:
                 errors.append(f"{account['account_name']}: Binance 查询失败。")
             except HTTPException as exc:
@@ -182,9 +274,13 @@ class ExchangeService:
                     else None
                 )
         warnings = {"account": "部分账户未计入：" + "；".join(errors)} if errors and values else {}
+        if valuation_warnings:
+            warnings["account"] = "；".join(filter(None, [warnings.get("account"), *valuation_warnings]))
         return {
             "checked_at": min((v["checked_at"] for v in values), default=int(time.time())),
             "account": summary(info),
+            "assets": assets,
+            "valuation_source": "estimate" if any(v["valuation_source"] == "estimate" for v in values) else "exchange",
             "positions": [p for v in values for p in v["positions"]],
             "trades": [],
             "errors": {"account": "；".join(errors)} if errors and not values else {},

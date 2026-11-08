@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 
-from .contracts import DataPolicy
+from .contracts import DataPolicy, option_pair
 
 
 class Subscriptions:
@@ -70,6 +70,9 @@ class Subscriptions:
         return list(dict.fromkeys(path for path in paths if path.is_file())) if policy.product == "futures_um" else []
 
     def _start(self, policy):
+        if policy.product == "options":
+            self._start_options()
+            return
         key = (policy.product, policy.symbol)
         roles = (["collection"] if policy.realtime_enabled else [])
         if policy.base_level != "auto" and policy.product == "futures_um":
@@ -104,9 +107,15 @@ class Subscriptions:
             try:
                 previous = self.policies or []
                 policies = self._read(refresh=True)
+                if any(p.product == "options" for p in [*previous, *policies]):
+                    self._claim()
+                    self._publish_options()
+                    self._start_options()
                 if previous:
                     self._claim()
                     for old in previous:
+                        if old.product == "options":
+                            continue
                         key = (old.product, old.symbol)
                         new = next((p for p in policies if (p.product, p.symbol) == key), None)
                         if new != old:
@@ -120,6 +129,8 @@ class Subscriptions:
                 self._claim()
                 errors = []
                 for policy in policies:
+                    if policy.product == "options":
+                        continue
                     if policy.realtime_enabled or policy.history_enabled:
                         try:
                             self._start(policy)
@@ -130,7 +141,57 @@ class Subscriptions:
                 self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
                 # Retain the previous configuration and running services on outages.
 
+    async def sync_options(self, exchanges):
+        """Discover contracts for persisted underlying scopes using the cached catalogue."""
+        from api.db.errors import StorageUnavailable
+        try:
+            policies = await asyncio.to_thread(self._read)
+            if not any(p.product == "options" and "-" not in p.symbol for p in policies):
+                return
+            markets = await exchanges.catalog("production", product="options")
+            await asyncio.to_thread(self._include_options, markets)
+        except HTTPException as exc:
+            self.last_error = str(exc.detail)
+        except (StorageUnavailable, OSError, ValueError, RuntimeError, TimeoutError):
+            self.last_error = "期权目录同步失败；保留原配置，稍后重试"
+
+    def _include_options(self, markets):
+        with self.lock:
+            self._claim()
+            policies = self._read(refresh=True)
+            scopes = {p.symbol: p for p in policies if p.product == "options" and "-" not in p.symbol}
+            if not scopes:
+                return
+            known = {(p.product, p.symbol) for p in policies} | self.deleting
+            configured = {p.symbol: p for p in policies if p.product == "options"}
+            additions, metadata = [], {}
+            for symbol, market in {item["symbol"]: item for item in markets}.items():
+                previous = configured.get(symbol)
+                pair = market.get("underlying") or (previous.underlying if previous else None) or option_pair(symbol)
+                scope = scopes.get(pair, scopes.get("ALL"))
+                if scope is None or ("options", pair) in self.deleting:
+                    continue
+                if pair not in scopes:
+                    scope = DataPolicy.model_validate({**scope.model_dump(), "symbol": pair})
+                    scopes[pair] = scope
+                    additions.append(scope)
+                if ("options", symbol) not in known:
+                    additions.append(DataPolicy.model_validate({**scope.model_dump(), "symbol": symbol, "underlying": pair}))
+                metadata[symbol] = pair
+            updated = [p.model_copy(update={"underlying": metadata[p.symbol]})
+                       if p.product == "options" and p.symbol in metadata else p for p in policies]
+            if additions or updated != policies:
+                self._write([*updated, *additions])
+                if any(p.realtime_enabled or p.history_enabled for p in additions):
+                    self.manager.require_storage(write=True)
+                    self._start(additions[0])
+            if self.last_error == "期权目录同步失败；保留原配置，稍后重试":
+                self.last_error = None
+
     def _stop_pair(self, key, *, collection=True, auxiliary=True):
+        if key[0] == "options":
+            self._start_options()
+            return
         if collection:
             process = self.processes.pop(key, None)
             if process is not None:
@@ -190,16 +251,30 @@ class Subscriptions:
             self._claim()
             policies = self._read(refresh=True)
             key = (policy.product, policy.symbol)
-            if key in self.deleting:
+            if key in self.deleting or (policy.product == "options" and ("options", policy.pair) in self.deleting):
                 raise HTTPException(409, "该交易对正在删除，请等待任务完成")
             old = next((item for item in policies if (item.product, item.symbol) == key), None)
+            if old is not None and policy.product == "options" and "-" in policy.symbol:
+                policy = policy.model_copy(update={"underlying": old.underlying or policy.underlying})
             policy = self.resolve(policy, old)
-            if (not allow_later_start and old is not None and old.history_mode == "start" and old.history_start is not None
+            if (policy.product == "futures_um" and not allow_later_start and old is not None and old.history_mode == "start" and old.history_start is not None
                     and policy.history_start is not None and policy.history_start > old.history_start):
                 raise HTTPException(409, "开始日期调晚须先预览并确认删除旧数据")
             same_collection = (old is not None and old.realtime_enabled and policy.realtime_enabled
                                and old.base_level == policy.base_level
                                and set(old.intervals) == set(policy.intervals))
+            if policy.product == "options" and "-" not in policy.symbol:
+                # A user save applies the scope to existing contracts in one transaction.
+                if any(product == "options" and (policy.symbol == "ALL" or symbol == policy.symbol
+                       or any(p.symbol == symbol and p.pair == policy.symbol for p in policies))
+                       for product, symbol in self.deleting):
+                    raise HTTPException(409, "期权合约正在删除，完成后再调整范围配置")
+                updated = [DataPolicy.model_validate({**policy.model_dump(), "symbol": item.symbol, "underlying": item.underlying})
+                           if item.product == "options" and (policy.symbol == "ALL" or item.pair == policy.symbol)
+                           else item for item in policies if (item.product, item.symbol) != key]
+                self._write([*updated, policy])
+                self._start(policy)
+                return self._public(policy)
             policies = [item for item in policies if (item.product, item.symbol) != key] + [policy]
             self._write(policies)
             if not same_collection:
@@ -219,47 +294,120 @@ class Subscriptions:
             raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
         self.manager.policy_repository.save(policies)
         self.policies = list(policies)
+        if any(p.product == "options" for p in policies) or (self.manager.directory / "options-runtime.json").exists():
+            self._publish_options()
+
+    def _publish_options(self):
+        from pipeline.convert_binance_bars import write_record
+        path = self.manager.directory / "options-runtime.json"
+        values = [p.model_dump(mode="json") for p in self.policies or [] if p.product == "options" and "-" in p.symbol]
+        write_record(path, {"version": 1, "policies": values})
+        return path
+
+    def _start_options(self):
+        """Two shared processes; no contract-sized process or inherited FD lists."""
+        path = self._publish_options()
+        directory = self.project / "logs/api/data/feed"
+        directory.mkdir(parents=True, exist_ok=True)
+        root = self.project / "data/market_data/binance_um_1m/managed/.options"
+        for role in ("collection", "history"):
+            processes = self.processes if role == "collection" else self.auxiliary
+            key = ("options", "ALL") if role == "collection" else ("options", "ALL", role)
+            enabled = any(p.product == "options" and "-" in p.symbol and
+                          (p.realtime_enabled if role == "collection" else p.history_enabled)
+                          and (p.product, p.symbol) not in self.deleting for p in self.policies or [])
+            existing = processes.get(key)
+            if not enabled:
+                if existing is not None:
+                    self.manager._stop(processes.pop(key))
+                continue
+            if existing is not None and existing.poll() is None:
+                continue
+            self.manager.require_storage(write=True)
+            command = ([sys.executable, "-m", "feed.managed", "--options-config", str(path),
+                        "--root", str(root), "--data-root", str(self.project / "data"),
+                        "--catalog", str(self.project / "data/catalog")] if role == "collection" else
+                       [sys.executable, "-m", "pipeline.pair_data", "--service", "--options-config", str(path),
+                        "--root", str(root)])
+            with (directory / f"options-{role}.log").open("ab", buffering=0) as output:
+                processes[key] = subprocess.Popen(command, cwd=self.project, stdin=subprocess.DEVNULL,
+                    stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                    pass_fds=(self.lease.fileno(),), env={**os.environ, "PYTHONUNBUFFERED": "1"})
 
     def pause_for_deletion(self, symbol, product):
         with self.lock:
             self._claim()
             policies = self._read(refresh=True)
-            policy = next((p for p in policies if (p.product, p.symbol) == (product, symbol)), None)
-            if (product, symbol) in self.deleting:
+            if product == "options" and "-" not in symbol:
+                members = [p for p in policies if p.product == product and p.pair == symbol]
+            else:
+                members = [p for p in policies if (p.product, p.symbol) == (product, symbol)]
+            if (product, symbol) in self.deleting or any((product, p.symbol) in self.deleting for p in members):
                 raise HTTPException(409, "该交易对正在删除，请等待任务完成")
-            if policy is not None:
-                paused = policy.model_copy(update={"realtime_enabled": False, "history_enabled": False})
-                self._write([paused if (p.product, p.symbol) == (product, symbol) else p for p in policies])
+            if members:
+                self._write([p.model_copy(update={"realtime_enabled": False, "history_enabled": False})
+                             if p in members else p for p in policies])
                 self._stop_pair((product, symbol))
+                if product == "options":
+                    # Both batch workers must finish writes for every selected
+                    # contract before taking a stable deletion preview.
+                    deadline = time.monotonic() + 5
+                    for member in members:
+                        if "-" not in member.symbol:
+                            continue
+                        while True:
+                            try:
+                                self.manager._lease(member.symbol, product, access=True).close()
+                                break
+                            except HTTPException:
+                                if time.monotonic() >= deadline:
+                                    raise HTTPException(409, "该期权正在停止采集或补齐，请稍后重新预览删除。") from None
+                                time.sleep(0.05)
 
     def remove(self, symbol, product):
         with self.lock:
             self._claim()
-            self._write([p for p in self._read() if (p.product, p.symbol) != (product, symbol)])
+            policies = self._read()
+            group = product == "options" and "-" not in symbol
+            if group:
+                # Removing ALL discovery must retain discovery for other existing
+                # underlyings, including legacy configurations not yet expanded.
+                scope = next((p for p in policies if p.product == "options" and p.symbol == "ALL"), None)
+                groups = {p.symbol for p in policies if p.product == "options" and "-" not in p.symbol}
+                for policy in list(policies):
+                    if policy.product == "options" and "-" in policy.symbol and policy.pair not in groups:
+                        source = scope or policy
+                        policies.append(DataPolicy.model_validate({**source.model_dump(), "symbol": policy.pair, "underlying": None}))
+                        groups.add(policy.pair)
+            self._write([p for p in policies if not (p.product == product and
+                         (p.symbol == symbol or group and p.pair in {symbol, "ALL"}))])
 
     def _public(self, policy):
+        if policy.product == "options" and "-" not in policy.symbol:
+            return self._option_group(policy)
         state = {"state": "STOPPED", "data_ready": False, "reason": "not_started",
                  "bar_updates": [], "symbols": {}}
-        if policy.product == "futures_um":
-            path = self.root(policy) / "status.json"
-            try:
-                if path.is_file():
-                    if path.stat().st_size > 131072:
-                        raise ValueError("Oversize status")
-                    value = json.loads(path.read_text())
-                    if (not isinstance(value, dict) or value.get("state") not in
-                            {"STOPPED", "READY", "DEGRADED", "WARMING_UP"}
-                            or type(value.get("valid_until_ms")) is not int
-                            or type(value.get("data_ready", False)) is not bool):
-                        raise ValueError("Invalid status")
-                    state = {key: value[key] for key in ("state", "data_ready", "reason", "checked_ms",
-                             "valid_until_ms", "symbols", "job", "bar_updates", "last_error", "gap_count", "scope") if key in value}
-                    if int(time.time() * 1000) > value["valid_until_ms"]:
-                        state.update(state="DEGRADED", data_ready=False, reason="status_expired", bar_updates=[])
-            except (OSError, ValueError, TypeError):
-                state.update(state="DEGRADED", data_ready=False, reason="invalid_status", bar_updates=[])
-        process = self.processes.get((policy.product, policy.symbol))
-        if process is not None and process.poll() is not None:
+        path = self.root(policy) / "status.json"
+        try:
+            if path.is_file():
+                if path.stat().st_size > 131072:
+                    raise ValueError("Oversize status")
+                value = json.loads(path.read_text())
+                if (not isinstance(value, dict) or value.get("state") not in
+                        {"STOPPED", "READY", "DEGRADED", "WARMING_UP"}
+                        or type(value.get("valid_until_ms")) is not int
+                        or type(value.get("data_ready", False)) is not bool):
+                    raise ValueError("Invalid status")
+                state = {key: value[key] for key in ("state", "data_ready", "reason", "checked_ms",
+                         "valid_until_ms", "symbols", "job", "bar_updates", "last_error", "gap_count", "scope", "expiry_ms") if key in value}
+                expired_option = (policy.product == "options" and value.get("reason") == "expired"
+                                  and value.get("expiry_ms", float("inf")) <= time.time() * 1000)
+                if int(time.time() * 1000) > value["valid_until_ms"] and not expired_option:
+                    state.update(state="DEGRADED", data_ready=False, reason="status_expired", bar_updates=[])
+        except (OSError, ValueError, TypeError):
+            state.update(state="DEGRADED", data_ready=False, reason="invalid_status", bar_updates=[])
+        process = self.processes.get((policy.product, "ALL" if policy.product == "options" else policy.symbol))
+        if process is not None and process.poll() is not None and state.get("reason") != "expired":
             state.update(state="DEGRADED", data_ready=False, reason="process_exited", bar_updates=[])
         elif not policy.realtime_enabled:
             state.update(state="STOPPED", data_ready=False, reason="disabled", bar_updates=[])
@@ -268,10 +416,52 @@ class Subscriptions:
         state["bar_updates"] = services["calculation"].get("bar_updates", state.get("bar_updates", []))
         return {"policy": policy.model_dump(mode="json"), "runtime": state, "services": services}
 
-    def items(self):
+    def _option_group(self, policy):
+        from .monitor import observe
+
+        now = int(time.time() * 1000)
+        children = []
+        for member in self._read():
+            if member.product != "options" or "-" not in member.symbol or (policy.symbol != "ALL" and member.pair != policy.symbol):
+                continue
+            observations = observe(self, member, now)
+            children.append({"policy": member.model_dump(mode="json"), "runtime": observations["collection"], "services": observations})
+        services = {}
+        for role in ("collection", "history", "calculation"):
+            values = [child["services"][role] for child in children
+                      if child["services"][role].get("reason") not in {"disabled", "expired"}]
+            state = ("DEGRADED" if any(v["state"] == "DEGRADED" for v in values) else
+                     "WARMING_UP" if any(v["state"] != "READY" for v in values) else "READY") if values else "STOPPED"
+            services[role] = {"state": state, "healthy": bool(values) and all(v.get("healthy") for v in values),
+                              "backlog": sum(v.get("backlog") or 0 for v in values),
+                              "reason": next((v.get("reason") for v in values if not v.get("healthy")), None),
+                              "last_error": next((v.get("last_error") for v in values if v.get("last_error")), None),
+                              "valid_until_ms": min((v.get("valid_until_ms", now) for v in values), default=now + 5000)}
+        live = [c["runtime"] for c in children if c["policy"]["realtime_enabled"] and c["runtime"].get("reason") != "expired"]
+        ready = bool(live) and all(c.get("data_ready") and c.get("state") == "READY" for c in live)
+        degraded = any(c.get("state") == "DEGRADED" or (c.get("valid_until_ms") or 0) < now for c in live)
+        latest = max((s.get("last_update_ms") or s.get("last_websocket_ms") or 0
+                      for c in live for s in c.get("symbols", {}).values()), default=0)
+        runtime = {"state": "READY" if ready else "DEGRADED" if degraded else "WARMING_UP",
+                   "data_ready": ready, "reason": "options_scope", "checked_ms": now,
+                   "valid_until_ms": min((c.get("valid_until_ms") or now for c in live), default=now + 5000),
+                   "symbols": {policy.symbol: {"last_update_ms": latest or None}}, "bar_updates": []}
+        if not policy.realtime_enabled:
+            runtime.update(state="STOPPED", data_ready=False, reason="disabled")
+        return {"policy": policy.model_dump(mode="json"), "runtime": runtime, "services": services}
+
+    def items(self, *, group_options=False):
         # Configurations are replaced as a list, never mutated in place. Status
         # readers must not wait behind a cloud configuration refresh transaction.
-        return [self._public(policy) for policy in self._read()]
+        policies = self._read()
+        if group_options:
+            groups = {p.symbol: p for p in policies if p.product == "options" and "-" not in p.symbol and p.symbol != "ALL"}
+            for p in policies:
+                if p.product == "options" and "-" in p.symbol:
+                    pair = p.pair
+                    groups.setdefault(pair, p.model_copy(update={"symbol": pair, "underlying": None}))
+            policies = [p for p in policies if p.product != "options"] + list(groups.values())
+        return [self._public(policy) for policy in policies]
 
     def close(self):
         with self.lock:

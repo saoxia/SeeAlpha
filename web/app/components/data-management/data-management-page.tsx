@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ExchangeAccount, ExchangeTrade } from "../types";
+import { ClickhouseFreshnessMonitor } from "../data-ops/clickhouse-freshness-monitor";
 import { MarketDataPanel } from "./market-data-panel";
 import { OperationsList } from "./data-management-sections";
 import { dataManagementApi, timestamp } from "@/app/features/data-management/api";
@@ -108,6 +109,7 @@ export function DataManagementPage() {
         {([
           ["market", "行情数据"],
           ["operations", "账户记录"],
+          ["monitor", "数据监控"],
         ] as Array<[DataTab, string]>).map(([id, label]) => (
           <button
             key={id}
@@ -123,7 +125,8 @@ export function DataManagementPage() {
       </nav>
 
       {tab === "market" && <MarketDataPanel />}
-      <div hidden={tab === "market"}>
+      {tab === "monitor" && <div className="data-management-content"><ClickhouseFreshnessMonitor /></div>}
+      <div hidden={tab !== "operations"}>
       <form
         className="data-filter-bar"
         onSubmit={(event) => {

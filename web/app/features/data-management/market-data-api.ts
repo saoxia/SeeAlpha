@@ -7,7 +7,6 @@ export type DataDeletionPlan = components["schemas"]["DataDeletionPlan"];
 export type DataProduct = "futures_um" | "options";
 export type DataItem = { symbol: string; product?: DataProduct; level: string; event_ranges_ns: string[][]; quality: string;
   contract?: { underlying?: string; expiry?: number; strike?: string; right?: string; multiplier?: string; quote?: string } };
-export type DataInventory = { items: DataItem[] };
 export type DataSelection = { symbol: string; start: string; end: string; intervals: string[]; product?: DataProduct };
 export type DataPlan = {
   archive_days: number;
@@ -66,23 +65,11 @@ export const dataLevelLabels: Record<string, string> = { tick: "逐笔 Tick", "1
 export const dataJobLabels: Record<string, string> = { delete_pair: "删除交易对及全部行情", trim: "调整开始日期并删除旧数据", backfill: "历史补齐任务（兼容）", prepare: "获取行情数据", validate: "数据校验", materialize: "派生 K 线", export: "历史导出任务", delete: "删除历史数据" };
 export const dataStateLabels: Record<string, string> = { running: "运行中", succeeded: "已完成", failed: "失败", cancelled: "已取消", interrupted: "已中断", unknown: "状态待确认" };
 
-export function realtimeStatus(feed: FeedStatus | null, symbol: string, level: string, now: number, product: DataProduct = "futures_um"): string {
-  if (product === "options") return "未接入";
-  if (level !== "1m") return "未接入";
-  if (!feed) return "状态未知";
-  if (feed.reason === "not_started") return "未启动";
-  if (feed.reason === "invalid_status") return "状态异常";
-  if (feed.reason === "status_expired" || feed.valid_until_ms == null || now > feed.valid_until_ms) return "已过期";
-  if (feed.symbols && Object.keys(feed.symbols).length && !feed.symbols[symbol]) return "未订阅";
-  if (!feed.symbols?.[symbol]) return "待确认";
-  if (feed.state === "READY" && feed.data_ready) return "运行中";
-  return ({ WARMING_UP: "预热中", DEGRADED: "中断或降级", STOPPED: "已停止" }[feed.state] ?? "待确认");
-}
-
 // Task exclusion follows the backend's product/symbol scope, including orphaned work.
 export function hasPairTask(tasks: Pick<DataJob, "status" | "parameters">[], symbol: string, product: DataProduct = "futures_um"): boolean {
   return tasks.some((job) => ["running", "unknown"].includes(job.status)
-    && job.parameters.symbol === symbol && (job.parameters.product ?? "futures_um") === product);
+    && (job.parameters.symbol === symbol || product === "options" && optionPair(String(job.parameters.symbol)) === symbol)
+    && (job.parameters.product ?? "futures_um") === product);
 }
 
 export function taskAffects(job: Pick<DataJob, "action" | "parameters">, item: DataItem): boolean {
@@ -104,38 +91,12 @@ export function taskTransitions<T extends { id: string; status: string }>(previo
 }
 
 
-export function managedItems(stored: DataItem[], feed: Pick<FeedStatus, "symbols"> | null, tasks: Pick<DataJob, "status" | "parameters">[]): DataItem[] {
-  const items = new Map(stored.map((item) => [`${item.product ?? "futures_um"}:${item.symbol}:${item.level}`, item]));
-  function include(symbol: string, level: string, product: DataProduct = "futures_um") {
-    if (!(product === "options" ? /^[A-Z0-9]+-\d{6}-\d+(?:\.\d+)?-[CP]$/ : /^[A-Z0-9]+(?:USDT|USDC)$/).test(symbol)) return;
-    const key = `${product}:${symbol}:${level}`;
-    if (!items.has(key)) items.set(key, { symbol, level, ...(product === "options" ? { product } : {}), event_ranges_ns: [], quality: "unverified" });
-  }
-  Object.keys(feed?.symbols ?? {}).forEach((symbol) => include(symbol, "1m"));
-  tasks.filter((job) => ["running", "unknown"].includes(job.status)).forEach((job) => {
-    const symbol = String(job.parameters.symbol ?? "");
-    const product = job.parameters.product === "options" ? "options" : "futures_um";
-    if (product !== "options" || (Array.isArray(job.parameters.intervals) && job.parameters.intervals.length === 0)) include(symbol, "tick", product);
-    if (Array.isArray(job.parameters.intervals)) job.parameters.intervals.forEach((level) => {
-      if (typeof level === "string") include(symbol, level, product);
-    });
-  });
-  return [...items.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
-}
-
-
 export const dataProductLabels: Record<DataProduct, string> = { futures_um: "U 本位永续", options: "期权" };
-export function dataQuality(item: DataItem): string {
-  if (!item.event_ranges_ns.length) return "—";
-  if (item.quality === "partial_recent_trades" && item.product !== "options") return "近期逐笔 · 完整性待核实";
-  return item.product === "options" ? item.level === "tick" ? "近期片段 · 不完整" : "交易所 K 线 · 待校验" : "待校验";
-}
-
 export type PairDeletePlanRequest = components["schemas"]["PairDeletePlanRequest"];
 export type PairDeleteRequest = components["schemas"]["PairDeleteRequest"];
 
 export type DataPolicy = Required<Pick<components["schemas"]["DataPolicy"], "symbol" | "product" | "base_level" | "intervals" | "realtime_enabled">> &
-  Pick<components["schemas"]["DataPolicy"], "history_enabled" | "history_mode" | "history_start" | "history_days">;
+  Pick<components["schemas"]["DataPolicy"], "history_enabled" | "history_mode" | "history_start" | "history_days" | "underlying">;
 export type BarUpdate = { symbol: string; interval: string; start_ms: number; end_ms: number;
   open: string; high: string; low: string; close: string; volume: string;
   is_closed: boolean; is_complete: boolean; source_levels?: string[]; revision: number; updated_ms: number; allow_new_risk: boolean };
@@ -146,6 +107,7 @@ export type Subscriptions = { items: Subscription[] };
 export function subscriptionState(item: Subscription, now: number): string {
   if (!item.policy.realtime_enabled) return "仅历史数据";
   const runtime = item.runtime;
+  if (runtime.reason === "expired") return "已到期";
   if (runtime.reason === "process_exited") return "采集失败";
   if (runtime.reason === "invalid_status") return "状态异常";
   if (runtime.valid_until_ms == null) return "正在启动";
@@ -157,12 +119,15 @@ export function subscriptionState(item: Subscription, now: number): string {
 export function groupDataItems(items: DataItem[], subscriptions: Subscription[]): (DataItem & { levels: string[] })[] {
   const groups = new Map<string, DataItem[]>();
   for (const item of items) {
-    const key = `${item.product ?? "futures_um"}:${item.symbol}`;
-    groups.set(key, [...(groups.get(key) ?? []), item]);
+    const symbol = item.product === "options" ? item.contract?.underlying ?? optionPair(item.symbol) : item.symbol;
+    const key = `${item.product ?? "futures_um"}:${symbol}`;
+    groups.set(key, [...(groups.get(key) ?? []), { ...item, symbol, ...(item.product === "options" ? { contract: undefined } : {}) }]);
   }
   for (const { policy } of subscriptions) {
-    const key = `${policy.product}:${policy.symbol}`;
-    if (!groups.has(key)) groups.set(key, [{ symbol: policy.symbol, product: policy.product,
+    if (policy.product === "options" && policy.symbol === "ALL") continue;
+    const symbol = policy.product === "options" ? policy.underlying ?? optionPair(policy.symbol) : policy.symbol;
+    const key = `${policy.product}:${symbol}`;
+    if (!groups.has(key)) groups.set(key, [{ symbol, product: policy.product,
       level: policy.base_level === "auto" ? policy.intervals[0] ?? "tick" : policy.base_level, event_ranges_ns: [], quality: "unverified" }]);
   }
   const order = ["tick", "1s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"];
@@ -172,8 +137,13 @@ export function groupDataItems(items: DataItem[], subscriptions: Subscription[])
     const selected = policy?.base_level === "auto" ? sorted[0] : sorted.find((item) => item.level === policy?.base_level) ?? (policy ? {
       symbol: policy.symbol, product: policy.product, level: policy.base_level, event_ranges_ns: [], quality: "unverified",
     } : sorted[0]);
-    return { ...selected, levels: [...new Set([...sorted.map((item) => item.level), ...(policy?.intervals ?? []), ...(policy && policy.base_level !== "auto" ? [policy.base_level] : [])])].sort((a, b) => order.indexOf(a) - order.indexOf(b)) };
+    const ranges = sorted.flatMap((item) => item.event_ranges_ns).sort((a, b) => BigInt(a[0]) < BigInt(b[0]) ? -1 : BigInt(a[0]) > BigInt(b[0]) ? 1 : 0);
+    return { ...selected, ...(selected.product === "options" ? { event_ranges_ns: ranges, quality: "unverified" } : {}), levels: [...new Set([...sorted.map((item) => item.level), ...(policy?.intervals ?? []), ...(policy && policy.base_level !== "auto" ? [policy.base_level] : [])])].sort((a, b) => order.indexOf(a) - order.indexOf(b)) };
   });
+}
+
+export function optionPair(symbol: string): string {
+  return symbol.includes("-") ? `${symbol.split("-")[0]}USDT` : symbol;
 }
 
 export type ConfigurationPlan = { policy: DataPolicy; requires_confirmation: boolean;

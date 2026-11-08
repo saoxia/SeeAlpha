@@ -291,3 +291,126 @@ def test_conflicting_live_trade_and_closed_bar_fail_instead_of_overwriting(monke
     with pytest.raises(ValueError, match="重复值冲突"):
         client._publish("bar", state, packet)
     assert len(delivered) == 2
+
+
+def test_managed_market_events_use_native_public_subscriptions(monkeypatch):
+    async def scenario():
+        item = model(monkeypatch)
+        monkeypatch.setattr(options, "markets", lambda: [item.info["binance_options"]])
+        subscribed = []
+        async def handler(socket):
+            request = json.loads(await socket.recv())
+            stream = request["params"][0]
+            subscribed.append(stream)
+            await socket.send(json.dumps({"result": None, "id": request["id"]}))
+            if "@optionTrade" in stream:
+                await socket.send(json.dumps({"e": "trade", "T": BASE, "s": SYMBOL, "t": 8,
+                                              "p": "1000", "q": "0.1", "m": False, "X": "MARKET"}))
+            else:
+                await socket.send(json.dumps({"e": "kline", "s": SYMBOL,
+                    "k": {"t": BASE, "T": BASE + 59999, "s": SYMBOL, "i": "1m", "o": "1000",
+                          "h": "1100", "l": "900", "c": "1050", "v": "0.25", "x": True}}))
+            await socket.wait_closed()
+        async with serve(handler, "127.0.0.1", 0) as server:
+            address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+            monkeypatch.setattr(options_client, "PUBLIC_WS", address)
+            monkeypatch.setattr(options_client, "MARKET_WS", address)
+            stream = options_client.market_events(SYMBOL, ["1m"], trades=True)
+            records = []
+            try:
+                async with asyncio.timeout(10):
+                    async for event in stream:
+                        if event["level"] != "status":
+                            records.append(event)
+                        if len(records) == 2:
+                            break
+            finally:
+                await stream.aclose()
+            assert set(subscribed) == {SYMBOL.lower() + "@optionTrade", SYMBOL.lower() + "@kline_1m"}
+            assert {row["level"] for row in records} == {"tick", "1m"}
+            assert next(row["row"] for row in records if row["level"] == "tick")["id"] == 8
+    asyncio.run(scenario())
+    gc.collect()
+
+
+def test_1514_option_contracts_share_bounded_combined_sockets(monkeypatch):
+    import math
+
+    async def scenario():
+        template = model(monkeypatch).info["binance_options"]
+        items = [options.instrument({**template, "symbol": f"BTC-261225-{10000 + index}-C", "strike": str(10000 + index)})
+                 for index in range(1514)]
+        connections, names = [], set()
+        async def handler(socket):
+            request = json.loads(await socket.recv())
+            connections.append(request["params"])
+            assert len(request["params"]) <= 192
+            names.update(request["params"])
+            await socket.send(json.dumps({"result": None, "id": request["id"]}))
+            await socket.wait_closed()
+        async with serve(handler, "127.0.0.1", 0) as server:
+            address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+            monkeypatch.setattr(options_client, "PUBLIC_WS", address)
+            monkeypatch.setattr(options_client, "MARKET_WS", address)
+            stream = options_client.batch_market_events(items, tick_symbols=[str(item.raw_symbol) for item in items])
+            connected = set()
+            try:
+                async with asyncio.timeout(15):
+                    async for event in stream:
+                        if event["level"] == "status" and event["connected"]:
+                            connected.add(event["symbol"])
+                        if len(connected) == len(items):
+                            break
+            finally:
+                await stream.aclose()
+            assert len(connections) == 2 * math.ceil(len(items) / 64)
+            assert len(names) == len(items) * 4
+    asyncio.run(scenario())
+
+
+def test_batch_scope_updates_subscriptions_without_reconnecting_other_contracts(monkeypatch):
+    async def scenario():
+        template = model(monkeypatch).info["binance_options"]
+        first = options.instrument(template)
+        second = options.instrument({**template, "symbol": "BTC-261225-86000-C", "strike": "86000"})
+        scope = {"selection": ([first], set())}
+        requests, connections = [], []
+        changed = asyncio.Event()
+        async def handler(socket):
+            connections.append(socket)
+            async for message in socket:
+                request = json.loads(message)
+                requests.append(request)
+                await socket.send(json.dumps({"result": None, "id": request["id"]}))
+                if request["method"] == "UNSUBSCRIBE":
+                    changed.set()
+        async with serve(handler, "127.0.0.1", 0) as server:
+            address = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
+            monkeypatch.setattr(options_client, "PUBLIC_WS", address)
+            monkeypatch.setattr(options_client, "MARKET_WS", address)
+            stream = options_client.batch_market_events([first], scope=scope)
+            first_ready = asyncio.Event()
+            second_ready = asyncio.Event()
+            async def consume():
+                async for event in stream:
+                    if event["level"] == "status" and event["connected"]:
+                        if event["symbol"] == str(first.raw_symbol):
+                            first_ready.set()
+                        else:
+                            second_ready.set()
+            task = asyncio.create_task(consume())
+            try:
+                await asyncio.wait_for(first_ready.wait(), 5)
+                scope["selection"] = ([first, second], set())
+                await asyncio.wait_for(second_ready.wait(), 5)
+                scope["selection"] = ([second], set())
+                await asyncio.wait_for(changed.wait(), 5)
+                assert len(connections) == 1
+                assert len(requests) == 3
+                assert requests[-1]["method"] == "UNSUBSCRIBE"
+                assert all(name.startswith(str(first.raw_symbol).lower()) for name in requests[-1]["params"])
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                await stream.aclose()
+    asyncio.run(scenario())

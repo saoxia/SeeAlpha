@@ -101,3 +101,23 @@ def depth(instrument, row, levels, ts_init):
     return OrderBookDepth(instrument.id, bids, asks, [0] * len(bids), [0] * len(asks),
                           RecordFlag.F_SNAPSHOT.value | RecordFlag.F_LAST.value,
                           stamp(row["u"]), stamp(row["T"]) * 1_000_000, ts_init)
+
+
+def trade_event(instrument, row, *, ts_init=None):
+    """Normalize the public optionTrade stream once for native and managed clients."""
+    if row["e"] != "trade" or row["s"] != str(instrument.raw_symbol) or row["X"] not in {"MARKET", "BLOCK"}:
+        raise ValueError("期权成交类型无效")
+    if type(row["m"]) is not bool:
+        raise ValueError("期权成交主动方无效")
+    payload = {"symbol": row["s"], "time": row["T"], "id": row["t"],
+               "price": row["p"], "qty": row["q"], "side": -1 if row["m"] else 1}
+    return trade(instrument, payload, ts_init=ts_init), payload
+
+
+def bar_event(instrument, period, row, *, ts_init=None):
+    k = row["k"]
+    if row["s"] != str(instrument.raw_symbol) or k["s"] != row["s"] or k["i"] != period or type(k["x"]) is not bool:
+        raise ValueError("期权 K 线流身份无效")
+    payload = [k["t"], k["o"], k["h"], k["l"], k["c"], k["v"], k["T"]]
+    value = bar(instrument, period, payload, ts_init=ts_init)
+    return (value if k["x"] else None), payload

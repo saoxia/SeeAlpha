@@ -19,6 +19,7 @@ export function LiveDashboard() {
     overviewEquity,
     accountEquities,
     selectVenue,
+    refreshAssets,
   } = useLivePortfolio();
 
   const selectedAccount = venue === "overview"
@@ -65,7 +66,10 @@ export function LiveDashboard() {
             </button>
           ))}
         </div>
-        <div className="ticker-health" aria-label="系统状态正常">
+        <div className="ticker-health">
+          <button type="button" disabled={portfolioLoading} onClick={refreshAssets}>
+            {portfolioLoading ? "正在刷新…" : "刷新资产"}
+          </button>
           <i className="monitor-dot healthy" aria-hidden="true" />
           <span>正常</span>
         </div>

@@ -5,10 +5,12 @@ Immutable source snapshots precede atomic Parquet installation, so an interrupte
 write is detectable and the same evidence can be installed again on retry.
 """
 
+import fcntl
 import hashlib
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -21,7 +23,13 @@ from nautilus_trader.model import (
 from connectors.binance import options
 from connectors.binance.options_parsing import bar as parse_bar
 from connectors.binance.options_parsing import trade as parse_trade
-from core.market.instruments import bar_type_for, instrument_id_for, interval_delta
+from connectors.binance.queries import QueryError
+from core.market.instruments import (
+    bar_type_for,
+    instrument_id_for,
+    interval_delta,
+    normalize_symbol,
+)
 from pipeline.catalog import ParquetDataCatalog
 
 PERIODS = ("1m", "5m", "15m")
@@ -91,7 +99,7 @@ def _decode(snapshot):
     symbol, level = str(instrument.raw_symbol), snapshot["level"]
     if (snapshot["product"] != "options" or level not in ("tick", *PERIODS)
             or str(instrument.id) != instrument_id_for(symbol, "options")
-            or snapshot["source"] != ("eapi/v1/trades" if level == "tick" else "eapi/v1/klines")):
+            or snapshot["source"] not in (("eapi/v1/trades", "ws/optionTrade") if level == "tick" else ("eapi/v1/klines", "ws/kline"))):
         raise ValueError("无效的期权来源类型")
     first, last = snapshot["start_ms"], snapshot["end_ms"]
     if type(first) is not int or type(last) is not int or first < 0 or last <= first:
@@ -108,6 +116,8 @@ def _decode(snapshot):
             if not first <= stamp < last:
                 continue
             tick = parse_trade(instrument, row)
+            if tick.ts_event > instrument.expiration_ns:
+                raise ValueError("期权成交超过到期边界")
             identity = tick.trade_id
             key = str(identity)
             record = {"ts_event_ns": str(tick.ts_event), "price": str(tick.price), "size": str(tick.size),
@@ -115,6 +125,8 @@ def _decode(snapshot):
             item = tick
         else:
             item = parse_bar(instrument, level, row)
+            if item.ts_event > instrument.expiration_ns:
+                raise ValueError("期权 K 线超过到期边界")
             duration = int(interval_delta(level).total_seconds() * 1000)
             opened = item.ts_event // 1_000_000 + 1 - duration
             if not first <= opened < last:
@@ -182,10 +194,8 @@ def _existing(settings, instrument, level, first, last):
         records.close()
 
 
-def _install(path, settings, device):
-    _storage(settings, device)
-    snapshot = _load(path)
-    instrument, values = _decode(snapshot)
+def _ensure_definition(instrument, settings, device):
+    """Retain public contract metadata even when an option has no observations yet."""
     catalog = ParquetDataCatalog(settings.catalog_dir)
     existing_instrument = catalog.instruments(instrument_ids=[str(instrument.id)])
     if not existing_instrument:
@@ -203,6 +213,14 @@ def _install(path, settings, device):
         supplied = instrument.to_dict()
         if any(original[key] != supplied[key] for key in DEFINITION_FIELDS):
             raise ValueError("期权合约定义与本地定义冲突")
+    return catalog
+
+
+def _install(path, settings, device, *, merge=False):
+    _storage(settings, device)
+    snapshot = _load(path)
+    instrument, values = _decode(snapshot)
+    catalog = _ensure_definition(instrument, settings, device)
     level = snapshot["level"]
     existing = _existing(settings, instrument, level, snapshot["start_ms"], snapshot["end_ms"])
     missing = []
@@ -216,6 +234,8 @@ def _install(path, settings, device):
         return 0
     identifier = str(instrument.id) if level == "tick" else bar_type_for(str(instrument.raw_symbol), level, "options")
     ranges = catalog.get_intervals(TradeTick if level == "tick" else Bar, identifier)
+    if merge:
+        return _merge_missing(catalog, settings, instrument, level, missing, device)
     if level == "tick" and ranges and missing[0].ts_event <= max(right for _left, right in ranges):
         raise ValueError("近期成交出现未保存的旧时间戳，无法安全追加；请校验来源或预览后清理该日期再获取")
     if any(left <= item.ts_event <= right for item in missing for left, right in ranges):
@@ -232,18 +252,25 @@ def _install(path, settings, device):
     return len(missing)
 
 
-def _definition(symbol, settings):
+def _definition(symbol, settings, definition=None, *, local_only=False):
+    if definition is not None:
+        value = CryptoOption.from_dict(definition)
+        if str(value.raw_symbol) != normalize_symbol(symbol, "options"):
+            raise ValueError("期权批量定义与合约不一致")
+        return value
     if settings.catalog_dir.is_dir():
         values = ParquetDataCatalog(settings.catalog_dir).instruments(instrument_ids=[instrument_id_for(symbol, "options")])
         if values:
             return max(values, key=lambda item: item.ts_init)
+    if local_only:
+        raise ValueError("本地无期权定义，等待公开目录刷新")
     for item in options.markets():
         if item["symbol"] == symbol:
             return options.instrument(item)
     raise ValueError("当前期权目录未找到合约，且本地无合约定义")
 
 
-def _capture_recent(request, settings, instrument, device):
+def _capture_recent(request, settings, instrument, device, *, merge=False):
     from dataclasses import replace
 
     payload = options.get("trades", symbol=str(instrument.raw_symbol), limit=500)
@@ -268,12 +295,12 @@ def _capture_recent(request, settings, instrument, device):
         # This preserves all returned trades even for infrequently traded contracts.
         for path in sorted(source_paths(part, settings), key=lambda value: _load(value)["fetched_ms"]):
             if _load(path)["level"] == "tick":
-                written += _install(path, settings, device)
+                written += _install(path, settings, device, merge=merge)
         snapshot = {"product": "options", "level": "tick", "start_ms": int(day.timestamp() * 1000),
                     "end_ms": int((day + timedelta(days=1)).timestamp() * 1000), "fetched_ms": moment,
                     "source": "eapi/v1/trades", "instrument": instrument.to_dict(), "payload": records}
         path, count = _save(snapshot, settings, device)
-        written += _install(path, settings, device)
+        written += _install(path, settings, device, merge=merge)
         observed += count
         times.extend(row["time"] for row in records)
         print(f"{day.date()} 近期接口返回 {count} 笔；不证明当日或历史完整", flush=True)
@@ -284,25 +311,25 @@ def _capture_recent(request, settings, instrument, device):
             "message": "保存官方近期接口实际返回的最多 500 笔；实际日期以记录为准，不提供任意历史 Tick 补齐。"}
 
 
-def prepare(request, settings):
+def _prepare(request, settings, *, managed=False, definition=None):
     check_download(request)
     device = _storage(settings)
-    instrument = _definition(request.symbols[0], settings)
+    instrument = _definition(request.symbols[0], settings, definition)
     if not request.bar_intervals:
-        return _capture_recent(request, settings, instrument, device)
+        return _capture_recent(request, settings, instrument, device, merge=managed)
     written, fetched, empty = 0, 0, 0
     paths = source_paths(request, settings)
     relevant = [(path, _load(path)) for path in paths]
     relevant = [(path, raw) for path, raw in relevant if raw["level"] in request.bar_intervals]
     for path, _raw in sorted(relevant, key=lambda pair: (pair[1]["start_ms"], pair[1]["fetched_ms"])):
-        written += _install(path, settings, device)
+        written += _install(path, settings, device, merge=managed)
     periods = request.bar_intervals
     for level in periods:
         day = request.start
         while day < request.end:
             end = min(day + timedelta(days=1), request.end)
             first, last = int(day.timestamp() * 1000), int(end.timestamp() * 1000)
-            if any(raw["level"] == level and raw["start_ms"] == first
+            if not managed and any(raw["level"] == level and raw["start_ms"] == first
                                        and raw["end_ms"] == last and _decode(raw)[1] for _p, raw in relevant):
                 print(f"{day.date()} {level} 复用本地期权来源", flush=True)
                 day = end
@@ -335,7 +362,7 @@ def prepare(request, settings):
                 day = end
                 continue
             path, count = _save(snapshot, settings, device)
-            written += _install(path, settings, device)
+            written += _install(path, settings, device, merge=managed)
             fetched += count
             empty += not bool(count)
             print(f"{day.date()} {level} 来源含 {count} 条记录；不声明历史 Tick 完整", flush=True)
@@ -414,3 +441,338 @@ def execute(action, request, settings):
     if action == "validate":
         return validate(request, settings)
     raise ValueError("期权暂不支持从不完整近期 Tick 派生历史 K 线或使用永续导出入口")
+
+
+@contextmanager
+def writer(symbol, settings):
+    """Serialize live, history and explicit writers for the same option."""
+    symbol = normalize_symbol(symbol, "options")
+    _storage(settings)
+    root = _safe(settings.state_dir, settings.state_dir / "options" / symbol)
+    root.mkdir(parents=True, exist_ok=True)
+    with _safe(settings.state_dir, root / "writer.lock").open("a") as lease:
+        fcntl.flock(lease, fcntl.LOCK_EX)
+        yield
+
+
+def prepare(request, settings, *, managed=False, definition=None):
+    with writer(request.symbols[0], settings):
+        return _prepare(request, settings, managed=managed, definition=definition)
+
+
+def _merge_missing(catalog, settings, instrument, level, missing, device):
+    """Fill holes with atomic single-file replacement, preserving known records."""
+    from pipeline.catalog import _parse_filename_timestamps
+
+    identifier = str(instrument.id) if level == "tick" else bar_type_for(str(instrument.raw_symbol), level, "options")
+    kind = "trades" if level == "tick" else "bars"
+    folder = _safe(settings.catalog_dir, settings.catalog_dir / "data" / kind / identifier)
+    folder.mkdir(parents=True, exist_ok=True)
+    remaining = list(missing)
+    boundaries = []
+    for path in sorted(folder.glob("*.parquet")):
+        _safe(settings.catalog_dir, path)
+        bounds = _parse_filename_timestamps(path.name)
+        if bounds is None:
+            raise ValueError("期权文件时间范围无法识别")
+        left, right = bounds
+        additions = [value for value in remaining if left <= value.ts_event <= right]
+        boundaries.append((left, right))
+        if not additions:
+            continue
+        original = (catalog.trade_ticks(instrument_ids=[identifier], start=left, end=right) if level == "tick" else
+                    catalog.bars(bar_types=[identifier], start=left, end=right))
+        merged = sorted([*original, *additions], key=lambda value: (value.ts_event, int(str(value.trade_id)) if level == "tick" else 0))
+        with tempfile.TemporaryDirectory(prefix=".options-stage-", dir=settings.catalog_dir.parent) as stage:
+            ParquetDataCatalog(stage).write_data(merged)
+            source = Path(stage) / "data" / kind / identifier / path.name
+            if not source.is_file():
+                raise ValueError("期权合并改变原文件边界，拒绝替换")
+            _storage(settings, device)
+            with source.open("rb") as stream:
+                os.fsync(stream.fileno())
+            os.replace(source, path)
+        remaining = [value for value in remaining if not left <= value.ts_event <= right]
+    # Separate new ranges at existing files; no new file may span retained data.
+    groups = {}
+    for value in remaining:
+        index = sum(right < value.ts_event for _left, right in boundaries)
+        groups.setdefault(index, []).append(value)
+    for values in groups.values():
+        with tempfile.TemporaryDirectory(prefix=".options-stage-", dir=settings.catalog_dir.parent) as stage:
+            ParquetDataCatalog(stage).write_data(values)
+            for source in (Path(stage) / "data" / kind / identifier).glob("*.parquet"):
+                _storage(settings, device)
+                with source.open("rb") as stream:
+                    os.fsync(stream.fileno())
+                os.link(source, folder / source.name)
+    return len(missing)
+
+
+def persist_live(symbol, events, settings, *, recover=False, definition=None):
+    """Persist native stream evidence through the existing Pipeline storage boundary."""
+    with writer(symbol, settings):
+        device = _storage(settings)
+        instrument = _definition(symbol, settings, definition)
+        _ensure_definition(instrument, settings, device)
+        written = 0
+        if recover:
+            root = settings.raw_dir / "options" / symbol
+            for path in sorted(root.glob("*/*/*.json")):
+                _safe(settings.raw_dir, path)
+                snapshot = _load(path)
+                if snapshot["source"].startswith("ws/"):
+                    written += _install(path, settings, device, merge=True)
+        groups = {}
+        now = int(datetime.now(UTC).timestamp() * 1000)
+        for event in events:
+            level, row = event["level"], event["row"]
+            stamp = row["time"] if level == "tick" else row[0]
+            closed = stamp if level == "tick" else row[6] + 1
+            if type(stamp) is not int or closed > now or closed * 1000000 > instrument.expiration_ns:
+                raise ValueError("期权实时来源未闭合、时间超前或超过到期边界")
+            day = stamp // 86400000 * 86400000
+            groups.setdefault((level, day), []).append(row)
+        for (level, day), rows in sorted(groups.items()):
+            snapshot = {"product": "options", "level": level, "start_ms": day, "end_ms": day + 86400000,
+                        "fetched_ms": now, "source": "ws/optionTrade" if level == "tick" else "ws/kline",
+                        "instrument": instrument.to_dict(), "payload": rows}
+            path, _count = _save(snapshot, settings, device)
+            written += _install(path, settings, device, merge=True)
+        return {"records_written": written, "expiry_ms": instrument.expiration_ns // 1000000,
+                "historical_tick_complete": False}
+
+
+def repair_live(symbol, start_ms, settings, *, definition=None):
+    """Recover exchange closed bars since disconnect; Tick recovery stays partial."""
+    with writer(symbol, settings):
+        device = _storage(settings)
+        instrument = _definition(symbol, settings, definition)
+        now = min(int(datetime.now(UTC).timestamp() * 1000), instrument.expiration_ns // 1000000)
+        for level in PERIODS:
+            duration = int(interval_delta(level).total_seconds() * 1000)
+            end = now // duration * duration
+            cursor = start_ms // duration * duration
+            while cursor < end:
+                last = min((cursor // 86400000 + 1) * 86400000, end)
+                payload = options.get("klines", symbol=symbol, interval=level,
+                                      startTime=cursor, endTime=last - 1, limit=1500)
+                if not isinstance(payload, list) or len(payload) > 1500:
+                    raise ValueError("期权恢复来源格式无效")
+                stamps = [row["openTime"] if isinstance(row, dict) else row[0] for row in payload]
+                if any(type(stamp) is not int or not cursor <= stamp < last for stamp in stamps):
+                    raise ValueError("期权恢复分页越界或未推进")
+                day = cursor // 86400000 * 86400000
+                snapshot = {"product": "options", "level": level, "start_ms": day, "end_ms": day + 86400000,
+                            "fetched_ms": int(datetime.now(UTC).timestamp() * 1000), "source": "eapi/v1/klines",
+                            "instrument": instrument.to_dict(), "payload": payload}
+                _instrument, decoded = _decode(snapshot)
+                if any(item.ts_event >= now * 1000000 for item, _record in decoded):
+                    raise ValueError("期权恢复包含未闭合 K 线")
+                if payload:
+                    path, _count = _save(snapshot, settings, device)
+                    _install(path, settings, device, merge=True)
+                cursor = max(stamps) + duration if stamps else last
+        return now
+
+
+async def serve_history(policy, settings, root, *, definition=None, limiter=None, heartbeat_seconds=5):
+    """Option history uses existing process supervision and file checkpoints."""
+    import asyncio
+
+    from pipeline.convert_binance_bars import write_record
+    from pipeline.models import DataRequest
+
+    limiter = limiter or asyncio.Semaphore(1)
+
+    async def run(function, *args, **kwargs):
+        async with limiter:
+            task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+            try:
+                return await asyncio.shield(task)
+            finally:
+                if not task.done():
+                    await task
+
+    device = _storage(settings)
+    root.mkdir(parents=True, exist_ok=True)
+    checkpoint = root / "checkpoint.json"
+    configuration = hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest()
+    saved = json.loads(checkpoint.read_text()) if checkpoint.exists() else {}
+    if saved.get("configuration") != configuration:
+        saved = {}
+    state = {"state": "WARMING_UP", "backlog": None, "last_error": None,
+             "historical_tick_complete": False, "allow_new_risk": False}
+
+    async def heartbeat():
+        while True:
+            now = int(datetime.now(UTC).timestamp() * 1000)
+            _storage(settings, device)
+            write_record(root / "status.json", {**state, "checked_ms": now, "valid_until_ms": now + heartbeat_seconds * 3000})
+            await asyncio.sleep(heartbeat_seconds)
+
+    beat = asyncio.create_task(heartbeat())
+    try:
+        while True:
+            try:
+                _storage(settings, device)
+                instrument = await run(_definition, policy["symbol"], settings, definition)
+                # The directory drops expired contracts; preserve its real units first.
+                await run(persist_live, policy["symbol"], (), settings, definition=instrument.to_dict())
+                expiry = datetime.fromtimestamp(instrument.expiration_ns / 1e9, UTC)
+                today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+                end = min(today, expiry.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))
+                if not saved:
+                    rows = await run(options.get, "klines", symbol=policy["symbol"],
+                                                   interval="1m", startTime=0, limit=1)
+                    if not rows:
+                        raise ValueError("官方未返回最早历史，检查点未推进")
+                    stamp = rows[0]["openTime"] if isinstance(rows[0], dict) else rows[0][0]
+                    if (type(stamp) is not int or stamp < 0 or stamp % 60000
+                            or stamp > int(datetime.now(UTC).timestamp() * 1000)
+                            or stamp >= instrument.expiration_ns // 1000000):
+                        raise ValueError("官方最早 K 线时间无效，检查点未推进")
+                    available = datetime.fromtimestamp(stamp / 1000, UTC)
+                    if policy["history_mode"] == "start":
+                        start = max(datetime.fromisoformat(policy["history_start"]).astimezone(UTC), available)
+                    elif policy["history_mode"] == "duration":
+                        start = max(today - timedelta(days=policy["history_days"]), available)
+                    else:
+                        start = available
+                    start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+                    saved = {"configuration": configuration, "start": start.isoformat(), "next_day": start.isoformat()}
+                day = datetime.fromisoformat(saved["next_day"])
+                state.update(backlog=max(0, (end - day).days), expiry_ms=instrument.expiration_ns // 1000000)
+                if day >= end:
+                    state.update(state="READY", last_error=None, reason="caught_up")
+                    write_record(checkpoint, saved)
+                    await asyncio.sleep(30)
+                    continue
+                state.update(state="WARMING_UP", current_day=str(day.date()))
+                request = DataRequest((policy["symbol"],), day, day + timedelta(days=1),
+                                      bar_intervals=PERIODS, market="options")
+                # One UTC day per commit; failed/empty days are retried, never skipped.
+                result = await run(prepare, request, settings, managed=True, definition=definition)
+                if result["empty_batches"]:
+                    raise ValueError("官方存在空来源，保留此日待重试；不声明完整")
+                saved["next_day"] = request.end.isoformat()
+                write_record(checkpoint, saved)
+                state.update(state="READY", last_error=None, last_processed_ms=int(request.end.timestamp() * 1000))
+            except (OSError, ValueError, QueryError) as exc:
+                state.update(state="DEGRADED", last_error=str(exc))
+                await asyncio.sleep(30)
+    finally:
+        beat.cancel()
+        await asyncio.gather(beat, return_exceptions=True)
+
+
+async def serve_history_batch(manifest, settings, managed_root, *, project=None):
+    """One supervised history process; per-contract locks/checkpoints, two active writers."""
+    import asyncio
+    import time
+
+    from core.paths import PROJECT_ROOT
+    from pipeline.convert_binance_bars import write_record
+
+    project = project or PROJECT_ROOT
+    limiter = asyncio.Semaphore(2)
+    jobs, definitions, retry_at = {}, {}, {}
+    fetch, fetched_at = None, float("-inf")
+
+    async def run(policy, definition):
+        symbol = normalize_symbol(policy["symbol"], "options")
+        root = managed_root / symbol / policy["base_level"] / "history"
+        access = project / ".local/run/api/data/options" / f"{symbol}.access.lock"
+        access.parent.mkdir(parents=True, exist_ok=True)
+        with access.open("a") as lease:
+            fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            _storage(settings)
+            if not managed_root.is_dir():
+                raise OSError("行情存储不可用，不重建挂载目录")
+            root.mkdir(parents=True, exist_ok=True)
+            with (root / "writer.lock").open("a") as writer_lease:
+                fcntl.flock(writer_lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                try:
+                    await serve_history(policy, settings, root, definition=definition, limiter=limiter, heartbeat_seconds=15)
+                except (OSError, ValueError, QueryError) as exc:
+                    if root.is_dir():
+                        stamp = int(time.time() * 1000)
+                        write_record(root / "status.json", {"state": "DEGRADED", "last_error": str(exc),
+                                     "checked_ms": stamp, "valid_until_ms": stamp + 45000})
+                    raise
+
+    try:
+        while True:
+            now = time.monotonic()
+            if fetch is None and now - fetched_at >= 300:
+                fetch = asyncio.create_task(asyncio.to_thread(options.markets))
+            if fetch is not None and fetch.done():
+                try:
+                    definitions.update({row["symbol"]: options.instrument(row).to_dict() for row in fetch.result()})
+                    fetched_at = now
+                except (OSError, ValueError, QueryError):
+                    fetched_at = now - 270
+                fetch = None
+            try:
+                if manifest.stat().st_size > 5 * 1024 * 1024:
+                    raise ValueError("期权运行配置过大")
+                value = json.loads(manifest.read_text())
+                if value.get("version") != 1 or not isinstance(value.get("policies"), list):
+                    raise ValueError("期权运行配置异常")
+                desired = {}
+                for policy in value["policies"]:
+                    symbol = normalize_symbol(policy["symbol"], "options")
+                    if policy["product"] != "options" or policy["base_level"] not in {"tick", *PERIODS}:
+                        raise ValueError("期权运行范围异常")
+                    if symbol in desired or type(policy.get("history_enabled")) is not bool:
+                        raise ValueError("期权运行配置重复或开关无效")
+                    if policy["history_enabled"]:
+                        desired[symbol] = {**policy, "symbol": symbol}
+            except (OSError, ValueError, KeyError, TypeError):
+                # A broken snapshot never means an empty desired set.
+                await asyncio.sleep(1)
+                continue
+            removed = [symbol for symbol, (policy, task) in jobs.items() if desired.get(symbol) != policy]
+            for symbol in removed:
+                jobs[symbol][1].cancel()
+            if removed:
+                await asyncio.gather(*(jobs[symbol][1] for symbol in removed), return_exceptions=True)
+                for symbol in removed:
+                    del jobs[symbol]
+            for symbol, policy in desired.items():
+                if symbol in jobs and jobs[symbol][1].done():
+                    task = jobs.pop(symbol)[1]
+                    if not task.cancelled():
+                        task.exception()  # Consume a worker failure before its bounded retry.
+                    retry_at[symbol] = now + 30
+                if symbol not in jobs and now >= retry_at.get(symbol, 0):
+                    definition = definitions.get(symbol)
+                    if definition is None:
+                        if fetch is not None:
+                            continue
+                        try:
+                            definition = (await asyncio.to_thread(_definition, symbol, settings, local_only=True)).to_dict()
+                        except (OSError, ValueError, QueryError):
+                            fetched_at = now - 300
+                            retry_at[symbol] = now + 5
+                            access = project / ".local/run/api/data/options" / f"{symbol}.access.lock"
+                            access.parent.mkdir(parents=True, exist_ok=True)
+                            try:
+                                with access.open("a") as lease:
+                                    fcntl.flock(lease, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                                    _storage(settings)
+                                    stamp = int(time.time() * 1000)
+                                    write_record(managed_root / symbol / policy["base_level"] / "history/status.json",
+                                                 {"state": "DEGRADED", "reason": "waiting_definition", "last_error": "等待官方或本地合约定义，历史检查点未推进",
+                                                  "checked_ms": stamp, "valid_until_ms": stamp + 45000})
+                            except OSError:
+                                pass
+                            continue
+                    jobs[symbol] = (policy, asyncio.create_task(run(policy, definition)))
+            await asyncio.sleep(1)
+    finally:
+        for _policy, task in jobs.values():
+            task.cancel()
+        await asyncio.gather(*(task for _policy, task in jobs.values()), return_exceptions=True)
+        if fetch is not None:
+            await asyncio.gather(fetch, return_exceptions=True)
