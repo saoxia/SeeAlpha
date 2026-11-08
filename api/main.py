@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
-from engine.connectors.binance.queries import QueryError
+from core.engine_contracts import QueryError
 
 from .auth.router import router
 from .auth.users import router as users_router

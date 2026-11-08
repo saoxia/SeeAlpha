@@ -79,3 +79,10 @@ python -m engine
 把操作账本同步和资产校准 REST 改成纯事件消费。这两类只读连接器调用仍在 API 进程。
 已下发策略的预览不是交易所实盘。管理端不再启动已删除的研究回测目录。
 冻结研究快照里的 `pipeline` 导入保持原字节，不是当前可运行入口。
+
+## Engine 镜像源码范围
+
+独立 Engine Docker 镜像现在只包含 `engine/`、`core/`、`nautilus_support.py`、
+`packages/` 和构建依赖，不包含业务后台和前端源码。跨进程错误与账户结果类型
+在 `core/engine_contracts.py` 定义。仓库尚未独立；详见
+[后续 API 解耦清单](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。

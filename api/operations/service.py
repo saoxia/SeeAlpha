@@ -7,7 +7,7 @@ import time
 
 from engine.connectors.binance.income import DAY_MS, income_history
 from engine.connectors.binance.operations import operation_history
-from engine.connectors.binance.queries import QueryError
+from core.engine_contracts import QueryError
 
 from .options import sync_options
 from .repository import Operations

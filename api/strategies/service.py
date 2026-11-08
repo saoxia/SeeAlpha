@@ -5,7 +5,7 @@ import base64
 from fastapi import HTTPException
 
 from api.db.errors import StorageConflict
-from engine.runtime import EngineConflict
+from core.engine_contracts import EngineConflict
 from engine.strategies.package import PackageError, digest, open_package
 
 from .repository import StrategyRepository

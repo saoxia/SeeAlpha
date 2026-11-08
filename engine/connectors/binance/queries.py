@@ -1,9 +1,10 @@
 """Read-only queries through Nautilus public factories, never private HTTP clients."""
 
 import asyncio
-from dataclasses import dataclass
 from decimal import Decimal
 from traceback import clear_frames
+
+from core.engine_contracts import AccountSnapshot, QueryError
 
 from nautilus_trader.adapters.binance import (
     BinanceDataClientConfig,
@@ -33,10 +34,6 @@ def _clear_exception_frames(error):
         pending.extend(related for related in (current.__cause__, current.__context__) if related is not None)
 
 
-class QueryError(RuntimeError):
-    """A sanitized connector error, safe to return to the caller."""
-
-
 def environment(value):
     if value not in {"production", "sandbox"}:
         raise ValueError("不支持的 Binance 环境。")
@@ -59,14 +56,6 @@ async def instruments(env, *, http_url=None):
     except Exception:  # noqa: BLE001 - Native failures must not expose signed request details.
         raise QueryError("Binance 品种查询失败，请检查网络与环境后重试。") from None
     return [item for item in loaded if str(item.id.symbol).endswith("-PERP")]
-
-
-@dataclass
-class AccountSnapshot:
-    balances: dict[str, str]
-    info: dict
-    positions: list[dict]
-    observed_at: int
 
 
 class SnapshotReady(Strategy):
