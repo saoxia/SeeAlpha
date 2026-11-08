@@ -17,7 +17,7 @@ from threading import RLock
 
 import httpx
 
-from engine.runtime import EngineConflict
+from core.engine_contracts import EngineConflict
 
 _TENANT_ID = re.compile(r"^[1-9][0-9]*$")
 _MEMORY = re.compile(r"^[1-9][0-9]*(?:[kmgKMG])?$")

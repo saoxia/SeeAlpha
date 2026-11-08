@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
-from engine.connectors.binance.queries import QueryError
+from core.engine_contracts import QueryError
 
 from ..auth.dependencies import AdminUser, CurrentUser
 from ..operations.options import position_view

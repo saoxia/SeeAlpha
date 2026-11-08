@@ -1,7 +1,6 @@
 """Read-only queries through Nautilus public factories, never private HTTP clients."""
 
 import asyncio
-from dataclasses import dataclass
 from decimal import Decimal
 from traceback import clear_frames
 
@@ -20,6 +19,8 @@ from nautilus_trader.live import LiveExecutionEngineConfig, LiveNode
 from nautilus_trader.model import AccountId, OmsType, TraderId
 from nautilus_trader.trading import Strategy
 
+from core.engine_contracts import AccountSnapshot, QueryError
+
 
 def _clear_exception_frames(error):
     """Release native frame locals before an error can be collected on another thread."""
@@ -31,10 +32,6 @@ def _clear_exception_frames(error):
         seen.add(id(current))
         clear_frames(current.__traceback__)
         pending.extend(related for related in (current.__cause__, current.__context__) if related is not None)
-
-
-class QueryError(RuntimeError):
-    """A sanitized connector error, safe to return to the caller."""
 
 
 def environment(value):
@@ -59,14 +56,6 @@ async def instruments(env, *, http_url=None):
     except Exception:  # noqa: BLE001 - Native failures must not expose signed request details.
         raise QueryError("Binance 品种查询失败，请检查网络与环境后重试。") from None
     return [item for item in loaded if str(item.id.symbol).endswith("-PERP")]
-
-
-@dataclass
-class AccountSnapshot:
-    balances: dict[str, str]
-    info: dict
-    positions: list[dict]
-    observed_at: int
 
 
 class SnapshotReady(Strategy):

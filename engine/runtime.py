@@ -10,18 +10,13 @@ import threading
 import uuid
 from pathlib import Path
 
+from core.engine_contracts import EngineConflict
 from engine.connectors.binance.queries import QueryError
 from engine.store import Store
 from engine.supervisor import popen
 
 UNKNOWN = "请求已登记，交易结果待核实。请刷新委托，不要重复提交。"
 UNCONFIRMED = "交易结果待核实，请刷新委托并按客户订单号核对，不要重复提交。"
-
-
-class EngineConflict(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-        self.message = message
 
 
 def numeric_id(account_id):

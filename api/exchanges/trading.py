@@ -12,8 +12,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
+from core.engine_contracts import EngineConflict
 from engine.connectors.binance import manual
-from engine.runtime import EngineConflict
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable

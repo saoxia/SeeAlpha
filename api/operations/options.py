@@ -7,11 +7,11 @@ import time
 from decimal import Decimal, localcontext
 from itertools import groupby
 
+from core.engine_contracts import QueryError
 from core.market.instruments import normalize_symbol
 from engine.connectors.binance import options
 from engine.connectors.binance.operations import normalize_option_record
 from engine.connectors.binance.options_account import BinanceOptionsAccountClient
-from engine.connectors.binance.queries import QueryError
 
 DAY_MS = 86400000
 

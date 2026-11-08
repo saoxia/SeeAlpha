@@ -10,7 +10,12 @@ WORKDIR /app
 RUN python -m pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-default-groups --group api --group research --no-install-project
-COPY . .
+# Only Engine-owned code and the shared market/HTTP contracts are shipped.
+# No API, database migration, web frontend or admin source in the image.
+COPY core/ ./core/
+COPY engine/ ./engine/
+COPY nautilus_support.py ./
+COPY packages/ ./packages/
 COPY --from=converter /build/rust_converter/target/release/nautilus-data-converter /app/engine/pipeline/rust_converter/target/release/nautilus-data-converter
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8766

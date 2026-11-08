@@ -6,8 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from engine.connectors.binance.queries import AccountSnapshot, QueryError
-from engine.runtime import EngineConflict, EngineRuntime, read_account_snapshot
+from core.engine_contracts import AccountSnapshot, EngineConflict, QueryError
 
 
 class RemoteProcess:
@@ -45,7 +44,14 @@ class EngineClient:
         self.tenant_manager = tenant_manager
         self._worker_tenants = {}
         self.remote = tenant_manager is not None or self.url.startswith("http")
-        self.runtime = None if self.remote else EngineRuntime(self.root, project)
+        # Production uses only the HTTP contract. Retain an explicitly opted-in
+        # local runtime for existing test fixtures until those tests are migrated.
+        if self.remote:
+            self.runtime = None
+        else:
+            from engine.runtime import EngineRuntime
+
+            self.runtime = EngineRuntime(self.root, project)
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     def close(self):
@@ -332,4 +338,7 @@ async def account_snapshot(account, engine=None):
         return await engine.account_snapshot(account)
     if engine is not None and engine.runtime is not None:
         return await engine.runtime.account_snapshot(account)
+    # Legacy in-process/test helper; not used by a deployed API.
+    from engine.runtime import read_account_snapshot
+
     return await read_account_snapshot(account)
