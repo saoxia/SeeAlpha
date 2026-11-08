@@ -111,8 +111,10 @@ intervals = ["1s", "1m", "5m", "15m"]
 特征生成阶段的 TradeTick/quote 补充数据扫描仍在 Python/Arrow 边界完成。
 新增独立的 `feature-aggregate` Rust 二进制，对已校验的成交列做逐笔 OHLCV、
 quote volume、主动买量与成交笔数聚合，按时间桶排序输出。
-Rust 仅持有当天实际出现的基础桶；Python 使用临时文件传输，避免积累
-大量 `groupby` 分块中间 DataFrame。滚动 ATR/布林带/均线、缓存指纹、
+Rust 仅持有当天实际出现的基础桶；Python 通过二进制 Arrow IPC Stream
+传输带类型的 RecordBatch（int64 时间戳、float64 数值、bool 方向），
+输出也采用 Arrow IPC；不再进行 CSV 文本序列化。临时文件限制管道内存
+增长，避免积累大量 `groupby` 分块中间 DataFrame。滚动 ATR/布林带/均线、缓存指纹、
 Catalog 原子发布逻辑保持原样。
 
 ```bash
@@ -124,10 +126,11 @@ cargo build --release --manifest-path engine/pipeline/rust_converter/Cargo.toml 
 强制恢复 Python 聚合路径，或设置该变量为自定义可执行路径。
 Rust 报错直接中止生成，不会静默回退并发布不完整结果。
 
-**性能边界**：Rust 降低 Python 聚合中间表内存，但新增 CSV 序列化与临时磁盘 I/O。
+**性能边界**：Arrow IPC 省去 CSV 文本序列化和解析，但目前仍使用二进制
+临时文件，存在磁盘 I/O，并保留 Python 中原有的行情读取及校验开销。
 须在真实逐笔归档上对比总耗时、峰值 RSS、CPU、磁盘 I/O 和结果差异；
-未提供实测前不保证整体速度提升。后续可将 Python/Arrow 数据桥换为
-Arrow IPC 或 Rust 原生 Parquet 扫描，避免 CSV 往返。
+未提供实测前不保证整体速度提升。后续可通过进程流/共享内存或 Rust 原生
+Parquet 扫描进一步减少数据搬运。
 
 ### Rust 转换核心
 
