@@ -6,7 +6,7 @@ from contextlib import aclosing
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from engine.config import EngineConfig
 from engine.connectors.binance.queries import QueryError
@@ -77,6 +77,29 @@ class SubscriptionBody(BaseModel):
     role: str
     state: str
     progress: dict = Field(default_factory=dict)
+
+
+class StrategyLoadBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_id: str = Field(min_length=1, max_length=40)
+    issuance_id: str = Field(min_length=1, max_length=64)
+    code_key: str = Field(min_length=1, max_length=80)
+    version: str = Field(min_length=1, max_length=40)
+    grant_purpose: str = Field(pattern=r"^(production|development)$")
+    parameters: dict
+
+
+class PreviewBar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    open: str
+    high: str
+    low: str
+    close: str
+
+
+class PreviewBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    bars: list[PreviewBar] = Field(min_length=1, max_length=2000)
 
 
 def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None = None) -> FastAPI:
@@ -252,6 +275,26 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             return runtime.stop_worker(worker_id)
         except EngineConflict as error:
             raise HTTPException(404, error.message) from None
+
+    @app.post("/tenants/{tenant_id}/strategy-loads")
+    def receive_strategy(tenant_id: str, body: StrategyLoadBody):
+        try:
+            return runtime.receive_strategy(tenant_id, body.model_dump())
+        except EngineConflict as error:
+            conflict(error)
+
+    @app.get("/tenants/{tenant_id}/strategy-loads")
+    def strategy_loads(tenant_id: str, account_id: str | None = None):
+        return {"loads": runtime.store.strategy_loads(tenant_id, account_id)}
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/strategy-preview")
+    def strategy_preview(tenant_id: str, account_id: str, body: PreviewBody):
+        try:
+            return runtime.preview_strategy(
+                tenant_id, account_id, [item.model_dump() for item in body.bars],
+            )
+        except EngineConflict as error:
+            conflict(error)
 
     @app.post("/tenants/{tenant_id}/accounts/{account_id}/valuation")
     async def valuation(tenant_id: str, account_id: str, body: Credentials):
