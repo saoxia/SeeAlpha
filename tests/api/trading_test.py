@@ -123,7 +123,7 @@ def test_unknown_result_is_reserved_and_never_automatically_resent(trading, monk
         assert first.status_code == 200 and first.json()['status'] == 'unknown'
         assert client.post(route, json=body).json() == first.json()
         assert len(calls) == 1
-        stored = app.state.trading.engine.get_request(1, body['request_id'])
+        stored = app.state.trading.engine.get_request(1, 1, body['request_id'])
         assert stored['response']['status'] == 'unknown'
         assert not list(app.state.trading.root.glob('1/production/*.json'))
 
@@ -152,7 +152,7 @@ def test_cross_process_lock_prevents_second_dispatch(trading):
     with TestClient(app) as client:
         signin(client)
         create(client)
-        directory = app.state.trading.root / '1' / 'production'
+        directory = app.state.trading.root / '1' / '1' / 'production'
         directory.mkdir(parents=True)
         with (directory / 'account.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

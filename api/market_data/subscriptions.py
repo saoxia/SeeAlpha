@@ -28,12 +28,21 @@ class Subscriptions:
         self.closed = False
         self.deleting = set()
 
+    def bound_tenant_id(self):
+        if getattr(self, "_bound_tenant_id", None) is None:
+            from api.tenants.repository import TenantRepository
+
+            if self.manager.policy_repository is None:
+                raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
+            self._bound_tenant_id = TenantRepository(self.manager.policy_repository.database).require_default()["id"]
+        return self._bound_tenant_id
+
     def _read(self, *, refresh=False):
         if self.policies is None or refresh:
             if self.manager.policy_repository is None:
                 raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
             try:
-                values = self.manager.policy_repository.list()
+                values = self.manager.policy_repository.list(tenant_id=self.bound_tenant_id())
                 policies = [DataPolicy.model_validate(item) for item in values]
                 if len({(p.product, p.symbol) for p in policies}) != len(policies):
                     raise ValueError("Duplicate policy")
@@ -76,7 +85,10 @@ class Subscriptions:
         log_path = directory / log_name
         engine = getattr(self.manager, "engine", None)
         if engine is not None and engine.remote:
-            return engine.spawn_worker(command, log_path, access=access, hold_lease=self.lease is not None)
+            return engine.spawn_worker(
+                command, log_path, tenant_id=self.bound_tenant_id(), access=access,
+                hold_lease=self.lease is not None,
+            )
         import contextlib
 
         from engine.supervisor import popen
@@ -96,7 +108,7 @@ class Subscriptions:
         finally:
             stack.close()
         if engine is not None:
-            engine.note_worker(command)
+            engine.note_worker(command, tenant_id=self.bound_tenant_id())
         return process
 
     def _start(self, policy):
@@ -317,7 +329,7 @@ class Subscriptions:
     def _write(self, policies):
         if self.manager.policy_repository is None:
             raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
-        self.manager.policy_repository.save(policies)
+        self.manager.policy_repository.save(policies, tenant_id=self.bound_tenant_id())
         self.policies = list(policies)
         if any(p.product == "options" for p in policies) or (self.manager.directory / "options-runtime.json").exists():
             self._publish_options()

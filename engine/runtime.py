@@ -55,71 +55,111 @@ class EngineRuntime:
             self.service_lease.close()
             self.service_lease = None
 
-    def register(self, account_id, environment, api_key, api_secret):
-        key = (str(account_id), environment)
+    def ensure_tenant(self, tenant_id, purpose, status="active"):
+        if purpose not in {"production", "development"} or status not in {"active", "archived"}:
+            raise EngineConflict("租户类型或状态无效。")
+        return self.store.ensure_tenant(tenant_id, purpose, status)
+
+    def tenant_row(self, tenant_id):
+        return self.store.tenant(tenant_id)
+
+    def assert_runnable(self, tenant_id, action):
+        row = self.store.tenant(tenant_id)
+        if row is None or row["status"] != "active":
+            raise EngineConflict("已归档的租户不能交易或回测。")
+        if action == "live" and row["purpose"] != "production":
+            raise EngineConflict("开发租户不能向交易所下单。")
+        if action not in {"live", "backtest"}:
+            raise EngineConflict("未知的租户操作。")
+        return {"tenant_id": str(tenant_id), "action": action, "status": "runnable"}
+
+    def register(self, tenant_id, account_id, environment, api_key, api_secret):
+        self.assert_runnable(tenant_id, "live")
+        key = (str(tenant_id), str(account_id), environment)
         self.credentials[key] = {"apiKey": api_key, "secret": api_secret}
-        self.store.upsert_connection(account_id, environment, "registered")
-        self.store.add_event(account_id, "connection", {"environment": environment, "status": "registered"})
-        return {"account_id": str(account_id), "environment": environment, "status": "registered"}
+        self.store.upsert_connection(tenant_id, account_id, environment, "registered")
+        self.store.add_event(tenant_id, account_id, "connection", {
+            "environment": environment, "status": "registered",
+        })
+        return {
+            "tenant_id": str(tenant_id),
+            "account_id": str(account_id),
+            "environment": environment,
+            "status": "registered",
+        }
 
-    def forget(self, account_id, environment):
-        self.credentials.pop((str(account_id), environment), None)
-        self.store.upsert_connection(account_id, environment, "closed")
-        self.store.add_event(account_id, "connection", {"environment": environment, "status": "closed"})
+    def forget(self, tenant_id, account_id, environment):
+        self.credentials.pop((str(tenant_id), str(account_id), environment), None)
+        self.store.upsert_connection(tenant_id, account_id, environment, "closed")
+        self.store.add_event(tenant_id, account_id, "connection", {
+            "environment": environment, "status": "closed",
+        })
 
-    def health(self, account_id=None):
+    def health(self, tenant_id=None, account_id=None):
         with self.worker_lock:
             running = sum(item["process"].poll() is None for item in self.workers.values())
         body = {"status": "ok", "workers": running}
-        if account_id is not None:
+        if account_id is not None and tenant_id is not None:
             body["connections"] = [
-                self.store.connection(account_id, environment)
+                self.store.connection(tenant_id, account_id, environment)
                 for environment in ("production", "sandbox")
             ]
             body["connections"] = [item for item in body["connections"] if item]
         return body
 
-    def account_dict(self, account_id, environment, api_key=None, api_secret=None):
+    def account_dict(self, tenant_id, account_id, environment, api_key=None, api_secret=None):
         creds = None
         if api_key is not None and api_secret is not None:
             creds = {"apiKey": api_key, "secret": api_secret}
-            self.credentials[(str(account_id), environment)] = creds
+            self.credentials[(str(tenant_id), str(account_id), environment)] = creds
         else:
-            creds = self.credentials.get((str(account_id), environment))
+            creds = self.credentials.get((str(tenant_id), str(account_id), environment))
         if creds is None:
             raise EngineConflict("账户连接未登记，业务端需先下发凭据。")
-        return {"id": numeric_id(account_id), "environment": environment, "credentials": creds}
+        return {
+            "id": numeric_id(account_id),
+            "tenant_id": str(tenant_id),
+            "environment": environment,
+            "credentials": creds,
+        }
 
-    def lock_path(self, account_id, environment):
-        directory = self.root / str(account_id) / environment
+    def lock_path(self, tenant_id, account_id, environment):
+        directory = self.root / str(tenant_id) / str(account_id) / environment
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         return directory / "account.lock"
 
-    def _remember_order(self, account_id, environment, order, records):
+    def _remember_order(self, tenant_id, account_id, environment, order, records):
         if order and order.get("client_order_id"):
-            self.store.upsert_order(account_id, environment, order)
+            self.store.upsert_order(tenant_id, account_id, environment, order)
         for record in records or []:
             fill_id = record.get("trade_id") or record.get("id") or record.get("event_id")
             if fill_id:
-                self.store.upsert_fill(account_id, environment, fill_id, record)
+                self.store.upsert_fill(tenant_id, account_id, environment, fill_id, record)
         if order or records:
-            self.store.add_event(account_id, "execution", {
+            self.store.add_event(tenant_id, account_id, "execution", {
                 "environment": environment,
                 "client_order_id": None if not order else order.get("client_order_id"),
                 "fill_count": len(records or []),
             })
 
-    def _remember_positions(self, account_id, environment, positions):
+    def _remember_positions(self, tenant_id, account_id, environment, positions):
         for position in positions or []:
             if position.get("id"):
-                self.store.upsert_position(account_id, environment, position)
+                self.store.upsert_position(tenant_id, account_id, environment, position)
+
+    def _tenant_of(self, account):
+        tenant_id = account.get("tenant_id")
+        if tenant_id is None:
+            raise EngineConflict("引擎调用缺少租户。")
+        return tenant_id
 
     async def account_snapshot(self, account):
         from engine.connectors.binance import queries
 
+        tenant_id = self._tenant_of(account)
         snapshot = await queries.account_snapshot(account)
-        self._remember_positions(account["id"], account["environment"], snapshot.positions)
-        self.store.add_event(account["id"], "account_snapshot", {
+        self._remember_positions(tenant_id, account["id"], account["environment"], snapshot.positions)
+        self.store.add_event(tenant_id, account["id"], "account_snapshot", {
             "environment": account["environment"], "positions": len(snapshot.positions),
         })
         return snapshot
@@ -127,23 +167,30 @@ class EngineRuntime:
     async def manual_execute(self, account, symbol, command):
         from engine.connectors.binance import manual
 
+        tenant_id = self._tenant_of(account)
+        if command.get("action") != "snapshot":
+            self.assert_runnable(tenant_id, "live")
         result = await manual.execute(account, symbol, command)
-        self._remember_positions(account["id"], account["environment"], result.get("positions"))
+        self._remember_positions(tenant_id, account["id"], account["environment"], result.get("positions"))
         order = result.get("result")
         if isinstance(order, dict):
-            self._remember_order(account["id"], account["environment"], order, result.get("records"))
+            self._remember_order(
+                tenant_id, account["id"], account["environment"], order, result.get("records")
+            )
         return result
 
     async def command(self, account, action, values, fingerprint, client_order_id):
+        tenant_id = self._tenant_of(account)
+        self.assert_runnable(tenant_id, "live")
         account_id, environment = account["id"], account["environment"]
         request_id = str(values["request_id"])
-        path = self.lock_path(account_id, environment)
+        path = self.lock_path(tenant_id, account_id, environment)
         with path.open("a") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise EngineConflict("该账户有交易操作正在处理，请稍后核对委托。") from None
-            existing = self.store.get_request(account_id, request_id)
+            existing = self.store.get_request(tenant_id, account_id, request_id)
             if existing:
                 if existing["fingerprint"] != fingerprint:
                     raise EngineConflict("请求编号已用于另一笔操作。")
@@ -156,14 +203,14 @@ class EngineRuntime:
                 "fingerprint": fingerprint, "response": response, "symbol": values["symbol"],
                 "account_revision": values.get("account_revision"), "records": [], "ledger_synced": False,
             }
-            self.store.save_request(account_id, request_id, body)
+            self.store.save_request(tenant_id, account_id, request_id, body)
             try:
                 result = await self.manual_execute(
                     account, values["symbol"], {**values, "action": action, "client_order_id": client_order_id},
                 )
                 if "validation_error" in result:
                     response.update(status="completed", message=result["validation_error"])
-                    self.store.save_request(account_id, request_id, body)
+                    self.store.save_request(tenant_id, account_id, request_id, body)
                     return body
                 order = result.get("result")
                 records = result.pop("records", [])
@@ -174,22 +221,22 @@ class EngineRuntime:
                         message=("撤单被拒绝，当前订单状态：" if result.get("outcome") == "OrderCancelRejected"
                                  else "交易所订单状态：") + order["status"],
                     )
-                self.store.save_request(account_id, request_id, body)
+                self.store.save_request(tenant_id, account_id, request_id, body)
             except QueryError:
                 response["message"] = UNCONFIRMED
-                self.store.save_request(account_id, request_id, body)
+                self.store.save_request(tenant_id, account_id, request_id, body)
             return body
 
-    def save_request(self, account_id, request_id, body):
-        return self.store.save_request(account_id, request_id, body)
+    def save_request(self, tenant_id, account_id, request_id, body):
+        return self.store.save_request(tenant_id, account_id, request_id, body)
 
-    def note_gap(self, account_id, scope, gap_key, gap):
-        payload = {"scope": scope, "gap_key": gap_key, **gap}
-        self.store.upsert_gap(account_id, scope, gap_key, payload)
-        self.store.add_event(account_id, "gap", payload)
+    def note_gap(self, tenant_id, account_id, scope, gap_key, gap):
+        payload = {"scope": scope, "gap_key": gap_key, "tenant_id": str(tenant_id), **gap}
+        self.store.upsert_gap(tenant_id, account_id, scope, gap_key, payload)
+        self.store.add_event(tenant_id, account_id, "gap", payload)
         return payload
 
-    def note_worker(self, account_id, command):
+    def note_worker(self, tenant_id, account_id, command):
         role = "history" if "engine.pipeline.pair_data" in command else "collection"
         if "--role" in command:
             role = command[command.index("--role") + 1]
@@ -205,11 +252,24 @@ class EngineRuntime:
         if not symbol:
             return None
         progress = {"command_module": command[2] if len(command) > 2 else None}
-        self.store.upsert_subscription(account_id, product, symbol, role, "running", progress)
-        self.store.add_event(account_id, "subscription", {
+        self.store.upsert_subscription(tenant_id, account_id, product, symbol, role, "running", progress)
+        self.store.add_event(tenant_id, account_id, "subscription", {
             "product": product, "symbol": symbol, "role": role, "state": "running",
         })
-        return {"account_id": str(account_id), "product": product, "symbol": symbol, "role": role, "state": "running"}
+        return {
+            "tenant_id": str(tenant_id), "account_id": str(account_id),
+            "product": product, "symbol": symbol, "role": role, "state": "running",
+        }
+
+    def note_subscription(self, tenant_id, account_id, product, symbol, role, state, progress):
+        self.store.upsert_subscription(tenant_id, account_id, product, symbol, role, state, progress)
+        self.store.add_event(tenant_id, account_id, "subscription", {
+            "product": product, "symbol": symbol, "role": role, "state": state,
+        })
+        return {
+            "tenant_id": str(tenant_id), "account_id": str(account_id),
+            "product": product, "symbol": symbol, "role": role, "state": state,
+        }
 
     def _service_lease(self):
         if self.service_lease is None:
@@ -224,7 +284,7 @@ class EngineRuntime:
             self.service_lease = lease
         return self.service_lease
 
-    def spawn_worker(self, command, log_path, *, access=None, hold_lease=False, log_mode="ab"):
+    def spawn_worker(self, command, log_path, *, tenant_id, access=None, hold_lease=False, log_mode="ab"):
         """Fork a feed or history worker and keep its lock fds until it exits."""
         log_path = Path(log_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +318,10 @@ class EngineRuntime:
                 item.close()
             raise
         worker_id = uuid.uuid4().hex
-        record = {"process": process, "held": held, "command": command, "returncode": None}
+        record = {
+            "process": process, "held": held, "command": command, "returncode": None,
+            "tenant_id": str(tenant_id),
+        }
 
         def watch():
             process.wait()
@@ -288,6 +351,36 @@ class EngineRuntime:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(state["pid"], signal.SIGTERM)
         return self.worker(worker_id)
+
+    def export_tenant(self, tenant_id):
+        return self.store.export_tenant(tenant_id)
+
+    def drop_tenant(self, tenant_id, *, remove=False):
+        """Stop this tenant's workers and delete its runtime rows. Archive keeps a tombstone."""
+        tenant_id = str(tenant_id)
+        row = self.store.tenant(tenant_id)
+        with self.worker_lock:
+            worker_ids = [
+                worker_id for worker_id, record in self.workers.items()
+                if str(record.get("tenant_id")) == tenant_id
+            ]
+        for worker_id in worker_ids:
+            with contextlib.suppress(EngineConflict, ProcessLookupError):
+                self.stop_worker(worker_id)
+            with self.worker_lock:
+                self.workers.pop(worker_id, None)
+        self.credentials = {
+            key: value for key, value in self.credentials.items() if key[0] != tenant_id
+        }
+        if remove or row is None:
+            self.store.delete_tenant(tenant_id)
+            return {"tenant_id": tenant_id, "status": "deleted"}
+        self.store.delete_runtime(tenant_id)
+        self.store.ensure_tenant(tenant_id, row["purpose"], "archived")
+        return {"tenant_id": tenant_id, "status": "archived"}
+
+    def import_tenant(self, tenant_id, purpose, payload):
+        return self.store.import_tenant(tenant_id, purpose, payload)
 
 
 async def read_account_snapshot(account):

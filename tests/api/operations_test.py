@@ -249,6 +249,7 @@ def test_sync_uses_native_reports_and_retains_previous_records(tmp_path, monkeyp
     accounts = Accounts(db, Settings(db.path))
     # Stub credential access rather than save real or fake network credentials in this test.
     exchange_repository(db).create_exchange_account(
+        tenant_id=1,
         exchange="binance",
         account_name="main",
         environment="production",

@@ -535,7 +535,7 @@ def test_subscription_process_restore_stop_expiry_and_delete_protection(context,
     assert commands[0][0][2] == "engine.feed.managed"
     saved = app.state.market_data.policy_repository.list()
     assert saved and saved[0]["symbol"] == "ETHUSDT"
-    runtime_rows = app.state.engine.subscriptions()
+    runtime_rows = app.state.engine.subscriptions(tenant_id=1)
     assert any(row["symbol"] == "ETHUSDT" and row["account_id"] == app.state.engine.market_account_id
                for row in runtime_rows)
     assert commands[0][1]["pass_fds"] and "--catalog" in commands[0][0]
@@ -577,13 +577,13 @@ def test_invalid_database_configuration_is_preserved_and_control_has_single_owne
     assert error.value.status_code == 409
     from api.db.models import MarketDataPolicy
     with app.state.database.session(write=True) as session:
-        row = session.get(MarketDataPolicy, ("futures_um", "ETHUSDT"))
+        row = session.get(MarketDataPolicy, (1, "futures_um", "ETHUSDT"))
         row.parameters = {**payload, "base_level": "unknown"}
     app.state.market_data.subscriptions.policies = None
     assert client.get("/api/data/subscriptions").status_code == 503
     assert client.post("/api/data/subscriptions", json=payload).status_code == 503
     with app.state.database.session() as session:
-        assert session.get(MarketDataPolicy, ("futures_um", "ETHUSDT")).parameters["base_level"] == "unknown"
+        assert session.get(MarketDataPolicy, (1, "futures_um", "ETHUSDT")).parameters["base_level"] == "unknown"
 
 
 def test_legacy_auto_save_uses_all_official_periods_and_explicit_runtime(context, monkeypatch):
@@ -1041,7 +1041,7 @@ def test_configuration_only_in_database_operations_and_monitor_only_in_files(con
     manager.subscriptions = Subscriptions(manager)
     manager.subscriptions.restore()
     assert manager.subscriptions._read()[0].symbol == "ETHUSDT"
-    def offline():
+    def offline(*_args, **_kwargs):
         raise StorageUnavailable("offline")
     monkeypatch.setattr(manager.policy_repository, "list", offline)
     manager.subscriptions.restore()
@@ -1171,7 +1171,7 @@ def test_duration_without_retained_data_uses_today_utc_midnight(context, monkeyp
     # Old modes may contain an unused date: it is not a configured fixed start.
     from api.market_data.contracts import DataPolicy
     app.state.market_data.policy_repository.save([DataPolicy(symbol="ETHUSDT", realtime_enabled=False,
-        history_mode="all", history_start=datetime(2020, 1, 1, tzinfo=UTC))])
+        history_mode="all", history_start=datetime(2020, 1, 1, tzinfo=UTC))], tenant_id=1)
     response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "realtime_enabled": False,
         "history_enabled": True, "history_mode": "duration", "history_days": 10})
     assert response.status_code == 200, response.text

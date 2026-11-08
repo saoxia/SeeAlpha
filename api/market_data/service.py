@@ -403,7 +403,8 @@ class DataService:
                 log_path = self.log_directory / f"{identity}.log"
                 if engine is not None and engine.remote:
                     process = engine.spawn_worker(
-                        command, log_path, access=(payload.symbol, payload.product, True), log_mode="xb",
+                        command, log_path, tenant_id=self.subscriptions.bound_tenant_id(),
+                        access=(payload.symbol, payload.product, True), log_mode="xb",
                     )
                 else:
                     from engine.supervisor import popen as start_worker
@@ -415,7 +416,7 @@ class DataService:
                             env={**os.environ, "PYTHONUNBUFFERED": "1"},
                         )
                     if engine is not None and payload.action == "backfill":
-                        engine.note_worker(command)
+                        engine.note_worker(command, tenant_id=self.subscriptions.bound_tenant_id())
                 self.processes[identity] = (process, threading.Event())
                 thread = threading.Thread(target=self._wait, args=(job, process, lease, access_lease), daemon=True)
                 self.threads.append(thread)

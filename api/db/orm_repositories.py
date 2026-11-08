@@ -14,6 +14,7 @@ def row(model, *fields):
 _USER = ("id", "username", "password_hash", "created_at")
 _ACCOUNT = (
     "id",
+    "tenant_id",
     "exchange",
     "account_name",
     "environment",
@@ -112,15 +113,16 @@ class ORMExchangeRepository:
     def __init__(self, database):
         self.database = database
 
-    def list_exchange_accounts(self):
+    def list_exchange_accounts(self, tenant_id=None):
         with self.database.session() as session:
-            accounts = session.scalars(
-                select(ExchangeAccount).order_by(
-                    ExchangeAccount.exchange,
-                    func.lower(ExchangeAccount.account_name),
-                    ExchangeAccount.id,
-                )
-            ).all()
+            statement = select(ExchangeAccount).order_by(
+                ExchangeAccount.exchange,
+                func.lower(ExchangeAccount.account_name),
+                ExchangeAccount.id,
+            )
+            if tenant_id is not None:
+                statement = statement.where(ExchangeAccount.tenant_id == tenant_id)
+            accounts = session.scalars(statement).all()
             return [row(account, *_ACCOUNT) for account in accounts]
 
     def get_exchange_account(self, account_id):

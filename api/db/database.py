@@ -59,8 +59,42 @@ class Database:
                 "INSERT OR IGNORE INTO api_schema_migrations VALUES (1, ?)", (int(time.time()),)
             )
             connection.executescript("""
+                CREATE TABLE IF NOT EXISTS tenant_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    purpose TEXT NOT NULL CHECK (purpose IN ('production', 'development')),
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    created_at INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS tenant_templates_name_unique
+                    ON tenant_templates(lower(name));
+                CREATE TABLE IF NOT EXISTS tenants (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    template_id INTEGER NOT NULL,
+                    purpose TEXT NOT NULL CHECK (purpose IN ('production', 'development')),
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+                    system_key TEXT,
+                    created_at INTEGER NOT NULL,
+                    archived_at INTEGER
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS tenants_name_unique ON tenants(lower(name));
+                CREATE UNIQUE INDEX IF NOT EXISTS tenants_system_key_unique ON tenants(system_key);
+                CREATE TABLE IF NOT EXISTS virtual_accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                    account_name TEXT NOT NULL,
+                    initial_capital TEXT NOT NULL,
+                    quote_currency TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS virtual_accounts_name_unique
+                    ON virtual_accounts(tenant_id, lower(account_name));
                 CREATE TABLE IF NOT EXISTS exchange_accounts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
                     exchange TEXT NOT NULL,
                     account_name TEXT NOT NULL COLLATE NOCASE,
                     environment TEXT NOT NULL CHECK (environment IN ('production', 'sandbox')),
@@ -70,11 +104,28 @@ class Database:
                     last_tested_at INTEGER,
                     created_at INTEGER NOT NULL,
                     updated_at INTEGER NOT NULL,
-                    UNIQUE(exchange, account_name)
+                    UNIQUE(tenant_id, exchange, account_name)
                 );
                 CREATE INDEX IF NOT EXISTS exchange_accounts_exchange_idx
                     ON exchange_accounts(exchange, created_at, id);
             """)
+            now = int(time.time())
+            connection.execute(
+                """INSERT OR IGNORE INTO tenant_templates (id, purpose, name, description, created_at)
+                   VALUES (1, 'production', '空正式模板', NULL, ?)""",
+                (now,),
+            )
+            connection.execute(
+                """INSERT OR IGNORE INTO tenant_templates (id, purpose, name, description, created_at)
+                   VALUES (2, 'development', '空开发模板', NULL, ?)""",
+                (now,),
+            )
+            connection.execute(
+                """INSERT OR IGNORE INTO tenants (
+                       id, template_id, purpose, name, description, status, system_key, created_at
+                   ) VALUES (1, 1, 'production', '默认正式', NULL, 'active', 'default', ?)""",
+                (now,),
+            )
             connection.execute(
                 "INSERT OR IGNORE INTO api_schema_migrations VALUES (2, ?)", (int(time.time()),)
             )

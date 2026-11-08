@@ -31,29 +31,36 @@ def test_engine_keeps_per_account_orders_gaps_and_no_secrets(tmp_path, monkeypat
     with TestClient(app) as client:
         assert client.get("/health").status_code == 401
         assert client.get("/health", headers=headers).json()["status"] == "ok"
-        first = client.post("/accounts/11/orders", headers=headers, json=order)
+        created = client.put("/tenants/7", headers=headers, json={"purpose": "production"})
+        assert created.status_code == 200, created.text
+        first = client.post("/tenants/7/accounts/11/orders", headers=headers, json=order)
         assert first.status_code == 200, first.text
         assert first.json()["response"]["status"] == "completed"
-        again = client.post("/accounts/11/orders", headers=headers, json=order)
+        again = client.post("/tenants/7/accounts/11/orders", headers=headers, json=order)
         assert again.json()["response"] == first.json()["response"]
         assert calls == [(11, "ETHUSDT-PERP", "submit")]
         other = {**order, "api_key": "key-two", "api_secret": "secret-two", "fingerprint": "b" * 64,
                  "client_order_id": "SA-2", "values": {**order["values"], "request_id": "req-2"}}
-        assert client.post("/accounts/22/orders", headers=headers, json=other).status_code == 200
-        assert [row["client_order_id"] for row in client.get("/accounts/11/orders", headers=headers, params={"environment": "production"}).json()["orders"]] == ["SA-1"]
-        assert client.get("/accounts/22/fills", headers=headers, params={"environment": "production"}).json()["fills"][0]["trade_id"] == "fill-SA-2"
-        gap = client.post("/accounts/11/gaps", headers=headers, json={
+        assert client.post("/tenants/7/accounts/22/orders", headers=headers, json=other).status_code == 200
+        orders = client.get("/tenants/7/accounts/11/orders", headers=headers, params={"environment": "production"})
+        assert [row["client_order_id"] for row in orders.json()["orders"]] == ["SA-1"]
+        fills = client.get("/tenants/7/accounts/22/fills", headers=headers, params={"environment": "production"})
+        assert fills.json()["fills"][0]["trade_id"] == "fill-SA-2"
+        gap = client.post("/tenants/7/accounts/11/gaps", headers=headers, json={
             "scope": "ETHUSDT", "gap_key": "2026-11-08", "gap": {"kind": "missing", "symbol": "ETHUSDT"},
         })
         assert gap.status_code == 200, gap.text
-        assert client.get("/accounts/22/gaps", headers=headers).json()["gaps"] == []
-        assert client.get("/accounts/11/gaps", headers=headers).json()["gaps"][0]["symbol"] == "ETHUSDT"
-        noted = client.post("/accounts/11/market/workers/note", headers=headers, json={
+        assert client.get("/tenants/7/accounts/22/gaps", headers=headers).json()["gaps"] == []
+        assert client.get("/tenants/8/accounts/11/gaps", headers=headers).json()["gaps"] == []
+        assert client.get("/tenants/7/accounts/11/gaps", headers=headers).json()["gaps"][0]["symbol"] == "ETHUSDT"
+        noted = client.post("/tenants/7/accounts/11/market/workers/note", headers=headers, json={
             "command": [".venv/bin/python", "-m", "engine.feed.managed", "--symbol", "ETHUSDT", "--role", "collection"],
         })
         assert noted.json()["account_id"] == "11"
-        assert client.get("/accounts/22/market/subscriptions", headers=headers).json()["subscriptions"] == []
-        events = client.get("/accounts/11/events", headers=headers).json()["events"]
+        assert noted.json()["tenant_id"] == "7"
+        empty = client.get("/tenants/8/accounts/11/market/subscriptions", headers=headers)
+        assert empty.json()["subscriptions"] == []
+        events = client.get("/tenants/7/accounts/11/events", headers=headers).json()["events"]
         assert {item["kind"] for item in events} >= {"execution", "gap", "subscription"}
     blob = b"".join(path.read_bytes() for path in (tmp_path / "state").glob("book.sqlite*"))
     assert b"secret-one" not in blob and b"secret-two" not in blob and b"key-one" not in blob

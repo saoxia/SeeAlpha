@@ -61,6 +61,7 @@ def test_orm_auth_accounts_and_olap_persist(orm):
     assert auth.get_user_for_session("session-hash") is None
     accounts = exchange_repository(db)
     account = accounts.create_exchange_account(
+        tenant_id=1,
         exchange="binance",
         account_name="Main",
         environment="production",
@@ -70,6 +71,7 @@ def test_orm_auth_accounts_and_olap_persist(orm):
     assert accounts.get_exchange_account(account["id"])["credentials_encrypted"] == "ciphertext"
     with pytest.raises(StorageConflict):
         accounts.create_exchange_account(
+            tenant_id=1,
             exchange="binance",
             account_name="main",
             environment="production",
@@ -199,6 +201,7 @@ def test_import_existing_sqlite_preserves_records_and_rejects_nonempty_target(or
     user = auth.create_user("admin", "legacy-hash")
     auth.create_session(user["id"], "legacy-session", 4_000_000_000)
     ExchangeRepository(source).create_exchange_account(
+        tenant_id=1,
         exchange="binance",
         account_name="original",
         environment="production",

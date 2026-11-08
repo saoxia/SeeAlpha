@@ -6,7 +6,7 @@ import time
 from .database import Database
 
 EXCHANGE_ACCOUNT_COLUMNS = """
-    id, exchange, account_name, environment, credentials_encrypted, market_symbols_json,
+    id, tenant_id, exchange, account_name, environment, credentials_encrypted, market_symbols_json,
     last_test_status, last_tested_at, created_at, updated_at
 """
 
@@ -15,11 +15,18 @@ class ExchangeRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    def list_exchange_accounts(self) -> list[sqlite3.Row]:
+    def list_exchange_accounts(self, tenant_id: int | None = None) -> list[sqlite3.Row]:
         with self.database.connect() as connection:
+            if tenant_id is None:
+                return connection.execute(
+                    f"""SELECT {EXCHANGE_ACCOUNT_COLUMNS} FROM exchange_accounts
+                        ORDER BY exchange, account_name COLLATE NOCASE, id"""
+                ).fetchall()
             return connection.execute(
                 f"""SELECT {EXCHANGE_ACCOUNT_COLUMNS} FROM exchange_accounts
-                    ORDER BY exchange, account_name COLLATE NOCASE, id"""
+                    WHERE tenant_id = ?
+                    ORDER BY exchange, account_name COLLATE NOCASE, id""",
+                (tenant_id,),
             ).fetchall()
 
     def get_exchange_account(self, account_id: int) -> sqlite3.Row | None:
@@ -32,6 +39,7 @@ class ExchangeRepository:
     def create_exchange_account(
         self,
         *,
+        tenant_id: int,
         exchange: str,
         account_name: str,
         environment: str,
@@ -43,11 +51,12 @@ class ExchangeRepository:
             cursor = connection.execute(
                 """
                 INSERT INTO exchange_accounts (
-                    exchange, account_name, environment, credentials_encrypted,
+                    tenant_id, exchange, account_name, environment, credentials_encrypted,
                     market_symbols_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
+                    tenant_id,
                     exchange,
                     account_name,
                     environment,
