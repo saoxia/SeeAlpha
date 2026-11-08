@@ -1,8 +1,6 @@
 """Tenant Docker boundaries and EngineClient routing without a Docker daemon."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import httpx
 import pytest
 from fastapi.testclient import TestClient
