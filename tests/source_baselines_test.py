@@ -13,10 +13,9 @@ def digest(path):
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
-HISTORICAL = (
-    "strategy_python/_optimization/btc_eth_signal_attribution_20260921/manifest.json",
-    "strategy_python/_optimization/btc_long_validation_20260921/manifest.json",
-)
+# The research manifests lived under strategy_python/, which was removed by explicit
+# authorization on 2026-11-08. Lint baselines of files that still exist stay in force.
+HISTORICAL = ()
 
 
 def current_source(project, path):

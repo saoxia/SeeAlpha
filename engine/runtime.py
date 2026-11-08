@@ -363,7 +363,7 @@ class EngineRuntime:
         row = self.store.tenant(tenant_id)
         if row is None or row["status"] != "active":
             raise EngineConflict("已归档或不存在的租户不能预览策略。")
-        loads = self.store.strategy_loads(tenant_id, account_id)
+        loads = self.store.strategy_loads(tenant_id, account_id, include_archive=True)
         if not loads:
             raise EngineConflict("该租户账户没有已下发的策略。")
         return preview_loads(loads, bars)

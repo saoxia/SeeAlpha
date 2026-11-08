@@ -87,6 +87,9 @@ class StrategyLoadBody(BaseModel):
     version: str = Field(min_length=1, max_length=40)
     grant_purpose: str = Field(pattern=r"^(production|development)$")
     parameters: dict
+    entry_point: str = Field(min_length=3, max_length=120)
+    package_hash: str = Field(min_length=64, max_length=64)
+    archive: str = Field(min_length=1, max_length=400_000)
 
 
 class PreviewBar(BaseModel):

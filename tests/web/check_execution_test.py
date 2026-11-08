@@ -27,14 +27,14 @@ def test_project_check_only_runs_source_style_and_requested_tests(tmp_path, monk
 
 def test_lint_excludes_runtime_and_history_without_hiding_source_errors(tmp_path, monkeypatch):
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.ruff]\nextend-exclude = ["strategy_python/_optimization", '
-        '"strategy_python/_report/analysis"]\n'
+        '[tool.ruff]\nextend-exclude = ["research_archive/optimization", '
+        '"research_archive/analysis"]\n'
         '[tool.ruff.lint]\nselect = ["F821"]\n'
     )
     runtime = (".local", ".venv", "data", "logs", "reports")
     history = (
-        "strategy_python/_optimization",
-        "strategy_python/_report/analysis",
+        "research_archive/optimization",
+        "research_archive/analysis",
     )
     for directory in (*runtime, *history):
         path = tmp_path / directory

@@ -25,7 +25,9 @@ def _parameters(value):
 
 
 _PACKAGE = ("id", "code_key", "name", "description", "created_at")
-_VERSION = ("id", "package_id", "version", "parameters", "created_at")
+_VERSION = (
+    "id", "package_id", "version", "parameters", "entry_point", "package_hash", "archive", "created_at",
+)
 _GRANT = ("id", "version_id", "purpose", "created_at")
 _ISSUANCE = ("id", "tenant_id", "account_id", "version_id", "purpose", "parameters", "created_at")
 
@@ -88,7 +90,8 @@ class StrategyRepository:
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 rows = connection.execute(
-                    """SELECT id, package_id, version, parameters, created_at
+                    """SELECT id, package_id, version, parameters, entry_point, package_hash,
+                              archive, created_at
                        FROM strategy_package_versions WHERE package_id = ? ORDER BY id""",
                     (package_id,),
                 ).fetchall()
@@ -105,7 +108,8 @@ class StrategyRepository:
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 row = connection.execute(
-                    """SELECT id, package_id, version, parameters, created_at
+                    """SELECT id, package_id, version, parameters, entry_point, package_hash,
+                              archive, created_at
                        FROM strategy_package_versions WHERE id = ?""",
                     (version_id,),
                 ).fetchone()
@@ -115,7 +119,7 @@ class StrategyRepository:
                 mapped = _mapping(session.get(StrategyPackageVersion, version_id), *_VERSION)
         return _version(mapped) if mapped else None
 
-    def create_version(self, package_id, version, parameters):
+    def create_version(self, package_id, version, parameters, entry_point, package_hash, archive):
         now = int(time.time())
         encoded = json.dumps(parameters, ensure_ascii=False, sort_keys=True)
         try:
@@ -123,19 +127,23 @@ class StrategyRepository:
                 with self.database.connect() as connection:
                     cursor = connection.execute(
                         """INSERT INTO strategy_package_versions
-                               (package_id, version, parameters, created_at)
-                           VALUES (?, ?, ?, ?)""",
-                        (package_id, version, encoded, now),
+                               (package_id, version, parameters, entry_point, package_hash,
+                                archive, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (package_id, version, encoded, entry_point, package_hash, archive, now),
                     )
                     row = connection.execute(
-                        """SELECT id, package_id, version, parameters, created_at
+                        """SELECT id, package_id, version, parameters, entry_point, package_hash,
+                                  archive, created_at
                            FROM strategy_package_versions WHERE id = ?""",
                         (cursor.lastrowid,),
                     ).fetchone()
                 return _version(_mapping(row, *_VERSION))
             with self.database.session(write=True) as session:
                 stored = StrategyPackageVersion(
-                    package_id=package_id, version=version, parameters=parameters, created_at=now,
+                    package_id=package_id, version=version, parameters=parameters,
+                    entry_point=entry_point, package_hash=package_hash, archive=archive,
+                    created_at=now,
                 )
                 session.add(stored)
                 session.flush()
@@ -256,7 +264,10 @@ class StrategyRepository:
 def _version(row):
     if row is None:
         return None
-    return {**row, "parameters": _parameters(row["parameters"])}
+    archive = row["archive"]
+    if isinstance(archive, memoryview):
+        archive = bytes(archive)
+    return {**row, "parameters": _parameters(row["parameters"]), "archive": archive}
 
 
 def _issuance(row):

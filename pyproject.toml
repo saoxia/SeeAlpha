@@ -73,7 +73,5 @@ target-version = "py313"
 # 历史研究与回放快照保留原始字节；当前报告生成器、全部策略和测试仍检查。
 extend-exclude = [
     ".local", ".venv", "data", "logs", "reports",
-    "strategy_python/_optimization",
-    "strategy_python/_report/analysis",
 ]
 

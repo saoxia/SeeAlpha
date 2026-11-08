@@ -9,15 +9,14 @@ router = APIRouter(tags=["strategy-store"])
 
 
 class PackageCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    code_key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
-    name: str = Field(min_length=1, max_length=100)
-    description: str | None = Field(default=None, max_length=500)
+    model_config = ConfigDict(extra="forbid")
+    archive: str = Field(min_length=1, max_length=400_000)
+    parameters: dict = Field(default_factory=dict)
 
 
 class VersionCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    version: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")
+    model_config = ConfigDict(extra="forbid")
+    archive: str = Field(min_length=1, max_length=400_000)
     parameters: dict = Field(default_factory=dict)
 
 
@@ -47,12 +46,12 @@ def list_packages(request: Request, _: AdminUser):
 
 @router.post("/strategy-packages", status_code=201)
 def create_package(request: Request, payload: PackageCreate, _: AdminUser):
-    return store(request).create_package(payload.code_key, payload.name, payload.description)
+    return store(request).create_package(payload.archive, payload.parameters)
 
 
 @router.post("/strategy-packages/{package_id}/versions", status_code=201)
 def create_version(request: Request, package_id: int, payload: VersionCreate, _: AdminUser):
-    return store(request).create_version(package_id, payload.version, payload.parameters)
+    return store(request).create_version(package_id, payload.archive, payload.parameters)
 
 
 @router.post("/strategy-packages/versions/{version_id}/grants", status_code=201)

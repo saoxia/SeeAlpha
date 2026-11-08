@@ -124,6 +124,9 @@ class Database:
                     package_id INTEGER NOT NULL REFERENCES strategy_packages(id),
                     version TEXT NOT NULL,
                     parameters TEXT NOT NULL,
+                    entry_point TEXT NOT NULL,
+                    package_hash TEXT NOT NULL,
+                    archive BLOB NOT NULL,
                     created_at INTEGER NOT NULL,
                     UNIQUE(package_id, version)
                 );

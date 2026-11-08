@@ -207,53 +207,10 @@ time.sleep(60)
     assert cancelled["returncode"] == -signal.SIGKILL
 
 
-def test_missing_data_is_skipped_and_does_not_claim_external_report(manager):
-    module(
-        manager.project,
-        "strategy_python.btc_backtest",
-        """
-from pathlib import Path
-p = Path('data/reports/backtest/btc_current_trend_following_long/external')
-p.mkdir(parents=True)
-(p / 'report.html').write_text('external run')
-(p / 'summary.json').write_text('{}')
-print('指定时间范围内没有已有 K 线，跳过本次回测')
-""",
-    )
-    job = finished(manager, manager.start("backtest", backtest_parameters())["id"])
-    assert job["status"] == "skipped"
-    assert job["report_urls"] == []
-    assert job["returncode"] == 0
-
-
-@pytest.mark.parametrize("external_data", [False, True])
-def test_zero_trade_report_is_success_and_links_only_announced_report(manager, external_data):
-    if external_data:
-        external = manager.project.parent / (manager.project.name + "-external")
-        (manager.project / "data").mkdir(exist_ok=True)
-        (manager.project / "data").rename(external)
-        (manager.project / "data").symlink_to(external, target_is_directory=True)
-    module(
-        manager.project,
-        "strategy_python.btc_backtest",
-        """
-import sys
-from pathlib import Path
-assert sys.argv[1] == 'trend_following_long'
-assert '--check-data' not in sys.argv
-p = Path('data/reports/backtest/btc_current_trend_following_long/run1')
-p.mkdir(parents=True)
-(p / 'report.html').write_text('zero trades')
-(p / 'summary.json').write_text('{"total_orders": 0}')
-print('中文交互报告：' + str((p / 'report.html').resolve()))
-""",
-    )
-    job = finished(manager, manager.start("backtest", backtest_parameters())["id"])
-    assert job["status"] == "succeeded"
-    assert job["report_urls"] == [
-        "/artifacts/data/reports/backtest/btc_current_trend_following_long/run1/report.html"
-    ]
-    assert job["parameters"]["interval"] == "1m"
+def test_research_backtest_catalog_is_empty(manager):
+    with pytest.raises(ValueError, match="支持的策略"):
+        manager.start("backtest", backtest_parameters())
+    assert manager.list_jobs() == []
 
 
 def test_nonzero_exit_preserves_error_and_logs(manager):

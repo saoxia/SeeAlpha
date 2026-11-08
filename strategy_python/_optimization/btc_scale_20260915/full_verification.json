@@ -1,8 +1,0 @@
-{
-  "new_runs": 18,
-  "baseline_runs": 18,
-  "hashes_verified": true,
-  "cashflow_reconciled": true,
-  "all_final_prices_on_tick": true,
-  "matched_pbs_fills_equal": true
-}

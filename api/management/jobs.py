@@ -23,22 +23,7 @@ from .storage import WebPaths
 
 CHECK_MODULE = "api.management.jobs"
 
-_FAMILIES = (
-    ("trend_following_long", "趋势跟随多头"),
-    ("trend_following_short", "趋势跟随空头"),
-    ("mean_reversion_long", "均值回归多头"),
-    ("mean_reversion_short", "均值回归空头"),
-)
-STRATEGIES = [
-    {
-        "id": f"{market}_{key}",
-        "label": f"{market.upper()} {label}",
-        "symbol": f"{market.upper()}USDT",
-        "description": "使用本地已有 K 线进行独立研究回测，结束时间不包含在区间内。",
-    }
-    for market in ("btc", "eth")
-    for key, label in _FAMILIES
-]
+STRATEGIES = []
 ACTIONS = [
     {"id": "check_quick", "label": "快速项目检查", "description": "核验冻结文件与代码规范。"},
     {"id": "check_full", "label": "完整项目检查", "description": "核验文件、代码规范及全量测试。"},
@@ -49,7 +34,6 @@ _COMMANDS = {
     "check_full": (CHECK_MODULE,),
 }
 _LABELS = {item["id"]: item["label"] for item in ACTIONS}
-_STRATEGIES = {item["id"]: item for item in STRATEGIES}
 _STATUSES = {"running", "succeeded", "failed", "cancelled", "interrupted", "skipped"}
 _DATE = re.compile(
     r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?)?"
@@ -120,7 +104,7 @@ def _build_command(python, action, parameters):
     if set(parameters) - {"strategy", "start", "end", "interval"}:
         raise ValueError("回测只接受 strategy、start、end、interval 参数")
     strategy = parameters.get("strategy")
-    if not isinstance(strategy, str) or strategy not in _STRATEGIES:
+    if not isinstance(strategy, str) or not strategy:
         raise ValueError("请选择支持的策略")
     start = _date(parameters.get("start"), "start")
     end = _date(parameters.get("end"), "end")
@@ -131,21 +115,7 @@ def _build_command(python, action, parameters):
     interval = parameters.get("interval", "1m")
     if not isinstance(interval, str) or interval not in {"1m", "5m"}:
         raise ValueError("K 线周期只支持 1m 或 5m")
-    market, key = strategy.split("_", 1)
-    if market == "btc":
-        command = [python, "-m", "strategy_python.btc_backtest", key]
-        report_name = "btc_current_" + key
-    else:
-        report_name = key + "_5min"
-        command = [python, "-m", f"strategy_python.{report_name}.backtest"]
-    normalized = {
-        "strategy": strategy,
-        "start": start.isoformat(),
-        "end": end.isoformat(),
-        "interval": interval,
-    }
-    command += ["--start", normalized["start"], "--end", normalized["end"], "--interval", interval]
-    return command, normalized, _STRATEGIES[strategy]["label"] + " 回测", report_name
+    raise ValueError("请选择支持的策略")
 
 
 def _atomic_json(path, value):

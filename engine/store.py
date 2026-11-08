@@ -4,6 +4,7 @@ Runtime rows are keyed by tenant_id and, where an account is involved, account_i
 Existing books are copied onto tenant id "1", the migrated default production tenant.
 """
 
+import base64
 import json
 import sqlite3
 import threading
@@ -95,6 +96,9 @@ CREATE TABLE IF NOT EXISTS strategy_loads (
     version TEXT NOT NULL,
     grant_purpose TEXT NOT NULL,
     parameters_json TEXT NOT NULL,
+    entry_point TEXT NOT NULL,
+    package_hash TEXT NOT NULL,
+    archive BLOB NOT NULL,
     loaded_at INTEGER NOT NULL,
     PRIMARY KEY (tenant_id, account_id, issuance_id)
 );
@@ -114,11 +118,14 @@ RUNTIME_TABLES = (
 LEGACY_TENANT_ID = "1"
 
 
-def _strategy_load(row):
+def _strategy_load(row, *, include_archive=False):
     if row is None:
         return None
     item = dict(row)
     item["parameters"] = json.loads(item.pop("parameters_json"))
+    archive = item.pop("archive", b"")
+    if include_archive:
+        item["archive"] = bytes(archive) if archive is not None else b""
     return item
 
 
@@ -136,6 +143,7 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self._migrate_legacy()
         self.db.executescript(SCHEMA)
+        self._ensure_strategy_load_columns()
         try:
             self.path.chmod(0o600)
         except OSError:
@@ -198,6 +206,21 @@ class Store:
                ON CONFLICT(tenant_id) DO NOTHING""",
             (LEGACY_TENANT_ID,),
         )
+
+    def _ensure_strategy_load_columns(self):
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(strategy_loads)")}
+        if "entry_point" not in columns:
+            self.db.execute(
+                "ALTER TABLE strategy_loads ADD COLUMN entry_point TEXT NOT NULL DEFAULT ''"
+            )
+        if "package_hash" not in columns:
+            self.db.execute(
+                "ALTER TABLE strategy_loads ADD COLUMN package_hash TEXT NOT NULL DEFAULT ''"
+            )
+        if "archive" not in columns:
+            self.db.execute(
+                "ALTER TABLE strategy_loads ADD COLUMN archive BLOB NOT NULL DEFAULT X''"
+            )
 
     def _ensure(self):
         if self.db is None:
@@ -444,20 +467,24 @@ class Store:
 
     def upsert_strategy_load(
         self, tenant_id, account_id, issuance_id, code_key, version, grant_purpose, parameters,
+        entry_point, package_hash, archive,
     ):
         now = int(time.time() * 1000)
         self._write(
             """INSERT INTO strategy_loads (
                    tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
-                   parameters_json, loaded_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   parameters_json, entry_point, package_hash, archive, loaded_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(tenant_id, account_id, issuance_id) DO UPDATE SET
                  code_key=excluded.code_key, version=excluded.version,
                  grant_purpose=excluded.grant_purpose,
-                 parameters_json=excluded.parameters_json, loaded_at=excluded.loaded_at""",
+                 parameters_json=excluded.parameters_json,
+                 entry_point=excluded.entry_point, package_hash=excluded.package_hash,
+                 archive=excluded.archive, loaded_at=excluded.loaded_at""",
             (
                 str(tenant_id), str(account_id), str(issuance_id), code_key, version, grant_purpose,
-                json.dumps(parameters, ensure_ascii=False, sort_keys=True), now,
+                json.dumps(parameters, ensure_ascii=False, sort_keys=True),
+                entry_point, package_hash, archive, now,
             ),
         )
         return self.strategy_load(tenant_id, account_id, issuance_id)
@@ -466,32 +493,36 @@ class Store:
         self._ensure()
         row = self.db.execute(
             """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
-                      parameters_json, loaded_at
+                      parameters_json, entry_point, package_hash, loaded_at
                FROM strategy_loads
                WHERE tenant_id=? AND account_id=? AND issuance_id=?""",
             (str(tenant_id), str(account_id), str(issuance_id)),
         ).fetchone()
         return _strategy_load(row)
 
-    def strategy_loads(self, tenant_id, account_id=None):
+    def strategy_loads(self, tenant_id, account_id=None, *, include_archive=False):
         self._ensure()
+        columns = (
+            "tenant_id, account_id, issuance_id, code_key, version, grant_purpose, "
+            "parameters_json, entry_point, package_hash, loaded_at"
+        )
+        if include_archive:
+            columns += ", archive"
         if account_id is None:
             rows = self.db.execute(
-                """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
-                          parameters_json, loaded_at
+                f"""SELECT {columns}
                    FROM strategy_loads WHERE tenant_id=?
                    ORDER BY account_id, issuance_id""",
                 (str(tenant_id),),
             ).fetchall()
         else:
             rows = self.db.execute(
-                """SELECT tenant_id, account_id, issuance_id, code_key, version, grant_purpose,
-                          parameters_json, loaded_at
+                f"""SELECT {columns}
                    FROM strategy_loads WHERE tenant_id=? AND account_id=?
                    ORDER BY issuance_id""",
                 (str(tenant_id), str(account_id)),
             ).fetchall()
-        return [_strategy_load(row) for row in rows]
+        return [_strategy_load(row, include_archive=include_archive) for row in rows]
 
     def export_tenant(self, tenant_id):
         self._ensure()
@@ -501,7 +532,13 @@ class Store:
             rows = self.db.execute(
                 f"SELECT * FROM {name} WHERE tenant_id=? ORDER BY rowid", (tenant_id,)
             ).fetchall()
-            payload["tables"][name] = [dict(row) for row in rows]
+            exported = []
+            for row in rows:
+                item = dict(row)
+                if name == "strategy_loads" and isinstance(item.get("archive"), (bytes, memoryview)):
+                    item["archive"] = base64.b64encode(bytes(item["archive"])).decode()
+                exported.append(item)
+            payload["tables"][name] = exported
         return payload
 
     def delete_runtime(self, tenant_id):
@@ -524,6 +561,8 @@ class Store:
             for name in RUNTIME_TABLES:
                 for row in tables.get(name) or []:
                     item = {**row, "tenant_id": tenant_id}
+                    if name == "strategy_loads" and isinstance(item.get("archive"), str):
+                        item["archive"] = base64.b64decode(item["archive"])
                     columns = list(item)
                     sql = (
                         f"INSERT INTO {name} ({', '.join(columns)}) "
