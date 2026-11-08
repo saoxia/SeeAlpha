@@ -33,8 +33,9 @@
 
 ```text
 TRADE → Next.js 同源 /api/trading 代理 → 现有 API / 管理员及来源校验
-  → ManualTrading（账户互斥、请求登记、结果及账本持久化）
-  → connectors.binance.manual → 公开 LiveNode / Strategy / Binance factory
+  → ManualTrading（账户修订核对、账本审计）
+  → 引擎 /accounts/{account_id}/orders（request_id 幂等写在引擎 SQLite）
+  → engine.connectors.binance.manual → 引擎进程内的 LiveNode / Strategy / Binance factory
   → Nautilus RiskEngine → ExecutionEngine → Binance USD-M
 ```
 

@@ -1,10 +1,8 @@
 """Authenticated manual trading with durable request identity and account serialization."""
 
 import asyncio
-import fcntl
 import hashlib
 import json
-import os
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -14,11 +12,12 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
-from connectors.binance import manual
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import manual
+from engine.runtime import EngineConflict
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable
+from ..engine_client import EngineClient
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 SYMBOL = r"^[A-Z0-9]{2,30}(?:USDT|USDC)-PERP$"
@@ -145,9 +144,10 @@ def account_revision(account):
 
 
 class ManualTrading:
-    def __init__(self, accounts, exchanges, operations, root):
+    def __init__(self, accounts, exchanges, operations, root, engine=None):
         self.accounts, self.exchanges, self.operations = accounts, exchanges, operations
         self.root = Path(root)
+        self.engine = engine or EngineClient(self.root)
         self.cache, self.locks = {}, {}
 
     async def snapshot(self, account_id, symbol):
@@ -157,95 +157,47 @@ class ManualTrading:
             cached = self.cache.get(identity)
             if cached and time.monotonic() - cached[0] < 10:
                 return cached[1]
-            result = await manual.execute(account, symbol, {"action": "snapshot"})
+            result = await self.engine.manual_execute(account, symbol, {"action": "snapshot"})
             for record in result.pop("records", []):
                 await asyncio.to_thread(self.operations.repository.ingest, record)
             result["account_revision"] = account_revision(account)
             self.cache[identity] = (time.monotonic(), result)
             return result
 
-    def write(self, path, value):
-        temporary = path.with_suffix(".tmp")
-        with temporary.open("w", encoding="utf-8") as file:
-            os.chmod(temporary, 0o600)
-            json.dump(value, file, ensure_ascii=False)
-            file.flush()
-            os.fsync(file.fileno())
-        os.replace(temporary, path)
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
-
-    async def persist_observations(self, path, stored):
+    async def _sync_ledger(self, account_id, stored):
         if stored.get("ledger_synced") or not stored.get("records"):
             return
+        request_id = stored["response"]["request_id"]
         try:
             for record in stored["records"]:
                 await asyncio.to_thread(self.operations.repository.ingest, record)
         except (StorageUnavailable, StorageConflict):
             stored["response"]["message"] += "；执行证据已保存在本机，账本暂未同步。"
+            self.engine.save_request(account_id, request_id, stored)
         else:
             stored["ledger_synced"] = True
-        self.write(path, stored)
+            self.engine.save_request(account_id, request_id, stored)
 
     async def command(self, account_id, payload, action):
-        # A detached task completes even when the browser disconnects. The durable
-        # identity remains reserved before the native node can send anything.
+        # The engine reserves request_id in SQLite before any native node can send.
         async with self.locks.setdefault(account_id, asyncio.Lock()):
             account = await asyncio.to_thread(self.accounts.private, account_id)
             if payload.environment != account["environment"]:
                 raise HTTPException(409, "账户环境已变化，请重新选择账户并确认。")
             if payload.account_revision != account_revision(account):
                 raise HTTPException(409, "账户配置已变化，请刷新账户并重新确认。")
-            directory = self.root / str(account_id) / account["environment"]
-            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-            with (directory / "account.lock").open("a") as lock:
-                try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except BlockingIOError:
-                    raise HTTPException(409, "该账户有交易操作正在处理，请稍后核对委托。") from None
-                path = directory / f"{payload.request_id}.json"
-                values = payload.model_dump(mode="json")
-                fingerprint = hashlib.sha256(json.dumps([action, values], sort_keys=True).encode()).hexdigest()
-                if path.exists():
-                    stored = json.loads(path.read_text())
-                    if stored["fingerprint"] != fingerprint:
-                        raise HTTPException(409, "请求编号已用于另一笔操作。")
-                    await self.persist_observations(path, stored)
-                    return stored["response"]
-                key = "SA" + payload.request_id.hex if action == "submit" else payload.client_order_id
-                response = {"request_id": str(payload.request_id), "client_order_id": key,
-                            "status": "unknown", "order": None,
-                            "message": "请求已登记，交易结果待核实。请刷新委托，不要重复提交。"}
-                stored = {"fingerprint": fingerprint, "response": response, "symbol": payload.symbol,
-                          "account_revision": payload.account_revision}
-                self.write(path, stored)
-                try:
-                    result = await manual.execute(account, payload.symbol,
-                                                  {**values, "action": action, "client_order_id": key})
-                    if "validation_error" in result:
-                        response.update(status="completed", message=result["validation_error"])
-                        self.write(path, stored)
-                        return response
-                    order = result["result"]
-                    records = result.pop("records", [])
-                    # Preserve captured execution evidence before ledger ingestion;
-                    # a database outage must never trigger a second exchange write.
-                    stored["records"] = records
-                    if order is not None:
-                        response.update(status="completed", order=order,
-                                        message=("撤单被拒绝，当前订单状态：" if result.get("outcome") == "OrderCancelRejected" else "交易所订单状态：") + order["status"])
-                    self.write(path, stored)
-                    await self.persist_observations(path, stored)
-                except QueryError:
-                    response["message"] = "交易结果待核实，请刷新委托并按客户订单号核对，不要重复提交。"
-                    self.write(path, stored)
-                finally:
-                    self.cache.clear()
-                    self.exchanges.invalidate(account_id)
-                return response
+            values = payload.model_dump(mode="json")
+            fingerprint = hashlib.sha256(json.dumps([action, values], sort_keys=True).encode()).hexdigest()
+            key = "SA" + payload.request_id.hex if action == "submit" else payload.client_order_id
+            try:
+                stored = await self.engine.command(account, action, values, fingerprint, key)
+            except EngineConflict as exc:
+                raise HTTPException(409, exc.message) from None
+            if not stored.get("replay"):
+                self.cache.clear()
+                self.exchanges.invalidate(account_id)
+            await self._sync_ledger(account_id, stored)
+            return stored["response"]
 
 
 @router.get("/accounts/{account_id}/state", response_model=ManualStateResponse)
@@ -271,10 +223,9 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
     account = await asyncio.to_thread(service.accounts.private, account_id)
     if account["environment"] != environment:
         raise HTTPException(409, "账户环境已变化，不能用新环境核对原委托。")
-    path = service.root / str(account_id) / environment / f"{request_id}.json"
-    if not path.exists():
+    stored = service.engine.get_request(account_id, request_id)
+    if stored is None:
         raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
-    stored = json.loads(path.read_text())
     response = stored["response"]
     if response["status"] == "unknown":
         if stored["account_revision"] != account_revision(account):

@@ -17,7 +17,7 @@ class CatalogHistory:
         import fcntl
         import json
 
-        from pipeline.pair_data import calculate_history_change
+        from engine.pipeline.pair_data import calculate_history_change
 
         with (path.parent.parent / "changes.lock").open("a") as lease:
             fcntl.flock(lease, fcntl.LOCK_EX)

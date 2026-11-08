@@ -24,7 +24,7 @@ from nautilus_trader.model import (
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from connectors.binance.operations import normalize_report, operation_history
+from engine.connectors.binance.operations import normalize_report, operation_history
 from tests.connectors.binance.account_queries_test import AccountHandler
 
 

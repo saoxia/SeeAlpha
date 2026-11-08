@@ -7,7 +7,9 @@
 快照在 API 本地状态目录的 `portfolios/`，无需数据库迁移，不用于交易或资产曲线取证。
 期权持仓单独从初始基准和后续真实成交、行权推算，不写入分钟文件；
 操作同步复用现有账本及同步状态，重启保留基准。详见 [期权操作与持仓](../docs/OPERATIONS_API.md#期权操作与持仓推算2026-11-08)。
-账户创建/编辑不要求交易对；查询按需通过 connector 创建原生节点，接口范围及限制见
+账户创建/编辑不要求交易对。账户快照、手动交易和估值 LiveNode 由常驻
+[交易引擎](../engine/README.md) 执行；API 解密后按账户下发凭据，不把主密钥交给引擎。
+`/api/*` 给前端的形状保持不变。接口范围及限制见
 [Binance 原生 API 说明](../docs/BINANCE_NATIVE_API.md)。
 
 ## 启动
@@ -16,10 +18,18 @@
 
 ```bash
 uv sync --locked --group api
+.venv/bin/python -m engine
 COOKIE_SECURE=false \
+ENGINE_URL=http://127.0.0.1:8766 \
+ENGINE_TOKEN=seealpha-local-engine \
 ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
+
+`ENGINE_URL` 默认就是 `http://127.0.0.1:8766`。本地开发令牌只用于本机进程互认，
+不能当作交易所密钥。公开行情的订阅意图仍写在业务表 `market_data_policies`；
+引擎保存运行期订阅、进度和缺口。单次离线数据任务（归档准备、删除、裁剪）仍由 API
+启动 `pipeline.data_management`。操作账本的只读同步仍在 API 进程调用连接器。
 
 API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文件，
 并使用 Alembic 完成结构迁移。未配置连接时服务不会自动创建或切换到本地数据库。
@@ -295,8 +305,8 @@ LIVE 使用真实权益 K 线并支持单账户一键重算；缺价和断线保
 历史 Tick 不保证完整，空历史来源不推进检查点；详情见
 [期权全选与采集](../docs/DATA_MANAGEMENT_API.md#期权全选与新合约自动纳入2026-11-07)。
 
-期权批量托管已获授权：管理端只运行一个 `feed.managed --options-config` 采集进程
-及一个 `pipeline.pair_data --service --options-config` 历史进程。配置快照在原 API 本地状态目录，
+期权批量托管已获授权：管理端只运行一个 `engine.feed.managed --options-config` 采集进程
+及一个 `engine.pipeline.pair_data --service --options-config` 历史进程。配置快照在原 API 本地状态目录，
 参数真源仍为 `market_data_policies`。新增、修改和暂停动态生效；删除只等待对应合约释放
 自己的访问锁，不停止其他合约。原鉴权、删除快照、来源检查与 ORM 配置职责不变。
 

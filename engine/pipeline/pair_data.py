@@ -15,9 +15,9 @@ from tempfile import TemporaryDirectory
 
 from nautilus_trader.model import Bar, BarType, Price, Quantity, TradeTick
 
-from connectors.binance.pair_data import PairREST
 from core.market.instruments import bar_type_for, bar_window, instrument_id_for
 from core.paths import PROJECT_ROOT
+from engine.connectors.binance.pair_data import PairREST
 from pipeline.catalog import ParquetDataCatalog
 from pipeline.config import load_settings
 from pipeline.convert_binance_bars import write_record

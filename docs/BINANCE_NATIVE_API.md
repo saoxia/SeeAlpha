@@ -4,7 +4,7 @@
 
 ## 调用边界
 
-`web` → `api/exchanges/router.py` → 账户配置/汇总服务 → `connectors/binance/queries.py`
+`web` → `api/exchanges/router.py` → 账户配置/汇总服务 → 引擎 → `engine/connectors/binance/queries.py`
 → NautilusTrader 公开配置、factory 和原生节点 → Binance。
 
 新查询链路不依赖 CCXT 或适配器私有 HTTP 客户端。

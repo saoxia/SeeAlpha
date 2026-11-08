@@ -118,7 +118,7 @@ def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_
         raise HTTPException(422, "K 线周期未配置")
     settings = replace(settings, intervals=tuple(INTERVALS))
     items = dataset_inventory(settings, interval=interval, all_levels=all_levels)
-    from feed.pair_store import journal_inventory
+    from engine.feed.pair_store import journal_inventory
     for policy in service(request).subscriptions._read():
         with service(request)._lease(policy.symbol, policy.product, access=True, shared=True):
             journal_items = [item for path in service(request).subscriptions.journal_paths(policy) for item in journal_inventory(path, policy.symbol)]
@@ -196,7 +196,7 @@ def local_chart(request: Request, _: CurrentUser,
                 symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC)$"),
                 interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"] = "1m"):
     """Bounded display projection only; never provides strategy readiness."""
-    from feed.pair_store import journal_chart
+    from engine.feed.pair_store import journal_chart
 
     manager = service(request)
     manager.require_storage()
@@ -265,7 +265,7 @@ def preview_data(request, payload, limit, cursor, interval=None):
         policy = next((value for value in policies if value.symbol == payload.symbol and value.product == payload.product), None)
         with manager._lease(payload.symbol, payload.product, access=True, shared=True):
             if policy:
-                from feed.pair_store import journal_page
+                from engine.feed.pair_store import journal_page
                 for path in manager.subscriptions.journal_paths(policy):
                     try:
                         page = journal_page(path, interval or "tick", int(payload.start.timestamp() * 1000),

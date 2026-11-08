@@ -156,7 +156,7 @@ class DataService:
                     from dataclasses import replace
 
                     from core.market.instruments import INTERVALS, bar_window
-                    from feed.pair_store import journal_inventory
+                    from engine.feed.pair_store import journal_inventory
                     from pipeline.data_management import dataset_inventory
                     from pipeline.pair_deletion import pair_deletion_plan
                     self.require_storage(write=True)
@@ -377,11 +377,11 @@ class DataService:
                 parameters = payload.model_dump(mode="json", exclude={"action"}, exclude_none=True)
                 if payload.action == "backfill":
                     if resolved_history is None:
+                        from engine.pipeline.pair_data import history_bounds
                         from pipeline.catalog import ParquetDataCatalog
-                        from pipeline.pair_data import history_bounds
                         settings = load_settings()
                         catalog = ParquetDataCatalog(settings.catalog_dir) if settings.catalog_dir.is_dir() else None
-                        from feed.pair_store import journal_inventory
+                        from engine.feed.pair_store import journal_inventory
                         starts = [int(item["event_ranges_ns"][0][0])
                                   for path in self.subscriptions.journal_paths(payload)
                                   for item in journal_inventory(path, payload.symbol)
@@ -396,15 +396,29 @@ class DataService:
                 self.directory.mkdir(parents=True, exist_ok=True)
                 self.log_directory.mkdir(parents=True, exist_ok=True)
                 self.threads = [thread for thread in self.threads if thread.is_alive()]
-                with (self.log_directory / f"{identity}.log").open("xb", buffering=0) as output:
-                    process = subprocess.Popen(
-                        ([sys.executable, "-m", "pipeline.pair_data"] if payload.action == "backfill" else
-                         [sys.executable, "-m", "pipeline.data_management", payload.action]) +
-                        ["--request", json.dumps(parameters), "--job-id", identity],
-                        cwd=self.project, stdin=subprocess.DEVNULL, stdout=output,
-                        stderr=subprocess.STDOUT, start_new_session=True,
-                        pass_fds=(job_lease.fileno(), access_lease.fileno()), env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                command = ([sys.executable, "-m", "engine.pipeline.pair_data"] if payload.action == "backfill" else
+                           [sys.executable, "-m", "pipeline.data_management", payload.action]) + [
+                    "--request", json.dumps(parameters), "--job-id", identity]
+                engine = getattr(self, "engine", None)
+                if payload.action == "backfill" and engine is not None and engine.remote:
+                    process = engine.spawn_worker(
+                        command, self.log_directory / f"{identity}.log",
+                        access=(payload.symbol, payload.product, True), log_mode="xb",
                     )
+                else:
+                    with (self.log_directory / f"{identity}.log").open("xb", buffering=0) as output:
+                        if payload.action == "backfill":
+                            from engine.supervisor import popen as start_worker
+                        else:
+                            start_worker = subprocess.Popen
+                        process = start_worker(
+                            command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output,
+                            stderr=subprocess.STDOUT, start_new_session=True,
+                            pass_fds=(job_lease.fileno(), access_lease.fileno()),
+                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                        )
+                    if payload.action == "backfill" and engine is not None:
+                        engine.note_worker(command)
                 self.processes[identity] = (process, threading.Event())
                 thread = threading.Thread(target=self._wait, args=(job, process, lease, access_lease), daemon=True)
                 self.threads.append(thread)

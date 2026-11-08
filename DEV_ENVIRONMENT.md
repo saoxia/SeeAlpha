@@ -15,7 +15,8 @@
 ## 日常使用
 
 独立前端与 API 已完成拆分：用户鉴权、研究任务和其余业务接口运行于根目录 `api/`，
-Next.js 前端运行于 `web/`。安装 API 依赖使用 `uv sync --locked --group api`，启动和
+Next.js 前端运行于 `web/`。常驻交易引擎在 `engine/`，先于 API 启动，说明见
+[引擎](engine/README.md)。安装 API 依赖使用 `uv sync --locked --group api`，启动和
 迁移说明见 [API 说明](api/README.md) 与 [前端说明](web/README.md)。
 业务存储使用 ORM 对接 PostgreSQL 或 SQLite；数据库连接需显式配置，离线测试使用临时 SQLite。
 云端连接失败不会自动退回 SQLite。旧历史业务和大体积行情文件仍保留本地。

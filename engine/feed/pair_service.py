@@ -3,8 +3,8 @@
 import asyncio
 import time
 
-from connectors.binance.pair_data import PairREST, PairTradeSocket
 from core.market.models import DataError
+from engine.connectors.binance.pair_data import PairREST, PairTradeSocket
 
 from .clock import ServerClock
 from .pair_store import PairStore, journal_access

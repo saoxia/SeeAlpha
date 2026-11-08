@@ -7,10 +7,10 @@ import pytest
 from nautilus_trader.model import Bar, BarType, Price, Quantity
 
 from core.market.instruments import BINANCE_KLINE_INTERVALS, bar_type_for, bar_window
+from engine.pipeline.pair_data import calculate_history_change
 from nautilus_support import TestInstrumentProvider
 from pipeline.catalog import ParquetDataCatalog
 from pipeline.models import PipelineSettings
-from pipeline.pair_data import calculate_history_change
 from pipeline.pair_repair import install_tick_slice, reconcile_day, remote_klines
 
 DAY = datetime(2026, 8, 1, tzinfo=UTC)
@@ -95,7 +95,7 @@ def test_published_archive_allows_saved_public_bars_check_without_private_ticks(
         return True
     def forbidden(*args):
         raise AssertionError("Matching saved K lines must not convert or deduplicate Tick data")
-    monkeypatch.setattr("pipeline.pair_data._history_archive_available", probe)
+    monkeypatch.setattr("engine.pipeline.pair_data._history_archive_available", probe)
     monkeypatch.setattr("pipeline.pair_repair.ensure_instruments", forbidden)
     monkeypatch.setattr("pipeline.pair_repair.repair_candidates", forbidden)
     rest = Rest()
@@ -111,7 +111,7 @@ def test_published_archive_allows_saved_public_bars_check_without_private_ticks(
 def test_unpublished_archive_skips_kline_requests_local_reads_and_repair(dataset, monkeypatch, source):
     settings, catalog = dataset
     catalog.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
-    monkeypatch.setattr("pipeline.pair_data._history_archive_available", lambda *args: False)
+    monkeypatch.setattr("engine.pipeline.pair_data._history_archive_available", lambda *args: False)
     def forbidden(*args):
         raise AssertionError("Unpublished archive must skip comparison and repair")
     monkeypatch.setattr("pipeline.pair_repair.ParquetDataCatalog", forbidden)
@@ -307,8 +307,8 @@ def test_repaired_day_is_completed_only_after_saved_bars_are_generated_and_reche
     import json
     from types import SimpleNamespace
 
-    import pipeline.pair_data as module
-    from feed.history import CatalogHistory
+    import engine.pipeline.pair_data as module
+    from engine.feed.history import CatalogHistory
     from pipeline.convert_binance_bars import write_record
 
     settings, catalog = dataset

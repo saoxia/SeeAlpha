@@ -1,5 +1,21 @@
 # 当前实际架构与冻结边界
 
+2026-11-08 用户明确授权 Phase 1 架构拆分，并确认顶层目录。常驻交易引擎在 `engine/`：
+`engine/feed/` 是原行情树，`engine/connectors/` 是原连接器，`engine/pipeline/pair_data.py`
+是原 `pipeline.pair_data` 历史工作进程。`api/` 仍是业务后端（用户、会话、加密账户库、
+账本、资产视图和 `/api/*` BFF）。`web/` 与 `strategy_python/` 未移动。
+离线归档、Rust 转换和回测准备仍在根目录 `pipeline/`（含 `pair_repair`、`options_data`、
+`pair_deletion`）；历史工作进程调用它们，本轮不把整个 `pipeline/` 再搬一次。
+
+引擎进程 `python -m engine` 默认监听 `127.0.0.1:8766`。业务 API 用 `ENGINE_URL`
+（默认 `http://127.0.0.1:8766`）和 `ENGINE_TOKEN` 调用它。引擎本地 SQLite（WAL）
+在 `.local/state/engine/book.sqlite`，只记录连接状态、订单请求幂等、订单、成交、持仓、
+缺口、运行期订阅和事件。主密钥与解密后的交易所密钥不入库；API 按账户把凭据下发给引擎。
+公开行情订阅意图仍在业务表 `market_data_policies`。账户查询、手动交易和估值用的临时
+LiveNode 由引擎执行，不再由 API 进程构造。操作账本同步仍从 API 调用连接器的只读签名
+接口，资产校准的只读 REST 也仍在 API；二者都不是账户/手动/估值 LiveNode。
+策略包加载、实盘 `PortfolioCoordinator`、策略商店和开发租户不在本轮。
+
 2026-11-08 用户明确要求期权历史继续使用固定公开 `/eapi/v1/klines`，并将实时盘口和
 Tick 同时持久化。沿既有期权批量 connector → Feed → history 桥 → Pipeline 路径，
 管理采集默认订阅真实 Tick、前 10 档盘口快照及原有闭合 K 线；Tick 写原 Catalog，
@@ -45,11 +61,12 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | 模块 | 当前职责与主要依赖 |
 | --- | --- |
 | `core/` | `market/models.py` 定义 `MinuteBar`、时间单位与 `DataError`；`market/instruments.py` 定义现有市场命名；`paths.py` 定位项目根目录。不反向依赖业务模块。 |
-| `connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖上层服务或数据库。 |
-| `pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。 |
-| `feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `connectors`、`core`，仅 `history.py` 通过 `pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
+| `engine/` | 常驻交易引擎。内部 HTTP 供 `api/` 调用；SQLite 保存订单、成交、持仓、缺口、幂等请求和运行期订阅。启动/停止 `engine.feed.managed` 与 `engine.pipeline.pair_data`。账户、手动交易和估值 LiveNode 只在这里构建。 |
+| `engine/connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖 `engine.feed`、`pipeline`、`api` 或 `web`。 |
+| `pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。历史工作入口已移到 `engine/pipeline/pair_data.py`。 |
+| `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
 | `strategy_python/` | 策略包及共享指标、值对象、风险和执行组件；`_backtesting.py` 组装引擎与数据，`portfolio.py` 按清单组装策略，`portfolio_backtest.py` 启动共用账户回测，`_report/` 输出报告。 |
-| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务；服务通过 connector 查询，通过 repository/ORM 持久化，Alembic 管理业务表结构。行情服务参数存库，运行及监控状态存文件；研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。不启动实盘策略。 |
+| `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理，以及检查/回测任务。行情订阅意图和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单和估值事件改调引擎；行情采集进程由引擎启动。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。不启动实盘策略。 |
 | `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
 
@@ -137,7 +154,7 @@ API 核心路径为 `/api/health`、`/api/auth/*`、`/api/system/exchange-accoun
 
 ## 禁止擅自跨越的边界
 
-主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并属于该项明确授权，不构成继续合并其他服务的许可。
+主技术栈与引擎版本、上述模块职责/依赖方向、策略信号至执行数据流、公共 CLI/HTTP/数据契约与存储归属均冻结。不得擅自合并服务、迁移存储、建立新架构层、替换交易引擎/适配器、改写历史研究来源或启用实盘执行。涉及这些事项只记录建议及影响，待用户明确另行授权后才可实施；现有文档中的未来设想不构成授权。2026-10-31 的管理端合并与 2026-11-08 的 `engine/` 拆分属于该项明确授权，不构成继续搬迁 `strategy_python/`、整个 `pipeline/` 或启用策略实盘的许可。
 
 
 2026-10-28 按用户授权，行情数据管理取消预设交易对：复用既有 Binance 品种查询、
@@ -178,7 +195,7 @@ Pipeline 管理入口一致接受跨月、跨年范围，复用现有逐日处�
 删除快照与确认保护保持不变。不自动提交真实下载，不改冻结模型或存储边界。
 
 2026-10-29 用户明确要求参照交接包的采集/补缺/聚合思路实现，明确不迁移行情至
-ClickHouse。本轮新增管理 API → 固定 `feed.managed` 子进程的分钟采集启停；
+ClickHouse。本轮新增管理 API → 固定 `engine.feed.managed` 子进程的分钟采集启停；
 复用现有 Feed 校时、历史桥接、REST 补缺、连续门禁和 SQLite 存储职责。
 每品种目录位于原 Feed 存储下的 managed/；派生闭合分钟周期写同目录 rollups.sqlite，
 形成中更新使用独立标记和回调，不改变原有闭合 MinuteBar / Delivery 语义。
@@ -194,8 +211,8 @@ API 的 base_level 默认 auto，旧字段值保留兼容，不重写已有配�
 不改变存储归属、策略数据契约、引擎或冻结源码；连续 Tick 落盘与补缺仍未实现。
 
 2026-10-29 用户明确授权按交易对最小保存粒度、可选历史追加与默认实时更新，
-并允许相关契约及必要源码扩展。新配置经原订阅管理启动固定 `feed.managed --policy`，
-管理日志仍属原 Feed 存储，新历史 `pipeline.pair_data` 仍写原 Catalog，复用 ORM 任务表。
+并允许相关契约及必要源码扩展。新配置经原订阅管理启动固定 `engine.feed.managed --policy`，
+管理日志仍属原 Feed 存储，新历史 `engine.pipeline.pair_data` 仍写原 Catalog，复用 ORM 任务表。
 core 增加日历边界，connectors 补充既有公开 HTTP 白名单；Feed 通过原 history 桥只读
 补回已存在的 raw trades，不启动离线下载。原分钟 Feed/Delivery 风险门禁不变。
 原生 aggTrade 不替代真实逐笔；近期来源不足时保留缺口，所有新管理更新禁止新增风险。
@@ -205,7 +222,7 @@ core 增加日历边界，connectors 补充既有公开 HTTP 白名单；Feed �
 
 
 2026-10-29 用户明确调整顺序：先实现实时接入及数据变化触发的 K 线，后做历史回溯。
-保留 `feed.managed --policy` 与 `pipeline.pair_data` 两个独立进程、现有 SQLite / Catalog 存储边界；
+保留 `engine.feed.managed --policy` 与 `engine.pipeline.pair_data` 两个独立进程、现有 SQLite / Catalog 存储边界；
 connector 补充原生 aggTrade 门面无法提供的固定原始逐笔 WebSocket，不替换引擎或修改原分钟 Feed。
 PairStore 在源写入事务中登记待办，由真实源变化触发 1s、1m 和更高周期的受影响范围重算，
 确认、去重、工作缓存、迟到数据和恢复均由 Feed 承担，不新增架构层或业务数据库迁移。
@@ -244,7 +261,7 @@ PairStore 在源写入事务中登记待办，由真实源变化触发 1s、1m �
 
 
 2026-10-30 用户明确要求参照部署包按大周期逐级定位历史差异后补齐，并取消自定义 K 线周期。
-现有 `pipeline.pair_data` 历史进程通过同模块职责下的 `pair_repair` 核验实际来源，
+现有 `engine.pipeline.pair_data` 历史进程通过同模块职责下的 `pair_repair` 核验实际来源，
 仅追加确认缺失的分钟或成交；逐日证据及巡检检查点仍属 managed 文件。
 API 显式 USD-M 配置固定全部 15 个官方分钟至月线周期；实时由成交直接聚合分钟，
 保留原完整性与风险门禁，秒线仅保留既有数据及兼容入口。不改变 Catalog / Feed / 业务库
@@ -302,8 +319,8 @@ API 显式 USD-M 配置固定全部 15 个官方分钟至月线周期；实时�
 2026-11-07 用户要求数据页期权直接全选并自动纳入新增合约。沿用既有配置表、
 API 配置恢复循环与 connector 公开目录查询，全选范围仅在行情管理配置中以
 `options/ALL` 表示，新合约继承配置，已有及过期合约保留。具体行情与删除仍按合约处理；
-用户随后明确要求同时接通持续采集和历史补齐：原 `feed.managed` 复用期权 connector 的
-公开传输与原生行情解析，原 `pipeline.pair_data --service` 转入期权 K 线补齐。
+用户随后明确要求同时接通持续采集和历史补齐：原 `engine.feed.managed` 复用期权 connector 的
+公开传输与原生行情解析，原 `engine.pipeline.pair_data --service` 转入期权 K 线补齐。
 源证据经既有 Feed history 桥由 Pipeline 写原 raw/Catalog，按合约文件锁、原子安装与
 文件检查点恢复；不另起期权计算进程，不改存储边界或数据库结构。
 只采集真实 Tick 和交易所闭合 K 线，历史 Tick 无法完整回溯的部分保留缺口，

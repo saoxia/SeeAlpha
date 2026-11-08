@@ -6,7 +6,8 @@
 
 ## 事件与金额口径
 
-API → `connectors.binance.valuation`，账户沿现有 `assets.asset_account` 固定只读 GET
+API → 引擎估值流（`engine.runtime.valuation_events` → `engine.connectors.binance.valuation`）。
+账户校准沿现有 `assets.asset_account` 固定只读 GET，仍由 API 调用；标记价 LiveNode 在引擎进程。
 读取完整分币种钱包及持仓；价格使用 Nautilus 公共 data-only 节点与 mark-price 订阅。
 每 5 秒读取并检测账户变化，原生价格变化每 250ms 合并观察；余额/仓位或价格变化才触发估值，
 没有变化时每 10 秒记录新鲜度检查点。账户变动发现有约 5 秒加网络请求时间的延迟，

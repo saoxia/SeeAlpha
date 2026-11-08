@@ -65,13 +65,22 @@ Web 项目检查按同一范围依次运行 Ruff 和 pytest。
 
 ## 连续分钟行情层
 
-新增独立的[统一行情层](feed/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
+新增独立的[统一行情层](engine/feed/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
 REST 补齐与 WebSocket 实时数据，包含连续检查点、重启回放、来源冲突检测和数据就绪控制。
 仅采集公开行情，尚未接入真实账户或自动启用现行策略。
 
 ```bash
-.venv/bin/python -m feed.service serve
-.venv/bin/python -m feed.service status
+.venv/bin/python -m engine.feed.service serve
+.venv/bin/python -m engine.feed.service status
+```
+
+常驻交易引擎与业务 API 分开启动。引擎默认 `127.0.0.1:8766`，API 用 `ENGINE_URL` 连接。
+说明见 [引擎](engine/README.md) 与 [API](api/README.md)。
+
+```bash
+.venv/bin/python -m engine
+COOKIE_SECURE=false ENGINE_URL=http://127.0.0.1:8766 \
+  .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
 ## 进入项目环境
@@ -94,7 +103,7 @@ uv run pytest
 uv run ruff check .
 ```
 
-测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`connectors/`、`feed/`、
+测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`engine/connectors/`、`engine/feed/`、
 `pipeline/`、`strategy_python/` 及其子模块分组，
 文件名继续使用 `*_test.py`。测试按关键行为和出错影响组织，不要求每个 Python 文件
 都有对应的测试文件。
@@ -255,7 +264,7 @@ TradeTick 和输入周期，其他周期保留。`--refresh-archives` 不隐含�
 | 目录 | 职责 |
 |---|---|
 | [`pipeline/`](pipeline/README.md) | 历史归档下载、转换、校验、特征与 Catalog 入库 |
-| [`feed/`](feed/README.md) | 连续行情服务、历史衔接、补洞、就绪与回放交付 |
+| [`engine/`](engine/README.md) | 常驻交易引擎、连接器、连续行情与历史工作进程 |
 | [`connectors/`](connectors/README.md) | 交易所原生适配器配置、桥接与必要扩展 |
 | [`core/`](core/README.md) | 公共行情类型、命名规则和项目路径 |
 

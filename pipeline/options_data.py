@@ -20,17 +20,17 @@ from nautilus_trader.model import (
     TradeTick,
 )
 
-from connectors.binance import options
-from connectors.binance.options_parsing import bar as parse_bar
-from connectors.binance.options_parsing import depth as parse_depth
-from connectors.binance.options_parsing import trade as parse_trade
-from connectors.binance.queries import QueryError
 from core.market.instruments import (
     bar_type_for,
     instrument_id_for,
     interval_delta,
     normalize_symbol,
 )
+from engine.connectors.binance import options
+from engine.connectors.binance.options_parsing import bar as parse_bar
+from engine.connectors.binance.options_parsing import depth as parse_depth
+from engine.connectors.binance.options_parsing import trade as parse_trade
+from engine.connectors.binance.queries import QueryError
 from pipeline.catalog import ParquetDataCatalog
 
 PERIODS = ("1m", "5m", "15m")

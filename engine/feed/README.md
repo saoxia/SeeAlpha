@@ -10,7 +10,7 @@
 2026-10-27: Bar subscriptions and historical requests use a data-only native Binance LiveNode. Native trade events supply freshness heartbeats; the published/persisted contract remains closed-minute OHLCV. SocketStateChanged drives disconnect gating.
 
 原代码包 `market_data` 已更名为 `feed`，启动入口相应变为
-`python -m feed.service`。已有持久化数据仍使用
+`python -m engine.feed.service`。已有持久化数据仍使用
 `data/market_data/binance_um_1m/`，无需迁移或重新预热。
 
 ## 模块边界
@@ -39,14 +39,14 @@ Binance 接入已迁至 [`connectors/binance/`](../connectors/README.md)，复�
 适用于所有未来策略的自动保证。短预热参数仅适用于连通性验证。
 
 ```bash
-.venv/bin/python -m feed.service serve
-.venv/bin/python -m feed.service status
+.venv/bin/python -m engine.feed.service serve
+.venv/bin/python -m engine.feed.service status
 ```
 
 有界连通性验证使用独立目录，不与正式数据混用：
 
 ```bash
-.venv/bin/python -m feed.service serve \
+.venv/bin/python -m engine.feed.service serve \
   --root /tmp/nautilus-minute-smoke --warmup-minutes 5 --duration-seconds 90
 ```
 
@@ -135,7 +135,7 @@ READY 仅代表本层的数据条件，**不代表账户对账、订单恢复或
 
 ## 管理端按交易对采集
 
-`feed.managed` 为 API 的固定启动入口。旧 `auto` 配置继续使用原分钟 Feed、Store、
+`engine.feed.managed` 为 API 的固定启动入口。旧 `auto` 配置继续使用原分钟 Feed、Store、
 Delivery 和 1m/5m/15m 聚合，60 分钟窗口不替代策略自己的预热检查。
 
 新显式最小粒度使用 `pair_service.py` 和 `pair_store.py`，日志在原 managed 目录的
@@ -170,7 +170,7 @@ Delivery 和 1m/5m/15m 聚合，60 分钟窗口不替代策略自己的预热检
 
 ## 独立计算与文件监控（2026-10-29）
 
-显式策略由 `feed.managed --role collection` 只接入并提交证据、登记源变化；
+显式策略由 `engine.feed.managed --role collection` 只接入并提交证据、登记源变化；
 `--role calculation` 独立消费，保留 `combined` 作为已有 CLI 的默认兼容行为。
 两者共享原 collection.sqlite，短写入与确认持 `journal.lock`，不因计算落后提前清理原始工作集。
 计算进程从采集状态读取交易所确认水位，不用本机时钟擅自闭合实时 K 线。
@@ -213,7 +213,7 @@ Tick/秒来源的历史归档按 UTC 两日前边界调度：UTC 日期 D 仅处
 
 ## 期权管理采集（2026-11-07）
 
-管理端使用 `feed.managed --options-config`，在 `options_service.py` 的一个共享进程中
+管理端使用 `engine.feed.managed --options-config`，在 `options_service.py` 的一个共享进程中
 动态管理所有期权。connector 每组至多 64 个合约，使用共享公开连接和既有原生解析
 订阅闭合 1m/5m/15m K 线、真实 Tick 和前 10 档盘口快照（100ms）；
 Tick 和盘口不再受最小 K 线粒度限制，动态订阅与退订不重连其他合约。

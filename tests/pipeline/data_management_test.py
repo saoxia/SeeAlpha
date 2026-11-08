@@ -285,7 +285,7 @@ def test_usdc_prepare_read_validate_and_delete_complete_chain(tmp_path, monkeypa
 
 
 def test_managed_gap_bridge_reads_canonical_raw_ids_without_aggregate_substitution(dataset):
-    from feed.history import CatalogHistory
+    from engine.feed.history import CatalogHistory
 
     settings, start, _path = dataset
     left = int(start.timestamp() * 1000)

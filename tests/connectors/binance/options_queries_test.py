@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from connectors.binance import options
-from connectors.binance.queries import QueryError
+from engine.connectors.binance import options
+from engine.connectors.binance.queries import QueryError
 
 
 def exchange_info():

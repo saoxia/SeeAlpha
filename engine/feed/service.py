@@ -10,9 +10,9 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from connectors.binance.transport import KlineSocket, PublicREST
 from core.market.instruments import normalize_symbol
 from core.paths import PROJECT_ROOT
+from engine.connectors.binance.transport import KlineSocket, PublicREST
 
 from .clock import ServerClock
 from .feed import Feed

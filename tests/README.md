@@ -5,8 +5,9 @@
 ```text
 tests/
 ├── pipeline/                          # 下载、校验、转换和数据准备
-├── connectors/                        # 原生交易所适配器接入
-├── feed/                              # 连续行情、补洞、回放与就绪
+├── connectors/                        # 原生交易所适配器接入（实现位于 engine/connectors）
+├── feed/                              # 连续行情、补洞、回放与就绪（实现位于 engine/feed）
+├── engine/                            # 常驻引擎的事实、账户范围和 API 边界
 ├── web/                               # 任务执行与 HTTP 访问边界
 ├── core/                              # 公共基础能力与开发环境
 ├── baselines/                         # 当前源码基线和授权更新清单

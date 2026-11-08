@@ -12,9 +12,10 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from connectors.binance import assets as asset_queries
-from connectors.binance import queries
+from engine.connectors.binance import assets as asset_queries
+from engine.connectors.binance import queries
 
+from ..engine_client import account_snapshot
 from ..operations.options import position_view
 from .contracts import ExchangePortfolioResponse
 
@@ -58,8 +59,9 @@ def summary(info):
 
 
 class ExchangeService:
-    def __init__(self, accounts, portfolio_root=None, operations_repository=None):
+    def __init__(self, accounts, portfolio_root=None, operations_repository=None, engine=None):
         self.accounts = accounts
+        self.engine = engine
         self.cache, self.locks = {}, {}
         self.catalog_cache, self.catalog_locks = {}, {}
         self.asset_cache, self.asset_locks = {}, {}
@@ -179,7 +181,7 @@ class ExchangeService:
             if not fresh and cached and cached[0] > time.monotonic() and cached[2] == identity:
                 return cached[1]
             async with self.gate:
-                value = await queries.account_snapshot(account)
+                value = await account_snapshot(account, self.engine)
             current = await asyncio.to_thread(self.accounts.private, account_id)
             if identity != tuple(
                 current[key]
@@ -202,7 +204,7 @@ class ExchangeService:
             if product == "options":
                 if env != "production":
                     raise ValueError("期权数据仅使用正式公开行情")
-                from connectors.binance.options import markets
+                from engine.connectors.binance.options import markets
                 values = await asyncio.to_thread(markets)
                 self.catalog_cache[key] = (time.monotonic() + 300, values)
                 return values

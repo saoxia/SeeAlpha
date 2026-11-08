@@ -34,18 +34,18 @@ from nautilus_trader.model import (
 )
 from nautilus_trader.trading import Strategy
 
-from connectors.binance import options
-from connectors.binance.options_client import (
+from engine.connectors.binance import options
+from engine.connectors.binance.options_client import (
     BinanceOptionsDataClient,
     BinanceOptionsDataClientConfig,
     BinanceOptionsDataClientFactory,
 )
-from connectors.binance.options_execution import (
+from engine.connectors.binance.options_execution import (
     BinanceOptionsExecutionClient,
     BinanceOptionsExecutionClientConfig,
     BinanceOptionsExecutionClientFactory,
 )
-from connectors.binance.options_orders import BinanceOptionsOrderTransport, OptionsOrderError
+from engine.connectors.binance.options_orders import BinanceOptionsOrderTransport, OptionsOrderError
 from tests.connectors.binance.options_account_test import KEY, SECRET, assets
 from tests.connectors.binance.options_queries_test import exchange_info
 

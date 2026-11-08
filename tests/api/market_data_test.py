@@ -48,6 +48,7 @@ def context(tmp_path, monkeypatch):
 
     app.state.exchanges.catalog = catalog
     app.state.market_data = DataService(database, project=tmp_path)
+    app.state.market_data.engine = app.state.engine
     with TestClient(app) as client:
         yield client, app, tmp_path
 
@@ -370,7 +371,7 @@ def test_task_stream_storage_failure_allows_client_retry(context, monkeypatch):
 
 
 def test_binance_selection_has_no_presets_and_rejects_unavailable_markets(context, monkeypatch):
-    from connectors.binance.queries import QueryError
+    from engine.connectors.binance.queries import QueryError
 
     client, app, _root = context
     assert client.get("/api/data/markets").status_code == 401
@@ -421,7 +422,7 @@ def test_usdc_market_plans_and_unsupported_products_are_explicit(context):
 def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypatch):
     from datetime import timedelta
 
-    from connectors.binance import options
+    from engine.connectors.binance import options
     from pipeline.catalog import ParquetDataCatalog
     from pipeline.options_data import prepare
     from tests.connectors.binance.options_queries_test import definition
@@ -526,12 +527,17 @@ def test_subscription_process_restore_stop_expiry_and_delete_protection(context,
         commands.append((command, kwargs))
         return Process()
 
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
     payload = {"symbol": "ETHUSDT", "base_level": "1m", "intervals": ["5m", "15m"], "realtime_enabled": True}
     response = client.post("/api/data/subscriptions", json=payload)
     assert response.status_code == 200, response.text
-    assert commands[0][0][2] == "feed.managed"
+    assert commands[0][0][2] == "engine.feed.managed"
+    saved = app.state.market_data.policy_repository.list()
+    assert saved and saved[0]["symbol"] == "ETHUSDT"
+    runtime_rows = app.state.engine.subscriptions()
+    assert any(row["symbol"] == "ETHUSDT" and row["account_id"] == app.state.engine.market_account_id
+               for row in runtime_rows)
     assert commands[0][1]["pass_fds"] and "--catalog" in commands[0][0]
     assert not (root / "data/market_data").exists()  # Fake worker never touches market data.
     path = root / "data/market_data/binance_um_1m/managed/ETHUSDT/1m/status.json"
@@ -593,7 +599,7 @@ def test_legacy_auto_save_uses_all_official_periods_and_explicit_runtime(context
         commands.append(command)
         return Process()
 
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     monkeypatch.setattr(app.state.market_data, "_stop", lambda _process: None)
     payload = {"symbol": "ETHUSDT", "base_level": "auto", "intervals": ["5m", "15m"], "realtime_enabled": True}
     response = client.post("/api/data/subscriptions", json=payload)
@@ -616,7 +622,7 @@ def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monk
         def poll(self):
             return None
 
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", lambda command, **kwargs: commands.append(command) or Process())
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda command, **kwargs: commands.append(command) or Process())
     monkeypatch.setattr(app.state.market_data, "_stop", lambda process: None)
     response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "tick", "intervals": ["1s", "30m", "1h", "1M"]})
     assert response.status_code == 200, response.text
@@ -633,7 +639,7 @@ def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monk
     captured = []
     async def earliest(self, endpoint, **params):
         return [[int(datetime(2020, 1, 1, 8, tzinfo=UTC).timestamp() * 1000)]]
-    monkeypatch.setattr("connectors.binance.pair_data.PairREST.get", earliest)
+    monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", earliest)
     monkeypatch.setattr(app.state.market_data, "start", lambda payload: captured.append(payload) or {"id": "a" * 32, "status": "running"})
     for mode in ("all", "start", "duration"):
         response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "1h", "realtime_enabled": False, "history_enabled": True,
@@ -647,7 +653,7 @@ def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monk
         assert datetime.fromisoformat(saved["history_start"]) == expected
         stored = app.state.market_data.policy_repository.list()[0]
         assert stored["history_mode"] == "start" and stored["history_start"] == saved["history_start"]
-        assert any(command[2] == "pipeline.pair_data" and "--service" in command for command in commands)
+        assert any(command[2] == "engine.pipeline.pair_data" and "--service" in command for command in commands)
 
 
 def test_legacy_policy_file_does_not_enable_collection_by_default(context):
@@ -681,7 +687,7 @@ def test_history_retry_preserves_resolved_bounds_and_auth(context, monkeypatch):
 
 def test_managed_inventory_and_preview_read_persisted_evidence(context):
     from api.market_data.contracts import DataPolicy
-    from feed.pair_store import PairStore
+    from engine.feed.pair_store import PairStore
 
     client, app, _root = context
     login(client)
@@ -796,7 +802,7 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
     import sqlite3
 
     from api.market_data.contracts import DataPolicy
-    from feed.pair_store import PairStore
+    from engine.feed.pair_store import PairStore
 
     client, app, _root = context
     login(client)
@@ -870,7 +876,7 @@ def test_realtime_configuration_coexists_with_history_and_does_not_restart_uncha
         assert len(kwargs["pass_fds"]) == 2  # ownership plus shared data access
         spawned.append(command)
         return Collector()
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     monkeypatch.setattr(manager, "_stop", stopped.append)
     payload = {"symbol": "ETHUSDT", "base_level": "1m", "intervals": ["5m"], "realtime_enabled": True}
     with manager._lease("ETHUSDT"), manager._lease("ETHUSDT", access=True, shared=True):
@@ -880,12 +886,12 @@ def test_realtime_configuration_coexists_with_history_and_does_not_restart_uncha
         # Saving historical-only changes leaves the already running collector intact.
         async def earliest(self, endpoint, **params):
             return [[int(datetime(2020, 1, 1, tzinfo=UTC).timestamp() * 1000)]]
-        monkeypatch.setattr("connectors.binance.pair_data.PairREST.get", earliest)
+        monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", earliest)
         response = client.post("/api/data/subscriptions", json={**payload, "history_enabled": True})
         assert response.status_code == 200 and "history_error" not in response.json()
         assert manager.subscriptions.processes[("futures_um", "ETHUSDT")] is collector
         assert len(spawned) == 4 and len(stopped) == 1
-        assert any(command[2] == "pipeline.pair_data" for command in spawned)
+        assert any(command[2] == "engine.pipeline.pair_data" for command in spawned)
         assert client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"}).status_code == 200
         assert client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False}).status_code == 200
         assert collector in stopped and collector not in manager.subscriptions.processes.values()
@@ -1149,7 +1155,7 @@ def test_history_start_is_utc_midnight_and_duration_is_persisted_once(context, m
     # Resolving unavailable exchange history fails without changing stored settings.
     async def unavailable(self, endpoint, **params):
         raise OSError("offline")
-    monkeypatch.setattr("connectors.binance.pair_data.PairREST.get", unavailable)
+    monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", unavailable)
     assert client.post("/api/data/subscriptions", json={**saved, "history_mode": "all"}).status_code == 503
     assert client.get("/api/data/subscriptions").json()["items"][0]["policy"] == saved
 
@@ -1178,7 +1184,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
     from types import SimpleNamespace
 
     from api.market_data.contracts import DataPolicy
-    from feed.pair_store import PairStore
+    from engine.feed.pair_store import PairStore
 
     client, app, _root = context
     assert client.get('/api/data/chart', params={'symbol': 'ETHUSDT'}).status_code == 401
@@ -1343,7 +1349,7 @@ def test_option_supervision_uses_existing_collect_and_history_roles_and_stops_at
     class Process:
         def poll(self):
             return None
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
     monkeypatch.setattr(app.state.market_data, "_stop", lambda process: None)
     async def catalog(_env, product="futures_um"):
         return [{"symbol": "BTC-261225-85000-C"}]
@@ -1353,8 +1359,8 @@ def test_option_supervision_uses_existing_collect_and_history_roles_and_stops_at
     response = client.post("/api/data/subscriptions", json=payload)
     assert response.status_code == 200, response.text
     assert len(commands) == 2
-    assert commands[0][2] == "feed.managed" and "--options-config" in commands[0]
-    assert commands[1][2] == "pipeline.pair_data" and "--service" in commands[1]
+    assert commands[0][2] == "engine.feed.managed" and "--options-config" in commands[0]
+    assert commands[1][2] == "engine.pipeline.pair_data" and "--service" in commands[1]
     assert all('"symbol":"ALL"' not in " ".join(cmd) for cmd in commands)
     child = DataPolicy(**{**payload, "symbol": "BTC-261225-85000-C"})
     path = subscriptions.root(child) / "status.json"
@@ -1388,7 +1394,7 @@ def test_all_1514_options_use_two_shared_processes_and_dynamic_manifest(context,
     def spawn(command, **kwargs):
         commands.append((command, kwargs))
         return Process()
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", spawn)
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
     monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
     payload = {"product": "options", "symbol": "ALL", "realtime_enabled": True, "history_enabled": True}
     assert client.post("/api/data/subscriptions/plan", json=payload).status_code == 200
@@ -1419,7 +1425,7 @@ def test_all_1514_options_use_two_shared_processes_and_dynamic_manifest(context,
             return 1
     subscriptions.processes[("options", "ALL")] = Exited()
     subscriptions.restore()
-    assert len(commands) == 3 and commands[-1][0][2] == "feed.managed"
+    assert len(commands) == 3 and commands[-1][0][2] == "engine.feed.managed"
     assert client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False, "history_enabled": False}).status_code == 200
     assert not subscriptions.processes and not subscriptions.auxiliary
     assert len(stopped) == 2
@@ -1438,7 +1444,7 @@ def test_option_pair_delete_waits_for_its_worker_without_stopping_the_batch(cont
     class Process:
         def poll(self):
             return None
-    monkeypatch.setattr("api.market_data.subscriptions.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
+    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda cmd, **kw: commands.append(cmd) or Process())
     monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
     payload = {"product": "options", "symbol": "ALL", "realtime_enabled": True, "history_enabled": True}
     assert client.post("/api/data/subscriptions", json=payload).status_code == 200

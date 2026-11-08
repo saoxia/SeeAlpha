@@ -335,7 +335,7 @@ features = read_bar_features(
 
 ### 已新增的分钟级衔接入口
 
-独立的 [`feed`](../feed/README.md) 已实现闭合 1 分钟 OHLCV 的历史读取、
+独立的 [`feed`](../engine/feed/README.md) 已实现闭合 1 分钟 OHLCV 的历史读取、
 REST 补洞、WebSocket 缓冲、重连补齐和就绪控制。上面的逐笔 Trade 衔接仍是独立后续范围；
 新入口不混用 trades/aggTrades 编号，不改历史 Catalog，不自动接入冻结策略。
 
@@ -343,7 +343,7 @@ REST 补洞、WebSocket 缓冲、重连补齐和就绪控制。上面的逐笔 T
 
 ## 与行情服务、连接器的边界
 
-本模块负责离线历史数据准备。持续行情服务位于 [`feed/`](../feed/README.md)，
+本模块负责离线历史数据准备。持续行情服务位于 [`engine/feed/`](../engine/feed/README.md)，历史工作进程位于 [`engine/pipeline/pair_data.py`](../engine/pipeline/pair_data.py)，
 交易所原生适配器桥接位于 [`connectors/`](../connectors/README.md)。公共市场命名和项目路径
 位于 [`core/`](../core/README.md)，管道原有导出仍可使用。
 

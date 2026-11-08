@@ -6,10 +6,10 @@ from itertools import pairwise
 
 from nautilus_trader.model import Bar
 
+from engine.pipeline.pair_data import backfill, history_bounds
 from nautilus_support import TestInstrumentProvider
 from pipeline.catalog import ParquetDataCatalog
 from pipeline.models import PipelineSettings
-from pipeline.pair_data import backfill, history_bounds
 
 
 def test_history_modes_use_retained_anchor_and_explicit_start(tmp_path):
@@ -23,7 +23,7 @@ def test_history_modes_use_retained_anchor_and_explicit_start(tmp_path):
 
 
 def test_exchange_history_installs_selected_bars_without_ticks_and_retries_idempotently(tmp_path, monkeypatch):
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     (tmp_path / "data").mkdir()
     monkeypatch.setattr(module, "PROJECT_ROOT", tmp_path)
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), ("1m",), tmp_path / "data/raw", tmp_path / "data/catalog", tmp_path / "data/state")
@@ -73,7 +73,7 @@ def test_history_calculation_derives_complete_windows_and_preserves_conflicts(tm
     from nautilus_trader.model import BarType, Price, Quantity
 
     from core.market.instruments import bar_type_for
-    from pipeline.pair_data import calculate_history_change
+    from engine.pipeline.pair_data import calculate_history_change
     source = ParquetDataCatalog(tmp_path / "source")
     source.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
     start = datetime(2026, 10, 28, tzinfo=UTC)
@@ -104,7 +104,7 @@ def test_history_calculation_derives_complete_windows_and_preserves_conflicts(tm
 def test_history_restart_replays_unfinished_day_and_keeps_fixed_duration_anchor(tmp_path, monkeypatch):
     import json
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
     root = tmp_path / "data/history"
     root.mkdir(parents=True)
@@ -157,7 +157,7 @@ def test_history_restart_replays_unfinished_day_and_keeps_fixed_duration_anchor(
 def test_failed_source_page_install_leaves_no_partial_public_file(tmp_path, monkeypatch):
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     catalog = ParquetDataCatalog(tmp_path / 'catalog')
     class InterruptedWriter:
         def __init__(self, path):
@@ -192,7 +192,7 @@ def test_tick_history_reuses_seconds_for_all_periods_and_keeps_trade_order(tmp_p
 
     from nautilus_trader.model import AggressorSide, Price, Quantity, TradeId, TradeTick
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from core.market.instruments import bar_type_for, bar_window
 
     instrument = TestInstrumentProvider.ethusdt_perp_binance()
@@ -271,7 +271,7 @@ def test_tick_history_reuses_seconds_for_all_periods_and_keeps_trade_order(tmp_p
 
 
 def test_history_does_not_read_unclosed_or_partially_covered_calendar_windows(tmp_path, monkeypatch):
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
 
     source = ParquetDataCatalog(tmp_path / "source")
     source.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
@@ -291,7 +291,7 @@ def test_minute_source_gap_still_blocks_high_period(tmp_path):
     from nautilus_trader.model import BarType, Price, Quantity
 
     from core.market.instruments import bar_type_for
-    from pipeline.pair_data import calculate_history_change
+    from engine.pipeline.pair_data import calculate_history_change
 
     source = ParquetDataCatalog(tmp_path / "source")
     source.write_data([TestInstrumentProvider.ethusdt_perp_binance()])
@@ -315,7 +315,7 @@ def test_kline_only_seconds_history_uses_private_tick_source(tmp_path, monkeypat
 
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
 
     root = tmp_path / "data/managed/history"
@@ -354,7 +354,7 @@ def test_archive_publication_wait_is_persisted_and_skips_scanning_until_retry(tm
 
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
 
     root = tmp_path / "data/history"
@@ -411,7 +411,7 @@ def test_archive_publication_wait_is_persisted_and_skips_scanning_until_retry(tm
 def test_archive_day_becomes_eligible_at_utc_midnight_two_dates_later(tmp_path, monkeypatch):
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
 
     for at, expected in ((datetime(2026, 11, 7, 23, 59, 59, tzinfo=UTC), 0),
@@ -460,7 +460,7 @@ def test_archive_probe_checks_checksum_and_zip_without_download_and_reuses_local
 
     import pipeline.sync_binance_batch as batch
     import pipeline.sync_binance_file as download
-    from pipeline.pair_data import _history_archive_available
+    from engine.pipeline.pair_data import _history_archive_available
 
     day = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=2)
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), (), tmp_path / "raw", tmp_path / "catalog", tmp_path / "state")
@@ -499,7 +499,7 @@ def test_verified_day_is_never_automatically_rescanned_even_after_cursor_replay(
 
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
 
     root = tmp_path / "data/history"
@@ -545,7 +545,7 @@ def test_old_or_other_configuration_audits_cannot_complete_a_date(tmp_path, monk
 
     import pytest
 
-    import pipeline.pair_data as module
+    import engine.pipeline.pair_data as module
     from pipeline.convert_binance_bars import write_record
 
     start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=2)

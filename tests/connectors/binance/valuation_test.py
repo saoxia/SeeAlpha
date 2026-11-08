@@ -13,9 +13,9 @@ import pytest
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from connectors.binance import assets
-from connectors.binance.queries import QueryError, account_snapshot
-from connectors.binance.valuation import valuation_events
+from engine.connectors.binance import assets
+from engine.connectors.binance.queries import QueryError, account_snapshot
+from engine.connectors.binance.valuation import valuation_events
 from tests.connectors.binance.account_queries_test import AccountHandler
 
 

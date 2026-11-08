@@ -308,7 +308,7 @@ def test_native_project_event_sink_does_not_confuse_external_claims(ledger):
     from nautilus_trader.core import UUID4
 
     from api.operations.service import OperationService
-    from connectors.binance.operations import cached_order_observations, normalize_event
+    from engine.connectors.binance.operations import cached_order_observations, normalize_event
 
     account = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
     trader = m.TraderId("TEST-001")
@@ -440,7 +440,7 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
 
     from api.operations import service as module
     from api.operations.service import OperationService
-    from connectors.binance.income import DAY_MS
+    from engine.connectors.binance.income import DAY_MS
 
     source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
     accounts = SimpleNamespace(private=lambda _: source,
@@ -548,7 +548,7 @@ def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, 
 
     from api.operations import service as module
     from api.operations.service import OperationService
-    from connectors.binance.income import DAY_MS
+    from engine.connectors.binance.income import DAY_MS
 
     now = int(time.time() * 1000)
     old = [now - 150 * DAY_MS, now - 101 * DAY_MS]
