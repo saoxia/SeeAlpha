@@ -42,7 +42,7 @@ class TenantService:
         return {
             key: tenant[key]
             for key in (
-                "id", "template_id", "purpose", "name", "description", "status",
+                "id", "template_id", "owner_id", "purpose", "name", "description", "status",
                 "created_at", "archived_at",
             )
         }
@@ -58,8 +58,8 @@ class TenantService:
         except StorageConflict as exc:
             raise HTTPException(409, "模板名称不能重复。") from exc
 
-    def list_tenants(self):
-        return [self.publish(tenant) for tenant in self.repository.list_tenants()]
+    def list_tenants(self, owner_id):
+        return [self.publish(tenant) for tenant in self.repository.list_tenants(owner_id)]
 
     def require_tenant(self, tenant_id):
         tenant = self.repository.get_tenant(tenant_id)
@@ -73,13 +73,28 @@ class TenantService:
             raise HTTPException(409, "已归档的租户不能交易、回测或修改内容。")
         return tenant
 
-    def create_tenant(self, template_id, name, description):
-        template = self.repository.get_template(template_id)
-        if template is None:
-            raise HTTPException(404, "模板不存在。")
+    def require_owned(self, tenant_id, owner_id):
+        tenant = self.require_tenant(tenant_id)
+        if tenant["owner_id"] != owner_id:
+            raise HTTPException(404, "租户不存在。")
+        return tenant
+
+    def require_owned_active(self, tenant_id, owner_id):
+        tenant = self.require_owned(tenant_id, owner_id)
+        if tenant["status"] != "active":
+            raise HTTPException(409, "已归档的租户不能交易、回测或修改内容。")
+        return tenant
+
+    def create_development(self, owner_id, name, description):
+        if self.repository.production_for_owner(owner_id) is None:
+            raise HTTPException(409, "用户还没有正式租户。")
         try:
             tenant = self.repository.create_tenant(
-                template["id"], template["purpose"], name.strip(), description
+                self.repository.template_id_for("development"),
+                "development",
+                name.strip(),
+                description,
+                owner_id,
             )
         except StorageConflict as exc:
             raise HTTPException(409, "租户名称不能重复。") from exc
@@ -130,8 +145,10 @@ class TenantService:
                 raise HTTPException(409, "归档内容不完整。")
             return json.loads(member.read().decode())
 
-    def archive(self, tenant_id):
-        tenant = self.require_tenant(tenant_id)
+    def archive(self, tenant_id, owner_id):
+        tenant = self.require_owned(tenant_id, owner_id)
+        if tenant["purpose"] == "production":
+            raise HTTPException(409, "正式租户不能归档。")
         if tenant["status"] == "archived":
             raise HTTPException(409, "租户已经归档。归档不会删除租户。")
         payload = {
@@ -147,8 +164,8 @@ class TenantService:
             raise
         return {**self.publish(stored), "archive": path.name}
 
-    def restore(self, tenant_id):
-        tenant = self.require_tenant(tenant_id)
+    def restore(self, tenant_id, owner_id):
+        tenant = self.require_owned(tenant_id, owner_id)
         if tenant["status"] != "archived":
             raise HTTPException(409, "只有已归档的租户可以恢复。")
         payload = self._read_archive(tenant["id"])
@@ -156,15 +173,17 @@ class TenantService:
         stored = self.repository.set_status(tenant["id"], "active")
         return self.publish(stored)
 
-    def delete(self, tenant_id):
-        tenant = self.require_tenant(tenant_id)
+    def delete(self, tenant_id, owner_id):
+        tenant = self.require_owned(tenant_id, owner_id)
+        if tenant["purpose"] == "production":
+            raise HTTPException(409, "正式租户不能删除。")
         self.engine.drop_tenant(tenant["id"], remove=True)
         self.repository.delete_records(tenant["id"])
         self._archive_path(tenant["id"]).unlink(missing_ok=True)
         return {"id": tenant["id"], "deleted": True}
 
-    def list_accounts(self, tenant_id):
-        self.require_tenant(tenant_id)
+    def list_accounts(self, tenant_id, owner_id):
+        self.require_owned(tenant_id, owner_id)
         exchange = []
         for row in self.accounts.repository.list_exchange_accounts(tenant_id):
             public = self.accounts.public(row)
@@ -176,8 +195,8 @@ class TenantService:
         ]
         return [*exchange, *virtual]
 
-    def add_account(self, tenant_id, payload):
-        tenant = self.require_active(tenant_id)
+    def add_account(self, tenant_id, payload, owner_id):
+        tenant = self.require_owned_active(tenant_id, owner_id)
         supplied_key = any(getattr(payload, field, None) for field in KEY_FIELDS)
         if tenant["purpose"] == "development":
             if supplied_key:
@@ -212,16 +231,16 @@ class TenantService:
         created["kind"] = "exchange"
         return created
 
-    def list_subscriptions(self, tenant_id):
-        self.require_tenant(tenant_id)
+    def list_subscriptions(self, tenant_id, owner_id):
+        self.require_owned(tenant_id, owner_id)
         if self.database.backend != "orm":
             raise HTTPException(503, "行情订阅意图需要已迁移的 ORM 数据库。")
         from api.market_data.repository import PolicyRepository
 
         return PolicyRepository(self.database).list(tenant_id=tenant_id)
 
-    def save_subscription(self, tenant_id, payload):
-        tenant = self.require_active(tenant_id)
+    def save_subscription(self, tenant_id, payload, owner_id):
+        tenant = self.require_owned_active(tenant_id, owner_id)
         if self.database.backend != "orm":
             raise HTTPException(503, "行情订阅意图需要已迁移的 ORM 数据库。")
         from api.market_data.repository import PolicyRepository
@@ -238,3 +257,47 @@ class TenantService:
              "history_start": stored.get("history_start"), "base_level": policy.base_level},
         )
         return stored
+
+    def copy_for_owner(self, tenant_id, owner_id, name, description=None):
+        source = self.require_owned(tenant_id, owner_id)
+        text = source["description"] if description is None else description
+        return self._copy_configuration(source, owner_id, name, text)
+
+    def share_with_user(self, tenant_id, owner_id, username, name, description=None):
+        source = self.require_owned(tenant_id, owner_id)
+        from api.db.auth_repository import auth_repository
+
+        recipient = auth_repository(self.database).get_user_by_username(username.strip())
+        if recipient is None:
+            raise HTTPException(404, "用户不存在。")
+        if recipient["id"] == owner_id:
+            raise HTTPException(409, "分享对象须是其他用户；复制给自己请使用复制。")
+        text = source["description"] if description is None else description
+        return self._copy_configuration(source, recipient["id"], name, text)
+
+    def _copy_configuration(self, source, owner_id, name, description):
+        """Copy symbol and data-range subscriptions onto a new development tenant.
+
+        Exchange credentials are never read or written. Virtual-account capital is
+        not copied; the recipient sets it on the new development tenant.
+        """
+        created = self.create_development(owner_id, name, description)
+        if self.database.backend != "orm":
+            return created
+        from api.market_data.repository import PolicyRepository
+
+        repository = PolicyRepository(self.database)
+        tenant = self.repository.get_tenant(created["id"])
+        for record in repository.records(source["id"]):
+            try:
+                policy = DataPolicy.model_validate(record["parameters"])
+            except (ValidationError, ValueError) as exc:
+                raise HTTPException(422, "行情订阅参数无效。") from exc
+            stored = repository.upsert(tenant["id"], policy)
+            self.engine.note_subscription(
+                tenant["id"], policy.product, policy.symbol, "intent", "configured",
+                {"realtime_enabled": policy.realtime_enabled,
+                 "history_enabled": policy.history_enabled,
+                 "history_start": stored.get("history_start"), "base_level": policy.base_level},
+            )
+        return created

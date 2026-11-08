@@ -18,7 +18,22 @@ class AuthRepository:
                 "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
                 (username, password_hash, now),
             )
-            return {"id": cursor.lastrowid, "username": username, "created_at": now}
+            user = {"id": cursor.lastrowid, "username": username, "created_at": now}
+        provision_user_tenant(self.database, user)
+        return user
+
+    def get_user_by_id(self, user_id: int) -> sqlite3.Row | None:
+        with self.database.connect() as connection:
+            return connection.execute(
+                "SELECT id, username, created_at FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+
+    def list_users(self) -> list[sqlite3.Row]:
+        with self.database.connect() as connection:
+            return connection.execute(
+                "SELECT id, username, created_at FROM users ORDER BY id"
+            ).fetchall()
 
     def get_user_by_username(self, username: str) -> sqlite3.Row | None:
         with self.database.connect() as connection:
@@ -54,12 +69,20 @@ class AuthRepository:
         with self.database.connect() as connection:
             return connection.execute(
                 """
-                SELECT users.id, users.username, users.created_at, sessions.expires_at
+                SELECT users.id, users.username, users.created_at, sessions.expires_at,
+                       sessions.impersonate_user_id
                 FROM sessions JOIN users ON users.id = sessions.user_id
                 WHERE sessions.token_hash = ? AND sessions.expires_at > ?
                 """,
                 (token_hash, now),
             ).fetchone()
+
+    def set_impersonation(self, token_hash: str, user_id: int | None) -> None:
+        with self.database.connect() as connection:
+            connection.execute(
+                "UPDATE sessions SET impersonate_user_id = ? WHERE token_hash = ?",
+                (user_id, token_hash),
+            )
 
     def delete_session(self, token_hash: str) -> None:
         with self.database.connect() as connection:
@@ -90,6 +113,12 @@ class AuthRepository:
                 (identity_hash, cutoff),
             ).fetchone()[0]
         return count >= limit
+
+
+def provision_user_tenant(database, user):
+    from api.tenants.repository import TenantRepository
+
+    TenantRepository(database).ensure_production_tenant(user["id"], user["username"])
 
 
 def auth_repository(database):

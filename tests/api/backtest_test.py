@@ -30,6 +30,9 @@ def _client(tmp_path):
 
 
 def _tenant(http, purpose, name):
+    if purpose == "production":
+        rows = http.get("/api/tenants").json()
+        return next(row for row in rows if row["purpose"] == "production")
     templates = {row["purpose"]: row for row in http.get("/api/tenants/templates").json()}
     response = http.post("/api/tenants", json={"template_id": templates[purpose]["id"], "name": name})
     assert response.status_code == 201, response.text

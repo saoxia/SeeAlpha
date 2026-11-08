@@ -62,7 +62,7 @@ API 仍仅监听本机，通过前端同源代理访问；`COOKIE_SECURE=false` 
 浏览器只通过同源 `/api` 交互，前端不直接访问项目 Python 模块、数据库或本地业务文件。
 服务端代理配置：
 
-- `SEEALPHA_API_URL`：API 地址，默认 `http://127.0.0.1:8000`，承接鉴权、健康、账户配置、品种列表、余额、账户/仓位、操作记录、研究任务及 OLAP / ClickHouse 监控接口。
+- `SEEALPHA_API_URL`：API 地址，默认 `http://127.0.0.1:8000`，承接鉴权、用户与租户、健康、账户配置、品种列表、余额、账户/仓位、操作记录、研究任务及 OLAP / ClickHouse 监控接口。
 
 前端请求转发到项目 API；生产构建同样需要设置目标地址，或由正式反向代理接管 `/api`。
 正式部署采用同域 HTTPS，API 使用 Secure 会话 Cookie。

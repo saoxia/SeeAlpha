@@ -190,6 +190,8 @@ html[data-interface-theme="glass"] :is(button, input, select, a):focus-visible {
 .user-menu-appearance h2 { margin: 0 0 10px; font-size: 12px; }
 .user-menu-appearance .interface-switch { display: flex; }
 .user-menu-appearance .interface-switch button { flex: 1; min-height: 32px; }
+.user-menu-link { display: block; width: 100%; padding: 11px 10px; border-top: 1px solid #dce1e8; text-align: left; font-size: 12px; cursor: pointer; }
+.user-menu-link:hover { background: #f4f7fb; }
 .user-menu-logout { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 10px; border-top: 1px solid #dce1e8; color: #9d3835; text-align: left; font-size: 12px; cursor: pointer; }
 .user-menu-logout:hover { background: #fff2f0; }
 .user-menu-logout:disabled { opacity: .5; cursor: wait; }
@@ -198,7 +200,9 @@ html[data-interface-theme="glass"] :is(button, input, select, a):focus-visible {
 html[data-interface-theme="glass"] .user-menu summary { border-color: #ffffffc9; border-radius: 15px; background: #ffffff8c; box-shadow: inset 0 1px 0 #fff; }
 html[data-interface-theme="glass"] .user-avatar { border-radius: 10px; background: #dbe7fc; color: #2454a1; }
 html[data-interface-theme="glass"] .user-menu-panel { border-color: #fff; border-radius: 22px; background: #f8fafff7; box-shadow: 0 16px 50px #294b7524, inset 0 1px 0 #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+html[data-interface-theme="glass"] .user-menu-link,
 html[data-interface-theme="glass"] .user-menu-logout { border-radius: 10px; }
+html[data-interface-theme="glass"] .impersonation-banner { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 
 /* Application surfaces share one palette; numeric and chart surfaces remain solid. */
 .equity-chart { --chart-background: #f8f8f6; --chart-text: #777a80; --chart-font: "Courier New", monospace; --chart-border: #c9cbce; }

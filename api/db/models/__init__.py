@@ -42,6 +42,8 @@ class Session(Base):
     )
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    # Server-side act-as. Null means the session is the signed-in user.
+    impersonate_user_id: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id"))
 
 
 class LoginFailure(Base):
@@ -71,6 +73,7 @@ class Tenant(Base):
     __tablename__ = "tenants"
     id: Mapped[int] = mapped_column(ID, primary_key=True, autoincrement=True)
     template_id: Mapped[int] = mapped_column(ID, nullable=False)
+    owner_id: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id"))
     purpose: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
@@ -83,6 +86,14 @@ class Tenant(Base):
         CheckConstraint("status in ('active','archived')", name="tenants_status_check"),
         Index("tenants_name_unique", func.lower(name), unique=True),
         Index("tenants_system_key_unique", system_key, unique=True),
+        Index("tenants_owner_idx", owner_id),
+        Index(
+            "tenants_one_production_per_owner",
+            owner_id,
+            unique=True,
+            sqlite_where=text("purpose = 'production'"),
+            postgresql_where=text("purpose = 'production'"),
+        ),
     )
 
 

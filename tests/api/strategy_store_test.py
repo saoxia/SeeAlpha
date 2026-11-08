@@ -36,6 +36,9 @@ def _templates(http):
 
 
 def _tenant(http, purpose, name):
+    if purpose == "production":
+        rows = http.get("/api/tenants").json()
+        return next(row for row in rows if row["purpose"] == "production")
     template = _templates(http)[purpose]
     response = http.post("/api/tenants", json={"template_id": template["id"], "name": name})
     assert response.status_code == 201, response.text

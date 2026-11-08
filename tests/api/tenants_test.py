@@ -38,9 +38,12 @@ def templates_by_purpose(client):
 
 
 def create_tenant(client, purpose, name):
-    template = templates_by_purpose(client)[purpose]
-    response = client.post("/api/tenants", json={"template_id": template["id"], "name": name})
+    if purpose == "production":
+        rows = client.get("/api/tenants").json()
+        return next(row for row in rows if row["purpose"] == "production")
+    response = client.post("/api/tenants", json={"name": name})
     assert response.status_code == 201, response.text
+    assert response.json()["purpose"] == "development"
     return response.json()
 
 
@@ -180,11 +183,13 @@ def test_archive_restore_and_delete_are_distinct(client):
     assert restored.json()["status"] == "active"
     assert runtime.store.gaps(tenant["id"], "market-data")[0]["kind"] == "missing"
     assert runtime.assert_runnable(tenant["id"], "backtest")["status"] == "runnable"
-    active = create_tenant(http, "production", "直接删除")
-    assert http.delete(f"/api/tenants/{active['id']}").status_code == 204
-    assert all(row["id"] != active["id"] for row in http.get("/api/tenants").json())
-    assert not app.state.tenants._archive_path(active["id"]).exists()
-    assert runtime.tenant_row(active["id"]) is None
+    spare = create_tenant(http, "development", "直接删除")
+    assert http.delete(f"/api/tenants/{spare['id']}").status_code == 204
+    assert all(row["id"] != spare["id"] for row in http.get("/api/tenants").json())
+    assert not app.state.tenants._archive_path(spare["id"]).exists()
+    assert runtime.tenant_row(spare["id"]) is None
+    production = next(row for row in http.get("/api/tenants").json() if row["purpose"] == "production")
+    assert http.delete(f"/api/tenants/{production['id']}").status_code == 409
     assert http.delete(f"/api/tenants/{tenant['id']}").status_code == 204
     assert not path.exists()
     assert http.get("/api/tenants").json()

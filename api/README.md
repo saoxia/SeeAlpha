@@ -46,6 +46,14 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/auth/login` | JSON 用户名、密码登录，设置会话 Cookie |
 | `GET /api/auth/me` | 当前用户，未登录或过期返回 401 |
 | `POST /api/auth/logout` | 撤销当前会话并清除 Cookie |
+| `POST /api/auth/impersonate` | 管理员把当前会话切换为另一用户的视图 |
+| `POST /api/auth/impersonate/stop` | 管理员退出该视图，回到自己的会话 |
+| `GET /api/users` | 管理员列出用户及其正式租户。正在查看其他用户时不可用 |
+| `POST /api/users` | 管理员创建用户。创建时自动准备唯一正式租户 |
+| `GET /api/tenants` | 当前视图用户自己的租户。正式租户是默认租户 |
+| `POST /api/tenants` | 为当前视图用户新建开发租户。再创建正式租户会被拒绝 |
+| `POST /api/tenants/{id}/copy` | 把行情订阅复制成自己的新开发租户，不复制密钥或虚拟资金 |
+| `POST /api/tenants/{id}/share` | 把行情订阅分享成其他用户的新开发租户 |
 | `GET /api/management/state` | 检查快照、策略、任务和可访问报告，需要登录 |
 | `GET /api/management/jobs/{id}` | 任务详情及日志尾部，需要登录 |
 | `POST /api/management/jobs` | 启动快速检查或完整检查，需要管理员。策略回测不再从这里启动。 |

@@ -13,3 +13,6 @@ class UserResponse(BaseModel):
 
 class AuthResponse(BaseModel):
     user: UserResponse
+    actor: UserResponse | None = None
+    impersonating: bool = False
+    is_admin: bool = False
