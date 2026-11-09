@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.engine_client import EngineClient
-from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
 from api.tenant_docker import DockerTenantManager
+from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
 from engine.app import create_app
 from engine.config import EngineConfig
 from engine.runtime import EngineConflict

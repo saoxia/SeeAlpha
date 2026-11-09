@@ -73,7 +73,7 @@ def _app_children(http, tenant_id):
 
 
 def test_development_rejects_keys_and_live_orders_and_keeps_capital_on_the_account(client, engine_http):
-    http, app = client
+    http, _app = client
     tenant = create_tenant(http, "development", "开发资金")
     rejected = http.post(f"/api/tenants/{tenant['id']}/accounts", json={
         "account_name": "should-fail", "exchange": "binance", "environment": "production",

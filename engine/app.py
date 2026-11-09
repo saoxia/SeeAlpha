@@ -7,8 +7,8 @@ import os
 import subprocess
 import sys
 import threading
-from pathlib import Path
 from contextlib import aclosing
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -16,11 +16,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
 from engine.config import EngineConfig
-from engine.data_queries import router as market_data_router
+from engine.connectors.binance.queries import QueryError
 from engine.data_manager.routes import router as control_router
 from engine.data_manager.service import DataService as EngineDataService
+from engine.data_queries import router as market_data_router
 from engine.public_queries import router as venue_router
-from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
 from engine.task_queue import TaskCoordinator
 from engine.task_routes import router as task_router
