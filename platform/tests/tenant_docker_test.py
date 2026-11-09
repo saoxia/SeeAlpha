@@ -6,7 +6,12 @@ import pytest
 
 from api.engine_client import EngineClient
 from api.tenant_docker import DockerTenantManager
-from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError, EngineConflict
+from core.engine_contracts import (
+    ENGINE_CONTRACT_HEADER,
+    ENGINE_CONTRACT_VERSION,
+    EngineConflict,
+    QueryError,
+)
 
 
 class FakeTenantManager:
