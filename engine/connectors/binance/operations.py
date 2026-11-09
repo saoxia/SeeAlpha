@@ -13,7 +13,10 @@ from decimal import Decimal
 from nautilus_trader.model import AccountId
 from nautilus_trader.trading import Strategy
 
-from core.option_records import normalize_option_record as normalize_option_record
+from core.option_records import normalize_option_record
+
+
+__all__ = ["normalize_option_record"]
 
 
 def text(value):
