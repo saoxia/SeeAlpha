@@ -224,7 +224,7 @@ def test_real_data_manager_rejects_duplicate_key_before_second_process(tmp_path)
     manager = object.__new__(DataService)
     manager.require_storage = lambda **_kw: None
     manager.request = lambda _payload: (None, None)
-    manager.subscriptions = SimpleNamespace(_read=lambda: [])
+    manager.subscriptions = SimpleNamespace(_read=list)
     manager.recover = lambda: None
     manager.lock = threading.RLock()
     manager.closed = False
