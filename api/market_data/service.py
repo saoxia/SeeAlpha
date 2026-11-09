@@ -17,11 +17,37 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from core.paths import PROJECT_ROOT
-from engine.pipeline.config import load_settings
-from engine.pipeline.data_management import checked_request, coverage, deletion_plan
-from engine.pipeline.sync_binance_batch import plan_daily_archives
+ from .repository import OperationFiles, PolicyRepository
 
-from .repository import OperationFiles, PolicyRepository
+def load_settings():
+    from engine.pipeline.config import load_settings as load_native_settings
+
+    return load_native_settings()
+
+
+def checked_request(*args, **kwargs):
+    from engine.pipeline.data_management import checked_request as checked_native_request
+
+    return checked_native_request(*args, **kwargs)
+
+
+def coverage(*args, **kwargs):
+    from engine.pipeline.data_management import coverage as native_coverage
+
+    return native_coverage(*args, **kwargs)
+
+
+def deletion_plan(*args, **kwargs):
+    from engine.pipeline.data_management import deletion_plan as native_deletion_plan
+
+    return native_deletion_plan(*args, **kwargs)
+
+
+def plan_daily_archives(*args, **kwargs):
+    from engine.pipeline.sync_binance_batch import plan_daily_archives as native_plan
+
+    return native_plan(*args, **kwargs)
+
 
 PREFIX = "tick_data:"
 

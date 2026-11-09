@@ -21,10 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
 from core.market.instruments import INTERVALS, bar_window
-from engine.pipeline.config import load_settings
-from engine.pipeline.data_management import coverage, dataset_inventory, preview, rows
-
-from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
+ from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
 from .contracts import (
     ChartCandle,
@@ -42,6 +39,36 @@ from .contracts import (
     PairDeleteRequest,
     option_pair,
 )
+
+def load_settings():
+    from engine.pipeline.config import load_settings as load_native_settings
+
+    return load_native_settings()
+
+
+def dataset_inventory(*args, **kwargs):
+    from engine.pipeline.data_management import dataset_inventory as query
+
+    return query(*args, **kwargs)
+
+
+def coverage(*args, **kwargs):
+    from engine.pipeline.data_management import coverage as query
+
+    return query(*args, **kwargs)
+
+
+def preview(*args, **kwargs):
+    from engine.pipeline.data_management import preview as query
+
+    return query(*args, **kwargs)
+
+
+def rows(*args, **kwargs):
+    from engine.pipeline.data_management import rows as query
+
+    return query(*args, **kwargs)
+
 
 router = APIRouter(prefix="/data", tags=["market-data"])
 

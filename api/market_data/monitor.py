@@ -5,9 +5,7 @@ import time
 
 from fastapi import HTTPException
 
-from engine.pipeline.convert_binance_bars import write_record
-
-ROLES = ("collection", "history", "calculation")
+ ROLES = ("collection", "history", "calculation")
 
 
 def observe(subscriptions, policy, now):
@@ -68,6 +66,8 @@ class ServiceMonitor:
         config_error = subscriptions.last_error
         value = {"checked_ms": now, "valid_until_ms": now + 15000, "items": items,
                  "state": "DEGRADED" if config_error else "READY", "configuration_error": config_error}
+        from engine.pipeline.convert_binance_bars import write_record
+
         write_record(self.path, value)
         return value
 
