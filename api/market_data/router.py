@@ -1,10 +1,8 @@
 """Data operations are authenticated and reuse fixed pipeline entry points."""
 
 import asyncio
-import time
 from contextlib import suppress
-from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import (
@@ -19,12 +17,11 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
-from core.market.instruments import INTERVALS, bar_window
+from core.market.instruments import INTERVALS
 
 from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
 from .contracts import (
-    ChartCandle,
     DataCapabilities,
     DataDeletePlanRequest,
     DataDeletionPlan,
@@ -39,36 +36,6 @@ from .contracts import (
     PairDeleteRequest,
     option_pair,
 )
-
-
-def load_settings():
-    from engine.pipeline.config import load_settings as load_native_settings
-
-    return load_native_settings()
-
-
-def dataset_inventory(*args, **kwargs):
-    from engine.pipeline.data_management import dataset_inventory as query
-
-    return query(*args, **kwargs)
-
-
-def coverage(*args, **kwargs):
-    from engine.pipeline.data_management import coverage as query
-
-    return query(*args, **kwargs)
-
-
-def preview(*args, **kwargs):
-    from engine.pipeline.data_management import preview as query
-
-    return query(*args, **kwargs)
-
-
-def rows(*args, **kwargs):
-    from engine.pipeline.data_management import rows as query
-
-    return query(*args, **kwargs)
 
 
 router = APIRouter(prefix="/data", tags=["market-data"])
@@ -88,9 +55,8 @@ def query_range(symbol: str, start: datetime, end: datetime, interval: str = "1m
 
 @router.get("/capabilities", response_model=DataCapabilities)
 def capabilities(request: Request, user: CurrentUser):
-    settings = load_settings()
     manager = service(request)
-    return {"market": settings.market, "symbols": [],
+    return {"market": "futures_um", "symbols": [],
             "intervals": list(INTERVALS),
             "can_operate": (user.username.casefold() == request.app.state.settings.admin_username.casefold()
                             and manager.policy_repository is not None)}
@@ -141,79 +107,32 @@ def status(request: Request, _: CurrentUser):
 @router.get("/datasets")
 def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_levels: bool = False):
     manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        symbols = [p.symbol for p in manager.subscriptions._read() if p.product == "futures_um"]
-        return manager.engine.data_query("datasets", {
-            "interval": interval, "all_levels": all_levels, "symbols": symbols,
-        })
-    manager.require_storage()
-    settings = load_settings()
-    if interval is not None and interval not in INTERVALS:
-        raise HTTPException(422, "K 线周期未配置")
-    settings = replace(settings, intervals=tuple(INTERVALS))
-    items = dataset_inventory(settings, interval=interval, all_levels=all_levels)
-    from engine.feed.pair_store import journal_inventory
-    for policy in service(request).subscriptions._read():
-        with service(request)._lease(policy.symbol, policy.product, access=True, shared=True):
-            journal_items = [item for path in service(request).subscriptions.journal_paths(policy) for item in journal_inventory(path, policy.symbol)]
-        for item in journal_items:
-            if not all_levels and item["level"] != (interval or "tick"):
-                continue
-            existing = next((value for value in items if value["symbol"] == item["symbol"] and value["level"] == item["level"] and value.get("product", "futures_um") == "futures_um"), None)
-            if existing:
-                existing["event_ranges_ns"] = sorted([*existing["event_ranges_ns"], *item["event_ranges_ns"]], key=lambda bounds: int(bounds[0]))
-            else:
-                items.append(item)
-    return {"items": items}
+    symbols = [p.symbol for p in manager.subscriptions._read() if p.product == "futures_um"]
+    return manager._required_engine().data_query("datasets", {
+        "interval": interval, "all_levels": all_levels, "symbols": symbols,
+    })
 
 
 @router.get("/datasets/latest", response_model=dict[str, str | None])
 def latest_data_times(request: Request, _: CurrentUser):
-    """Latest persisted 1s bar event times for configured perpetual pairs only."""
+    """Latest retained 1s bars for configured futures; Engine reads Catalog."""
     manager = service(request)
-    symbols = [policy.symbol for policy in manager.subscriptions._read()
-               if policy.product == "futures_um"]
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        return manager.engine.data_query("latest", {"symbols": symbols})
-    from nautilus_trader.model import NautilusDataType
-
-    from core.market.instruments import bar_type_for
-    from engine.pipeline.data_management import open_catalog
-
-    manager.require_storage()
-    settings = load_settings()
-    if not symbols or not settings.catalog_dir.is_dir():
-        return dict.fromkeys(symbols)
-    catalog = open_catalog(settings)
-    result = {}
-    for symbol in symbols:
-        with manager._lease(symbol, "futures_um", access=True, shared=True):
-            stamp = catalog.native.query_last_timestamp(NautilusDataType.Bar, bar_type_for(symbol, "1s"))
-        result[symbol] = str(stamp) if stamp is not None else None
-    return result
+    symbols = [p.symbol for p in manager.subscriptions._read() if p.product == "futures_um"]
+    return manager._required_engine().data_query("latest", {"symbols": symbols})
 
 
 @router.get("/coverage")
 def data_coverage(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends(query_range)]):
-    manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        return manager.engine.data_query("coverage", payload.model_dump(mode="json"))
-    manager.require_storage()
-    try:
-        selection, settings = manager.request(payload)
-        return coverage(selection, settings)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from None
+    return service(request)._required_engine().data_query(
+        "coverage", payload.model_dump(mode="json"),
+    )
 
 
 @router.post("/prepare/plan")
 async def plan(request: Request, payload: DataRange, _: AdminUser):
     await require_download_market(request, payload)
-    manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        return await run_in_threadpool(manager.engine.data_query, "prepare-plan", payload.model_dump(mode="json"))
     try:
-        return await run_in_threadpool(manager.plan, payload)
+        return await run_in_threadpool(service(request).plan, payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -226,8 +145,7 @@ def ticks(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depend
 
 @router.post("/delete/plan", response_model=DataDeletionPlan)
 def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
-    # Deletion preview and executor must share the same filesystem identity.
-    # Keep both on the API host until the destructive job migrates as one unit.
+    # Engine validates the same storage snapshot that its deletion worker uses.
     try:
         return service(request).delete_plan(payload)
     except ValueError as exc:
@@ -238,63 +156,14 @@ def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
 def local_chart(request: Request, _: CurrentUser,
                 symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC)$"),
                 interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"] = "1m"):
-    """Bounded display projection only; never provides strategy readiness."""
+    """Bounded display projection only; Engine owns Catalog and feed evidence."""
     manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        policy = next((p for p in manager.subscriptions._read()
-                       if p.symbol == symbol and p.product == "futures_um"), None)
-        return manager.engine.data_query("chart", {
-            "symbol": symbol, "interval": interval,
-            "base_level": policy.base_level if policy is not None else None,
-        })
-    from engine.feed.pair_store import journal_chart
-    manager.require_storage()
-    now = int(time.time() * 1000)
-    left = bar_window(interval, now)[0]
-    width = int(INTERVALS[interval][2].total_seconds() * 1000)
-    start = left - 299 * width
     policy = next((p for p in manager.subscriptions._read()
                    if p.symbol == symbol and p.product == "futures_um"), None)
-    candles = {}
-    live = False
-    with manager._lease(symbol, "futures_um", access=True, shared=True):
-        settings = load_settings()
-        if settings.catalog_dir.is_dir():
-            source = rows(settings, symbol, datetime.fromtimestamp(start / 1000, UTC),
-                          datetime.fromtimestamp(now / 1000, UTC), interval=interval)
-            try:
-                for row in source:
-                    stamp = int(row["ts_event_ns"]) // 1000000
-                    opening, _ = bar_window(interval, stamp)
-                    candles[opening] = ChartCandle(time=opening // 1000, is_closed=True,
-                        **{key: row[key] for key in ("open", "high", "low", "close", "volume")})
-            finally:
-                source.close()
-        if policy:
-            values = {}
-            # Prefer the active retention over journals from older configurations.
-            for path in reversed(manager.subscriptions.journal_paths(policy)):
-                for value in journal_chart(path, interval, start, now + 1):
-                    values[value["start_ms"]] = value
-            state = manager.subscriptions._public(policy)
-            collection = state["services"]["collection"]
-            calculation = state["services"]["calculation"]
-            live = bool(collection.get("healthy") and calculation.get("healthy"))
-            for observation in (collection, calculation):
-                if observation.get("healthy"):
-                    for value in observation.get("bar_updates", []):
-                        if value.get("interval") == interval and start <= value["start_ms"] <= now:
-                            previous = values.get(value["start_ms"])
-                            if previous and (previous["updated_ms"] > value["updated_ms"]
-                                             or previous["is_closed"] and not value["is_closed"]):
-                                continue
-                            values[value["start_ms"]] = value
-            for opening, value in values.items():
-                candles[opening] = ChartCandle(time=opening // 1000,
-                    is_complete=value["is_complete"], is_closed=value["is_closed"],
-                    **{key: value[key] for key in ("open", "high", "low", "close", "volume")})
-    return LocalChartResponse(symbol=symbol, interval=interval, checked_at=now, live=live,
-                              candles=[candles[key] for key in sorted(candles)[-300:]])
+    return manager._required_engine().data_query("chart", {
+        "symbol": symbol, "interval": interval,
+        "base_level": policy.base_level if policy is not None else None,
+    })
 
 
 @router.get("/bars")
@@ -307,42 +176,14 @@ def bars(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends
 
 def preview_data(request, payload, limit, cursor, interval=None):
     manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        subscribed = any(
-            p.symbol == payload.symbol and p.product == payload.product
-            for p in manager.subscriptions._read()
-        )
-        return manager.engine.data_query("page", {
-            **payload.model_dump(mode="json"), "interval": interval,
-            "limit": limit, "cursor": cursor, "journal": subscribed,
-        })
-    manager.require_storage()
-    try:
-        settings = load_settings()
-        policies = manager.subscriptions._read()
-        policy = next((value for value in policies if value.symbol == payload.symbol and value.product == payload.product), None)
-        with manager._lease(payload.symbol, payload.product, access=True, shared=True):
-            if policy:
-                from engine.feed.pair_store import journal_page
-                for path in manager.subscriptions.journal_paths(policy):
-                    try:
-                        page = journal_page(path, interval or "tick", int(payload.start.timestamp() * 1000),
-                                            int(payload.end.timestamp() * 1000), limit,
-                                            cursor if cursor and cursor.startswith("journal.") else None)
-                    except ValueError:
-                        if cursor and cursor.startswith("journal."):
-                            continue  # The opaque cursor may belong to another retained minimum.
-                        raise
-                    if page["records"] or cursor and cursor.startswith("journal."):
-                        return page
-                if cursor and cursor.startswith("journal."):
-                    raise ValueError("游标无效或数据已变化，请重新查询")
-            return preview(settings, payload.symbol, payload.start, payload.end,
-                           limit=limit, cursor=cursor, interval=interval, market=payload.product)
-    except FileNotFoundError:
-        raise HTTPException(404, "Catalog 尚不存在，请先准备数据。") from None
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from None
+    subscribed = any(
+        p.symbol == payload.symbol and p.product == payload.product
+        for p in manager.subscriptions._read()
+    )
+    return manager._required_engine().data_query("page", {
+        **payload.model_dump(mode="json"), "interval": interval,
+        "limit": limit, "cursor": cursor, "journal": subscribed,
+    })
 
 
 @router.post("/jobs", response_model=DataJobResponse, status_code=202)
@@ -391,14 +232,9 @@ def download(request: Request, identity: str, _: AdminUser):
 def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends(query_range)]):
     manager = service(request)
     manager.require_storage()
-    try:
-        selection = payload if manager.remote else manager.request(payload)[0]
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from None
     for value in manager.jobs():
         parameters = value["parameters"]
-        if (value["action"] == "validate" and parameters["symbol"] ==
-                (selection.symbol if manager.remote else selection.symbols[0])
+        if (value["action"] == "validate" and parameters["symbol"] == payload.symbol
                 and parameters.get("product", "futures_um") == payload.product
                 and (payload.product != "options" or parameters.get("intervals") == payload.intervals)
                 and parameters["start"] == payload.model_dump(mode="json")["start"]
@@ -412,7 +248,7 @@ def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depe
 @router.get("/feed/status")
 def feed_status(request: Request, _: CurrentUser):
     """Only the tenant Engine reads and validates live feed status evidence."""
-    return service(request).engine.market_control("feed-status")
+    return service(request)._required_engine().market_control("feed-status")
 
 
 @router.websocket("/jobs/stream")
