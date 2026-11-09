@@ -2,6 +2,10 @@
 import threading
 from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
+
+from api.market_data.monitor import ServiceMonitor
 from api.market_data.service import DataService
 
 
@@ -61,3 +65,24 @@ def test_remote_completed_delete_is_applied_once_to_business_db(tmp_path):
     manager.reconcile_jobs()
     assert removed == [("ETHUSDT", "futures_um")]
     assert (manager.directory / "settled" / f"{task['id']}.json").exists()
+
+
+def test_platform_monitor_only_reads_engine_and_never_creates_state_files(tmp_path):
+    calls = []
+    status = {"state": "DEGRADED", "reason": "monitor_expired", "items": []}
+
+    class Engine:
+        def market_control(self, operation, payload=None):
+            calls.append((operation, payload))
+            return status
+
+    monitor = ServiceMonitor(SimpleNamespace(project=tmp_path, engine=Engine()))
+    assert monitor.read() == status
+    assert calls == [("services", None)]
+    assert not hasattr(monitor, "sample")
+    assert not (tmp_path / ".local/state/api/data_services").exists()
+
+    missing = ServiceMonitor(SimpleNamespace(project=tmp_path))
+    with pytest.raises(HTTPException) as error:
+        missing.read()
+    assert error.value.status_code == 503
