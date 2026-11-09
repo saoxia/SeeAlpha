@@ -1,1 +1,1 @@
-"""Authenticated management of the existing offline Tick engine.pipeline."""
+"""Authenticated market-data policy and tenant Engine HTTP endpoints."""
