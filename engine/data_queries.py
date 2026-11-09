@@ -85,7 +85,7 @@ def journal_paths(project: Path, symbol: str):
 @contextmanager
 def read_lease(project: Path, symbol: str, product: str):
     symbol = normalize_symbol(symbol, product)
-    path = project / ".local/run/api/data" / product / f"{symbol}.access.lock"
+    path = project / "data/.locks" / product / f"{symbol}.access.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as handle:
         try:

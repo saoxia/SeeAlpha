@@ -292,7 +292,7 @@ class EngineRuntime:
                 fds.append(lease.fileno())
             if access is not None:
                 symbol, product, shared = access
-                path = self.project / ".local/run/api/data" / product / f"{symbol}.access.lock"
+                path = self.project / "data/.locks" / product / f"{symbol}.access.lock"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 access_lease = path.open("a")
                 flag = fcntl.LOCK_SH if shared else fcntl.LOCK_EX

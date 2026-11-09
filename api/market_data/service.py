@@ -115,7 +115,12 @@ class DataService:
         from .contracts import normalize_scope
         symbol = normalize_scope(symbol, product)
         kind = "access" if access else "job"
-        path = self.project / ".local/run/api/data" / product / f"{symbol}.{kind}.lock"
+        # Engine and API operate on the *same* mounted data volume, not on
+        # distinct /app/.local/run and host-side runtime directories.
+        data = self.project / "data"
+        if not data.is_dir():
+            raise HTTPException(503, "数据存储目录不可用。")
+        path = data / ".locks" / product / f"{symbol}.{kind}.lock"
         path.parent.mkdir(parents=True, exist_ok=True)
         target = path.open("a")
         try:

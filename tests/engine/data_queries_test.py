@@ -78,3 +78,25 @@ def test_data_endpoints_never_accept_arbitrary_paths():
     for cls in (Chart, Inventory, Page, Range):
         assert "path" not in cls.model_fields
         assert "project" not in cls.model_fields
+
+
+def test_api_and_engine_share_a_single_volume_access_lease(tmp_path):
+    from fastapi import HTTPException
+    import pytest
+
+    from api.market_data.service import DataService
+    from engine.data_queries import read_lease
+
+    (tmp_path / "data").mkdir()
+    service = object.__new__(DataService)
+    service.project = tmp_path
+
+    with service._lease("ETHUSDT", access=True):
+        with pytest.raises(HTTPException) as captured:
+            with read_lease(tmp_path, "ETHUSDT", "futures_um"):
+                pass
+        assert captured.value.status_code == 409
+
+    with service._lease("ETHUSDT", access=True, shared=True):
+        with read_lease(tmp_path, "ETHUSDT", "futures_um"):
+            pass
