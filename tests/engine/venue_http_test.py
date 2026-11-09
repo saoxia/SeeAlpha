@@ -22,6 +22,10 @@ def test_public_venue_query_tenant_identity_and_contract(tmp_path, monkeypatch):
         assert client.post("/tenants/23/venue/tickers", json={"environment": "production"}).status_code == 401
         assert client.post("/tenants/24/venue/tickers", headers=auth, json={"environment": "production"}).status_code == 403
         assert client.post("/tenants/23/venue/tickers", headers=auth, json={"environment": "production"}).json()["rows"]["ETHUSDT"]["last_price"] == "2000"
+        assert client.post(
+            "/tenants/23/venue/asset-account", headers=auth,
+            json={"environment": "production", "api_key": "fake", "api_secret": "fake", "account_id": "1"},
+        ).status_code == 403
         price = client.post("/tenants/23/venue/asset-price", headers=auth, json={
             "environment": "production", "currency": "USDT",
         })
