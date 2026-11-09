@@ -216,7 +216,10 @@ class Subscriptions:
         return found or {"policy": policy.model_dump(mode="json")}
 
     def items(self, *, group_options=False):
-        """Expose Engine-validated live states, never Platform-local files."""
+        """Validate business policy ownership, then show Engine-validated state."""
+        # A corrupt/unavailable business policy must not be masked by a stale
+        # Engine snapshot; this API has not verified authorization intent.
+        self._read(refresh=True)
         return self._engine().market_control(
             "subscriptions", {"group_options": group_options},
         )["items"]
