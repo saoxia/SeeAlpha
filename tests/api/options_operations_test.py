@@ -284,3 +284,23 @@ def test_initial_account_access_failure_can_recover_without_a_false_identity_con
     state["options"] = {"status": "failed", "message": "期权账户暂不可读。"}
     asyncio.run(sync_options(ledger, account, state, clock[0] - 1000, clock[0], engine=account["_test_engine"]))
     assert state["options"]["positions"][0]["contracts"] == "2" and data["position_calls"] == 1
+
+
+def test_business_operations_require_engine_and_never_import_native_connectors(tmp_path):
+    import ast
+    from pathlib import Path
+
+    from api.operations.service import OperationService
+
+    with pytest.raises(ValueError, match="Engine HTTP"):
+        OperationService(SimpleNamespace(backend="not-orm"), None, None)
+
+    root = Path(__file__).resolve().parents[2] / "api"
+    for relative in ("operations/service.py", "operations/options.py",
+                     "exchanges/service.py", "exchanges/trading.py", "equity/service.py"):
+        source = (root / relative).read_text(encoding="utf-8")
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.ImportFrom) and node.module is not None:
+                assert not node.module.startswith("engine."), (relative, node.module)
+            if isinstance(node, ast.Import):
+                assert not any(a.name.startswith("engine.") for a in node.names), relative
