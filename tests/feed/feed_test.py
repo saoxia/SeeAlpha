@@ -148,6 +148,34 @@ def test_restart_replays_tail_and_never_trusts_old_ready(tmp_path):
     store.close()
 
 
+def test_repeated_process_restarts_never_promote_replay_to_live_risk(tmp_path):
+    """A short deterministic restart storm verifies durable coverage and the risk gate."""
+    path = tmp_path / "minutes.sqlite"
+    clock = Clock()
+    for cycle in range(6):
+        events = []
+        store = Store(path, (SYMBOL,), BASE)
+        try:
+            feed = Feed(store, warmup_minutes=3, on_delivery=events.append)
+            assert not feed.check(clock.now())
+            feed.connected = feed.clock_ok = True
+            feed.observe(SYMBOL, clock.now(), clock.now())
+            rest = REST([bar(i) for i in range(3 + cycle)])
+            assert asyncio.run(Coordinator(feed, rest, clock).repair())
+            assert feed.state == State.READY
+            assert store.next_ms(SYMBOL) == BASE + (3 + cycle) * MINUTE
+            assert events and all(not e.allow_new_risk for e in events)
+
+            # A fresh contiguous close, unlike historical replay, may open the risk gate.
+            clock.value += MINUTE
+            feed.observe(SYMBOL, clock.now(), clock.now(), bar(3 + cycle))
+            feed.flush(clock.now())
+            assert events[-1].bar == bar(3 + cycle)
+            assert events[-1].allow_new_risk
+        finally:
+            store.close()
+
+
 @pytest.mark.parametrize("condition", ["stale", "clock", "disconnected", "missing"])
 def test_gate_closes_and_requires_repair_after_health_recovers(store, condition):
     clock = Clock()
