@@ -30,6 +30,15 @@ on:
       - "tests/core/engine_contracts_test.py"
       - ".github/workflows/tenant-engine.yml"
   workflow_dispatch:
+  schedule:
+    # Weekly full regression: Monday 02:17 Asia/Seoul (Sunday 17:17 UTC).
+    - cron: '17 17 * * 0'
+
+# Cancel obsolete runs when a new commit is pushed to the same PR.
+# Keep manually dispatched runs independent from each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Cancel obsolete runs when a new commit is pushed to the same PR.
 # Keep manually dispatched runs independent from each other.
@@ -38,7 +47,75 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  python:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.changes.outputs.full }}
+      docker: ${{ steps.changes.outputs.docker }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      python: ${{ steps.changes.outputs.python }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine affected checks
+        id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+            printf 'full=true\ndocker=true\nfrontend=true\npython=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "$BASE_SHA" HEAD > "$RUNNER_TEMP/ci-changed-files"
+          test -s "$RUNNER_TEMP/ci-changed-files"
+          full=false
+          docker=false
+          frontend=false
+          python=false
+          while IFS= read -r path; do
+            case "$path" in
+              api/*|core/*|engine/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
+                python=true ;;
+            esac
+            case "$path" in
+              api/*|web/*|core/*|tests/web/*|.github/workflows/tenant-engine.yml)
+                frontend=true ;;
+            esac
+            case "$path" in
+              engine/*|core/*|docker/*|.dockerignore|api/engine_client.py|api/tenant_docker.py|.github/workflows/tenant-engine.yml)
+                docker=true ;;
+            esac
+            case "$path" in
+              engine/*|core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|nautilus_support.py|pyproject.toml|uv.lock|.github/workflows/tenant-engine.yml)
+                full=true ;;
+              api/exchanges/*|api/operations/*|api/strategies/*|api/equity/*|api/market_data/*|api/db/*|api/auth/*|api/tenants/*|api/engine_client.py|api/tenant_docker.py|api/config.py|api/main.py)
+                full=true ;;
+            esac
+          done < "$RUNNER_TEMP/ci-changed-files"
+          printf 'full=%s\ndocker=%s\nfrontend=%s\npython=%s\n' \
+            "$full" "$docker" "$frontend" "$python" >> "$GITHUB_OUTPUT"
+
+  fast_checks:
+    needs: scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked
+      - name: Full Python lint
+        run: uv run ruff check .
+      - name: Contract and isolation smoke tests
+        run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/engine_isolation_test.py
+
+  api_regression:
+    needs: scope
+    if: ${{ needs.scope.outputs.python == 'true' && needs.scope.outputs.full != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -47,12 +124,37 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked
-      - run: uv run ruff check api/main.py api/engine_client.py api/tenant_docker.py api/strategies/service.py api/exchanges/trading.py api/exchanges/router.py api/operations/service.py api/operations/options.py engine/runtime.py engine/connectors/binance/queries.py core/engine_contracts.py core/option_records.py engine/data_queries.py engine/public_queries.py api/market_data/router.py api/market_data/service.py api/market_data/subscriptions.py api/market_data/monitor.py engine/data_manager/service.py engine/data_manager/subscriptions.py engine/data_manager/routes.py engine/data_manager/repository.py engine/data_manager/monitor.py engine/data_manager/contracts.py engine/task_queue.py engine/task_routes.py engine/connectors/binance/operations.py api/exchanges/service.py api/equity/service.py tests/core/engine_contracts_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py tests/engine/data_manager_test.py tests/engine/task_queue_test.py tests/engine/data_jobs_owner_test.py tests/api/market_data_engine_ownership_test.py tests/engine/feed_workers_owner_test.py
-      - run: uv run ruff check api/management/storage.py api/management/service.py api/management/jobs.py api/db/management_repository.py api/config.py migrations/versions/1226686a04d7_initial_business_schema.py tests/api/orm_storage_test.py tests/api/auth_test.py tests/web/storage_test.py
-      - run: uv run pytest -q tests/api/engine_isolation_test.py tests/api/auth_test.py tests/api/orm_storage_test.py tests/api/management_test.py tests/web/storage_test.py
-      - run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/exchanges_test.py tests/api/equity_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/api/strategy_store_test.py tests/api/trading_test.py tests/api/operations_test.py tests/api/options_operations_test.py tests/api/market_data_test.py tests/api/market_data_configuration_test.py tests/api/market_data_remote_test.py tests/api/market_data_engine_ownership_test.py tests/api/async_tasks_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py tests/engine/strategy_load_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py tests/engine/data_manager_test.py tests/engine/task_queue_test.py tests/engine/data_jobs_owner_test.py tests/engine/feed_workers_owner_test.py
+      - name: API and Web backend regression
+        run: uv run pytest -q tests/api tests/web
+
+  frontend:
+    needs: scope
+    if: ${{ needs.scope.outputs.frontend == 'true' && needs.scope.outputs.full != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Frontend unit tests
+        working-directory: web
+        run: npm run test:frontend
+      - name: Frontend lint
+        working-directory: web
+        run: npm run lint
+      - name: Frontend production build
+        working-directory: web
+        run: npm run build
 
   docker:
+    needs: scope
+    if: ${{ needs.scope.outputs.docker == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -171,6 +273,8 @@ jobs:
           PY
 
   full_acceptance:
+    needs: scope
+    if: ${{ needs.scope.outputs.full == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -187,8 +291,8 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y zsh
       - name: Build Rust converter for full data-pipeline tests
         run: cargo build --locked --release --manifest-path engine/pipeline/rust_converter/Cargo.toml
-      - name: Full Python lint
-        run: uv run ruff check .
+      - name: Rust converter unit tests
+        run: cargo test --locked --release --manifest-path engine/pipeline/rust_converter/Cargo.toml
       - name: Full Python regression suite
         run: uv run pytest -q
       - name: Frontend dependencies
