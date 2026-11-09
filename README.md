@@ -6,6 +6,19 @@ SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密�
 本仓库使用 `nautilus-trader 2.0.0rc7` 候选版软件包作为底层引擎，
 并不是上游 NautilusTrader 源代码仓库的副本。SeeAlpha 是产品名称，NautilusTrader 是底层引擎名称。
 
+
+## 产品定位与长期边界（2026-11-09）
+
+SeeAlpha = **量化交易能力内核（Engine）+ 量化研发与运营平台（Platform）**。
+Engine 专注数据、回测、策略运行、风控和交易执行的正确性、性能与可靠性；
+Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、任务编排、
+可视化和业务运营，实际量化计算由 Engine 承担。
+
+**目前维持单仓库开发**，但以 Engine 可独立构建、运行、发布，未来可独立仓库为目标。
+职责归属、依赖规则、剩余解耦项与验收条件见
+[Engine / Platform 产品与架构边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)；
+这不意味着当前已完成全部解耦，也不意味着已经启用实盘策略。
+
 ## 产品范围与当前实现
 
 多资产、多交易产品是 SeeAlpha 的产品定位；具体市场能否使用，取决于对应连接器、
