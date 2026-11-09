@@ -257,16 +257,20 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     from tests.web.jobs_test import finished, module
 
     db, _, _ = orm
+    from api.db.management_repository import ManagementRepository
+
     directory = tmp_path / ".local/state/web/jobs"
     directory.mkdir(parents=True)
     identity = "a" * 32
-    legacy = {
+    running = {
         "id": identity,
         "action": "check_quick",
         "status": "running",
         "created_at": "2026-01-01T00:00:00Z",
     }
-    (directory / f"{identity}.json").write_text(json.dumps(legacy))
+    ManagementRepository(db).save_job(dict(running))
+    # The pre-ORM JSON file is no longer imported into the business database.
+    (directory / f"{identity}.json").write_text(json.dumps({**running, "status": "failed"}))
     logs = tmp_path / "logs/web"
     logs.mkdir(parents=True)
     (logs / f"{identity}.log").write_text("previous output")
@@ -284,7 +288,7 @@ def test_management_history_and_report_index_survive_restart_and_unmounted_data(
     with db.session() as session:
         assert session.get(ManagementJob, identity).payload["status"] == "interrupted"
         assert len(session.scalars(select(BacktestReport)).all()) == 1
-    # A stale JSON snapshot must not overwrite an already migrated job.
+    # A stale JSON snapshot must never overwrite an ORM job.
     jobs = JobManager(tmp_path, orm_database=db)
     assert jobs.get_job(identity)["status"] == "interrupted"
     assert jobs.get_job(new_identity)["status"] == "succeeded"
