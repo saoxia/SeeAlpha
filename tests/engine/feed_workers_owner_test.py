@@ -179,8 +179,8 @@ def test_engine_option_delete_waits_for_access_lease_and_preserves_files(tmp_pat
     evidence.write_text("retained")
 
     reader = manager._lease(contract, "options", access=True, shared=True)
-    from types import SimpleNamespace
     from time import time as wall_time
+    from types import SimpleNamespace
 
     clock = iter([100.0, 106.0])
     monkeypatch.setattr(
