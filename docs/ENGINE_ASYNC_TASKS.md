@@ -6,7 +6,7 @@ Engine Docker 为每个租户维护独立的任务记录。业务 API 通过 HTT
 提交任务、查询进度、取消和获取结果，不在 HTTP 连接内等待回测结束。
 
 - `POST /tenants/{tenant_id}/jobs`：`kind=backtest|data`，返回 202 任务快照；
-  可以提供 `idempotency_key`（1-128 个安全字符），重复请求返回同一 ID，
+  可以提供 `idempotency_key`（1-128 个安全字符，作用域为租户及任务类型），重复请求返回同一 ID，
   同键不同参数返回 409。
 - `GET /tenants/{tenant_id}/jobs`：返回 `items`，合并回测和既有行情任务。
 - `GET /tenants/{tenant_id}/jobs/{id}`：统一任务快照。
