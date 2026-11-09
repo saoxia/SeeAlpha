@@ -7,7 +7,7 @@ on:
       - "core/**"
       - "engine/**"
       - "tests/engine/data_queries_test.py"
-      - "tests/engine/venue_http_test.py tests/engine/data_queries_test.py"
+      - "tests/engine/venue_http_test.py"
       - "nautilus_support.py"
       - "docker/**"
       - ".dockerignore"
@@ -26,8 +26,8 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked
-      - run: uv run ruff check api/main.py api/engine_client.py api/tenant_docker.py api/strategies/service.py api/exchanges/trading.py api/exchanges/router.py api/operations/service.py api/operations/options.py engine/runtime.py engine/connectors/binance/queries.py core/engine_contracts.py core/option_records.py engine/data_queries.py engine/public_queries.py api/market_data/router.py engine/connectors/binance/operations.py api/exchanges/service.py api/equity/service.py tests/core/engine_contracts_test.py tests/engine/venue_http_test.py
-      - run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/exchanges_test.py tests/api/equity_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/api/strategy_store_test.py tests/api/trading_test.py tests/api/operations_test.py tests/api/options_operations_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py tests/engine/strategy_load_test.py tests/engine/venue_http_test.py
+      - run: uv run ruff check api/main.py api/engine_client.py api/tenant_docker.py api/strategies/service.py api/exchanges/trading.py api/exchanges/router.py api/operations/service.py api/operations/options.py engine/runtime.py engine/connectors/binance/queries.py core/engine_contracts.py core/option_records.py engine/data_queries.py engine/public_queries.py api/market_data/router.py engine/connectors/binance/operations.py api/exchanges/service.py api/equity/service.py tests/core/engine_contracts_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py
+      - run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/exchanges_test.py tests/api/equity_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/api/strategy_store_test.py tests/api/trading_test.py tests/api/operations_test.py tests/api/options_operations_test.py tests/api/market_data_test.py tests/api/market_data_configuration_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py tests/engine/strategy_load_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py
 
   docker:
     runs-on: ubuntu-latest
