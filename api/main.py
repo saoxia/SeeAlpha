@@ -75,12 +75,16 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 app.state.management = runtime.__enter__()
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
+            if app.state.engine.remote:
+                await asyncio.to_thread(app.state.market_data.reconcile_jobs)
             await asyncio.to_thread(app.state.market_data.subscriptions.restore)
             await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
             async def reconcile_configuration():
                 while True:
                     await asyncio.sleep(15)
+                    if app.state.engine.remote:
+                        await asyncio.to_thread(app.state.market_data.reconcile_jobs)
                     await asyncio.to_thread(app.state.market_data.subscriptions.restore)
                     await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
@@ -93,7 +97,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                     await asyncio.sleep(5)
 
             configuration_task = asyncio.create_task(reconcile_configuration())
-            monitor_task = asyncio.create_task(monitor_services())
+            if not app.state.engine.remote:
+                monitor_task = asyncio.create_task(monitor_services())
             portfolio_task = asyncio.create_task(app.state.exchanges.portfolio_worker())
 
             async def refresh_olap():
