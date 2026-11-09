@@ -27,7 +27,7 @@ PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
 
 
 @pytest.fixture
-def context(tmp_path, monkeypatch):
+def context(tmp_path, monkeypatch, engine_http):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url
@@ -62,8 +62,15 @@ def context(tmp_path, monkeypatch):
         def market_control(self, operation, payload=None):
             if operation == "sync":
                 self.sync_calls.append(payload)
-                # Isolate legacy local-Catalog tests from live feed spawning.
-                # Engine process lifecycle is tested in tests/engine/.
+                # Persist the same Engine-side policy manifest as HTTP /sync,
+                # without launching real live workers in these API tests.
+                from engine.data_manager.contracts import DataPolicy as EnginePolicy
+
+                resident = engine_http.app.state.market_data
+                resident.policy_repository.save(
+                    [EnginePolicy.model_validate(p) for p in payload["policies"]],
+                    tenant_id=resident.tenant_id,
+                )
                 return {"synced": len(payload["policies"]), "last_error": None}
             return self.engine.market_control(operation, payload)
 
