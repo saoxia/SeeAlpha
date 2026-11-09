@@ -44,9 +44,10 @@ def test_tenant_data_reads_reject_unauthorized_and_other_tenant(tmp_path, monkey
         assert client.post(
             "/tenants/42/data/coverage", json=request, headers=headers,
         ).status_code == 200
+        # A day-long preview must be rejected; this route allows at most 15 minutes.
         assert client.post(
             "/tenants/42/data/page", json={**request, "limit": 30}, headers=headers,
-        ).status_code == 404
+        ).status_code == 422
         recent_preview = client.post("/tenants/42/data/page", json={
             **request, "start": "2026-08-01T09:00:00Z",
             "end": "2026-08-01T09:05:00Z",
