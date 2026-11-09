@@ -90,6 +90,8 @@ def test_durable_backtest_idempotency_and_result_are_tenant_scoped(tmp_path):
     jobs = TaskCoordinator(runtime, FakeData(), tmp_path)
     try:
         initial = jobs.submit("1", "backtest", parameters(), idempotency_key="experiment-1")
+        # Previously accepted requests must replay even when issuance is gone.
+        runtime.store.strategy_loads = lambda *_a, **_kw: []
         same = jobs.submit("1", "backtest", parameters(), idempotency_key="experiment-1")
         assert initial["id"] == same["id"]
         assert "idempotency_key" not in initial and "fingerprint" not in initial
