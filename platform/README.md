@@ -77,3 +77,16 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 旧 `tests/api/conftest.py` 仍服务于依赖 Engine 实现与真实回测数据的联合回归；
 其 Engine 实现导入已下沉到夹具执行时，而不在测试收集阶段加载。
 旧联合测试完全改为跨进程前不能删除旧 `engine/`。
+
+## 策略与异步回测的业务端测试
+
+`tests/api/async_tasks_test.py` 已迁入独立 `platform/tests/async_tasks_test.py`。
+原测试需要的业务数据库和管理员会话在专用临时 SQLite 中初始化；只测试路由鉴权、
+任务提交、结果获取、取消和重试，因此故意关闭后台启动与 Engine 生命周期，
+并对任何意外的 Engine HTTP 调用直接报错。不依赖根目录的 `tests/api/backtest_test.py`
+和旧 `tests/api/conftest.py`。
+
+`platform/tests/strategy_policy_test.py` 包含迁移的策略模块源码边界检查，以及
+开发租户回测权限、账户所有权、资金/参数转发、异步幂等键透传、正式租户未授权
+策略不可下发等隔离的 Platform 业务单元测试。它们不代替真正的 Engine 策略包
+加载、回测 Catalog、交易所执行测试；这些仍在旧联合测试与独立 Engine 仓库。
