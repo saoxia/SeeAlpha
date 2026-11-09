@@ -297,11 +297,11 @@ def test_task_stream_does_not_repeat_durable_recovery_checks(context, monkeypatc
     client, app, _root = context
     login(client)
 
-    def recover():
-        raise AssertionError("stream publishing must not mutate or repeat recovery")
+    def reconcile_jobs():
+        raise AssertionError("read-only task streams must not perform business settlement")
 
     with monkeypatch.context() as patch:
-        patch.setattr(app.state.market_data, "recover", recover)
+        patch.setattr(app.state.market_data, "reconcile_jobs", reconcile_jobs)
         with client.websocket_connect("/api/data/jobs/stream", headers={"origin": "http://testserver"}) as ws:
             assert ws.receive_json()["type"] == "tasks"
             assert ws.receive_json()["type"] == "heartbeat"
@@ -702,10 +702,8 @@ def test_configuration_only_in_database_operations_and_monitor_only_in_files(con
     with app.state.database.session() as session:
         assert session.scalar(select(func.count()).select_from(MarketDataPolicy)) == 1
         assert session.scalar(select(func.count()).select_from(ManagementJob)) == 0
-    manager.repository.save_job({"id": "c" * 32, "action": "tick_data:validate", "status": "succeeded",
-                                 "created_at": datetime.now(UTC).isoformat(), "parameters": PARAMETERS,
-                                 "finished_at": None, "result": None, "error": None})
-    assert len(list((root / ".local/state/api/data_jobs/operations").glob("*.json"))) == 1
+    # No Platform-local task record is created for a business configuration edit.
+    assert not (root / ".local/state/api/data_jobs/operations").exists()
     manager.subscriptions.close()
     manager.subscriptions = Subscriptions(manager)
     manager.subscriptions.restore()
@@ -1193,7 +1191,7 @@ def test_option_group_delete_timeout_retains_paused_configuration_and_data(conte
         response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
         assert response.status_code == 409, response.text
         assert "重新预览" in response.json()["detail"]
-        assert not manager.repository.list_jobs()
+        assert client.get("/api/data/jobs").json() == []
         assert source.read_text() == "evidence"
         policies = {p["symbol"]: p for p in manager.policy_repository.list()}
         assert set(policies) == set(symbols)
