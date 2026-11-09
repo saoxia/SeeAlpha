@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 from .artifacts import BACKTESTS, CHECKS, artifact_path
 from .jobs import ACTIONS, STRATEGIES, JobManager, JobReader
-from .storage import WebPaths, migrate_legacy, runtime_lock
+from .storage import WebPaths, runtime_lock
 
 
 def snapshot(project, relative, max_age):
@@ -113,7 +113,6 @@ def management_runtime(project, database):
     orm = database if getattr(database, "backend", None) == "orm" else None
     with runtime_lock(paths, required=False) as owner:
         if owner:
-            migrate_legacy(paths)
             jobs = JobManager(paths.project, orm_database=orm)
         else:
             logging.getLogger(__name__).warning(
