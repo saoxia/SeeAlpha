@@ -114,39 +114,6 @@ def test_tick_only_plan_and_inventory_levels(context):
     assert items == []
 
 
-@pytest.mark.parametrize("product,symbol", [("futures_um", "ETHUSDT"), ("options", "BTC-261225-85000-C")])
-def test_cross_year_plan_and_job_preserve_full_range(context, monkeypatch, product, symbol):
-    client, app, root = context
-    login(client)
-
-    async def catalog(_environment, product="futures_um"):
-        return [{"symbol": symbol, "base": "ETH", "quote": "USDT"}]
-
-    monkeypatch.setattr(app.state.exchanges, "catalog", catalog)
-    payload = {"symbol": symbol, "product": product, "start": "2024-01-01T00:00:00Z",
-               "end": "2026-08-01T00:00:00Z", "intervals": ["1m"]}
-    assert client.get("/api/data/capabilities").json()["max_range_days"] is None
-    response = client.post("/api/data/prepare/plan", json=payload)
-    assert response.status_code == 200, response.text
-    plan = response.json()
-    assert len(plan["days"]) == (datetime(2026, 8, 1) - datetime(2024, 1, 1)).days
-    assert plan["days"][0]["day"] == "2024-01-01" and plan["days"][-1]["day"] == "2026-07-31"
-    original, captured = subprocess.Popen, []
-
-    def worker(command, **kwargs):
-        captured.append(json.loads(command[command.index("--request") + 1]))
-        return original([sys.executable, "-c", "print('range accepted', flush=True)"], **kwargs)
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", worker)
-    response = client.post("/api/data/jobs", json={**payload, "action": "prepare"})
-    assert response.status_code == 202, response.text
-    for thread in app.state.market_data.threads:
-        thread.join(timeout=5)
-    assert captured[0]["start"].startswith("2024-01-01") and captured[0]["end"].startswith("2026-08-01")
-    assert captured[0]["product"] == product
-    assert not (root / "data/raw").exists()
-
-
 def test_feed_symbol_progress_is_read_only_validated_and_expires(context):
     client, _app, root = context
     login(client)
@@ -171,127 +138,6 @@ def test_feed_symbol_progress_is_read_only_validated_and_expires(context):
     path.write_text(json.dumps(value))
     response = client.get("/api/data/feed/status").json()
     assert response["reason"] == "invalid_status" and not response["data_ready"]
-
-
-def test_delete_requires_admin_explicit_confirmation_and_unchanged_plan(context, monkeypatch):
-    client, app, root = context
-    from engine.pipeline.sync_binance_batch import archive_path
-    archive = root / "data/raw" / archive_path("ETHUSDT", "trades", datetime(2026, 8, 1).date()).removeprefix("data/")
-    archive.parent.mkdir(parents=True)
-    archive.write_bytes(b"local-archive")
-    payload = {**PARAMETERS, "delete_archives": True}
-    login(client, username="viewer")
-    assert client.post("/api/data/delete/plan", json=payload).status_code == 403
-    login(client)
-    response = client.post("/api/data/delete/plan", json=payload)
-    assert response.status_code == 200, response.text
-    plan = response.json()
-    assert plan["file_count"] == 1 and archive.exists()
-    job = {**payload, "action": "delete", "deletion_snapshot": plan["snapshot"], "confirmation": "DELETE ETHUSDT"}
-    assert client.post("/api/data/jobs", json={**job, "confirmation": "DELETE BTCUSDT"}).status_code == 422
-    assert client.post("/api/data/jobs", json={**job, "confirmation": None}).status_code == 422
-    assert client.post("/api/data/jobs", json=job, headers={"origin": "https://evil.example"}).status_code == 403
-    archive.write_bytes(b"changed-archive")
-    assert client.post("/api/data/jobs", json=job).status_code == 409
-    assert archive.exists() and not app.state.market_data.jobs()
-    job["deletion_snapshot"] = client.post("/api/data/delete/plan", json=payload).json()["snapshot"]
-    original = subprocess.Popen
-
-    def local_worker(command, **kwargs):
-        parameters = json.loads(command[command.index("--request") + 1])
-        identity = command[-1]
-        settings = root / "data"
-        result_path = root / ".local/state/api/data_jobs" / f"{identity}.json"
-        project = str(Path(__file__).resolve().parents[2])
-        script = f"""
-import sys, json
-sys.path.insert(0, {project!r})
-from pathlib import Path
-from datetime import datetime
-from engine.pipeline.models import PipelineSettings
-from engine.pipeline.data_management import checked_request, execute
-parameters = {parameters!r}
-root = Path({str(settings)!r})
-settings = PipelineSettings('futures_um', 'trades', ('ETHUSDT',), ('1m',), root/'raw', root/'catalog', root/'state')
-request = checked_request(parameters['symbol'], datetime.fromisoformat(parameters['start']), datetime.fromisoformat(parameters['end']), parameters['intervals'], settings)
-result = execute('delete', request, settings, root/'unused', expected_snapshot=parameters['deletion_snapshot'], delete_archives=True)
-Path({str(result_path)!r}).write_text(json.dumps(result))
-"""
-        return original([sys.executable, "-c", script], **kwargs)
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
-    response = client.post("/api/data/jobs", json=job)
-    assert response.status_code == 202, response.text
-    for thread in app.state.market_data.threads:
-        thread.join(timeout=15)
-    detail = client.get(f"/api/data/jobs/{response.json()['id']}").json()
-    assert detail["status"] == "succeeded", detail
-    assert detail["result"]["deleted_files"] == 1
-    assert not archive.exists()
-
-
-def test_process_job_exclusion_cancellation_and_recovery(context, monkeypatch):
-    client, app, root = context
-    login(client)
-    manager = app.state.market_data
-    original = subprocess.Popen
-
-    def local_worker(command, **kwargs):
-        assert command[1:3] == ["-m", "engine.pipeline.data_management"]
-        assert "--force" not in command
-        script = "import time; print('checking', flush=True); time.sleep(30)"
-        return original([sys.executable, "-c", script], **kwargs)
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
-    response = client.post("/api/data/jobs", json={**PARAMETERS, "action": "validate"})
-    assert response.status_code == 202, response.text
-    identity = response.json()["id"]
-    assert client.post("/api/data/jobs", json={**PARAMETERS, "action": "prepare"}).status_code == 409
-    other = DataService(app.state.database, project=root)
-    with pytest.raises(Exception) as error:
-        other.start(DataJobRequest(**PARAMETERS, action="export"))
-    assert error.value.status_code == 409
-    assert client.post(f"/api/data/jobs/{identity}/cancel").status_code == 200
-    for thread in manager.threads:
-        thread.join(timeout=5)
-    assert client.get(f"/api/data/jobs/{identity}").json()["status"] == "cancelled"
-    assert client.get(f"/api/data/jobs/{identity}/download").status_code == 409
-    orphan = {"id": "f" * 32, "action": "tick_data:prepare", "status": "running",
-              "created_at": datetime.now(UTC).isoformat(), "finished_at": None,
-              "parameters": PARAMETERS, "result": None, "error": None}
-    manager.repository.save_job(orphan)
-    other.recover()
-    assert other.job(orphan["id"])["status"] == "interrupted"
-
-
-def test_success_result_and_export_download(context, monkeypatch):
-    client, app, root = context
-    login(client)
-    original = subprocess.Popen
-
-    def local_worker(command, **kwargs):
-        identity = command[-1]
-        path = root / ".local/state/api/data_jobs" / f"{identity}.json"
-        output = root / "data/exports/ticks" / f"{identity}.csv"
-        script = ("from pathlib import Path; import json; "
-                  f"p=Path({str(path)!r}); p.write_text(json.dumps({{'rows': 2}})); "
-                  f"p=Path({str(output)!r}); p.parent.mkdir(parents=True, exist_ok=True); "
-                  "p.write_text('trade_id,price\\n1,3000.10\\n')")
-        return original([sys.executable, "-c", script], **kwargs)
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", local_worker)
-    identity = client.post("/api/data/jobs", json={**PARAMETERS, "action": "export"}).json()["id"]
-    for thread in app.state.market_data.threads:
-        thread.join(timeout=5)
-    job = client.get(f"/api/data/jobs/{identity}").json()
-    assert job["status"] == "succeeded", job
-    assert job["result"]["rows"] == 2
-    response = client.get(f"/api/data/jobs/{identity}/download")
-    assert response.status_code == 200 and "3000.10" in response.text
-    output = root / "data/exports/ticks" / f"{identity}.csv"
-    output.unlink()
-    output.symlink_to(root / "business.db")
-    assert client.get(f"/api/data/jobs/{identity}/download").status_code == 404
 
 
 def test_task_stream_auth_origin_and_read_only(context):
@@ -322,43 +168,6 @@ def test_task_stream_auth_origin_and_read_only(context):
         with pytest.raises(WebSocketDisconnect) as denied:
             ws.receive_json()
         assert denied.value.code == 1008
-
-
-def test_task_stream_logs_completion_reconnect_and_revocation(context):
-    from starlette.websockets import WebSocketDisconnect
-
-    client, app, root = context
-    login(client)
-    manager = app.state.market_data
-    identity = "a" * 32
-    record = {"id": identity, "action": "tick_data:prepare", "status": "succeeded",
-              "created_at": "2026-08-02T00:00:00+00:00", "finished_at": "2026-08-02T00:01:00+00:00",
-              "parameters": PARAMETERS, "error": None, "result": {"ready": True}}
-    manager.repository.save_job(record)
-    manager.log_directory.mkdir(parents=True)
-    log = manager.log_directory / f"{identity}.log"
-    log.write_text("x" * 40000 + "\n转换中\n")
-    path = f"/api/data/jobs/stream?job_id={identity}"
-    headers = {"origin": "http://testserver"}
-    with client.websocket_connect(path, headers=headers) as ws:
-        first = ws.receive_json()
-        assert first["detail"]["log_truncated"]
-        assert first["tasks"][0]["progress"] == "转换中"
-        assert len(first["detail"]["log"].encode()) <= 32768
-        log.write_text("转换完成\n")
-        update = ws.receive_json()
-        assert update["detail"]["log"] == "转换完成\n"
-        assert ws.receive_json() == {"type": "heartbeat"}
-        record.update(status="failed", error="fixture failure")
-        manager.repository.save_job(record)
-        assert ws.receive_json()["tasks"][0]["status"] == "failed"
-    with client.websocket_connect(path, headers=headers) as ws:
-        assert ws.receive_json()["tasks"][0]["status"] == "failed"
-        assert client.post("/api/auth/logout").status_code == 204
-        with pytest.raises(WebSocketDisconnect) as closed:
-            ws.receive_json()
-        assert closed.value.code == 1008
-    assert not (root / "data/catalog").exists()
 
 
 def test_task_stream_storage_failure_allows_client_retry(context, monkeypatch):
@@ -488,11 +297,11 @@ def test_task_stream_does_not_repeat_durable_recovery_checks(context, monkeypatc
     client, app, _root = context
     login(client)
 
-    def recover():
-        raise AssertionError("stream publishing must not mutate or repeat recovery")
+    def reconcile_jobs():
+        raise AssertionError("read-only task streams must not perform business settlement")
 
     with monkeypatch.context() as patch:
-        patch.setattr(app.state.market_data, "recover", recover)
+        patch.setattr(app.state.market_data, "reconcile_jobs", reconcile_jobs)
         with client.websocket_connect("/api/data/jobs/stream", headers={"origin": "http://testserver"}) as ws:
             assert ws.receive_json()["type"] == "tasks"
             assert ws.receive_json()["type"] == "heartbeat"
@@ -679,24 +488,6 @@ def test_legacy_policy_file_does_not_enable_collection_by_default(context):
     assert not app.state.market_data.subscriptions.processes
 
 
-def test_history_retry_preserves_resolved_bounds_and_auth(context, monkeypatch):
-    client, app, _root = context
-    login(client)
-    manager = app.state.market_data
-    parameters = {"symbol": "ETHUSDT", "product": "futures_um", "base_level": "1m", "intervals": [],
-                  "realtime_enabled": False, "history_enabled": True, "history_mode": "duration", "history_days": 30,
-                  "resolved_start": "2026-08-01T00:00:00+00:00", "resolved_end": "2026-09-01T00:00:00+00:00"}
-    identity = "b" * 32
-    manager.repository.save_job({"id": identity, "action": "tick_data:backfill", "status": "failed", "created_at": "2026-10-01T00:00:00Z",
-                                 "finished_at": "2026-10-01T01:00:00Z", "parameters": parameters, "error": "network", "result": None})
-    captured = []
-    monkeypatch.setattr(manager, "start", lambda payload, **kwargs: captured.append(kwargs) or {"id": "c" * 32})
-    manager.retry(identity)
-    assert captured[0]["resolved_history"] == {key: parameters[key] for key in ("resolved_start", "resolved_end")}
-    login(client, username="viewer")
-    assert client.post(f"/api/data/jobs/{identity}/retry").status_code == 403
-
-
 def test_managed_inventory_and_preview_read_persisted_evidence(context):
     from api.market_data.contracts import DataPolicy
     from engine.feed.pair_store import PairStore
@@ -720,75 +511,6 @@ def test_managed_inventory_and_preview_read_persisted_evidence(context):
     retained = client.get("/api/data/datasets?all_levels=true").json()["items"]
     assert any(item["level"] == "1h" for item in retained)
     assert (root / "collection.sqlite").is_file()
-
-
-@pytest.mark.parametrize("worker_succeeds,has_data", [(True, True), (False, True), (True, False)])
-def test_pair_delete_stops_collection_and_removes_configuration_only_on_success(context, monkeypatch, worker_succeeds, has_data):
-    client, app, root = context
-    from api.market_data.contracts import DataPolicy
-    from engine.pipeline.pair_deletion import delete_pair_data
-    manager = app.state.market_data
-    payload = {"symbol": "ETHUSDT", "product": "futures_um"}
-    assert client.post("/api/data/pairs/delete/plan", json=payload).status_code == 401
-    login(client, username="viewer")
-    assert client.post("/api/data/pairs/delete/plan", json=payload).status_code == 403
-    login(client)
-    manager.subscriptions.save(DataPolicy(**payload, realtime_enabled=False))
-    manager.subscriptions.save(DataPolicy(symbol="BTCUSDT", realtime_enabled=False))
-    # Simulate an owned collector without starting any venue connection.
-    policy = manager.subscriptions._read()[0]
-    manager.subscriptions._write([policy.model_copy(update={"realtime_enabled": True}), manager.subscriptions._read()[1]])
-    collector = object()
-    manager.subscriptions.processes[("futures_um", "ETHUSDT")] = collector
-    stopped = []
-    monkeypatch.setattr(manager, "_stop", lambda process: stopped.append(process))
-    archive = root / "data/raw/futures/um/daily/trades/ETHUSDT/archive.zip"
-    archive.parent.mkdir(parents=True)
-    if has_data:
-        archive.write_bytes(b"local archive")
-    plan = client.post("/api/data/pairs/delete/plan", json=payload)
-    assert plan.status_code == 200, plan.text
-    assert collector in stopped
-    assert not next(p for p in manager.subscriptions._read() if p.symbol == "ETHUSDT").realtime_enabled
-    request = {**payload, "deletion_snapshot": plan.json()["snapshot"], "confirmation": "DELETE ETHUSDT"}
-    assert client.post("/api/data/pairs/delete", json={**request, "confirmation": "DELETE BTCUSDT"}).status_code == 422
-    assert client.post("/api/data/pairs/delete", json=request, headers={"origin": "https://evil.example"}).status_code == 403
-    if has_data:
-        archive.write_bytes(b"changed")
-        assert client.post("/api/data/pairs/delete", json=request).status_code == 409
-    request["deletion_snapshot"] = client.post("/api/data/pairs/delete/plan", json=payload).json()["snapshot"]
-    settings = manager.request(DataJobRequest(**PARAMETERS, action="validate"))[1]
-
-    class Worker:
-        returncode = 0 if worker_succeeds else 1
-        def wait(self, timeout):
-            if worker_succeeds:
-                result = delete_pair_data("ETHUSDT", "futures_um", settings, expected_snapshot=request["deletion_snapshot"], project=root)
-                (manager.directory / f"{identity}.json").write_text(json.dumps(result))
-
-    def spawn(command, **kwargs):
-        nonlocal identity
-        identity = command[-1]
-        assert "delete_pair" in command
-        from fastapi import HTTPException
-        with pytest.raises(HTTPException) as denied:
-            manager.subscriptions.save(DataPolicy(**payload, realtime_enabled=False))
-        assert denied.value.status_code == 409
-        return Worker()
-
-    identity = ""
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    response = client.post("/api/data/pairs/delete", json=request)
-    assert response.status_code == 202, response.text
-    for thread in manager.threads:
-        thread.join(timeout=10)
-    detail = client.get(f"/api/data/jobs/{identity}").json()
-    assert detail["status"] == ("succeeded" if worker_succeeds else "failed"), detail
-    assert archive.exists() == (has_data and not worker_succeeds)
-    policies = manager.subscriptions._read()
-    assert any(p.symbol == "ETHUSDT" for p in policies) is not worker_succeeds
-    assert any(p.symbol == "BTCUSDT" for p in policies)
-    assert not manager.subscriptions.deleting
 
 
 def test_pair_delete_empty_configuration_exclusion_and_mount_failure(context):
@@ -842,38 +564,6 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
             assert client.get("/api/data/ticks", params={**PARAMETERS, "interval": "tick"}).status_code == 409
     finally:
         reader.close()
-
-
-def test_different_pair_jobs_run_together_and_recovery_does_not_interrupt_live_workers(context, monkeypatch):
-    client, app, root = context
-    login(client)
-    manager = app.state.market_data
-    original = subprocess.Popen
-    def worker(command, **kwargs):
-        return original([sys.executable, "-c", "import time; time.sleep(30)"], **kwargs)
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", worker)
-    first = client.post("/api/data/jobs", json={**PARAMETERS, "action": "validate"})
-    second = client.post("/api/data/jobs", json={**PARAMETERS, "symbol": "XRPUSDT", "action": "validate"})
-    assert first.status_code == second.status_code == 202
-    assert len(manager.processes) == 2
-    assert client.post("/api/data/jobs", json={**PARAMETERS, "action": "validate"}).status_code == 409
-    other = DataService(app.state.database, project=root)
-    try:
-        foreign = other.start(DataJobRequest(**{**PARAMETERS, "symbol": "BTCUSDT"}, action="validate"))
-        orphan = {"id": "e" * 32, "action": "tick_data:prepare", "status": "running",
-                  "created_at": datetime.now(UTC).isoformat(), "finished_at": None,
-                  "parameters": {**PARAMETERS, "symbol": "SOLUSDT"}, "result": None, "error": None}
-        manager.repository.save_job(orphan)
-        # Reconcile an unrelated orphan even while this API owns other live jobs.
-        manager.jobs()
-        records = {job["id"]: job for job in manager._records()}
-        assert records[orphan["id"]]["status"] == "interrupted"
-        assert all(records[identity]["status"] == "running" for identity in (first.json()["id"], second.json()["id"], foreign["id"]))
-        manager.cancel(first.json()["id"])
-        assert manager.processes[second.json()["id"]][0].poll() is None
-        assert other.processes[foreign["id"]][0].poll() is None
-    finally:
-        other.close()
 
 
 def test_realtime_configuration_coexists_with_history_and_does_not_restart_unchanged_collection(context, monkeypatch):
@@ -952,18 +642,6 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
         pass
 
 
-def test_recovery_rechecks_terminal_state_after_acquiring_pair(context, monkeypatch):
-    _client, app, _root = context
-    manager = app.state.market_data
-    record = {"id": "d" * 32, "action": "tick_data:validate", "status": "running", "parameters": PARAMETERS}
-    snapshots = iter([[record], [{**record, "status": "succeeded"}]])
-    monkeypatch.setattr(manager, "_records", lambda: next(snapshots))
-    def unexpected(_record):
-        raise AssertionError("Recovery overwrote a completed job")
-    monkeypatch.setattr(manager.repository, "save_job", unexpected)
-    manager.recover()
-
-
 def test_rejected_duplicate_pair_delete_preserves_the_running_delete_marker(context):
     client, app, _root = context
     login(client)
@@ -1010,27 +688,6 @@ def test_stream_storage_failure_after_client_disconnect_closes_without_secondary
     asyncio.run(task_stream(socket, user))
 
 
-def test_status_lists_terminal_tasks_once_and_still_recovers_orphans(context, monkeypatch):
-    _client, app, _root = context
-    manager = app.state.market_data
-    base = {"id": "b" * 32, "action": "tick_data:validate", "status": "succeeded",
-            "created_at": datetime.now(UTC).isoformat(), "finished_at": datetime.now(UTC).isoformat(),
-            "parameters": PARAMETERS, "result": None, "error": None}
-    manager.repository.save_job(base)
-    original = manager.repository.list_jobs
-    reads = []
-    def read():
-        reads.append(True)
-        return original()
-    monkeypatch.setattr(manager.repository, "list_jobs", read)
-    assert manager.jobs()[0]["status"] == "succeeded"
-    assert len(reads) == 1
-    manager.repository.save_job({**base, "status": "running", "finished_at": None})
-    reads.clear()
-    assert manager.jobs()[0]["status"] == "interrupted"
-    assert len(reads) == 2  # Fresh state is checked after acquiring the pair lease.
-
-
 def test_configuration_only_in_database_operations_and_monitor_only_in_files(context, monkeypatch):
     from sqlalchemy import func, select
 
@@ -1045,10 +702,8 @@ def test_configuration_only_in_database_operations_and_monitor_only_in_files(con
     with app.state.database.session() as session:
         assert session.scalar(select(func.count()).select_from(MarketDataPolicy)) == 1
         assert session.scalar(select(func.count()).select_from(ManagementJob)) == 0
-    manager.repository.save_job({"id": "c" * 32, "action": "tick_data:validate", "status": "succeeded",
-                                 "created_at": datetime.now(UTC).isoformat(), "parameters": PARAMETERS,
-                                 "finished_at": None, "result": None, "error": None})
-    assert len(list((root / ".local/state/api/data_jobs/operations").glob("*.json"))) == 1
+    # No Platform-local task record is created for a business configuration edit.
+    assert not (root / ".local/state/api/data_jobs/operations").exists()
     manager.subscriptions.close()
     manager.subscriptions = Subscriptions(manager)
     manager.subscriptions.restore()
@@ -1101,22 +756,6 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
             manager.subscriptions.processes.clear()
             manager.subscriptions.auxiliary.clear()
     reader.join()
-
-
-def test_corrupt_legacy_operation_does_not_hide_service_monitor_or_storage(context):
-    client, app, _root = context
-    login(client)
-    manager = app.state.market_data
-    directory = manager.repository.directory
-    directory.mkdir(parents=True)
-    broken = directory / ('d' * 32 + '.json')
-    broken.write_text('incomplete write evidence')
-    response = client.get('/api/data/status')
-    assert response.status_code == 200 and response.json()['storage']['available']
-    assert response.json()['operation_error'] and response.json()['tasks'] == []
-    assert client.get('/api/data/services').status_code == 200
-    assert client.get('/api/data/jobs').status_code == 503
-    assert broken.read_text() == 'incomplete write evidence'
 
 
 def test_explicit_configuration_import_preserves_database_parameters_and_never_starts_services(context, monkeypatch):
@@ -1535,69 +1174,6 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
     assert [item["policy"]["symbol"] for item in subscriptions.items(group_options=True)] == ["BTCUSDT"]
 
 
-def test_option_group_deletion_pauses_every_contract_but_preserves_other_underlyings(context, monkeypatch):
-    import threading
-
-    from api.market_data.contracts import DataPolicy
-    from engine.pipeline.pair_deletion import delete_pair_data
-
-    client, app, root = context
-    login(client)
-    manager = app.state.market_data
-    monkeypatch.setattr(manager.subscriptions, "_start_options", lambda: None)
-    symbols = ("ALL", "BTCUSDT", "BTC-261225-85000-C", "BTC-270129-90000-P", "ETHUSDT", "ETH-261225-3000-C")
-    manager.subscriptions._write([DataPolicy(product="options", symbol=s) for s in symbols])
-    source = root / "data/raw/options/BTC-261225-85000-C/source.json"
-    source.parent.mkdir(parents=True)
-    source.write_text("evidence")
-    leases = [manager._lease(symbol, "options", access=True, shared=True)
-              for symbol in (symbols[2], symbols[2], symbols[3], symbols[-1])]
-    final_write = source.with_name("last-write.json")
-    def finish_writes():
-        final_write.write_text("last evidence")
-        for lease in leases[:-1]:
-            lease.close()
-    timer = threading.Timer(.2, finish_writes)
-    timer.start()
-    try:
-        response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
-        assert response.status_code == 200, response.text
-        assert final_write.exists()
-        assert response.json()["file_count"] == 2
-        assert all(lease.closed for lease in leases[:-1])
-        assert not leases[-1].closed  # Other underlyings may continue writing.
-    finally:
-        timer.join()
-        for lease in leases:
-            lease.close()
-    policies = {p["symbol"]: p for p in manager.policy_repository.list()}
-    assert not any(p["realtime_enabled"] for s, p in policies.items() if s.startswith("BTC"))
-    assert policies["ETHUSDT"]["realtime_enabled"] and policies["ETH-261225-3000-C"]["realtime_enabled"]
-    snapshot = response.json()["snapshot"]
-    settings = manager.request(DataJobRequest(**PARAMETERS, action="validate"))[1]
-    identity = ""
-    class Worker:
-        returncode = 0
-        def wait(self, timeout):
-            result = delete_pair_data("BTCUSDT", "options", settings, expected_snapshot=snapshot, project=root)
-            (manager.directory / f"{identity}.json").write_text(json.dumps(result))
-    def spawn(command, **kwargs):
-        nonlocal identity
-        identity = command[-1]
-        return Worker()
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    response = client.post("/api/data/pairs/delete", json={"symbol": "BTCUSDT", "product": "options",
-                           "deletion_snapshot": snapshot, "confirmation": "DELETE BTCUSDT"})
-    assert response.status_code == 202, response.text
-    for thread in manager.threads:
-        thread.join(timeout=10)
-    detail = client.get(f"/api/data/jobs/{identity}").json()
-    assert detail["status"] == "succeeded", detail
-    assert not source.exists() and not final_write.exists()
-    assert {p["symbol"] for p in manager.policy_repository.list()} == {"ETHUSDT", "ETH-261225-3000-C"}
-    assert [item["policy"]["symbol"] for item in client.get("/api/data/subscriptions?group_options=true").json()["items"]] == ["ETHUSDT"]
-
-
 def test_option_group_delete_timeout_retains_paused_configuration_and_data(context, monkeypatch):
     from api.market_data.contracts import DataPolicy
 
@@ -1615,7 +1191,7 @@ def test_option_group_delete_timeout_retains_paused_configuration_and_data(conte
         response = client.post("/api/data/pairs/delete/plan", json={"symbol": "BTCUSDT", "product": "options"})
         assert response.status_code == 409, response.text
         assert "重新预览" in response.json()["detail"]
-        assert not manager.repository.list_jobs()
+        assert client.get("/api/data/jobs").json() == []
         assert source.read_text() == "evidence"
         policies = {p["symbol"]: p for p in manager.policy_repository.list()}
         assert set(policies) == set(symbols)

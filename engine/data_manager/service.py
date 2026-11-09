@@ -30,10 +30,9 @@ class DataService:
     def __init__(self, tenant_id, *, project=PROJECT_ROOT, state_root=None):
         self.project = project
         self.tenant_id = str(tenant_id)
-        state = self.project / ".local/state/api/data_jobs"
-        # Primary tenant retains its pre-existing mounted job history. Other
-        # tenants use their own persistent Engine state volume.
-        self._directory = state if state.is_dir() else (state_root or self.project / ".local/state/engine") / "data_jobs"
+        # Engine alone owns task state in its isolated tenant volume.
+        # Never adopt a stale Platform job directory when both happen to exist.
+        self._directory = (state_root or self.project / ".local/state/engine") / "data_jobs"
         self.repository = OperationFiles(self.directory / "operations")
         self.policy_repository = PolicyRepository(self.directory / "policies.json", self.tenant_id)
         self.lock = threading.RLock()

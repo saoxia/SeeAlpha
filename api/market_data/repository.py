@@ -1,12 +1,7 @@
-"""Database configuration and local operation records have separate ownership."""
-
-import json
-import os
-from uuid import uuid4
+"""Business database repository for tenant market-data policy intent."""
 
 from sqlalchemy import select
 
-from api.db.errors import StorageUnavailable
 from api.db.models import MarketDataPolicy
 
 
@@ -67,28 +62,3 @@ class PolicyRepository:
                 row.parameters = policy.model_dump(mode="json")
         return policy.model_dump(mode="json")
 
-
-class OperationFiles:
-    """Compatibility HTTP operations keep their status in files, never business ORM."""
-
-    def __init__(self, directory):
-        self.directory = directory
-
-    def list_jobs(self):
-        try:
-            return [json.loads(path.read_text()) for path in self.directory.glob("*.json")]
-        except (OSError, ValueError):
-            raise StorageUnavailable("数据操作记录无法读取；原文件已保留。") from None
-
-    def save_job(self, job):
-        self.directory.mkdir(parents=True, exist_ok=True)
-        target = self.directory / f"{job['id']}.json"
-        temporary = target.with_suffix(f".{uuid4().hex}.tmp")
-        try:
-            with temporary.open("x") as stream:
-                json.dump(job, stream, ensure_ascii=False)
-                stream.flush()
-                os.fsync(stream.fileno())
-            os.replace(temporary, target)
-        finally:
-            temporary.unlink(missing_ok=True)

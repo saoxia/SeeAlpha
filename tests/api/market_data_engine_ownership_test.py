@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
+from api.market_data.contracts import DataJobRequest
 from api.market_data.monitor import ServiceMonitor
 from api.market_data.service import DataService
 
@@ -64,7 +65,7 @@ def test_remote_completed_delete_is_applied_once_to_business_db(tmp_path):
     manager.reconcile_jobs()
     manager.reconcile_jobs()
     assert removed == [("ETHUSDT", "futures_um")]
-    assert (manager.directory / "settled" / f"{task['id']}.json").exists()
+    assert (tmp_path / ".local/state/api/market_settlements" / f"{task['id']}.json").exists()
 
 
 def test_platform_monitor_only_reads_engine_and_never_creates_state_files(tmp_path):
@@ -86,3 +87,57 @@ def test_platform_monitor_only_reads_engine_and_never_creates_state_files(tmp_pa
     with pytest.raises(HTTPException) as error:
         missing.read()
     assert error.value.status_code == 503
+
+
+def test_all_platform_job_operations_delegate_without_local_job_storage(tmp_path):
+    manager = object.__new__(DataService)
+    manager.project = tmp_path
+    manager.lock = threading.RLock()
+    manager.engine = FakeEngine([])
+    manager.subscriptions = SimpleNamespace(pause_for_deletion=lambda *_: None)
+    payload = DataJobRequest(
+        action="prepare", symbol="ETHUSDT", start="2026-08-01T00:00:00Z",
+        end="2026-08-02T00:00:00Z", intervals=["1m"],
+    )
+    assert manager.jobs() == []
+    assert manager.task_snapshot()["type"] == "tasks"
+    assert manager.start(payload)["status"] == "running"
+    assert manager.job("a" * 32)["status"] == "succeeded"
+    assert manager.retry("a" * 32)["status"] == "succeeded"
+    assert manager.cancel("a" * 32)["status"] == "succeeded"
+    names = [op for op, _ in manager.engine.calls]
+    assert names == [
+        "jobs", "jobs", "snapshot", "job/start",
+        "job", "jobs", "job/retry", "job/cancel",
+    ]
+    assert not hasattr(manager, "processes")
+    assert not hasattr(manager, "threads")
+    assert not (tmp_path / ".local/state/api/data_jobs/operations").exists()
+
+
+def test_missing_engine_fails_closed_without_local_job_execution(tmp_path):
+    manager = object.__new__(DataService)
+    manager.project = tmp_path
+    with pytest.raises(HTTPException) as error:
+        manager.jobs()
+    assert error.value.status_code == 503
+    with pytest.raises(HTTPException) as error:
+        manager.start(DataJobRequest(
+            action="prepare", symbol="ETHUSDT", start="2026-08-01T00:00:00Z",
+            end="2026-08-02T00:00:00Z", intervals=["1m"],
+        ))
+    assert error.value.status_code == 503
+    assert not (tmp_path / ".local").exists()
+
+
+def test_delete_cannot_pause_business_policy_before_engine_is_available(tmp_path):
+    manager = object.__new__(DataService)
+    manager.project = tmp_path
+    paused = []
+    manager.subscriptions = SimpleNamespace(pause_for_deletion=lambda *_: paused.append(True))
+    request = SimpleNamespace(action="delete_pair", symbol="ETHUSDT", product="futures_um")
+    with pytest.raises(HTTPException) as error:
+        manager.start(request)
+    assert error.value.status_code == 503
+    assert paused == []
+    assert not (tmp_path / ".local").exists()
