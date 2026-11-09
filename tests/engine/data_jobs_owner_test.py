@@ -186,3 +186,32 @@ def test_engine_export_rejects_symlink_escape_and_missing_file(tmp_path):
         assert client.get(url, headers=headers).status_code == 404
         assert secret.read_text() == "never-expose"
     app.state.runtime.close()
+
+
+def test_engine_rejects_unconfirmed_or_stale_pair_deletion_without_data_loss(tmp_path):
+    (tmp_path / "data").mkdir()
+    archive = tmp_path / "data/raw/futures/um/daily/trades/ETHUSDT/archive.zip"
+    archive.parent.mkdir(parents=True)
+    archive.write_bytes(b"retained-evidence")
+    app = create_app(EngineConfig(
+        tmp_path / "engine-state", "secret", project=tmp_path,
+        tenant_id="42", tenant_purpose="development",
+    ))
+    app.state.runtime.ensure_tenant("42", "development")
+    route = "/tenants/42/data/control/job/start"
+    headers = {"Authorization": "Bearer secret"}
+    payload = {
+        "action": "delete_pair", "symbol": "ETHUSDT",
+        "product": "futures_um", "deletion_snapshot": "0" * 64,
+        "confirmation": "DELETE ETHUSDT",
+    }
+    with TestClient(app) as client:
+        invalid = client.post(route, json={"payload": {
+            **payload, "confirmation": "DELETE BTCUSDT",
+        }}, headers=headers)
+        assert invalid.status_code == 422
+        stale = client.post(route, json={"payload": payload}, headers=headers)
+        assert stale.status_code == 409, stale.text
+        assert archive.read_bytes() == b"retained-evidence"
+        assert app.state.market_data.repository.list_jobs() == []
+    app.state.runtime.close()
