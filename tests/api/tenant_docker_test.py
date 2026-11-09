@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.engine_client import EngineClient
+from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
 from api.tenant_docker import DockerTenantManager
 from engine.app import create_app
 from engine.config import EngineConfig
@@ -40,7 +41,11 @@ def test_engine_client_rejects_inprocess_and_uses_http_only(tmp_path):
 
     def reply(request):
         requests.append((request.method, request.url.path))
-        return httpx.Response(200, json={"tenant_id": "7", "status": "active"})
+        assert request.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+        return httpx.Response(
+            200, json={"tenant_id": "7", "status": "active"},
+            headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION},
+        )
 
     client = EngineClient(
         tmp_path, url="http://engine.test",
@@ -50,6 +55,24 @@ def test_engine_client_rejects_inprocess_and_uses_http_only(tmp_path):
     assert client.ensure_tenant(7, "development")["status"] == "active"
     assert requests == [("PUT", "/tenants/7")]
     client.close()
+
+
+def test_engine_client_rejects_unversioned_and_incompatible_engine(tmp_path):
+    def reply(request):
+        assert request.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+        if request.url.host == "unversioned":
+            return httpx.Response(200, json={"status": "active"})
+        return httpx.Response(
+            426, json={"detail": "unsupported version"},
+            headers={ENGINE_CONTRACT_HEADER: "2"},
+        )
+
+    for host in ("unversioned", "incompatible"):
+        client = EngineClient(
+            tmp_path, url=f"http://{host}", sync_transport=httpx.MockTransport(reply),
+        )
+        with pytest.raises(QueryError, match="契约版本"):
+            client.ensure_tenant(7, "development")
 
 
 def test_engine_container_rejects_other_tenant_and_purpose(tmp_path):
@@ -78,7 +101,13 @@ def test_engine_container_rejects_other_tenant_and_purpose(tmp_path):
             "/tenants/42/runnable", headers=headers, json={"action": "live"},
         ).status_code == 409
         assert http.get("/health").status_code == 401
-        assert http.get("/health", headers=headers).status_code == 200
+        healthy = http.get("/health", headers=headers)
+        assert healthy.status_code == 200
+        assert healthy.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+        assert healthy.json()["contract_version"] == ENGINE_CONTRACT_VERSION
+        assert http.get(
+            "/health", headers={**headers, ENGINE_CONTRACT_HEADER: "2"},
+        ).status_code == 426
 
 
 def test_engine_client_selects_tenant_endpoint_without_cross_tenant_tokens(tmp_path, monkeypatch):
@@ -99,8 +128,10 @@ def test_engine_client_selects_tenant_endpoint_without_cross_tenant_tokens(tmp_p
         def request(self, method, url, **kwargs):
             calls.append((method, url, kwargs["headers"]))
             if "/market/workers" in url:
-                return httpx.Response(200, json={"id": "worker-x", "pid": 1})
-            return httpx.Response(200, json={"ok": True, "returncode": 0})
+                return httpx.Response(200, json={"id": "worker-x", "pid": 1},
+                                      headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION})
+            return httpx.Response(200, json={"ok": True, "returncode": 0},
+                                  headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION})
 
     monkeypatch.setattr(httpx, "Client", HTTP)
     client.ensure_tenant(7, "development")
@@ -138,8 +169,10 @@ def test_docker_worker_paths_are_translated_and_stopped(tmp_path, monkeypatch):
         def request(self, method, url, **kwargs):
             calls.append((method, url, kwargs))
             if "/market/workers" in url:
-                return httpx.Response(200, json={"id": "w1", "pid": 110})
-            return httpx.Response(200, json={"status": "ok", "returncode": 0})
+                return httpx.Response(200, json={"id": "w1", "pid": 110},
+                                      headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION})
+            return httpx.Response(200, json={"status": "ok", "returncode": 0},
+                                  headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION})
 
     monkeypatch.setattr(httpx, "Client", HTTP)
     worker = client.spawn_worker(
