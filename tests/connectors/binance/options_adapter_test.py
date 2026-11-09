@@ -148,7 +148,16 @@ def test_native_node_streams_history_reconnect_unsubscribe_and_shutdown(monkeypa
             task = asyncio.create_task(node.run_async())
             try:
                 await asyncio.wait_for(ready.wait(), 10)
-                await asyncio.wait_for(complete.wait(), 12)
+                try:
+                    await asyncio.wait_for(complete.wait(), 12)
+                except TimeoutError as exc:
+                    state = clients[0].stream_status if clients else {}
+                    tasks = {key: value["task"].done() for key, value in clients[0].streams.items()} if clients else {}
+                    raise AssertionError(
+                        f"期权重连未交付两笔成交: connections={trade_connections}, "
+                        f"trades={len(trades)}, streams={state}, task_done={tasks}, "
+                        f"node_done={task.done()}"
+                    ) from exc
                 for _ in range(100):
                     if quotes and books and bars and history:
                         break
@@ -167,13 +176,16 @@ def test_native_node_streams_history_reconnect_unsubscribe_and_shutdown(monkeypa
                 assert f"{SYMBOL.lower()}@bookTicker" not in clients[0].streams
             finally:
                 node.handle().stop()
-                await asyncio.wait_for(task, 15)
-                node.dispose()
+                try:
+                    await asyncio.wait_for(task, 15)
+                finally:
+                    node.dispose()
             assert not clients[0].streams
-    asyncio.run(scenario())
-    # Native clocks/loggers must be released on their owning thread, before later
-    # HTTP worker allocations can trigger Python's cyclic collector there.
-    gc.collect()
+    try:
+        asyncio.run(scenario())
+    finally:
+        # Release native objects even when the socket assertion fails.
+        gc.collect()
 
 
 def test_bounded_requests_preserve_correlation_and_reject_history_tick(monkeypatch):
