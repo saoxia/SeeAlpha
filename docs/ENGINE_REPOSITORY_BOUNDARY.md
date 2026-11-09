@@ -26,8 +26,8 @@
 | `api/exchanges/trading.py` | 手动交易市场行情；改为 Engine 查询接口 |
 | `api/equity/service.py` | 资产估值外部取价及对账查询；改为受授权的 Engine HTTP 查询，API 保留核算逻辑 |
 | `api/operations/service.py` 与 `options.py` | 交易所操作与期权历史；增加受控分页查询接口 |
-| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性任务、永续/期权实时采集进程，以及 Catalog 清单、最新数据时间、覆盖率、历史预览、图表、删除快照已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现与 HTTP 同步；历史起点解析及部分本地状态文件读取待后续清理 |
-| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；剩余 `observe` 是历史本地文件状态兼容读取，后续与本地 Catalog 读取一起删除 |
+| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性任务、永续/期权实时采集进程，以及 Catalog 清单、最新数据时间、覆盖率、历史预览、图表、删除快照已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现与 HTTP 同步；历史起点解析及实时状态读取统一通过 Engine 配置预览与 HTTP 状态接口，Platform 不再读取 Engine 数据卷；其余交易和策略模块仍待切割 |
+| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；已删除 `observe` 本地文件状态读取，仅保留 Engine HTTP 监控代理 |
 | `api/strategies/service.py` | 动态策略包校验与参数准备依赖 `engine.strategies.package`；需将校验放在受隔离的研究运行时或通过 Engine 授权接口调用 |
 
 **禁止仅将 import 路径改名、复制 Connector/回测实现到 API 或把所有
@@ -67,3 +67,11 @@ Engine 的采集进程继续使用独立的租户采集锁。即使两者运行�
 4. 回测、交易、期权、资金费率、市场数据管理、历史数据与策略包
    在两个独立进程中完成全链路测试。
 5. 版本化的 Engine 镜像与 HTTP 契约兼容性验证通过，再拆为独立仓库。
+
+## 第八批：行情业务模块完全不接触 Engine 文件与源码
+
+- `Subscriptions.resolve` 中不再访问 Binance REST、Nautilus Catalog、SQLite journal 和 Pipeline。
+  规范化日期和删除数据影响检测由 Engine `configuration-plan` 完成。
+- `Subscriptions.items/_public` 仅从 Engine `subscriptions` 接口获取当前运行状态。
+- `ServiceMonitor` 仅通过 Engine HTTP 读取服务健康。无本地状态 JSON 兼容投影。
+- 保存和删除订阅仍由 Platform 授权，Engine `sync` 负责验证删除访问锁。
