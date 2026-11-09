@@ -185,62 +185,20 @@ def test_runtime_without_explicit_database_does_not_create_local_data(tmp_path, 
     assert not settings.database_path.exists()
 
 
-def test_import_existing_sqlite_preserves_records_and_rejects_nonempty_target(orm, tmp_path):
-    from api.db.auth_repository import AuthRepository
-    from api.db.database import Database
-    from api.db.exchange_repository import ExchangeRepository
-    from api.db.import_sqlite import import_legacy
-    from api.olap.repository import OlapRepository
-    from api.operations.repository import Operations
-    from tests.api.operations_test import event
-
-    target, _, _ = orm
-    source = Database(tmp_path / "legacy.db")
-    source.initialize()
-    auth = AuthRepository(source)
-    user = auth.create_user("admin", "legacy-hash")
-    auth.create_session(user["id"], "legacy-session", 4_000_000_000)
-    ExchangeRepository(source).create_exchange_account(
-        tenant_id=1,
-        exchange="binance",
-        account_name="original",
-        environment="production",
-        credentials_encrypted="ciphertext",
-        market_symbols_json="[]",
-    )
-    olap = OlapRepository(source)
-    olap.initialize()
-    olap.save_olap_settings(
-        address="localhost",
-        port=8123,
-        database_name="test",
-        username="u",
-        password_encrypted="encrypted",
-    )
-    ledger = Operations(source)
-    ledger.initialize()
-    operation = ledger.ingest(event())
-    result = import_legacy(source.path, target, backup_directory=tmp_path / "backup")
-    assert Path(result["backup"]).exists()
-    assert auth_repository(target).get_user_by_username("admin")["password_hash"] == "legacy-hash"
-    assert auth_repository(target).get_user_for_session("legacy-session")["username"] == "admin"
-    assert (
-        exchange_repository(target).list_exchange_accounts()[0]["credentials_encrypted"]
-        == "ciphertext"
-    )
-    assert olap_repository(target).get_olap_settings()["password_encrypted"] == "encrypted"
-    assert (
-        ORMOperations(target).detail(operation["operation_id"])["operation"]["id"]
-        == operation["operation_id"]
-    )
-    next_user = auth_repository(target).create_user("other", "hash")
-    assert next_user["id"] > user["id"]
-    with pytest.raises(ValueError, match="目标数据库已有记录"):
-        import_legacy(source.path, target, backup_directory=tmp_path / "backup")
-    assert source.path.exists()
+def test_fresh_sqlite_schema_rejects_preexisting_business_tables(tmp_path):
+    url = f"sqlite:///{tmp_path / 'old.db'}"
+    with sqlite3.connect(tmp_path / "old.db") as connection:
+        connection.execute("CREATE TABLE old_business (value TEXT)")
+        connection.execute("INSERT INTO old_business VALUES ('keep')")
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = url
+    with pytest.raises(RuntimeError, match="全新"):
+        command.upgrade(config, "head")
+    with sqlite3.connect(tmp_path / "old.db") as connection:
+        assert connection.execute("SELECT value FROM old_business").fetchone()[0] == "keep"
 
 
-def test_postgres_existing_schema_is_verified_and_preserved(tmp_path):
+def test_fresh_postgres_schema_rejects_preexisting_business_tables(tmp_path):
     url = os.environ.get("TEST_POSTGRES_URL")
     if not url:
         pytest.skip("TEST_POSTGRES_URL 未设置")
@@ -250,67 +208,23 @@ def test_postgres_existing_schema_is_verified_and_preserved(tmp_path):
         with engine.begin() as connection:
             from sqlalchemy.schema import CreateSchema
 
-            from api.db.models import Base
-            from api.db.schema_compat import _BASELINE_TABLES
-
             connection.execute(CreateSchema(schema))
-            mapped = connection.execution_options(schema_translate_map={None: schema})
-            Base.metadata.create_all(
-                mapped, tables=[Base.metadata.tables[name] for name in _BASELINE_TABLES]
-            )
+            connection.exec_driver_sql(f'CREATE TABLE "{schema}".old_business (value text)')
             connection.exec_driver_sql(
-                f'CREATE TABLE "{schema}".schema_versions (version integer primary key)'
+                f"""INSERT INTO "{schema}".old_business VALUES ('keep')"""
             )
-            connection.execute(
-                text(
-                    f'INSERT INTO "{schema}".users (username,password_hash,created_at) VALUES (:username,:password,1)'
-                ),
-                {"username": "legacy-user", "password": "legacy-hash"},
-            )
-            connection.exec_driver_sql(f'DROP INDEX "{schema}".orm_users_username_unique')
         config = Config("alembic.ini")
         config.attributes.update(database_url=url, database_schema=schema)
-        with pytest.raises(RuntimeError, match="唯一索引"):
+        with pytest.raises(RuntimeError, match="全新"):
             command.upgrade(config, "head")
         with engine.begin() as connection:
-            assert connection.scalar(text(f'SELECT count(*) FROM "{schema}".users')) == 1
-            connection.exec_driver_sql(
-                f'CREATE UNIQUE INDEX orm_users_username_unique ON "{schema}".users (lower(username))'
-            )
-        command.upgrade(config, "head")
-        db = ORMDatabase(url, tmp_path / "unused.db", schema=schema)
-        db.initialize()
-        assert (
-            auth_repository(db).get_user_by_username("LEGACY-USER")["password_hash"]
-            == "legacy-hash"
-        )
-        auth_repository(db).create_user("another-user", "hash")
-        db.close()
+            assert connection.scalar(
+                text(f'SELECT value FROM "{schema}".old_business')
+            ) == "keep"
     finally:
         with engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
         engine.dispose()
-
-
-def test_failed_import_rolls_back_all_rows(orm, tmp_path):
-    from api.db.import_sqlite import import_legacy
-    from api.db.models import User
-
-    target, _, _ = orm
-    source = tmp_path / "broken.db"
-    with sqlite3.connect(source) as connection:
-        connection.execute(
-            "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, created_at INTEGER)"
-        )
-        connection.executemany(
-            "INSERT INTO users VALUES (?, ?, ?, ?)",
-            [(1, "duplicate", "one", 1), (2, "DUPLICATE", "two", 2)],
-        )
-    with pytest.raises(StorageConflict):
-        import_legacy(source, target, backup_directory=tmp_path / "backup")
-    with target.session() as session:
-        assert session.query(User).count() == 0
-    assert source.exists()
 
 
 def test_database_url_file_is_private(tmp_path, monkeypatch):
