@@ -84,12 +84,11 @@ def test_api_and_engine_share_a_single_volume_access_lease(tmp_path):
     import pytest
     from fastapi import HTTPException
 
-    from api.market_data.service import DataService
+    from engine.data_manager.service import DataService
     from engine.data_queries import read_lease
 
     (tmp_path / "data").mkdir()
-    service = object.__new__(DataService)
-    service.project = tmp_path
+    service = DataService("42", project=tmp_path, state_root=tmp_path / "state")
 
     with (service._lease("ETHUSDT", access=True),
           pytest.raises(HTTPException) as captured,
@@ -100,3 +99,4 @@ def test_api_and_engine_share_a_single_volume_access_lease(tmp_path):
     with (service._lease("ETHUSDT", access=True, shared=True),
           read_lease(tmp_path, "ETHUSDT", "futures_um")):
         pass
+    service.close()
