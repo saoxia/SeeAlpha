@@ -1,4 +1,3 @@
-"""Business task endpoints require session auth and forward through EngineClient."""
 """Business task endpoints forward through Platform with no in-process Engine.
 
 This route-level test uses only an isolated migrated business SQLite database;
