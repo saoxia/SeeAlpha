@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from engine.app import create_app
@@ -161,3 +163,36 @@ def test_engine_http_sync_starts_and_stops_workers_with_tenant_authorization(tmp
         assert not manager.subscriptions.processes
         assert not manager.subscriptions.auxiliary
     app.state.runtime.close()
+
+
+def test_engine_option_delete_waits_for_access_lease_and_preserves_files(tmp_path, monkeypatch):
+    manager, _commands, _stopped = engine_manager(tmp_path, monkeypatch)
+    contract = "BTC-261225-85000-C"
+    scope = DataPolicy(product="options", symbol="BTCUSDT", realtime_enabled=False)
+    member = DataPolicy(
+        product="options", symbol=contract, underlying="BTCUSDT",
+        realtime_enabled=False, history_enabled=False,
+    )
+    manager.subscriptions._write([scope, member])
+    evidence = tmp_path / "data/raw/options" / contract / "source.json"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text("retained")
+
+    reader = manager._lease(contract, "options", access=True, shared=True)
+    clock = iter([100.0, 106.0])
+    monkeypatch.setattr(
+        "engine.data_manager.subscriptions.time.monotonic",
+        lambda: next(clock, 106.0),
+    )
+    try:
+        with pytest.raises(HTTPException, match="重新预览") as failure:
+            manager.subscriptions.pause_for_deletion("BTCUSDT", "options")
+        assert failure.value.status_code == 409
+        assert manager.repository.list_jobs() == []
+        assert evidence.read_text() == "retained"
+    finally:
+        reader.close()
+
+    manager.subscriptions.pause_for_deletion("BTCUSDT", "options")
+    assert evidence.read_text() == "retained"
+    manager.close()
