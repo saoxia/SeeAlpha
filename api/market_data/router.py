@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
 from core.market.instruments import INTERVALS, bar_window
- from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
+from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
 from .contracts import (
     ChartCandle,
