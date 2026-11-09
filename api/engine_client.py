@@ -101,7 +101,7 @@ class EngineClient:
 
     def _public_tenant(self):
         if self.tenant_manager is not None:
-            tenant = self.tenant_manager.primary_tenant_id
+            tenant = self.tenant_manager.market_tenant_id
             if tenant is None:
                 raise EngineConflict("Engine 默认租户尚未初始化。")
             return str(tenant)
@@ -181,7 +181,7 @@ class EngineClient:
         return result
 
     def data_query(self, operation, payload):
-        """Call read-only market-data API on the mounted primary Engine volume."""
+        """Call the configured market-data tenant's read-only Engine API."""
         from fastapi import HTTPException
 
         if self.tenant_manager is None and not self.remote:
