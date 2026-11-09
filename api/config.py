@@ -50,6 +50,9 @@ class Settings:
         path = Path(os.getenv("AUTH_DB_PATH", ".local/state/api/auth.db"))
         if not path.is_absolute():
             path = PROJECT / path
+        engine_url = os.getenv("ENGINE_URL", "http://127.0.0.1:8766")
+        if not engine_url.startswith(("http://", "https://")):
+            raise ValueError("ENGINE_URL 必须是 HTTP(S) 地址；进程内 Engine 仅供测试。")
         return cls(
             database_path=path,
             database_url=database_url,
@@ -74,7 +77,7 @@ class Settings:
             allowed_origins=tuple(
                 h.strip() for h in os.getenv("ALLOWED_ORIGINS", "").split(",") if h.strip()
             ),
-            engine_url=os.getenv("ENGINE_URL", "http://127.0.0.1:8766"),
+            engine_url=engine_url,
             engine_token=os.getenv("ENGINE_TOKEN", "seealpha-local-engine"),
             engine_market_account_id=os.getenv("ENGINE_MARKET_ACCOUNT_ID", "market-data"),
             engine_deployment=os.getenv("ENGINE_DEPLOYMENT", "single"),

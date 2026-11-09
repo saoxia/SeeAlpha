@@ -44,6 +44,8 @@ from .tenants.service import TenantService
 
 def create_app(settings: Settings | None = None, *, project: Path | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
+    if settings.require_database_url and not settings.engine_url.startswith(("http://", "https://")):
+        raise ValueError("业务 API 不允许进程内 Engine；请配置 ENGINE_URL。")
     database = create_database(settings)
 
     @asynccontextmanager
