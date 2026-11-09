@@ -602,7 +602,9 @@ def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(
     manager = app.state.market_data
     payload = {"symbol": "ETHUSDT", "realtime_enabled": False}
     with app.state.test_engine.state.market_data._lease("ETHUSDT", access=True):
-        assert client.post("/api/data/subscriptions", json=payload).status_code == 409
+        # Saving durable "stop" intent is allowed while a reader still holds
+        # the Engine lease; only destructive filesystem operations are barred.
+        assert client.post("/api/data/subscriptions", json=payload).status_code == 200
         assert client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"}).status_code == 200
     # A surviving collector's descriptor still protects data even when the stored
     # policy says disabled, e.g. after a lost API owner.
@@ -732,8 +734,9 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
     manager = app.state.market_data
     policy = DataPolicy(symbol="ETHUSDT", base_level="tick", realtime_enabled=False)
     manager.subscriptions.save(policy)
-    # Model an enabled service without launching network workers.
-    manager.subscriptions.policies = [policy.model_copy(update={"realtime_enabled": True})]
+    # The Engine must receive the enabled policy; API-local cache changes
+    # never alter the authoritative service state.
+    manager.subscriptions._write([policy.model_copy(update={"realtime_enabled": True})])
     root = app.state.test_engine.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     (root / "status.json").write_text(json.dumps({"state": "READY", "valid_until_ms": 0, "backlog": 7}))
