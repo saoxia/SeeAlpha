@@ -1,8 +1,53 @@
 """Business task endpoints require session auth and forward through EngineClient."""
+"""Business task endpoints forward through Platform with no in-process Engine.
+
+This route-level test uses only an isolated migrated business SQLite database;
+it intentionally does not start the API's background workers or Engine service.
+"""
+
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 
-from tests.api.auth_test import login
-from tests.api.backtest_test import _client
+from api.auth.security import hash_password
+from api.config import Settings
+from api.db.auth_repository import auth_repository
+from api.main import create_app
+
+PROJECT = Path(__file__).resolve().parents[2]
+
+
+@asynccontextmanager
+async def _router_only_lifespan(_app):
+    """Engine startup and periodic jobs are outside this HTTP route test."""
+    yield
+
+
+def _client(tmp_path):
+    url = f"sqlite:///{tmp_path / 'business.db'}"
+    config = Config(str(PROJECT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT / "migrations"))
+    config.attributes["database_url"] = url
+    command.upgrade(config, "head")
+    app = create_app(Settings(
+        tmp_path / "reference.db", database_url=url, cookie_secure=False
+    ))
+    app.state.database.initialize()
+    auth_repository(app.state.database).create_user(
+        "admin", hash_password("test-password-123")
+    )
+    # Exercise only auth and strategy routing. The isolated Engine is not needed.
+    app.router.lifespan_context = _router_only_lifespan
+    return app
+
+
+def login(client):
+    return client.post("/api/auth/login", json={
+        "username": "admin", "password": "test-password-123",
+    })
 
 
 def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tmp_path, monkeypatch):
@@ -34,6 +79,11 @@ def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tm
         "start": "2024-01-01", "end": "2024-01-02", "interval": "1m",
         "idempotency_key": "study-1",
     }
+    # All Engine-facing methods are replaced above; no Engine HTTP is permitted.
+    def no_engine_call(*_args, **_kwargs):
+        raise AssertionError("Routing test made an unexpected Engine HTTP request")
+
+    monkeypatch.setattr(app.state.engine, "_sync", no_engine_call)
     with TestClient(app) as http:
         assert http.post(
             "/api/tenants/1/accounts/1/backtests/async", json=submission,
@@ -53,3 +103,5 @@ def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tm
         retry = http.post(f"/api/tenants/1/jobs/{identity}/retry")
         assert retry.status_code == 202
         assert retry.json()["retry_of"] == identity
+
+    app.state.database.close()

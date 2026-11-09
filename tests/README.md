@@ -38,3 +38,9 @@ uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.p
 策略包约定见 [双均线示例](../packages/ema_crossover/README.md)。
 
 租户 Docker/HTTP 客户端的独立测试已迁至 [`platform/tests/tenant_docker_test.py`](../platform/tests/tenant_docker_test.py)，固定租户 Engine ASGI HTTP 安全测试已迁至独立 `seealpha-engine/tests/engine/tenant_http_isolation_test.py`。旧联合目录不再包含 `tenant_docker_test.py`。
+
+异步回测与任务状态的 Platform 路由测试已迁至
+[`platform/tests/async_tasks_test.py`](../platform/tests/async_tasks_test.py)，
+策略模块无 Engine 源码导入检查已迁至
+[`platform/tests/strategy_policy_test.py`](../platform/tests/strategy_policy_test.py)。
+旧联合测试只保留确实依赖 Engine 实现、策略包示例或回测 Catalog 的情形。

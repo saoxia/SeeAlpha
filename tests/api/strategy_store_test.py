@@ -238,14 +238,3 @@ def _hold_archive(root):
     from tests.engine.strategy_load_test import _package_archive
 
     return _package_archive(root, "1")
-
-
-def test_strategy_business_module_only_calls_engine_protocol_and_never_imports_packages():
-    from pathlib import Path
-
-    path = Path(__file__).resolve().parents[2] / "api/strategies/service.py"
-    source = path.read_text(encoding="utf-8")
-    assert "from engine." not in source
-    assert "from nautilus_trader" not in source
-    assert "open_package(" not in source
-    assert "inspect_strategy(" in source
