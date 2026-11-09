@@ -77,6 +77,7 @@ def _rewritten_archive(root, *, version):
         (dest / "seealpha-package.json").write_text(json.dumps(document), encoding="utf-8")
         return zip_strategy_directory(dest)
 
+
 def hold_archive(root, quantity="1"):
     root.mkdir()
     (root / "seealpha-package.json").write_text(json.dumps({
