@@ -27,7 +27,7 @@ PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
 
 
 @pytest.fixture
-def context(tmp_path, monkeypatch):
+def context(tmp_path, monkeypatch, engine_http):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url
@@ -41,7 +41,8 @@ def context(tmp_path, monkeypatch):
     (tmp_path / "data").mkdir()
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), ("1m",),
                                 tmp_path / "data/raw", tmp_path / "data/catalog", tmp_path / "data/state")
-    for module in ("api.market_data.router", "api.market_data.service"):
+    # The Engine ASGI application owns all market-file settings and reads.
+    for module in ("engine.data_queries", "engine.data_manager.service"):
         monkeypatch.setattr(f"{module}.load_settings", lambda: settings)
     async def catalog(_environment):
         return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"}
@@ -61,8 +62,15 @@ def context(tmp_path, monkeypatch):
         def market_control(self, operation, payload=None):
             if operation == "sync":
                 self.sync_calls.append(payload)
-                # Isolate legacy local-Catalog tests from live feed spawning.
-                # Engine process lifecycle is tested in tests/engine/.
+                # Persist the same Engine-side policy manifest as HTTP /sync,
+                # without launching real live workers in these API tests.
+                from engine.data_manager.contracts import DataPolicy as EnginePolicy
+
+                resident = engine_http.app.state.market_data
+                resident.policy_repository.save(
+                    [EnginePolicy.model_validate(p) for p in payload["policies"]],
+                    tenant_id=resident.tenant_id,
+                )
                 return {"synced": len(payload["policies"]), "last_error": None}
             return self.engine.market_control(operation, payload)
 
@@ -279,7 +287,8 @@ def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypat
     assert client.post("/api/data/jobs", json={**payload, "action": "materialize"}).status_code == 422
     assert client.post("/api/data/jobs", json={**payload, "action": "export"}).status_code == 422
     request, calls = bars_request(), []
-    settings = app.state.market_data.request(DataJobRequest(**payload, action="prepare"))[1]
+    settings = PipelineSettings("options", "trades", (metadata["symbol"],), ("1m",),
+                                _root / "data/raw", _root / "data/catalog", _root / "data/state")
     monkeypatch.setattr(options, "markets", lambda: [metadata])
     fake_klines(monkeypatch, request, calls)
     assert prepare(request, settings)["ready"]
@@ -498,13 +507,13 @@ def test_managed_inventory_and_preview_read_persisted_evidence(context):
     assert (root / "collection.sqlite").is_file()
 
 
-def test_pair_delete_empty_configuration_exclusion_and_mount_failure(context):
+def test_pair_delete_empty_configuration_exclusion_and_mount_failure(context, engine_http):
     client, app, root = context
     from api.market_data.contracts import DataPolicy
     login(client)
     manager = app.state.market_data
     manager.subscriptions.save(DataPolicy(symbol="ETHUSDT", realtime_enabled=False))
-    lease = manager._lease("ETHUSDT")
+    lease = engine_http.app.state.market_data._lease("ETHUSDT")
     try:
         assert client.post("/api/data/pairs/delete/plan", json={"symbol": "ETHUSDT"}).status_code == 409
     finally:
@@ -517,7 +526,7 @@ def test_pair_delete_empty_configuration_exclusion_and_mount_failure(context):
     assert manager.policy_repository.list()[0]["symbol"] == "ETHUSDT"
 
 
-def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(context):
+def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(context, engine_http):
     import sqlite3
 
     from api.market_data.contracts import DataPolicy
@@ -544,7 +553,7 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
         second = client.post("/api/data/pairs/delete/plan", json={"symbol": policy.symbol})
         assert second.status_code == 200, second.text
         assert first.json()["snapshot"] == second.json()["snapshot"]
-        with manager._lease(policy.symbol, access=True):
+        with engine_http.app.state.market_data._lease(policy.symbol, access=True):
             assert client.get("/api/data/datasets?all_levels=true").status_code == 409
             assert client.get("/api/data/ticks", params={**PARAMETERS, "interval": "tick"}).status_code == 409
     finally:
@@ -578,34 +587,42 @@ def test_realtime_and_history_configuration_are_synced_as_intent(context, monkey
     assert not hasattr(manager.subscriptions, "processes")
 
 
-def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(context):
+def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(context, engine_http):
+    from api.market_data.contracts import DataPolicy
+
     client, app, _root = context
     login(client)
-    manager = app.state.market_data
-    payload = {"symbol": "ETHUSDT", "realtime_enabled": False}
-    with manager._lease("ETHUSDT", access=True):
-        assert client.post("/api/data/subscriptions", json=payload).status_code == 409
-        assert client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"}).status_code == 200
-    # A surviving collector's descriptor still protects data even when the stored
-    # policy says disabled, e.g. after a lost API owner.
-    with manager._lease("ETHUSDT", access=True, shared=True):
-        job = {**PARAMETERS, "action": "delete", "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"}
-        response = client.post("/api/data/jobs", json=job)
-        assert response.status_code == 409 and "采集" in response.text
-        assert client.post("/api/data/pairs/delete/plan", json={"symbol": "XRPUSDT"}).status_code == 200
+    app.state.market_data.subscriptions.save(
+        DataPolicy(symbol="ETHUSDT", realtime_enabled=False),
+    )
+    engine_manager = engine_http.app.state.market_data
+    with engine_manager._lease("ETHUSDT", access=True):
+        assert client.post(
+            "/api/data/pairs/delete/plan", json={"symbol": "ETHUSDT"},
+        ).status_code == 409
+        # A lock on ETHUSDT must never block work on unrelated pairs.
+        assert client.post(
+            "/api/data/pairs/delete/plan", json={"symbol": "XRPUSDT"},
+        ).status_code == 200
+    with engine_manager._lease("ETHUSDT", access=True, shared=True):
+        job = {**PARAMETERS, "action": "delete", "deletion_snapshot": "0" * 64,
+               "confirmation": "DELETE ETHUSDT"}
+        assert client.post("/api/data/jobs", json=job).status_code == 409
+    assert not hasattr(app.state.market_data, "_lease")
 
 
-def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context):
+def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context, engine_http):
     from fastapi import HTTPException
     _client, app, root = context
     manager = app.state.market_data
-    job_lease = manager._lease("ETHUSDT")
-    access_lease = manager._lease("ETHUSDT", access=True, shared=True)
+    job_lease = engine_http.app.state.market_data._lease("ETHUSDT")
+    access_lease = engine_http.app.state.market_data._lease("ETHUSDT", access=True, shared=True)
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
                              pass_fds=(job_lease.fileno(), access_lease.fileno()), start_new_session=True)
     job_lease.close()
     access_lease.close()
-    other = DataService(app.state.database, project=root)
+    from engine.data_manager.service import DataService as EngineDataService
+    other = EngineDataService("1", project=root, state_root=root / "state-other")
     try:
         with pytest.raises(HTTPException) as busy:
             other._lease("ETHUSDT")
@@ -618,7 +635,7 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
         child.terminate()
         child.wait(timeout=5)
         other.close()
-    with manager._lease("ETHUSDT"), manager._lease("ETHUSDT", access=True):
+    with engine_http.app.state.market_data._lease("ETHUSDT"), engine_http.app.state.market_data._lease("ETHUSDT", access=True):
         pass
 
 
@@ -629,11 +646,10 @@ def test_rejected_duplicate_pair_delete_preserves_the_running_delete_marker(cont
     key = ("futures_um", "ETHUSDT")
     manager.subscriptions.deleting.add(key)
     try:
-        with manager._lease("ETHUSDT"):
-            response = client.post("/api/data/pairs/delete", json={"symbol": "ETHUSDT",
-                "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"})
-            assert response.status_code == 409
-            assert key in manager.subscriptions.deleting
+        response = client.post("/api/data/pairs/delete", json={"symbol": "ETHUSDT",
+            "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"})
+        assert response.status_code == 409
+        assert key in manager.subscriptions.deleting
     finally:
         manager.subscriptions.deleting.discard(key)
 
@@ -810,7 +826,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
         assert [r['time'] for r in data['candles']] == [(left - 60000) // 1000, left // 1000]
         assert not data['candles'][-1]['is_closed'] and not data['candles'][-1]['is_complete']
         # Expired observations cannot keep a forming candle alive.
-        monkeypatch.setattr('api.market_data.router.time.time', lambda: (now + 30000) / 1000)
+        monkeypatch.setattr('engine.data_queries.time.time', lambda: (now + 30000) / 1000)
         data = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m').json()
         assert not data['live']
         assert len(data['candles']) == 1
@@ -821,9 +837,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
         assert not hasattr(subscriptions, 'processes')
 
 
-def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(context):
-    import fcntl
-
+def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(context, engine_http):
     from nautilus_trader.model import Bar, BarType, Price, Quantity
 
     from core.market.instruments import bar_type_for
@@ -852,9 +866,8 @@ def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(cont
     assert data['candles'][-1]['is_complete'] is None
     assert not data['live']
     # A view must obey the same deletion exclusion as other reads.
-    with app.state.market_data._lease('ETHUSDT', access=True) as lease:
+    with engine_http.app.state.market_data._lease('ETHUSDT', access=True):
         assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 409
-        fcntl.flock(lease, fcntl.LOCK_UN)
     import shutil
     shutil.rmtree(root / 'data')
     assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 503
@@ -1000,7 +1013,7 @@ def test_option_underlying_uses_catalogue_pair_instead_of_assuming_usdt(context,
     assert client.post("/api/data/subscriptions", json={**payload, "symbol": symbol, "underlying": "ETHUSDC"}).status_code == 422
 
 
-def test_latest_data_times_read_only_configured_futures_1s(context, monkeypatch):
+def test_latest_data_times_read_only_configured_futures_1s(context, monkeypatch, engine_http):
     import shutil
 
     from nautilus_trader.model import Bar, BarType, Price, Quantity
@@ -1040,14 +1053,14 @@ def test_latest_data_times_read_only_configured_futures_1s(context, monkeypatch)
     monkeypatch.setattr(ParquetDataCatalog, "instruments", no_inventory)
     monkeypatch.setattr(ParquetDataCatalog, "get_intervals", no_inventory)
     monkeypatch.setattr(ParquetDataCatalog, "bars", no_inventory)
-    monkeypatch.setattr("api.market_data.router.dataset_inventory", no_inventory)
+    monkeypatch.setattr("engine.data_queries.dataset_inventory", no_inventory)
     response = client.get("/api/data/datasets/latest")
     assert response.status_code == 200, response.text
     assert response.json() == {"ETHUSDT": str(latest), "ETHUSDC": None}
     # Fresh requests see newly installed 1s data, not a cached timestamp.
     write("ETHUSDT", "1s", latest + 1_000_000_000)
     assert client.get("/api/data/datasets/latest").json()["ETHUSDT"] == str(latest + 1_000_000_000)
-    with app.state.market_data._lease("ETHUSDT", access=True):
+    with engine_http.app.state.market_data._lease("ETHUSDT", access=True):
         assert client.get("/api/data/datasets/latest").status_code == 409
     assert client.get("/api/data/datasets/latest").status_code == 200
     shutil.rmtree(root / "data")

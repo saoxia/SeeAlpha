@@ -149,6 +149,12 @@ def test_engine_http_sync_starts_and_stops_workers_with_tenant_authorization(tmp
         assert client.post(
             "/tenants/43/data/control/sync", json=enabled, headers=headers,
         ).status_code == 403
+        # The Engine must reject policy changes while the pair is under
+        # deletion's exclusive data access lease, without changing the file.
+        with manager._lease("ETHUSDT", access=True):
+            blocked = client.post(path, json=enabled, headers=headers)
+            assert blocked.status_code == 409
+            assert manager.policy_repository.list() == []
         first = client.post(path, json=enabled, headers=headers)
         assert first.status_code == 200, first.text
         assert len(started) == 2  # Feed collection plus bar calculation.
@@ -157,6 +163,10 @@ def test_engine_http_sync_starts_and_stops_workers_with_tenant_authorization(tmp
         assert again.status_code == 200
         assert len(started) == 2
         disabled = {"policies": [{**enabled["policies"][0], "realtime_enabled": False}]}
+        with manager._lease("ETHUSDT", access=True):
+            blocked = client.post(path, json=disabled, headers=headers)
+            assert blocked.status_code == 409
+            assert manager.policy_repository.list()[0]["realtime_enabled"] is True
         result = client.post(path, json=disabled, headers=headers)
         assert result.status_code == 200, result.text
         assert len(stopped) == 2

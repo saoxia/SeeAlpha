@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from contextlib import ExitStack
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -85,9 +86,23 @@ def sync(tenant_id: str, body: PolicySet, request: Request):
     def update():
         with manager.subscriptions.lock:
             current = manager.subscriptions._read(refresh=True)
-            if current != policies:
-                manager.policy_repository.save(policies, tenant_id=tenant_id)
-            manager.subscriptions.restore()
+            before = {(p.product, p.symbol): p for p in current}
+            after = {(p.product, p.symbol): p for p in policies}
+            changed = sorted(key for key in before.keys() | after.keys()
+                             if before.get(key) != after.get(key))
+            # Shared access permits active collectors and previews, but not
+            # an exclusive pair deletion. Hold leases through persistence and
+            # process reconciliation so a deletion cannot race a policy edit.
+            with ExitStack() as access:
+                for product, symbol in changed:
+                    if product == "options" and "-" not in symbol:
+                        continue  # Scope entries do not own an individual data file.
+                    access.enter_context(
+                        manager._lease(symbol, product, access=True, shared=True),
+                    )
+                if current != policies:
+                    manager.policy_repository.save(policies, tenant_id=tenant_id)
+                manager.subscriptions.restore()
         return {"synced": len(policies), "last_error": manager.subscriptions.last_error}
 
     return call(update)

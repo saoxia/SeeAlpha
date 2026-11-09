@@ -220,3 +220,67 @@ def test_platform_policy_lock_never_blocks_engine_feed_owner_lock(tmp_path):
     finally:
         platform.close()
         engine.close()
+
+
+def test_failed_engine_sync_rolls_back_platform_orm_policy(tmp_path):
+    from api.market_data.contracts import DataPolicy
+
+    initial = DataPolicy(symbol="ETHUSDT", realtime_enabled=False)
+    storage = [initial]
+
+    class Repository:
+        def save(self, policies, *, tenant_id):
+            assert tenant_id == 42
+            storage[:] = list(policies)
+
+        def list(self, *, tenant_id):
+            assert tenant_id == 42
+            return [p.model_dump(mode="json") for p in storage]
+
+    class Engine:
+        def market_control(self, operation, payload):
+            assert operation == "sync"
+            raise HTTPException(409, "该交易对正在删除")
+
+    subscription = Subscriptions(SimpleNamespace(
+        project=tmp_path, policy_repository=Repository(), engine=Engine(),
+    ))
+    subscription._bound_tenant_id = 42
+    changed = initial.model_copy(update={"realtime_enabled": True})
+    with pytest.raises(HTTPException, match="正在删除") as error:
+        subscription._write([changed])
+    assert error.value.status_code == 409
+    assert storage == [initial]
+    assert subscription._read() == [initial]
+    subscription.close()
+
+
+def test_failed_engine_sync_and_failed_orm_rollback_fail_closed(tmp_path):
+    from api.market_data.contracts import DataPolicy
+
+    old = DataPolicy(symbol="ETHUSDT", realtime_enabled=False)
+    calls = []
+
+    class Repository:
+        def list(self, *, tenant_id):
+            return [old.model_dump(mode="json")]
+
+        def save(self, policies, *, tenant_id):
+            calls.append(list(policies))
+            if len(calls) == 2:
+                raise OSError("database unavailable")
+
+    class Engine:
+        def market_control(self, operation, payload):
+            raise HTTPException(409, "Engine deletion lease")
+
+    subscription = Subscriptions(SimpleNamespace(
+        project=tmp_path, policy_repository=Repository(), engine=Engine(),
+    ))
+    subscription._bound_tenant_id = 42
+    with pytest.raises(HTTPException, match="回滚也失败") as error:
+        subscription._write([old.model_copy(update={"realtime_enabled": True})])
+    assert error.value.status_code == 503
+    assert subscription.policies is None
+    assert len(calls) == 2
+    subscription.close()
