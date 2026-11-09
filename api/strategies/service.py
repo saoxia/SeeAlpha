@@ -150,6 +150,44 @@ class StrategyStore:
         except EngineConflict as exc:
             raise HTTPException(409, exc.message) from exc
 
+    def submit_backtest(self, tenant_id, account_id, start, end, interval, *, idempotency_key=None):
+        """Submit once and return a durable job handle; no long HTTP wait."""
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "历史回测只在开发租户上运行。")
+        account = self._virtual_account(tenant, str(account_id).strip())
+        try:
+            self.engine.runnable(tenant["id"], "backtest")
+            return self.engine.submit_task(
+                tenant["id"], "backtest", {
+                    "account_id": str(account["id"]),
+                    "start": start, "end": end, "interval": interval or "1m",
+                    "starting_balance": str(account["initial_capital"]),
+                    "quote_currency": account["quote_currency"],
+                }, idempotency_key=idempotency_key,
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+
+    def _task_tenant(self, tenant_id):
+        tenant = self.tenants.require_tenant(tenant_id)
+        return tenant["id"]
+
+    def tasks(self, tenant_id):
+        return self.engine.list_tasks(self._task_tenant(tenant_id))
+
+    def task(self, tenant_id, identity):
+        return self.engine.task(self._task_tenant(tenant_id), identity)
+
+    def task_result(self, tenant_id, identity):
+        return self.engine.task_result(self._task_tenant(tenant_id), identity)
+
+    def cancel_task(self, tenant_id, identity):
+        return self.engine.cancel_task(self._task_tenant(tenant_id), identity)
+
+    def retry_task(self, tenant_id, identity):
+        return self.engine.retry_task(self._task_tenant(tenant_id), identity)
+
     def latest_backtest(self, tenant_id, account_id):
         tenant = self.tenants.require_tenant(tenant_id)
         self._virtual_account(tenant, str(account_id).strip())

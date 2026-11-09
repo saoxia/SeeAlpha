@@ -335,6 +335,51 @@ class EngineClient:
             },
         )
 
+    def _task_sync(self, method, tenant_id, suffix="", **kwargs):
+        """Forward task HTTP statuses without masking a missing job as 502."""
+        from fastapi import HTTPException
+
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        path = f"/tenants/{tenant_id}/jobs{suffix}"
+        url, headers = self._target(path)
+        try:
+            with httpx.Client(timeout=120) as client:
+                response = client.request(method, url + path, headers=headers, **kwargs)
+        except httpx.HTTPError as error:
+            raise HTTPException(503, "租户 Engine 任务服务不可用。") from error
+        if response.status_code >= 400:
+            if response.status_code in {403, 404, 409, 422, 429, 503}:
+                try:
+                    message = response.json().get("detail", "任务请求未被接受。")
+                except ValueError:
+                    message = "任务请求未被接受。"
+                raise HTTPException(response.status_code, message)
+            raise HTTPException(502, "Engine 任务接口调用失败。")
+        return response.json() if response.content else None
+
+    def submit_task(self, tenant_id, kind, parameters, *, idempotency_key=None):
+        """Enqueue tenant work without waiting for CPU-heavy computation."""
+        return self._task_sync(
+            "POST", tenant_id,
+            json={"kind": kind, "parameters": parameters, "idempotency_key": idempotency_key},
+        )
+
+    def list_tasks(self, tenant_id):
+        return self._task_sync("GET", tenant_id)["items"]
+
+    def task(self, tenant_id, identity):
+        return self._task_sync("GET", tenant_id, f"/{identity}")
+
+    def task_result(self, tenant_id, identity):
+        return self._task_sync("GET", tenant_id, f"/{identity}/result")
+
+    def cancel_task(self, tenant_id, identity):
+        return self._task_sync("POST", tenant_id, f"/{identity}/cancel")
+
+    def retry_task(self, tenant_id, identity):
+        return self._task_sync("POST", tenant_id, f"/{identity}/retry")
+
     def latest_backtest(self, tenant_id, account_id):
         if self.runtime is not None:
             return self.runtime.latest_backtest(tenant_id, account_id)

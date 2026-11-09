@@ -274,6 +274,8 @@ class DataService:
 
     def _public(self, job):
         value = dict(job)
+        value.pop("idempotency_key", None)
+        value.pop("request_hash", None)
         value["action"] = value["action"].removeprefix(PREFIX)
         owned = job["id"] in self.processes
         value["cancellable"] = job["status"] == "running" and owned
@@ -332,7 +334,19 @@ class DataService:
         except (OSError, ValueError):
             return None
 
-    def start(self, payload, *, resolved_history=None):
+    def start(self, payload, *, resolved_history=None, idempotency_key=None, request_hash=None):
+        if idempotency_key is not None:
+            if not request_hash:
+                raise ValueError("幂等提交必须提供请求摘要。")
+            # Replay must return the previously accepted durable handle even
+            # if storage is subsequently unavailable or request data changed.
+            with self.lock:
+                for prior in self._records():
+                    if prior.get("idempotency_key") != idempotency_key:
+                        continue
+                    if prior.get("request_hash") != request_hash:
+                        raise HTTPException(409, "同一幂等键已用于其他行情任务。")
+                    return self._public(prior)
         self.require_storage(write=True)
         if payload.action not in {"backfill", "delete_pair", "trim"}:
             selection, _settings = self.request(payload)
@@ -350,6 +364,13 @@ class DataService:
         with self.lock:
             if self.closed:
                 raise HTTPException(503, "服务正在停止")
+            if idempotency_key is not None:
+                for prior in self._records():
+                    if prior.get("idempotency_key") != idempotency_key:
+                        continue
+                    if prior.get("request_hash") != request_hash:
+                        raise HTTPException(409, "同一幂等键已用于其他行情任务。")
+                    return self._public(prior)
             lease = ExitStack()
             process = None
             marked_deleting = False
@@ -407,7 +428,8 @@ class DataService:
                     parameters.update(resolved_history)
                 job = {"id": identity, "action": PREFIX + payload.action, "status": "running",
                        "created_at": datetime.now(UTC).isoformat(), "finished_at": None,
-                       "parameters": parameters, "error": None, "result": None}
+                       "parameters": parameters, "error": None, "result": None,
+                       "idempotency_key": idempotency_key, "request_hash": request_hash}
                 self.repository.save_job(job)
                 self.directory.mkdir(parents=True, exist_ok=True)
                 self.log_directory.mkdir(parents=True, exist_ok=True)

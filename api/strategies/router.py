@@ -39,6 +39,13 @@ class BacktestRequest(BaseModel):
     interval: str = Field(default="1m", pattern=r"^(1m|5m)$")
 
 
+class AsyncBacktestRequest(BacktestRequest):
+    idempotency_key: str | None = Field(
+        default=None, min_length=1, max_length=128,
+        pattern=r"^[A-Za-z0-9._:-]{1,128}$",
+    )
+
+
 def store(request: Request):
     service = getattr(request.app.state, "strategies", None)
     if service is None:
@@ -86,3 +93,39 @@ def start_backtest(
 @router.get("/tenants/{tenant_id}/accounts/{account_id}/backtests/latest")
 def latest_backtest(request: Request, tenant_id: int, account_id: int, _: AdminUser):
     return store(request).latest_backtest(tenant_id, account_id)
+
+
+@router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests/async", status_code=202)
+def submit_backtest_async(
+    request: Request, tenant_id: int, account_id: int,
+    payload: AsyncBacktestRequest, _: AdminUser,
+):
+    return store(request).submit_backtest(
+        tenant_id, account_id, payload.start, payload.end, payload.interval,
+        idempotency_key=payload.idempotency_key,
+    )
+
+
+@router.get("/tenants/{tenant_id}/jobs")
+def list_tenant_jobs(request: Request, tenant_id: int, _: AdminUser):
+    return {"items": store(request).tasks(tenant_id)}
+
+
+@router.get("/tenants/{tenant_id}/jobs/{identity}")
+def get_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+    return store(request).task(tenant_id, identity)
+
+
+@router.get("/tenants/{tenant_id}/jobs/{identity}/result")
+def tenant_job_result(request: Request, tenant_id: int, identity: str, _: AdminUser):
+    return store(request).task_result(tenant_id, identity)
+
+
+@router.post("/tenants/{tenant_id}/jobs/{identity}/cancel")
+def cancel_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+    return store(request).cancel_task(tenant_id, identity)
+
+
+@router.post("/tenants/{tenant_id}/jobs/{identity}/retry", status_code=202)
+def retry_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+    return store(request).retry_task(tenant_id, identity)
