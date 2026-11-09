@@ -155,7 +155,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         tenant_manager=manager,
     )
     app.state.olap = ClickhouseMonitor(olap_repository(database), app.state.accounts)
-    app.state.operations = OperationService(database, app.state.accounts)
+    app.state.operations = OperationService(database, app.state.accounts, app.state.engine)
     app.state.exchanges = ExchangeService(app.state.accounts, settings.database_path.parent / "portfolios",
                                           app.state.operations.repository, app.state.engine)
     app.state.equity = EquityService(database, app.state.accounts, app.state.engine)

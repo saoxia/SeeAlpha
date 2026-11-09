@@ -5,9 +5,11 @@ Decimals are serialized as strings to preserve trading/asset precision.
 """
 import asyncio
 from decimal import Decimal
+import json
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.connectors.binance import assets, manual, queries
@@ -103,4 +105,104 @@ async def account_assets(tenant_id: str, request: AccountRequest, http_request: 
         raise HTTPException(403, "仅正式活跃租户可读取真实账户资产。")
     return wire(await __import__("asyncio").to_thread(
         assets.asset_account, request.account(tenant_id), positions=request.positions,
+    ))
+
+class HistoryRequest(AccountRequest):
+    start_ms: int = Field(gt=0)
+    end_ms: int = Field(gt=0)
+
+
+class OperationRequest(AccountRequest):
+    lookback_minutes: int = Field(ge=1, le=125280)
+
+
+class OptionsRequest(AccountRequest):
+    symbol: str | None = Field(default=None, max_length=100)
+    start_ms: int | None = Field(default=None, gt=0)
+    end_ms: int | None = Field(default=None, gt=0)
+    endpoint: Literal["userTrades", "bill", "exerciseRecord"] | None = None
+
+
+def require_production(runtime, tenant_id):
+    tenant = runtime.tenant_row(tenant_id)
+    if tenant is None or tenant["purpose"] != "production" or tenant["status"] != "active":
+        raise HTTPException(403, "仅正式活跃租户可读取真实账户信息。")
+
+
+def json_lines(source):
+    async def chunks():
+        try:
+            async for page in source:
+                yield json.dumps(wire(page), ensure_ascii=False, separators=(",", ":")) + "\n"
+        except (ValueError, queries.QueryError):
+            # Never send raw connector stack traces or credential-bearing URLs.
+            yield json.dumps({"error": "交易所历史数据读取未完成。"}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(chunks(), media_type="application/x-ndjson")
+
+
+@router.post("/income")
+async def income(tenant_id: str, request: HistoryRequest, http_request: Request):
+    from engine.connectors.binance.income import income_history
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    return json_lines(income_history(request.account(tenant_id), request.start_ms, request.end_ms))
+
+
+@router.post("/operation-history")
+async def operations(tenant_id: str, request: OperationRequest, http_request: Request):
+    from engine.connectors.binance.operations import operation_history
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    return {"records": wire(await operation_history(
+        request.account(tenant_id), lookback_minutes=request.lookback_minutes,
+    ))}
+
+
+@router.post("/options/time")
+async def option_time(tenant_id: str, request: PublicRequest):
+    from engine.connectors.binance import options
+
+    return await asyncio.to_thread(options.get, "time")
+
+
+@router.post("/options/positions")
+async def option_positions(tenant_id: str, request: OptionsRequest, http_request: Request):
+    from engine.connectors.binance.options_account import BinanceOptionsAccountClient
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    client = BinanceOptionsAccountClient(request.api_key, request.api_secret, environment=request.environment)
+    return {"rows": await client.positions(request.symbol)}
+
+
+@router.post("/options/open-orders")
+async def option_open_orders(tenant_id: str, request: OptionsRequest, http_request: Request):
+    from engine.connectors.binance.options_account import BinanceOptionsAccountClient
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    client = BinanceOptionsAccountClient(request.api_key, request.api_secret, environment=request.environment)
+    return await client.open_orders(request.symbol)
+
+
+@router.post("/options/order-history")
+async def option_order_history(tenant_id: str, request: OptionsRequest, http_request: Request):
+    from engine.connectors.binance.options_account import BinanceOptionsAccountClient
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    if request.symbol is None or request.start_ms is None or request.end_ms is None:
+        raise HTTPException(422, "期权订单查询需要合约和时间范围。")
+    client = BinanceOptionsAccountClient(request.api_key, request.api_secret, environment=request.environment)
+    return await client.order_history(request.symbol, request.start_ms, request.end_ms)
+
+
+@router.post("/options/pages")
+async def option_pages(tenant_id: str, request: OptionsRequest, http_request: Request):
+    from engine.connectors.binance.options_account import BinanceOptionsAccountClient
+
+    require_production(http_request.app.state.runtime, tenant_id)
+    if request.endpoint is None or request.start_ms is None or request.end_ms is None:
+        raise HTTPException(422, "期权查询需要类型和时间范围。")
+    client = BinanceOptionsAccountClient(request.api_key, request.api_secret, environment=request.environment)
+    return json_lines(client.history_pages(
+        request.endpoint, request.start_ms, request.end_ms, symbol=request.symbol,
     ))

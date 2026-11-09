@@ -180,6 +180,66 @@ class EngineClient:
         }
         return result
 
+    def _account_credentials(self, account):
+        return {
+            "environment": account["environment"],
+            "api_key": account["credentials"]["apiKey"],
+            "api_secret": account["credentials"]["secret"],
+            "account_id": str(account["id"]),
+            "account_name": account.get("account_name", ""),
+            "exchange": account.get("exchange", "binance"),
+        }
+
+    async def operation_history(self, account, *, lookback_minutes=1440):
+        if self.runtime is not None:
+            from engine.connectors.binance.operations import operation_history
+
+            return await operation_history(account, lookback_minutes=lookback_minutes)
+        result = await self._async(
+            "POST", f"/tenants/{account['tenant_id']}/venue/operation-history",
+            json={**self._account_credentials(account), "lookback_minutes": lookback_minutes},
+        )
+        return result["records"]
+
+    async def _query_lines(self, account, route, payload):
+        path = f"/tenants/{account['tenant_id']}/venue/{route}"
+        url, headers = self._target(path)
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream("POST", url + path, headers=headers, json=payload) as response:
+                    if response.status_code >= 400:
+                        raise QueryError("交易所历史查询失败。")
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        event = json.loads(line)
+                        if isinstance(event, dict) and "error" in event and len(event) == 1:
+                            raise QueryError(event["error"])
+                        yield event
+        except httpx.HTTPError as exc:
+            raise OSError("交易引擎不可用") from exc
+
+    async def income_history(self, account, start_ms, end_ms):
+        if self.runtime is not None:
+            from engine.connectors.binance.income import income_history
+
+            async for page in income_history(account, start_ms, end_ms):
+                yield page
+            return
+        payload = {**self._account_credentials(account), "start_ms": start_ms, "end_ms": end_ms}
+        async for page in self._query_lines(account, "income", payload):
+            yield page
+
+    def options_client(self, account):
+        return RemoteOptionsClient(self, account)
+
+    async def options_server_time(self, account):
+        result = await self._async(
+            "POST", f"/tenants/{account['tenant_id']}/venue/options/time",
+            json={"environment": account["environment"]},
+        )
+        return result
+
     def _account_path(self, tenant_id, account_id):
         return f"/tenants/{tenant_id}/accounts/{account_id}"
 
@@ -425,3 +485,36 @@ async def account_snapshot(account, engine=None):
     from engine.runtime import read_account_snapshot
 
     return await read_account_snapshot(account)
+
+
+class RemoteOptionsClient:
+    """Scoped, read-only options client backed by the tenant Engine HTTP service."""
+
+    def __init__(self, engine, account):
+        self.engine = engine
+        self.account = account
+
+    async def _read(self, suffix, **values):
+        account = self.account
+        return await self.engine._async(
+            "POST", f"/tenants/{account['tenant_id']}/venue/options/{suffix}",
+            json={**self.engine._account_credentials(account), **values},
+        )
+
+    async def positions(self, symbol=None):
+        return (await self._read("positions", symbol=symbol))["rows"]
+
+    async def open_orders(self, symbol=None):
+        return await self._read("open-orders", symbol=symbol)
+
+    async def order_history(self, symbol, start_ms, end_ms):
+        return await self._read("order-history", symbol=symbol, start_ms=start_ms, end_ms=end_ms)
+
+    async def history_pages(self, endpoint, start_ms, end_ms, *, symbol=None):
+        account = self.account
+        payload = {
+            **self.engine._account_credentials(account),
+            "endpoint": endpoint, "start_ms": start_ms, "end_ms": end_ms, "symbol": symbol,
+        }
+        async for page in self.engine._query_lines(account, "options/pages", payload):
+            yield page
