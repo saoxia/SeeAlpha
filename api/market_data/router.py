@@ -112,7 +112,13 @@ def status(request: Request, _: CurrentUser):
 
 @router.get("/datasets")
 def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_levels: bool = False):
-    service(request).require_storage()
+    manager = service(request)
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        symbols = [p.symbol for p in manager.subscriptions._read() if p.product == "futures_um"]
+        return manager.engine.data_query("datasets", {
+            "interval": interval, "all_levels": all_levels, "symbols": symbols,
+        })
+    manager.require_storage()
     settings = load_settings()
     if interval is not None and interval not in INTERVALS:
         raise HTTPException(422, "K 线周期未配置")
@@ -136,15 +142,17 @@ def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_
 @router.get("/datasets/latest", response_model=dict[str, str | None])
 def latest_data_times(request: Request, _: CurrentUser):
     """Latest persisted 1s bar event times for configured perpetual pairs only."""
+    manager = service(request)
+    symbols = [policy.symbol for policy in manager.subscriptions._read()
+               if policy.product == "futures_um"]
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        return manager.engine.data_query("latest", {"symbols": symbols})
     from nautilus_trader.model import NautilusDataType
 
     from core.market.instruments import bar_type_for
     from engine.pipeline.data_management import open_catalog
 
-    manager = service(request)
     manager.require_storage()
-    symbols = [policy.symbol for policy in manager.subscriptions._read()
-               if policy.product == "futures_um"]
     settings = load_settings()
     if not symbols or not settings.catalog_dir.is_dir():
         return dict.fromkeys(symbols)
@@ -160,6 +168,8 @@ def latest_data_times(request: Request, _: CurrentUser):
 @router.get("/coverage")
 def data_coverage(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends(query_range)]):
     manager = service(request)
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        return manager.engine.data_query("coverage", payload.model_dump(mode="json"))
     manager.require_storage()
     try:
         selection, settings = manager.request(payload)
@@ -171,8 +181,11 @@ def data_coverage(request: Request, _: CurrentUser, payload: Annotated[DataRange
 @router.post("/prepare/plan")
 async def plan(request: Request, payload: DataRange, _: AdminUser):
     await require_download_market(request, payload)
+    manager = service(request)
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        return await run_in_threadpool(manager.engine.data_query, "prepare-plan", payload.model_dump(mode="json"))
     try:
-        return await run_in_threadpool(service(request).plan, payload)
+        return await run_in_threadpool(manager.plan, payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
@@ -185,6 +198,8 @@ def ticks(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depend
 
 @router.post("/delete/plan", response_model=DataDeletionPlan)
 def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
+    # Deletion preview and executor must share the same filesystem identity.
+    # Keep both on the API host until the destructive job migrates as one unit.
     try:
         return service(request).delete_plan(payload)
     except ValueError as exc:
@@ -196,9 +211,15 @@ def local_chart(request: Request, _: CurrentUser,
                 symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC)$"),
                 interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"] = "1m"):
     """Bounded display projection only; never provides strategy readiness."""
-    from engine.feed.pair_store import journal_chart
-
     manager = service(request)
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        policy = next((p for p in manager.subscriptions._read()
+                       if p.symbol == symbol and p.product == "futures_um"), None)
+        return manager.engine.data_query("chart", {
+            "symbol": symbol, "interval": interval,
+            "base_level": policy.base_level if policy is not None else None,
+        })
+    from engine.feed.pair_store import journal_chart
     manager.require_storage()
     now = int(time.time() * 1000)
     left = bar_window(interval, now)[0]
@@ -258,6 +279,15 @@ def bars(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends
 
 def preview_data(request, payload, limit, cursor, interval=None):
     manager = service(request)
+    if getattr(manager, "engine", None) is not None and manager.engine.remote:
+        subscribed = any(
+            p.symbol == payload.symbol and p.product == payload.product
+            for p in manager.subscriptions._read()
+        )
+        return manager.engine.data_query("page", {
+            **payload.model_dump(mode="json"), "interval": interval,
+            "limit": limit, "cursor": cursor, "journal": subscribed,
+        })
     manager.require_storage()
     try:
         settings = load_settings()

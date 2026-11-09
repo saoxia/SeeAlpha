@@ -1,6 +1,7 @@
 """Authenticated data operations, process exclusion and restart states."""
 
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -509,7 +510,7 @@ def test_subscription_configuration_auth_validation_and_missing_mount_stop(conte
     assert legacy_second.json()["policy"]["intervals"] == list(INTERVALS)
     assert client.post("/api/data/subscriptions", json={**payload, "symbol": "../private"}).status_code == 422
     # Stopping/configuring history must remain possible while the disk is missing.
-    (root / "data").rmdir()
+    shutil.rmtree(root / "data")
     assert client.post("/api/data/subscriptions", json=payload).status_code == 200
     assert not (root / "data").exists()
 
@@ -793,7 +794,7 @@ def test_pair_delete_empty_configuration_exclusion_and_mount_failure(context):
     plan = client.post("/api/data/pairs/delete/plan", json={"symbol": "ETHUSDT"})
     assert plan.status_code == 200 and plan.json()["file_count"] == 0
     assert client.post("/api/data/pairs/delete/plan", json={"symbol": "../private"}).status_code == 422
-    (root / "data").rmdir()
+    shutil.rmtree(root / "data")
     assert client.post("/api/data/pairs/delete/plan", json={"symbol": "ETHUSDT"}).status_code == 503
     assert manager.policy_repository.list()[0]["symbol"] == "ETHUSDT"
 

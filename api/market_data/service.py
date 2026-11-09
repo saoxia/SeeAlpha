@@ -115,7 +115,12 @@ class DataService:
         from .contracts import normalize_scope
         symbol = normalize_scope(symbol, product)
         kind = "access" if access else "job"
-        path = self.project / ".local/run/api/data" / product / f"{symbol}.{kind}.lock"
+        # Engine and API operate on the *same* mounted data volume, not on
+        # distinct /app/.local/run and host-side runtime directories.
+        data = self.project / "data"
+        if not data.is_dir():
+            raise HTTPException(503, "数据存储目录不可用。")
+        path = data / ".locks" / product / f"{symbol}.{kind}.lock"
         path.parent.mkdir(parents=True, exist_ok=True)
         target = path.open("a")
         try:
@@ -207,6 +212,12 @@ class DataService:
             if policy.product == "options" and policy.symbol == "ALL":
                 # Scope parameters have no market files and must not acquire a contract lease.
                 return self.subscriptions._save(policy)
+            if (not (self.project / "data").is_dir()
+                    and not policy.realtime_enabled and not policy.history_enabled
+                    and proposal["deletion"] is None):
+                # Disabling/configuring a stopped feed only updates the business
+                # policy. It must be possible while the market-data disk is offline.
+                return self.subscriptions._save(policy, allow_later_start=True)
             with ExitStack() as lease:
                 if proposal["deletion"] is not None:
                     lease.enter_context(self._lease(policy.symbol, policy.product))
