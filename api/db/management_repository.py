@@ -9,17 +9,6 @@ class ManagementRepository:
     def __init__(self, database):
         self.database = database
 
-    def import_jobs(self, jobs):
-        """Copy missing legacy records without replacing any existing database record."""
-        with self.database.session(write=True, lock_key="management:jobs:import") as session:
-            for job in jobs:
-                if session.get(ManagementJob, job["id"]) is None:
-                    session.add(
-                        ManagementJob(
-                            id=job["id"], created_at=job.get("created_at", ""), payload=job
-                        )
-                    )
-
     def list_jobs(self):
         with self.database.session() as session:
             return [dict(item) for item in session.scalars(select(ManagementJob.payload)).all()]
