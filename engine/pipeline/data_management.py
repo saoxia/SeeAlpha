@@ -467,7 +467,9 @@ def main():
         parser.error("无效任务编号")
     payload = json.loads(args.request)
     settings = load_settings()
-    result_path = PROJECT_ROOT / ".local/state/api/data_jobs" / f"{args.job_id}.json"
+    result_path = Path(os.environ.get(
+        "ENGINE_DATA_JOBS", str(PROJECT_ROOT / ".local/state/api/data_jobs"),
+    )) / f"{args.job_id}.json"
     output = PROJECT_ROOT / "data/exports/ticks" / f"{args.job_id}.csv"
     if args.action == "trim":
         from engine.pipeline.pair_deletion import trim_pair_history

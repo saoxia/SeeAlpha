@@ -97,7 +97,8 @@ class Subscriptions:
         try:
             process = popen(
                 command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
-                start_new_session=True, pass_fds=tuple(fds), env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                start_new_session=True, pass_fds=tuple(fds), env={**os.environ, "PYTHONUNBUFFERED": "1",
+                     "ENGINE_DATA_JOBS": str(self.manager.directory)},
             )
         finally:
             stack.close()

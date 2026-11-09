@@ -515,7 +515,9 @@ def main():
                 asyncio.run(serve_history(policy, load_settings(), root))
         return
     result = asyncio.run(backfill(policy, load_settings()))
-    target = PROJECT_ROOT / ".local/state/api/data_jobs" / f"{args.job_id}.json"
+    target = Path(os.environ.get(
+        "ENGINE_DATA_JOBS", str(PROJECT_ROOT / ".local/state/api/data_jobs"),
+    )) / f"{args.job_id}.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(result, ensure_ascii=False))

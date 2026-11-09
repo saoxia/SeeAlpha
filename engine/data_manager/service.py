@@ -429,7 +429,8 @@ class DataService:
                             command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output,
                             stderr=subprocess.STDOUT, start_new_session=True,
                             pass_fds=(job_lease.fileno(), access_lease.fileno()),
-                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                            env={**os.environ, "PYTHONUNBUFFERED": "1",
+                                 "ENGINE_DATA_JOBS": str(self.directory)},
                         )
                     if engine is not None and payload.action == "backfill":
                         engine.note_worker(command, tenant_id=self.subscriptions.bound_tenant_id())
