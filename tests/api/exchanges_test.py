@@ -562,7 +562,7 @@ def test_portfolio_collectors_share_writer_lock(application):
 
     async def scenario():
         first = app.state.exchanges
-        second = ExchangeService(app.state.accounts, first.portfolio_root)
+        second = ExchangeService(app.state.accounts, first.portfolio_root, engine=app.state.engine)
         await asyncio.gather(first.persist_portfolio(account_id), second.persist_portfolio(account_id))
         assert (await second.persisted_portfolio(account_id))["account"]["total_equity"] == "105"
         assert len(calls) == 1
