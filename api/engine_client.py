@@ -7,7 +7,13 @@ from pathlib import Path
 
 import httpx
 
-from core.engine_contracts import AccountSnapshot, EngineConflict, QueryError
+from core.engine_contracts import (
+    ENGINE_CONTRACT_HEADER,
+    ENGINE_CONTRACT_VERSION,
+    AccountSnapshot,
+    EngineConflict,
+    QueryError,
+)
 
 
 class RemoteProcess:
@@ -53,7 +59,10 @@ class EngineClient:
         self.remote = True
         self.sync_transport = sync_transport
         self.async_transport = async_transport
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
+        }
 
     def close(self):
         """HTTP connections are scoped to each call; no Engine runtime is owned."""
@@ -69,7 +78,24 @@ class EngineClient:
         elif match is not None and match.group(1) != str(tenant_id):
             raise EngineConflict("Engine 路由租户不匹配。")
         url, token = self.tenant_manager.endpoint(tenant_id)
-        return url, {"Authorization": f"Bearer {token}"}
+        return url, {
+            "Authorization": f"Bearer {token}",
+            ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
+        }
+
+    @staticmethod
+    def _verify_contract(response):
+        """Never consume a successful response from an unversioned or incompatible Engine."""
+        observed = response.headers.get(ENGINE_CONTRACT_HEADER)
+        if response.status_code == 426 or (
+            observed is not None and observed != ENGINE_CONTRACT_VERSION
+        ):
+            raise QueryError(
+                f"Engine HTTP 契约版本不兼容：需要 {ENGINE_CONTRACT_VERSION}，"
+                f"实际 {observed or '未提供'}。"
+            )
+        if response.status_code < 400 and observed is None:
+            raise QueryError("Engine HTTP 响应未声明契约版本，拒绝继续执行。")
 
     def _sync(self, method, path, timeout=60, *, tenant_id=None, **kwargs):
         url, headers = self._target(path, tenant_id)
@@ -78,6 +104,7 @@ class EngineClient:
                 response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
+        self._verify_contract(response)
         if response.status_code == 409:
             raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
         if response.status_code >= 400:
@@ -91,6 +118,7 @@ class EngineClient:
                 response = await client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
+        self._verify_contract(response)
         if response.status_code == 409:
             raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
         if response.status_code >= 400:
@@ -155,6 +183,7 @@ class EngineClient:
                 response = client.post(url + path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise HTTPException(503, "租户数据引擎不可用。") from exc
+        self._verify_contract(response)
         if response.status_code >= 400:
             detail = response.json().get("detail", "数据查询失败。")
             if response.status_code in {403, 404, 409, 422, 503}:
@@ -171,6 +200,7 @@ class EngineClient:
         try:
             with (httpx.Client(timeout=None, transport=self.sync_transport) as client,
                   client.stream("GET", url + path, headers=headers) as response):
+                self._verify_contract(response)
                 if response.status_code >= 400:
                     raise QueryError("导出文件不可用。")
                 yield from response.iter_bytes(chunk_size=65536)
@@ -200,6 +230,7 @@ class EngineClient:
         try:
             async with (httpx.AsyncClient(timeout=None, transport=self.async_transport) as client,
                         client.stream("POST", url + path, headers=headers, json=payload) as response):
+                self._verify_contract(response)
                 if response.status_code >= 400:
                     raise QueryError("交易所历史查询失败。")
                 async for line in response.aiter_lines():
@@ -287,6 +318,7 @@ class EngineClient:
                 response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as error:
             raise HTTPException(503, "租户 Engine 任务服务不可用。") from error
+        self._verify_contract(response)
         if response.status_code >= 400:
             if response.status_code in {403, 404, 409, 422, 429, 503}:
                 try:
@@ -445,6 +477,7 @@ class EngineClient:
             headers=headers,
             json=payload,
         ) as response:
+                self._verify_contract(response)
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line:
