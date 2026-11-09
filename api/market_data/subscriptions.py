@@ -1,5 +1,6 @@
 """Platform-owned subscription intent; Engine alone runs feed and history workers."""
 
+import asyncio
 import fcntl
 import threading
 
