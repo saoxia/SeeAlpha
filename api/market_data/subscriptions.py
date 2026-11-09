@@ -75,14 +75,15 @@ class Subscriptions:
 
     def restore(self):
         """Reconcile ORM policy intent into the resident Engine, never spawn locally."""
-        try:
-            policies = self._read(refresh=True)
-            result = self._engine().market_control("sync", {
-                "policies": [p.model_dump(mode="json") for p in policies],
-            })
-            self.last_error = result.get("last_error")
-        except (OSError, HTTPException, ValueError) as exc:
-            self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
+        with self.lock:
+            try:
+                policies = self._read(refresh=True)
+                result = self._engine().market_control("sync", {
+                    "policies": [p.model_dump(mode="json") for p in policies],
+                })
+                self.last_error = result.get("last_error")
+            except (OSError, HTTPException, ValueError) as exc:
+                self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
 
     def _engine(self):
         engine = getattr(self.manager, "engine", None)
@@ -290,10 +291,7 @@ class Subscriptions:
                     state.update(state="DEGRADED", data_ready=False, reason="status_expired", bar_updates=[])
         except (OSError, ValueError, TypeError):
             state.update(state="DEGRADED", data_ready=False, reason="invalid_status", bar_updates=[])
-        process = self.processes.get((policy.product, "ALL" if policy.product == "options" else policy.symbol))
-        if process is not None and process.poll() is not None and state.get("reason") != "expired":
-            state.update(state="DEGRADED", data_ready=False, reason="process_exited", bar_updates=[])
-        elif not policy.realtime_enabled:
+        if not policy.realtime_enabled:
             state.update(state="STOPPED", data_ready=False, reason="disabled", bar_updates=[])
         from .monitor import observe
         services = observe(self, policy, int(time.time() * 1000))
