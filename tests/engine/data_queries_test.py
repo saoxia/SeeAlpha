@@ -81,8 +81,8 @@ def test_data_endpoints_never_accept_arbitrary_paths():
 
 
 def test_api_and_engine_share_a_single_volume_access_lease(tmp_path):
-    from fastapi import HTTPException
     import pytest
+    from fastapi import HTTPException
 
     from api.market_data.service import DataService
     from engine.data_queries import read_lease
