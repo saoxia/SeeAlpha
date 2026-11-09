@@ -16,7 +16,7 @@ from api.db.auth_repository import auth_repository
 from api.db.models import ExchangeAccount
 from api.main import create_app
 from tests.api.auth_test import login
-from tests.engine.strategy_load_test import crossover_bars, ema_archive
+from tests.fixtures.strategy_packages import crossover_bars, ema_archive, hold_archive
 
 
 def _client(tmp_path):
@@ -107,7 +107,7 @@ def test_catalog_grant_and_development_issue_round_trip(tmp_path, engine_http):
         })
         assert secret.status_code == 422
 
-        other_archive = _hold_archive(tmp_path / "hold")
+        other_archive = hold_archive(tmp_path / "hold")
         other = http.post("/api/strategy-packages", json={"archive": _encoded(other_archive)})
         assert other.status_code == 201, other.text
         assert other.json()["code_key"] == "hold_long"
@@ -232,9 +232,3 @@ def test_production_load_needs_its_own_grant(tmp_path, engine_http):
         })
         assert dev_blocked.status_code == 409
         assert "开发" in dev_blocked.json()["detail"]
-
-
-def _hold_archive(root):
-    from tests.engine.strategy_load_test import _package_archive
-
-    return _package_archive(root, "1")

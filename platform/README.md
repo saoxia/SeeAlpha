@@ -90,3 +90,18 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 开发租户回测权限、账户所有权、资金/参数转发、异步幂等键透传、正式租户未授权
 策略不可下发等隔离的 Platform 业务单元测试。它们不代替真正的 Engine 策略包
 加载、回测 Catalog、交易所执行测试；这些仍在旧联合测试与独立 Engine 仓库。
+
+## 旧联合测试的策略包与 Catalog 夹具分离
+
+历史联合回归现在从 `tests/fixtures/strategy_packages.py` 生成确定性的策略包 ZIP，
+它只使用 Python 标准库，**不导入 Engine、NautilusTrader 或 Engine 测试文件**。
+Engine 侧测试断言生成字节与实际 `archive_directory` 相同，避免替换素材时改变策略身份摘要。
+原 `tests/api/strategy_store_test.py` 继续进行真实策略加载和协调预览断言，
+但已不再从 `tests/engine/strategy_load_test.py` 导入生成素材。
+
+包含真实 Nautilus K 线对象与 Parquet Catalog 的构建器现归
+`tests/fixtures/engine_catalog.py`，仅供旧联合回归与 Engine 侧测试使用，
+它不属于 Platform 独立运行环境。
+原 `tests/api/backtest_test.py` 已不再导入任何 `tests.engine.*` 模块，
+但仍会在测试期间通过 Engine 专用 Catalog 夹具加载实际行情，因此**不能迁入
+`platform/tests/`**，直至该部分改为独立 Engine HTTP + 共享临时 Catalog 验证。

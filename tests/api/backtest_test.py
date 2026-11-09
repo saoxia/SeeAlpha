@@ -13,8 +13,8 @@ from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.main import create_app
 from tests.api.auth_test import login
-from tests.engine.backtest_test import write_crossover_catalog
-from tests.engine.strategy_load_test import ema_archive
+from tests.fixtures.engine_catalog import write_crossover_catalog
+from tests.fixtures.strategy_packages import ema_archive
 
 
 def _client(tmp_path):
