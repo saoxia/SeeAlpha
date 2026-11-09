@@ -49,3 +49,9 @@ uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.p
 NautilusTrader Catalog 写入专属于 `tests/fixtures/engine_catalog.py`。
 旧 API 策略和回测测试不再导入 `tests.engine.*` 测试用例模块。
 实际历史回测/策略下发仍由旧联合套件覆盖，待跨进程替代。
+
+原 `tests/api/backtest_test.py` 的真实业务 API 回测断言已迁至
+`scripts/verify_external_platform_backtest_api.py`。集中验收须显式运行
+`SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh`，
+原联合 `pytest` 不再包含这一用例；它仍与
+`platform/tests/` 普通业务单元测试和独立 Engine 测试互补。
