@@ -179,10 +179,17 @@ def test_engine_option_delete_waits_for_access_lease_and_preserves_files(tmp_pat
     evidence.write_text("retained")
 
     reader = manager._lease(contract, "options", access=True, shared=True)
+    from types import SimpleNamespace
+    from time import time as wall_time
+
     clock = iter([100.0, 106.0])
     monkeypatch.setattr(
-        "engine.data_manager.subscriptions.time.monotonic",
-        lambda: next(clock, 106.0),
+        "engine.data_manager.subscriptions.time",
+        SimpleNamespace(
+            monotonic=lambda: next(clock, 106.0),
+            sleep=lambda _seconds: None,
+            time=wall_time,
+        ),
     )
     try:
         with pytest.raises(HTTPException, match="重新预览") as failure:
