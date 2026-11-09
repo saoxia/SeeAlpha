@@ -2,6 +2,13 @@
 
 适用于本仓库后续全部 Codex 开发。先阅读 [当前架构](docs/ARCHITECTURE.md) 和受影响模块的 README，以实际代码与调用路径核实说明；发现不一致应报告，不得借机重构。
 
+## Engine / Platform 长期职责（2026-11-09 已确认）
+
+后续功能归属和依赖方向先对照 [Engine / Platform 边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)：
+Engine 专注量化数据、回测、模拟及交易执行、风险与运行事实；Platform 专注用户/租户、
+策略开发与授权、工作流编排、运营和可视化。当前维持 Monorepo，目标是 Engine 可独立仓库，
+**不得把“将来拆仓”当作本轮或后续任务自动重构的授权**。跨界改动须明确获批并验证。
+
 ## Priority 1：架构冻结（Architecture Freeze）
 
 - 保持现有主架构不变；不得擅自改变核心模块职责、依赖方向、公共 API（包括核心接口）或主要数据流。
