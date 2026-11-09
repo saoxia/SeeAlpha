@@ -54,6 +54,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f docker/engine.Dockerfile -t seealpha-engine:ci .
+      - name: Engine image excludes Platform source
+        run: docker run --rm --entrypoint sh seealpha-engine:ci -c 'test ! -e /app/api && test ! -e /app/web && test ! -e /app/migrations'
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.14"
@@ -128,3 +130,72 @@ jobs:
           curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
             -H 'Content-Type: application/json' -d '{}' \
             http://127.0.0.1:18766/tenants/42/data/control/subscriptions | grep ETHUSDT
+
+          isolated="$(mktemp -d)"
+          cp -R api core "$isolated/"
+          SEEALPHA_PLATFORM_ROOT="$isolated" uv run python -I - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(os.environ["SEEALPHA_PLATFORM_ROOT"])
+          sys.path.insert(0, str(root))
+          from api.engine_client import EngineClient
+          from core.engine_contracts import ENGINE_CONTRACT_VERSION, QueryError
+          from fastapi import HTTPException
+
+          engine = EngineClient(root, url="http://127.0.0.1:18766", token="ci-only-engine-token")
+          health = engine._sync("GET", "/health")
+          assert health["contract_version"] == ENGINE_CONTRACT_VERSION
+          assert engine.ensure_tenant(42, "development")["tenant_id"] == "42"
+          assert isinstance(engine.list_tasks(42), list)
+          try:
+              engine.list_tasks(99)
+          except HTTPException as exc:
+              assert exc.status_code == 403
+          else:
+              raise AssertionError("cross-tenant request was accepted")
+          wrong = EngineClient(root, url="http://127.0.0.1:18766", token="invalid-token")
+          try:
+              wrong._sync("GET", "/health")
+          except QueryError:
+              pass
+          else:
+              raise AssertionError("unauthorized request was accepted")
+          assert not {"engine", "nautilus_trader"} & set(sys.modules)
+          assert Path(sys.modules["api"].__file__).is_relative_to(root)
+          PY
+
+  full_acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: uv sync --locked
+      - run: sudo apt-get update -qq && sudo apt-get install -y zsh
+      - name: Build Rust converter for full data-pipeline tests
+        run: cargo build --locked --release --manifest-path engine/pipeline/rust_converter/Cargo.toml
+      - name: Full Python lint
+        run: uv run ruff check .
+      - name: Full Python regression suite
+        run: uv run pytest -q
+      - name: Frontend dependencies
+        working-directory: web
+        run: npm ci
+      - name: Frontend unit tests
+        working-directory: web
+        run: npm run test:frontend
+      - name: Frontend lint
+        working-directory: web
+        run: npm run lint
+      - name: Frontend production build
+        working-directory: web
+        run: npm run build
