@@ -343,7 +343,7 @@ def mixed_assets(application, monkeypatch):
             "BNB": {"walletBalance": Decimal("0.001"), "unrealizedProfit": Decimal(0), "maintMargin": Decimal(0)},
         },
     }
-    monkeypatch.setattr(asset_queries, "asset_account", lambda _: evidence)
+    monkeypatch.setattr(asset_queries, "asset_account", lambda _, **_kwargs: evidence)
     prices, price_calls = {"USDT": Decimal(1), "BNB": Decimal(1000)}, []
 
     def price(env, currency):
