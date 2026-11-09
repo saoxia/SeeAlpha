@@ -1058,15 +1058,13 @@ def test_configuration_only_in_database_operations_and_monitor_only_in_files(con
     monkeypatch.setattr(manager.policy_repository, "list", offline)
     manager.subscriptions.restore()
     assert manager.subscriptions._read()[0].symbol == "ETHUSDT"
-    manager.monitor.sample()
-    value = client.get("/api/data/services").json()
-    assert value["configuration_error"] == "offline" and value["state"] == "DEGRADED"
-    assert value["items"][0]["services"]["history"]["state"] == "STOPPED"
-    saved = json.loads(manager.monitor.path.read_text())
-    saved["valid_until_ms"] = 0
-    manager.monitor.path.write_text(json.dumps(saved))
-    assert client.get("/api/data/services").json()["reason"] == "monitor_expired"
-    assert all(not state["healthy"] for state in manager.monitor.read()["items"][0]["services"].values())
+    # Business configuration failures stay in the Platform repository; Engine
+    # monitoring must not be written or synthesized by the API process.
+    assert manager.subscriptions.last_error == "offline"
+    value = client.get("/api/data/services")
+    assert value.status_code == 200
+    assert value.json() == manager.monitor.read()
+    assert not (root / ".local/state/api/data_services/status.json").exists()
     with app.state.database.session() as session:
         assert session.scalar(select(func.count()).select_from(ManagementJob)) == 0
 
@@ -1089,13 +1087,12 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
     root = manager.subscriptions.root(policy)
     root.mkdir(parents=True)
     (root / "status.json").write_text(json.dumps({"state": "READY", "valid_until_ms": 0, "backlog": 7}))
-    value = manager.monitor.sample()
-    observation = value["items"][0]["services"]["collection"]
+    observation = manager.subscriptions.items()[0]["services"]["collection"]
     assert not observation["healthy"] and observation["reason"] == "status_expired"
     assert observation["backlog"] == 7
     done = threading.Event()
     with manager.subscriptions.lock:
-        reader = threading.Thread(target=lambda: (manager.subscriptions.items(), manager.monitor.sample(), done.set()))
+        reader = threading.Thread(target=lambda: (manager.subscriptions.items(), manager.monitor.read(), done.set()))
         reader.start()
         try:
             assert done.wait(2), "File status readers waited behind configuration I/O"
@@ -1232,7 +1229,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
         assert [r['time'] for r in data['candles']] == [(left - 60000) // 1000, left // 1000]
         assert not data['candles'][-1]['is_closed'] and not data['candles'][-1]['is_complete']
         # Expired observations cannot keep a forming candle alive.
-        monkeypatch.setattr('api.market_data.monitor.time.time', lambda: (now + 30000) / 1000)
+        monkeypatch.setattr('api.market_data.router.time.time', lambda: (now + 30000) / 1000)
         data = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m').json()
         assert not data['live']
         assert len(data['candles']) == 1
@@ -1535,8 +1532,7 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
     item = subscriptions.items(group_options=True)[0]
     assert not item["runtime"]["data_ready"] and item["runtime"]["state"] == "DEGRADED"
     assert item["services"]["collection"]["state"] == "DEGRADED"
-    sample = app.state.market_data.monitor.sample()
-    assert [item["symbol"] for item in sample["items"]] == ["BTCUSDT"]
+    assert [item["policy"]["symbol"] for item in subscriptions.items(group_options=True)] == ["BTCUSDT"]
 
 
 def test_option_group_deletion_pauses_every_contract_but_preserves_other_underlyings(context, monkeypatch):

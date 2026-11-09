@@ -85,3 +85,33 @@ def test_tenant_policy_repository_never_accepts_cross_tenant_or_corrupt_state(tm
     (tmp_path / "policies.json").write_text("{truncated")
     with pytest.raises(StorageUnavailable):
         repo.list("42")
+
+
+def test_engine_owns_service_health_sampling_and_expired_evidence(tmp_path):
+    (tmp_path / "data").mkdir()
+    app = create_app(EngineConfig(
+        tmp_path / "state", "secret", project=tmp_path,
+        tenant_id="42", tenant_purpose="development",
+    ))
+    app.state.runtime.ensure_tenant("42", "development")
+    headers = {"Authorization": "Bearer secret"}
+    with TestClient(app) as client:
+        monitor = app.state.market_data.monitor
+        sample = monitor.sample()
+        assert sample["state"] == "READY"
+        assert monitor.path.is_file()
+        assert client.post(
+            "/tenants/42/data/control/services", headers=headers,
+        ).json()["state"] == "READY"
+
+        saved = json.loads(monitor.path.read_text())
+        saved["valid_until_ms"] = 0
+        monitor.path.write_text(json.dumps(saved))
+        expired = client.post("/tenants/42/data/control/services", headers=headers)
+        assert expired.status_code == 200
+        assert expired.json()["state"] == "DEGRADED"
+        assert expired.json()["reason"] == "monitor_expired"
+        assert client.post(
+            "/tenants/43/data/control/services", headers=headers,
+        ).status_code == 403
+    app.state.runtime.close()

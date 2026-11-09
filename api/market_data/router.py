@@ -1,7 +1,6 @@
 """Data operations are authenticated and reuse fixed pipeline entry points."""
 
 import asyncio
-import json
 import time
 from contextlib import suppress
 from dataclasses import replace
@@ -423,43 +422,8 @@ def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depe
 
 @router.get("/feed/status")
 def feed_status(request: Request, _: CurrentUser):
-    manager = service(request)
-    if manager.remote:
-        return manager.engine.market_control("feed-status")
-    manager.require_storage()
-    path = manager.project / "data/market_data/binance_um_1m/status.json"
-    if not path.is_file():
-        return {"state": "STOPPED", "data_ready": False, "reason": "not_started",
-                "data_type": "minute_ohlcv", "checked_ms": None, "valid_until_ms": None}
-    try:
-        value = json.loads(path.read_text())
-        if (not isinstance(value, dict) or type(value.get("valid_until_ms")) is not int
-                or type(value.get("checked_ms")) is not int
-                or value.get("state") not in {"READY", "DEGRADED", "WARMING_UP", "STOPPED"}):
-            raise ValueError
-        expired = int(time.time() * 1000) > value["valid_until_ms"]
-        raw_symbols = value.get("symbols", {})
-        if not isinstance(raw_symbols, dict):
-            raise TypeError
-        symbols = {}
-        for symbol, progress in raw_symbols.items():
-            if not isinstance(progress, dict):
-                raise TypeError
-            symbols[symbol] = {}
-            for field in ("next_ms", "last_websocket_ms"):
-                stamp = progress.get(field)
-                if stamp is not None and (type(stamp) is not int or stamp < 0):
-                    raise ValueError
-                symbols[symbol][field] = stamp
-        return {"state": "DEGRADED" if expired else value["state"],
-                "data_ready": not expired and value["state"] == "READY" and value.get("data_ready") is True,
-                "reason": "status_expired" if expired else value.get("reason"),
-                "checked_ms": value["checked_ms"], "valid_until_ms": value["valid_until_ms"],
-                "symbols": symbols,
-                "data_type": "minute_ohlcv"}
-    except (OSError, ValueError, TypeError):
-        return {"state": "DEGRADED", "data_ready": False, "reason": "invalid_status",
-                "data_type": "minute_ohlcv", "checked_ms": None, "valid_until_ms": None}
+    """Only the tenant Engine reads and validates live feed status evidence."""
+    return service(request).engine.market_control("feed-status")
 
 
 @router.websocket("/jobs/stream")
