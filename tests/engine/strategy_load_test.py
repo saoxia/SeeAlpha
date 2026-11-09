@@ -26,49 +26,15 @@ from engine.strategies.package import (
 )
 from engine.strategies.target_netting import MemberTarget, execution_delta
 from engine.strategies.targets import TargetHolding, signed_quantity
+from tests.fixtures.strategy_packages import (
+    CLOSES,
+    crossover_bars,
+    ema_archive,
+    hold_archive as _package_archive,
+)
 
 PROJECT = Path(__file__).resolve().parents[2]
 EXAMPLE = PROJECT / "packages" / "ema_crossover"
-CLOSES = [100] * 8 + [101, 102, 104, 108, 116, 130, 120, 100, 80, 60, 40]
-
-
-def crossover_bars():
-    bars = []
-    previous = CLOSES[0]
-    for close in CLOSES:
-        high = max(previous, close) + Decimal("0.5")
-        low = min(previous, close) - Decimal("0.5")
-        bars.append({
-            "open": format(Decimal(previous), "f"),
-            "high": format(high, "f"),
-            "low": format(low, "f"),
-            "close": format(Decimal(close), "f"),
-        })
-        previous = close
-    return bars
-
-
-def ema_archive(version="1"):
-    if version == "1":
-        return archive_directory(EXAMPLE)
-    return _rewritten_archive(EXAMPLE, version=version)
-
-
-def _rewritten_archive(root, *, version):
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as directory:
-        dest = Path(directory) / "pkg"
-        dest.mkdir()
-        for path in root.iterdir():
-            if path.is_file():
-                (dest / path.name).write_bytes(path.read_bytes())
-        document = json.loads((dest / "seealpha-package.json").read_text(encoding="utf-8"))
-        document["version"] = version
-        (dest / "seealpha-package.json").write_text(json.dumps(document), encoding="utf-8")
-        return archive_directory(dest)
-
-
 def issued_payload(archive, purpose, issuance_id, parameters):
     metadata = parse_metadata(archive)
     return {
@@ -128,6 +94,8 @@ def test_package_metadata_rejects_a_path_that_escapes_the_archive(tmp_path):
     assert metadata.name == "ema_crossover"
     assert metadata.entry_point == "strategy:EmaCrossover"
     assert metadata.digest == parse_metadata(ema_archive()).digest
+    assert ema_archive() == archive_directory(EXAMPLE)  # fixture matches Engine serializer
+
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("seealpha-package.json", (EXAMPLE / "seealpha-package.json").read_bytes())
@@ -290,34 +258,3 @@ def test_engine_http_receive_is_tenant_scoped(tmp_path):
         assert preview.status_code == 200, preview.text
         assert preview.json()["orders"][0]["tags"] == ["portfolio-net-delta"]
         assert Decimal(preview.json()["orders"][0]["quantity"]) == Decimal(1)
-
-
-def _package_archive(root, quantity):
-    root.mkdir()
-    (root / "seealpha-package.json").write_text(json.dumps({
-        "format": 1,
-        "name": "hold_flat" if quantity == "0" else "hold_long",
-        "title": "固定持仓",
-        "version": "1",
-        "entry_point": "strategy:Hold",
-        "parameters": {"symbol": "ETHUSDT", "allocation": "1", "risk_limit": "1"},
-    }), encoding="utf-8")
-    (root / "strategy.py").write_text(
-        "from decimal import Decimal\n"
-        "from nautilus_trader.trading import Strategy\n"
-        "def prepare(parameters):\n"
-        "    return {'symbol': 'ETHUSDT', 'allocation': '1', 'risk_limit': '1'}\n"
-        "class Hold(Strategy):\n"
-        "    def __init__(self, config):\n"
-        "        super().__init__(config)\n"
-        "        self._sent = False\n"
-        "    def on_start(self):\n"
-        "        self.subscribe_bars(self.bar_type)\n"
-        "    def on_bar(self, bar):\n"
-        "        if self._sent:\n"
-        "            return\n"
-        "        self._sent = True\n"
-        f"        self.publish(symbol='ETHUSDT', quantity=Decimal('{quantity}'))\n",
-        encoding="utf-8",
-    )
-    return archive_directory(root)

@@ -44,3 +44,8 @@ uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.p
 策略模块无 Engine 源码导入检查已迁至
 [`platform/tests/strategy_policy_test.py`](../platform/tests/strategy_policy_test.py)。
 旧联合测试只保留确实依赖 Engine 实现、策略包示例或回测 Catalog 的情形。
+
+策略 ZIP 测试素材生成已独立到 `tests/fixtures/strategy_packages.py`（仅标准库）；
+NautilusTrader Catalog 写入专属于 `tests/fixtures/engine_catalog.py`。
+旧 API 策略和回测测试不再导入 `tests.engine.*` 测试用例模块。
+实际历史回测/策略下发仍由旧联合套件覆盖，待跨进程替代。
