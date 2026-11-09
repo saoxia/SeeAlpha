@@ -9,12 +9,14 @@ import sys
 import threading
 from contextlib import aclosing
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
+from core.trading_contracts import CancelOrderValues, SubmitOrderValues, TRADING_SYMBOL
 from engine.config import EngineConfig
 from engine.connectors.binance.queries import QueryError
 from engine.data_manager.routes import router as control_router
@@ -47,15 +49,28 @@ class Credentials(BaseModel):
 
 
 class CommandBody(Credentials):
-    action: str
+    model_config = ConfigDict(extra="forbid")
+    action: Literal["submit", "cancel"]
     values: dict
-    fingerprint: str
-    client_order_id: str
+
+    @field_validator("values")
+    @classmethod
+    def validate_values(cls, values, info):
+        action = info.data.get("action")
+        if action not in {"submit", "cancel"}:
+            return values  # The action field already carries its own 422 validation error.
+        schema = SubmitOrderValues if action == "submit" else CancelOrderValues
+        return schema.model_validate(values).model_dump(mode="json")
 
 
-class ManualBody(Credentials):
-    symbol: str
-    command: dict
+class TradingStateBody(Credentials):
+    model_config = ConfigDict(extra="forbid")
+    symbol: str = Field(pattern=TRADING_SYMBOL)
+
+
+class ReconcileBody(Credentials):
+    model_config = ConfigDict(extra="forbid")
+    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class WorkerBody(BaseModel):
@@ -273,22 +288,19 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             "positions": result.positions, "observed_at": result.observed_at,
         }
 
-    @app.post("/tenants/{tenant_id}/accounts/{account_id}/manual")
-    async def manual(tenant_id: str, account_id: str, body: ManualBody):
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/trading/state")
+    async def trading_state(tenant_id: str, account_id: str, body: TradingStateBody):
         try:
-            return await runtime.manual_execute(
-                body.account(tenant_id, account_id), body.symbol, body.command
-            )
+            return await runtime.trading_state(body.account(tenant_id, account_id), body.symbol)
         except EngineConflict as error:
             conflict(error)
 
     @app.post("/tenants/{tenant_id}/accounts/{account_id}/orders")
     async def order(tenant_id: str, account_id: str, body: CommandBody):
+        if body.environment != body.values["environment"]:
+            raise HTTPException(422, "账户环境与订单环境不匹配。")
         try:
-            return await runtime.command(
-                body.account(tenant_id, account_id),
-                body.action, body.values, body.fingerprint, body.client_order_id,
-            )
+            return await runtime.command(body.account(tenant_id, account_id), body.action, body.values)
         except EngineConflict as error:
             conflict(error)
 
@@ -319,9 +331,24 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
         return stored
 
-    @app.put("/tenants/{tenant_id}/accounts/{account_id}/requests/{request_id}")
-    def save_request(tenant_id: str, account_id: str, request_id: str, body: dict):
-        return runtime.save_request(tenant_id, account_id, request_id, body)
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/requests/{request_id}/reconcile")
+    async def reconcile_request(tenant_id: str, account_id: str, request_id: str, body: ReconcileBody):
+        try:
+            stored = await runtime.reconcile_request(
+                body.account(tenant_id, account_id), request_id, body.account_revision,
+            )
+        except EngineConflict as error:
+            conflict(error)
+        if stored is None:
+            raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
+        return stored
+
+    @app.post("/tenants/{tenant_id}/accounts/{account_id}/requests/{request_id}/ledger-sync")
+    def mark_ledger_synced(tenant_id: str, account_id: str, request_id: str):
+        stored = runtime.store.mark_request_ledger_synced(tenant_id, account_id, request_id)
+        if stored is None:
+            raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
+        return stored
 
     @app.get("/tenants/{tenant_id}/accounts/{account_id}/events")
     def events(tenant_id: str, account_id: str, after: int = 0):

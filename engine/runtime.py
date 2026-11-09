@@ -2,6 +2,7 @@
 
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
 import signal
@@ -159,7 +160,7 @@ class EngineRuntime:
         })
         return snapshot
 
-    async def manual_execute(self, account, symbol, command):
+    async def _manual_execute(self, account, symbol, command):
         from engine.connectors.binance import manual
 
         tenant_id = self._tenant_of(account)
@@ -174,11 +175,20 @@ class EngineRuntime:
             )
         return result
 
-    async def command(self, account, action, values, fingerprint, client_order_id):
+    async def trading_state(self, account, symbol):
+        return await self._manual_execute(account, symbol, {"action": "snapshot"})
+
+    async def command(self, account, action, values):
         tenant_id = self._tenant_of(account)
         self.assert_runnable(tenant_id, "live")
         account_id, environment = account["id"], account["environment"]
-        request_id = str(values["request_id"])
+        if action not in {"submit", "cancel"} or values["environment"] != environment:
+            raise EngineConflict("交易操作或账户环境不匹配。")
+        request_id = str(uuid.UUID(values["request_id"]))
+        fingerprint = hashlib.sha256(json.dumps([action, values], sort_keys=True).encode()).hexdigest()
+        client_order_id = (
+            "SA" + uuid.UUID(request_id).hex if action == "submit" else values["client_order_id"]
+        )
         path = self.lock_path(tenant_id, account_id, environment)
         with path.open("a") as lock:
             try:
@@ -196,11 +206,12 @@ class EngineRuntime:
             }
             body = {
                 "fingerprint": fingerprint, "response": response, "symbol": values["symbol"],
-                "account_revision": values.get("account_revision"), "records": [], "ledger_synced": False,
+                "account_revision": values["account_revision"], "environment": environment,
+                "records": [], "ledger_synced": False,
             }
             self.store.save_request(tenant_id, account_id, request_id, body)
             try:
-                result = await self.manual_execute(
+                result = await self._manual_execute(
                     account, values["symbol"], {**values, "action": action, "client_order_id": client_order_id},
                 )
                 if "validation_error" in result:
@@ -222,8 +233,35 @@ class EngineRuntime:
                 self.store.save_request(tenant_id, account_id, request_id, body)
             return body
 
-    def save_request(self, tenant_id, account_id, request_id, body):
-        return self.store.save_request(tenant_id, account_id, request_id, body)
+    async def reconcile_request(self, account, request_id, account_revision):
+        tenant_id = self._tenant_of(account)
+        account_id, environment = account["id"], account["environment"]
+        path = self.lock_path(tenant_id, account_id, environment)
+        with path.open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise EngineConflict("该账户有交易操作正在处理，请稍后核对委托。") from None
+            stored = self.store.get_request(tenant_id, account_id, request_id)
+            if stored is None:
+                return None
+            if stored.get("account_revision") != account_revision or (
+                stored.get("environment", environment) != environment
+            ):
+                raise EngineConflict("账户配置已变化，不能使用新凭据核对原委托。")
+            if stored["response"]["status"] == "unknown":
+                result = await self.trading_state(account, stored["symbol"])
+                order = next(
+                    (row for row in result["orders"]
+                     if row["client_order_id"] == stored["response"]["client_order_id"]), None,
+                )
+                if order is not None:
+                    stored["response"].update(
+                        status="completed", order=order,
+                        message="已在交易所核对到委托：" + order["status"],
+                    )
+                    self.store.save_request(tenant_id, account_id, request_id, stored)
+            return stored
 
     def note_gap(self, tenant_id, account_id, scope, gap_key, gap):
         payload = {"scope": scope, "gap_key": gap_key, "tenant_id": str(tenant_id), **gap}
