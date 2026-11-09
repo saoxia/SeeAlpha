@@ -37,7 +37,6 @@ from .contracts import (
     option_pair,
 )
 
-
 router = APIRouter(prefix="/data", tags=["market-data"])
 
 
