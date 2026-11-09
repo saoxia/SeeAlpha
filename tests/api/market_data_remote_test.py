@@ -25,7 +25,7 @@ def test_business_data_reads_use_the_engine_http_contract():
     engine = RemoteEngine()
     policy = SimpleNamespace(symbol="ETHUSDT", product="futures_um", base_level="tick")
     subscriptions = SimpleNamespace(_read=lambda: [policy])
-    manager = SimpleNamespace(engine=engine, subscriptions=subscriptions)
+    manager = SimpleNamespace(engine=engine, subscriptions=subscriptions, _required_engine=lambda: engine)
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(market_data=manager)))
 
     query = DataRange(
@@ -79,3 +79,35 @@ def test_market_export_is_streamed_from_engine_not_platform_files(tmp_path):
     assert response.headers["content-disposition"] == f'attachment; filename="ticks-{identity}.csv"'
     assert requested == [identity]
     assert not (tmp_path / "data/exports").exists()
+
+
+def test_engine_missing_blocks_all_market_data_reads_without_creating_files(tmp_path):
+    import pytest
+    from fastapi import HTTPException
+
+    from api.market_data.service import DataService
+
+    class Repository:
+        backend = "not-orm"
+
+    manager = DataService(Repository(), project=tmp_path)
+    policy = SimpleNamespace(symbol="ETHUSDT", product="futures_um", base_level="1m")
+    manager.subscriptions._read = lambda: [policy]
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(market_data=manager)))
+    query = DataRange(
+        symbol="ETHUSDT", start=datetime(2026, 8, 1, tzinfo=UTC),
+        end=datetime(2026, 8, 1, 0, 5, tzinfo=UTC),
+        intervals=["1m"],
+    )
+    for operation in (
+        lambda: data_router.datasets(request, None),
+        lambda: data_router.latest_data_times(request, None),
+        lambda: data_router.data_coverage(request, None, query),
+        lambda: data_router.preview_data(request, query, 100, None, "1m"),
+        lambda: data_router.local_chart(request, None, symbol="ETHUSDT", interval="1m"),
+    ):
+        with pytest.raises(HTTPException) as failure:
+            operation()
+        assert failure.value.status_code == 503
+    assert not (tmp_path / "data").exists()
+    assert not (tmp_path / ".local").exists()
