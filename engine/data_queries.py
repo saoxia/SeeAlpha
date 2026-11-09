@@ -306,7 +306,35 @@ def chart(tenant_id: str, body: Chart, request: Request):
                 base = project / "data/market_data/binance_um_1m/managed" / symbol
                 if body.base_level != "auto":
                     base = base / body.base_level
-                live = bool(_status(base / "status.json") and _status(base / "calculation/status.json"))
+                states = [_status(base / "status.json"),
+                          _status(base / "calculation/status.json")]
+                live = all(states)
+                latest_updates = {}
+                for state in states:
+                    if state is None:
+                        continue
+                    for update in state.get("bar_updates", []):
+                        if (update.get("interval") != body.interval
+                                or type(update.get("start_ms")) is not int
+                                or not start <= update["start_ms"] <= now
+                                or type(update.get("updated_ms")) is not int):
+                            continue
+                        existing = latest_updates.get(update["start_ms"])
+                        if existing and (existing["updated_ms"] > update["updated_ms"]
+                                         or existing["is_closed"] and not update.get("is_closed")):
+                            continue
+                        latest_updates[update["start_ms"]] = update
+                for opening, value in latest_updates.items():
+                    if not all(key in value for key in (
+                        "open", "high", "low", "close", "volume", "is_closed", "is_complete"
+                    )):
+                        continue
+                    candles[opening] = {
+                        "time": opening // 1000,
+                        "is_complete": value["is_complete"],
+                        "is_closed": value["is_closed"],
+                        **{key: value[key] for key in ("open", "high", "low", "close", "volume")},
+                    }
         return {
             "symbol": symbol, "interval": body.interval, "checked_at": now,
             "live": live, "candles": [candles[key] for key in sorted(candles)[-300:]],

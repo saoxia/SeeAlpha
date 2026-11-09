@@ -142,16 +142,16 @@ def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_
 @router.get("/datasets/latest", response_model=dict[str, str | None])
 def latest_data_times(request: Request, _: CurrentUser):
     """Latest persisted 1s bar event times for configured perpetual pairs only."""
-    from nautilus_trader.model import NautilusDataType
-
-    from core.market.instruments import bar_type_for
-    from engine.pipeline.data_management import open_catalog
-
     manager = service(request)
     symbols = [policy.symbol for policy in manager.subscriptions._read()
                if policy.product == "futures_um"]
     if getattr(manager, "engine", None) is not None and manager.engine.remote:
         return manager.engine.data_query("latest", {"symbols": symbols})
+    from nautilus_trader.model import NautilusDataType
+
+    from core.market.instruments import bar_type_for
+    from engine.pipeline.data_management import open_catalog
+
     manager.require_storage()
     settings = load_settings()
     if not symbols or not settings.catalog_dir.is_dir():
