@@ -244,6 +244,7 @@ def test_cashflow_only_sync_does_not_acquire_or_replace_a_position_baseline(ledg
 
 
 def test_option_ingestion_is_independent_of_futures_query_failure_and_recovers(ledger, source, monkeypatch):
+    from api.operations import service as service_module
     from api.operations.service import OperationService
 
     account, clock, data = source
