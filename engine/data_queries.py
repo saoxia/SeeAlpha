@@ -25,7 +25,6 @@ from engine.pipeline.data_management import (
     checked_request,
     coverage,
     dataset_inventory,
-    deletion_plan,
     open_catalog,
     preview,
     rows,
@@ -42,7 +41,6 @@ class Range(BaseModel):
     start: datetime
     end: datetime
     intervals: list[str] = Field(default_factory=lambda: ["1m"], max_length=16)
-    delete_archives: bool = False
 
 
 class Page(Range):
@@ -207,18 +205,6 @@ def prepare_plan(tenant_id: str, body: Range, request: Request):
                 "按完整 UTC 日归档处理；只补缺失，不强制重建。下载体积与耗时未知。"
             ),
         }
-
-    return safe(run)
-
-
-@router.post("/delete-plan")
-def delete_preview(tenant_id: str, body: Range, request: Request):
-    project = checked_tenant(request, tenant_id)
-
-    def run():
-        query, settings = selection(body)
-        with read_lease(project, body.symbol, body.product):
-            return deletion_plan(query, settings, delete_archives=body.delete_archives)
 
     return safe(run)
 
