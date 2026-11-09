@@ -2,14 +2,22 @@
 
 产品定位（2026-10-27）：基于 NautilusTrader 的多资产量化交易系统，面向加密资产、
 期货、股票等市场，以及现货、永续合约、期权等交易产品。
-当前主要实现是 Binance USD-M 永续的公开行情、研究回测和管理端。期权行情适配器、
-期权历史数据和 USD-M 资金流水台账已经在代码中，尚未接入真实账户或实盘执行。
+当前主要实现包括 Binance USD-M 永续公开行情、研究回测、管理端和需管理员显式确认的手动交易入口。
+期权行情适配器、期权历史数据及 USD-M 资金流水台账已有代码；尚未完成真实账户/真实成交验收，自动策略实盘尚未启用。
 其他市场仍需接入和验收。详见 [产品范围与当前实现](README.md#产品范围与当前实现)。
 
-状态核对日期：2026-10-31。下文「当前检查」是这次在干净环境里实际跑出来的结果。
-各研究小节里的测试数量是该日记录，不代表当前总数。
+## 最新架构快照（2026-11-09）
 
-## 当前检查（2026-10-31）
+- 第 8–14 批 Engine/Platform 解耦已按序合并至 main（末批 [PR #38](https://github.com/saoxia/SeeAlpha/pull/38)），已加入隔离导入、独立 Engine 容器、HTTP 契约版本和跨进程验收测试。
+- 生产 Platform 通过 Engine HTTP 而非进程内 Engine Runtime 调用量化能力。继续保持 Monorepo；工程独立性不等于实盘验证完成，也不等于任意第三方策略代码已具备安全沙箱。
+- 管理端已有受授权的手动订单/撤单路径（参见 [手动交易](docs/MANUAL_TRADING.md)），但真实交易所凭据、真实下单和长期稳定性尚未验收；未经授权不得运行实盘交易。
+- 后续重点依次为：Feed 长时间运行与故障恢复、真实账户只读核对、模拟策略执行闭环、备份恢复、AI 研究沙箱、客户独立部署。环境、网络、账号或长时间验证受阻时须记录**未验证**，不得当作通过。
+- 全量 Ruff、pytest、前端测试和构建已加入 [CI 工作流](.github/workflows/tenant-engine.yml)；本状态文档不宣称最新 GitHub Actions 或本地全套检查已经成功。
+
+## 历史环境检查（2026-10-31）
+
+以下测试结果来自 2026-10-31 的独立检查，**不是** 2026-11-09 的最新 CI 结果。
+各研究小节里的测试数量也均为历史记录。
 
 环境：Python 3.14.9、NautilusTrader 2.0.0rc7、pandas 3.1.0、Ruff 0.17.2。
 未使用交易所凭据，未下单。
@@ -46,7 +54,7 @@ Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.t
 入口在 `web/app/components/navigation.tsx`。`web/server.py`、`:8765` 服务和 `web/static/*` 已不在树中。
 
 管理任务锁是 `.local/run/web/server.lock`（`api/management/storage.py` 的 `runtime_lock`）。
-拿到锁的进程迁移遗留的 `data/web_console/`、把仍标为运行中的任务标成中断，并执行启动、取消和子进程。
+拿到锁的进程恢复现有管理任务状态，将无法确认的运行中任务标为中断，并负责启动、取消与子进程管理；旧 `data/web_console/` 不再迁移。
 没拿到锁的进程照常提供其余 API，`/api/management` 仍可查询；在该进程上启动或取消由
 `JobReader` 抛出 `NotOwnerError`，路由返回 **409**，正文为「当前进程未持有管理任务锁，不能启动或取消任务。」
 同一时间仍只有一个此类任务。多 worker 或另一个端口可以同时提供 API，但锁不会在运行中途被接管；
@@ -63,7 +71,7 @@ Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.t
 - **USD-M 现金流台账**：`engine/connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
 - **期权数据**：离线任务在 `engine/pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集由引擎的 feed 进程承担。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
 - **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略以 `packages/` 中的可下发包登记，不再使用已删除的研究目录。
-- **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。`api/main.py` 每 15 秒刷新配置，每 5 秒调用 `api/market_data/monitor.py` 的 `ServiceMonitor.sample` 把健康和积压写入文件。离线准备、删除和裁剪由引擎执行 `engine.pipeline.data_management`。
+- **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。Platform 定期同步业务订阅意图；服务健康、实时状态与积压通过 Engine HTTP 读取，不在 Platform 本地写入监控状态。离线准备、删除和裁剪由引擎执行 `engine.pipeline.data_management`。
 - **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
 
 ### 业务数据库
