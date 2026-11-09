@@ -8,7 +8,6 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from engine.app import create_app
