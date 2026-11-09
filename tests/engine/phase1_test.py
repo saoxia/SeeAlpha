@@ -110,9 +110,15 @@ def test_api_market_data_imports_no_engine_data_implementations_or_native_file_p
         source = path.read_text(encoding="utf-8")
         for marker in forbidden:
             assert marker not in source, f"{path} still owns Engine data path {marker}"
-    router = (PROJECT / "api/market_data/router.py").read_text(encoding="utf-8")
-    for route in ("datasets", "latest", "coverage", "page", "chart"):
-        assert f'data_query("{route}"' in router
+    router = ast.parse((PROJECT / "api/market_data/router.py").read_text(encoding="utf-8"))
+    calls = {
+        node.args[0].value
+        for node in ast.walk(router)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "data_query" and node.args
+        and isinstance(node.args[0], ast.Constant)
+    }
+    assert {"datasets", "latest", "coverage", "page", "chart"} <= calls
     service = (PROJECT / "api/market_data/service.py").read_text(encoding="utf-8")
     assert "def _lease(" not in service
     assert '"delete-plan"' in service and '"pair-delete-plan"' in service
