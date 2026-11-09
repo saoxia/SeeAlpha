@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from api.market_data.monitor import ServiceMonitor
 from api.market_data.contracts import DataJobRequest
+from api.market_data.monitor import ServiceMonitor
 from api.market_data.service import DataService
 
 
