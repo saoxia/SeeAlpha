@@ -224,11 +224,26 @@ class Subscriptions:
         if self.manager.policy_repository is None:
             raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
         engine = self._engine()
+        previous = self._read(refresh=True)
         self.manager.policy_repository.save(policies, tenant_id=self.bound_tenant_id())
         self.policies = list(policies)
-        engine.market_control("sync", {
-            "policies": [p.model_dump(mode="json") for p in policies],
-        })
+        try:
+            engine.market_control("sync", {
+                "policies": [p.model_dump(mode="json") for p in policies],
+            })
+        except Exception:
+            # A rejected Engine sync (including a held deletion lease) must
+            # not leave the business database claiming a policy change that
+            # the Engine refused to apply.
+            try:
+                self.manager.policy_repository.save(previous, tenant_id=self.bound_tenant_id())
+                self.policies = list(previous)
+            except Exception as rollback_error:
+                self.policies = None  # Force a fresh database read for callers.
+                raise HTTPException(
+                    503, "行情订阅同步失败，业务配置回滚也失败；请核验数据库与 Engine 状态。",
+                ) from rollback_error
+            raise
 
     def pause_for_deletion(self, symbol, product):
         with self.lock:
