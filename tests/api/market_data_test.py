@@ -727,7 +727,7 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
         try:
             assert done.wait(2), "File status readers waited behind configuration I/O"
         finally:
-            # Fake process instances are not OS-owned and must never be signalled.
+            assert not hasattr(manager.subscriptions, "processes")
     reader.join()
 
 
