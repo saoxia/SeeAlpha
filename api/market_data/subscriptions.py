@@ -58,7 +58,7 @@ class Subscriptions:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             lease.close()
-            raise HTTPException(409, "实时采集由另一个 API 进程管理，请在所属服务操作") from None
+            raise HTTPException(409, "行情业务配置正在由另一个 API 进程修改，请稍后重试") from None
         self.lease = lease
 
     def root(self, policy):
