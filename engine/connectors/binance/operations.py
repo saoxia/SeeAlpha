@@ -15,7 +15,6 @@ from nautilus_trader.trading import Strategy
 
 from core.option_records import normalize_option_record
 
-
 __all__ = ["normalize_option_record"]
 
 
