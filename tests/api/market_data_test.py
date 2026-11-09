@@ -41,7 +41,8 @@ def context(tmp_path, monkeypatch):
     (tmp_path / "data").mkdir()
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), ("1m",),
                                 tmp_path / "data/raw", tmp_path / "data/catalog", tmp_path / "data/state")
-    for module in ("api.market_data.router", "api.market_data.service"):
+    # The Engine ASGI application owns all market-file settings and reads.
+    for module in ("engine.data_queries", "engine.data_manager.service"):
         monkeypatch.setattr(f"{module}.load_settings", lambda: settings)
     async def catalog(_environment):
         return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"}
