@@ -487,8 +487,7 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
                            cash_event(event_id="income-2", transaction_id="2", timestamp=first_stop + 1)]}
 
     monkeypatch.setattr(engine, "income_history", recovered)
-    # A new service simulates API restart; recovery reads durable state, not memory.
-    engine = FakeEngine()
+    # A new service simulates API restart; durable state is independent of service state.
     service = OperationService(ledger.database, accounts, engine)
     result = asyncio.run(service.sync(cashflows_only=True))
     cash = result["sync"][0]["cashflows"]
@@ -513,8 +512,8 @@ def test_cancelled_income_pipeline_keeps_acknowledged_windows(ledger, monkeypatc
         yield {"start_ms": first, "end_ms": first + 999, "records": []}
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(engine, "income_history", cancelled)
     engine = FakeEngine()
+    monkeypatch.setattr(engine, "income_history", cancelled)
     service = OperationService(ledger.database, accounts, engine)
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(service.sync(cashflows_only=True))
@@ -572,8 +571,9 @@ def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, 
         assert first >= now - 87 * DAY_MS
         yield {"start_ms": first, "end_ms": last, "records": []}
 
+    engine = FakeEngine()
     monkeypatch.setattr(engine, "income_history", empty)
-    result = asyncio.run(OperationService(ledger.database, accounts, FakeEngine()).sync(cashflows_only=True))
+    result = asyncio.run(OperationService(ledger.database, accounts, engine).sync(cashflows_only=True))
     cash = result["sync"][0]["cashflows"]
     assert result["records_added"] == 0 and cash["requested_complete"]
     assert len(cash["coverage"]) == 2 and cash["coverage"][0] == old
