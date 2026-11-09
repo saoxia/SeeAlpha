@@ -5,8 +5,6 @@ import time
 
 from fastapi import HTTPException
 
-from engine.pipeline.convert_binance_bars import write_record
-
 ROLES = ("collection", "history", "calculation")
 
 
@@ -51,6 +49,9 @@ class ServiceMonitor:
         self.path = manager.project / ".local/state/api/data_services/status.json"
 
     def sample(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return self.read()
         now = int(time.time() * 1000)
         subscriptions = self.manager.subscriptions
         if subscriptions.lease is None:
@@ -65,10 +66,15 @@ class ServiceMonitor:
         config_error = subscriptions.last_error
         value = {"checked_ms": now, "valid_until_ms": now + 15000, "items": items,
                  "state": "DEGRADED" if config_error else "READY", "configuration_error": config_error}
+        from engine.pipeline.convert_binance_bars import write_record
+
         write_record(self.path, value)
         return value
 
     def read(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return engine.market_control("services")
         try:
             if self.path.stat().st_size > 4 * 1024 * 1024:
                 raise ValueError("Oversize monitor")

@@ -112,6 +112,9 @@ class Subscriptions:
         return process
 
     def _start(self, policy):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return  # The resident Engine owns all feed workers.
         if policy.product == "options":
             self._start_options()
             return
@@ -139,6 +142,19 @@ class Subscriptions:
             )
 
     def restore(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            with self.lock:
+                try:
+                    policies = self._read(refresh=True)
+                    result = engine.market_control("sync", {
+                        "policies": [p.model_dump(mode="json") for p in policies],
+                    })
+                    self.last_error = result.get("last_error")
+                except (OSError, HTTPException, ValueError) as exc:
+                    self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
+            return
+
         from api.db.errors import StorageUnavailable
         with self.lock:
             try:
@@ -226,6 +242,9 @@ class Subscriptions:
                 self.last_error = None
 
     def _stop_pair(self, key, *, collection=True, auxiliary=True):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return
         if key[0] == "options":
             self._start_options()
             return
@@ -245,6 +264,9 @@ class Subscriptions:
 
     def resolve(self, policy, old=None):
         """Resolve input choices once to the UTC start stored in configuration."""
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return policy  # Engine control has already prepared the canonical policy.
         if policy.product == "futures_um" and policy.base_level == "auto":
             policy = DataPolicy.model_validate({**policy.model_dump(), "base_level": "1m"})
         if policy.history_enabled and policy.product == "futures_um":
@@ -331,10 +353,20 @@ class Subscriptions:
             raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
         self.manager.policy_repository.save(policies, tenant_id=self.bound_tenant_id())
         self.policies = list(policies)
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            # Business DB stores desired configuration; Engine owns all runtime state.
+            engine.market_control("sync", {
+                "policies": [p.model_dump(mode="json") for p in policies],
+            })
+            return
         if any(p.product == "options" for p in policies) or (self.manager.directory / "options-runtime.json").exists():
             self._publish_options()
 
     def _publish_options(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return None
         from engine.pipeline.convert_binance_bars import write_record
         path = self.manager.directory / "options-runtime.json"
         values = [p.model_dump(mode="json") for p in self.policies or [] if p.product == "options" and "-" in p.symbol]
@@ -343,6 +375,9 @@ class Subscriptions:
 
     def _start_options(self):
         """Two shared processes; no contract-sized process or inherited FD lists."""
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return
         path = self._publish_options()
         root = self.project / "data/market_data/binance_um_1m/managed/.options"
         for role in ("collection", "history"):
@@ -415,6 +450,13 @@ class Subscriptions:
                          (p.symbol == symbol or group and p.pair in {symbol, "ALL"}))])
 
     def _public(self, policy):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            result = engine.market_control("subscriptions", {"group_options": False})["items"]
+            found = next((item for item in result
+                          if item["policy"]["product"] == policy.product
+                          and item["policy"]["symbol"] == policy.symbol), None)
+            return found or {"policy": policy.model_dump(mode="json")}
         if policy.product == "options" and "-" not in policy.symbol:
             return self._option_group(policy)
         state = {"state": "STOPPED", "data_ready": False, "reason": "not_started",
@@ -483,6 +525,9 @@ class Subscriptions:
         return {"policy": policy.model_dump(mode="json"), "runtime": runtime, "services": services}
 
     def items(self, *, group_options=False):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return engine.market_control("subscriptions", {"group_options": group_options})["items"]
         # Configurations are replaced as a list, never mutated in place. Status
         # readers must not wait behind a cloud configuration refresh transaction.
         policies = self._read()

@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from api.engine_client import EngineClient
 from api.tenant_docker import DockerTenantManager
 
 pytestmark = pytest.mark.skipif(
@@ -61,6 +62,30 @@ def test_real_docker_isolates_tenant_ports_tokens_and_data(tmp_path):
         assert mounts_b["/app/data"] == (root / tenants[1] / "data").resolve()
         assert mounts_a["/app/data"] != mounts_b["/app/data"]
         assert mounts_a["/app/.local/state/api/data_jobs"] == (tmp_path / "jobs").resolve()
+
+        # The business-side HTTP client must route only to its configured primary
+        # tenant, with independent policies in another resident Engine.
+        engine = EngineClient(tmp_path / "engine-client", tenant_manager=manager)
+        result = engine.market_control("sync", {"policies": [
+            {"symbol": "ETHUSDT", "realtime_enabled": False},
+        ]})
+        assert result["synced"] == 1
+        primary = engine.market_control("subscriptions", {})["items"]
+        assert [row["policy"]["symbol"] for row in primary] == ["ETHUSDT"]
+        secondary = httpx.post(
+            dev_url + f"/tenants/{tenants[1]}/data/control/sync",
+            headers={"Authorization": f"Bearer {dev_token}"},
+            json={"policies": [{"symbol": "BTCUSDT", "realtime_enabled": False}]},
+        )
+        assert secondary.status_code == 200, secondary.text
+        isolated = httpx.post(
+            dev_url + f"/tenants/{tenants[1]}/data/control/subscriptions",
+            headers={"Authorization": f"Bearer {dev_token}"}, json={},
+        )
+        assert isolated.status_code == 200, isolated.text
+        assert [row["policy"]["symbol"] for row in isolated.json()["items"]] == ["BTCUSDT"]
+        assert [row["policy"]["symbol"]
+                for row in engine.market_control("subscriptions", {})["items"]] == ["ETHUSDT"]
     finally:
         for tenant_id in tenants:
             manager.stop(tenant_id, remove=True)

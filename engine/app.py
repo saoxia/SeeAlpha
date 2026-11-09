@@ -2,6 +2,8 @@
 
 import hmac
 import json
+import logging
+import threading
 from contextlib import aclosing
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -10,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from engine.config import EngineConfig
 from engine.data_queries import router as market_data_router
+from engine.data_manager.routes import router as control_router
+from engine.data_manager.service import DataService as EngineDataService
 from engine.public_queries import router as venue_router
 from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
@@ -127,8 +131,42 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     app = FastAPI(title="SeeAlpha Engine", version="0.1.0", dependencies=[Depends(authorized)])
     app.state.runtime = runtime
+    app.state.market_data = EngineDataService(
+        config.tenant_id or "1", project=runtime.project, state_root=runtime.root,
+    )
     app.include_router(venue_router)
     app.include_router(market_data_router)
+    app.include_router(control_router)
+
+    stop_monitor = threading.Event()
+    monitor_thread = None
+
+    @app.on_event("startup")
+    def start_market_supervisor():
+        nonlocal monitor_thread
+        if config.tenant_id is None:
+            return
+
+        def supervise():
+            manager = app.state.market_data
+            while not stop_monitor.wait(5):
+                try:
+                    manager.subscriptions.restore()
+                    manager.monitor.sample()
+                except (OSError, ValueError, HTTPException):
+                    logging.getLogger(__name__).warning("租户行情管理器重试恢复失败。")
+
+        monitor_thread = threading.Thread(
+            target=supervise, daemon=True, name="engine-data-supervisor",
+        )
+        monitor_thread.start()
+
+    @app.on_event("shutdown")
+    def stop_market_supervisor():
+        stop_monitor.set()
+        if monitor_thread is not None:
+            monitor_thread.join(timeout=8)
+        app.state.market_data.close()
 
     @app.middleware("http")
     async def tenant_boundary(request: Request, call_next):

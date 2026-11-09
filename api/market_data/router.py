@@ -21,8 +21,6 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
 from core.market.instruments import INTERVALS, bar_window
-from engine.pipeline.config import load_settings
-from engine.pipeline.data_management import coverage, dataset_inventory, preview, rows
 
 from ..auth.dependencies import COOKIE_NAME, AdminUser, CurrentUser, require_admin, require_user
 from ..db.errors import StorageUnavailable
@@ -42,6 +40,37 @@ from .contracts import (
     PairDeleteRequest,
     option_pair,
 )
+
+
+def load_settings():
+    from engine.pipeline.config import load_settings as load_native_settings
+
+    return load_native_settings()
+
+
+def dataset_inventory(*args, **kwargs):
+    from engine.pipeline.data_management import dataset_inventory as query
+
+    return query(*args, **kwargs)
+
+
+def coverage(*args, **kwargs):
+    from engine.pipeline.data_management import coverage as query
+
+    return query(*args, **kwargs)
+
+
+def preview(*args, **kwargs):
+    from engine.pipeline.data_management import preview as query
+
+    return query(*args, **kwargs)
+
+
+def rows(*args, **kwargs):
+    from engine.pipeline.data_management import rows as query
+
+    return query(*args, **kwargs)
+
 
 router = APIRouter(prefix="/data", tags=["market-data"])
 
@@ -353,6 +382,14 @@ def download(request: Request, identity: str, _: AdminUser):
     value = manager.job(identity)
     if value["status"] != "succeeded" or value["action"] != "export":
         raise HTTPException(409, "该任务没有已完成的导出文件")
+    if manager.remote:
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(
+            manager.engine.market_export(identity),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="ticks-{identity}.csv"'},
+        )
     manager.require_storage()
     root = manager.project / "data/exports/ticks"
     path = root / f"{identity}.csv"
@@ -367,12 +404,13 @@ def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depe
     manager = service(request)
     manager.require_storage()
     try:
-        selection, _ = manager.request(payload)
+        selection = payload if manager.remote else manager.request(payload)[0]
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
     for value in manager.jobs():
         parameters = value["parameters"]
-        if (value["action"] == "validate" and parameters["symbol"] == selection.symbols[0]
+        if (value["action"] == "validate" and parameters["symbol"] ==
+                (selection.symbol if manager.remote else selection.symbols[0])
                 and parameters.get("product", "futures_um") == payload.product
                 and (payload.product != "options" or parameters.get("intervals") == payload.intervals)
                 and parameters["start"] == payload.model_dump(mode="json")["start"]
@@ -386,6 +424,8 @@ def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depe
 @router.get("/feed/status")
 def feed_status(request: Request, _: CurrentUser):
     manager = service(request)
+    if manager.remote:
+        return manager.engine.market_control("feed-status")
     manager.require_storage()
     path = manager.project / "data/market_data/binance_um_1m/status.json"
     if not path.is_file():

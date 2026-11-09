@@ -200,6 +200,23 @@ class EngineClient:
             raise HTTPException(502, "Engine 数据查询失败。")
         return response.json()
 
+    def market_control(self, operation, payload=None):
+        if not self.remote:
+            raise EngineConflict("测试用本地 Engine 没有启用 HTTP 行情控制。")
+        return self.data_query("control/" + operation, payload or {})
+
+    def market_export(self, identity):
+        path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
+        url, headers = self._target(path)
+        try:
+            with (httpx.Client(timeout=None) as client,
+                  client.stream("GET", url + path, headers=headers) as response):
+                if response.status_code >= 400:
+                    raise QueryError("导出文件不可用。")
+                yield from response.iter_bytes(chunk_size=65536)
+        except httpx.HTTPError as exc:
+            raise OSError("租户 Engine 导出服务不可用。") from exc
+
     def _account_credentials(self, account):
         return {
             "environment": account["environment"],

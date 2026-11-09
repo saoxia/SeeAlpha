@@ -25,15 +25,18 @@ class DataRange(BaseModel):
 
     @model_validator(mode="after")
     def validate_range(self):
-        from engine.pipeline.models import DataRequest
+        from core.market.instruments import interval_delta, normalize_symbol
 
         if self.start.tzinfo is None or self.end.tzinfo is None:
             raise ValueError("时间须包含 UTC 或时区偏移")
         self.start, self.end = self.start.astimezone(UTC), self.end.astimezone(UTC)
-        request = DataRequest((self.symbol,), self.start, self.end,
-                              bar_intervals=tuple(self.intervals), market=self.product)
-        self.symbol = request.symbols[0]
-        self.intervals = list(request.bar_intervals)
+        if self.start >= self.end:
+            raise ValueError("开始时间必须早于结束时间")
+        self.symbol = normalize_symbol(self.symbol, self.product)
+        self.intervals = list(dict.fromkeys(self.intervals))
+        for interval in self.intervals:
+            if interval != "1M":
+                interval_delta(interval)
         return self
 
 
