@@ -281,6 +281,15 @@ class TaskCoordinator:
                     record = self.journal.get(tenant_id, identity)
                     if record is None or record["status"] != "PENDING":
                         continue
+                    if self.closed:
+                        # Never start queued work while Docker/Engine is exiting.
+                        record.update(
+                            status="INTERRUPTED", finished_at=_now(),
+                            progress="interrupted", cancellable=False, retryable=True,
+                            error="Engine 正在关闭，排队任务未执行；可显式重试。",
+                        )
+                        self.journal.save(record)
+                        continue
                     record.update(
                         status="RUNNING", started_at=_now(),
                         progress="running", cancellable=False,
