@@ -248,8 +248,13 @@ def test_engine_orders_do_not_cross_tenants(tmp_path):
     headers = {"Authorization": "Bearer engine-test"}
     order = {
         "environment": "production", "api_key": "key-one", "api_secret": "secret-one",
-        "action": "submit", "fingerprint": "a" * 64, "client_order_id": "SA-1",
-        "values": {"request_id": "req-1", "symbol": "ETHUSDT-PERP", "account_revision": "f" * 64},
+        "action": "submit",
+        "values": {
+            "request_id": "00000000-0000-0000-0000-000000000001",
+            "symbol": "ETHUSDT-PERP", "account_revision": "f" * 64,
+            "environment": "production", "side": "buy", "order_type": "limit",
+            "quantity": "0.01", "price": "2000",
+        },
     }
 
     async def execute(account, symbol, command):
@@ -270,15 +275,15 @@ def _assert_isolated(app, headers, order):
         assert client.put("/tenants/2", headers=headers, json={"purpose": "development"}).status_code == 200
         assert client.post("/tenants/1/accounts/11/orders", headers=headers, json=order).status_code == 200
         blocked = client.post("/tenants/2/accounts/11/orders", headers=headers, json={
-            **order, "fingerprint": "b" * 64, "client_order_id": "SA-2",
-            "values": {**order["values"], "request_id": "req-2"},
+            **order,
+            "values": {**order["values"], "request_id": "00000000-0000-0000-0000-000000000002"},
         })
         assert blocked.status_code == 409
         assert client.post("/tenants/2/runnable", headers=headers, json={"action": "backtest"}).status_code == 200
         assert client.post("/tenants/2/runnable", headers=headers, json={"action": "live"}).status_code == 409
         own = client.get("/tenants/1/accounts/11/orders", headers=headers, params={"environment": "production"})
         other = client.get("/tenants/2/accounts/11/orders", headers=headers, params={"environment": "production"})
-        assert [row["client_order_id"] for row in own.json()["orders"]] == ["SA-1"]
+        assert [row["client_order_id"] for row in own.json()["orders"]] == ["SA00000000000000000000000000000001"]
         assert other.json()["orders"] == []
         blob = b"".join(path.read_bytes() for path in app.state.runtime.store.path.parent.glob("book.sqlite*"))
         assert b"secret-one" not in blob and b"key-one" not in blob

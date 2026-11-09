@@ -4,60 +4,29 @@ import asyncio
 import hashlib
 import json
 import time
-from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from core.engine_contracts import EngineConflict
+from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable
 
 router = APIRouter(prefix="/trading", tags=["trading"])
-SYMBOL = r"^[A-Z0-9]{2,30}(?:USDT|USDC)-PERP$"
+SYMBOL = TRADING_SYMBOL
 
 
-class ManualOrderRequest(BaseModel):
-    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
-    request_id: UUID
-    symbol: str = Field(pattern=SYMBOL)
-    side: Literal["buy", "sell"]
-    order_type: Literal["limit", "market"]
-    quantity: str = Field(pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
-    price: str | None = Field(default=None, pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
-    time_in_force: Literal["GTC", "IOC", "FOK"] = "GTC"
-    post_only: bool = False
-    reduce_only: bool = False
-    position_side: Literal["BOTH", "LONG", "SHORT"] | None = Field(default=None, description="Legacy explicit leg; new tickets use position_effect and the actual account mode.")
-    position_effect: Literal["open", "close"] = "open"
-    expected_position_mode: Literal["oneway", "hedge"] | None = None
-    environment: Literal["production", "sandbox"]
-
-    @model_validator(mode="after")
-    def validate_order(self):
-        if Decimal(self.quantity) <= 0:
-            raise ValueError("数量必须大于零。")
-        if self.order_type == "limit" and (self.price is None or Decimal(self.price) <= 0):
-            raise ValueError("限价单需要有效价格。")
-        if self.order_type == "market" and (self.price is not None or self.post_only or self.time_in_force != "GTC"):
-            raise ValueError("市价单不能设置限价、Post Only 或限价有效期。")
-        if self.post_only and self.time_in_force != "GTC":
-            raise ValueError("Post Only 仅支持 GTC。")
-        if self.position_side in {"LONG", "SHORT"} and self.reduce_only:
-            raise ValueError("双向持仓请按持仓方向和买卖方向平仓，不能传 Reduce Only。")
-        return self
+class ManualOrderRequest(SubmitOrderValues):
+    pass
 
 
-class ManualCancelRequest(BaseModel):
-    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
-    request_id: UUID
-    symbol: str = Field(pattern=SYMBOL)
-    client_order_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9._:/-]+$")
-    environment: Literal["production", "sandbox"]
+class ManualCancelRequest(CancelOrderValues):
+    pass
 
 
 class ManualOrderView(BaseModel):
@@ -155,7 +124,7 @@ class ManualTrading:
             cached = self.cache.get(identity)
             if cached and time.monotonic() - cached[0] < 10:
                 return cached[1]
-            result = await self.engine.manual_execute(account, symbol, {"action": "snapshot"})
+            result = await self.engine.trading_state(account, symbol)
             for record in result.pop("records", []):
                 await asyncio.to_thread(self.operations.repository.ingest, record)
             result["account_revision"] = account_revision(account)
@@ -170,11 +139,9 @@ class ManualTrading:
             for record in stored["records"]:
                 await asyncio.to_thread(self.operations.repository.ingest, record)
         except (StorageUnavailable, StorageConflict):
-            stored["response"]["message"] += "；执行证据已保存在本机，账本暂未同步。"
-            self.engine.save_request(tenant_id, account_id, request_id, stored)
+            stored["response"]["message"] += "；执行证据已保存在引擎，账本暂未同步。"
         else:
-            stored["ledger_synced"] = True
-            self.engine.save_request(tenant_id, account_id, request_id, stored)
+            self.engine.mark_ledger_synced(tenant_id, account_id, request_id)
 
     async def command(self, account_id, payload, action):
         # The engine reserves request_id in SQLite before any native node can send.
@@ -185,10 +152,8 @@ class ManualTrading:
             if payload.account_revision != account_revision(account):
                 raise HTTPException(409, "账户配置已变化，请刷新账户并重新确认。")
             values = payload.model_dump(mode="json")
-            fingerprint = hashlib.sha256(json.dumps([action, values], sort_keys=True).encode()).hexdigest()
-            key = "SA" + payload.request_id.hex if action == "submit" else payload.client_order_id
             try:
-                stored = await self.engine.command(account, action, values, fingerprint, key)
+                stored = await self.engine.command(account, action, values)
             except EngineConflict as exc:
                 raise HTTPException(409, exc.message) from None
             if not stored.get("replay"):
@@ -224,18 +189,15 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
     stored = service.engine.get_request(account["tenant_id"], account_id, request_id)
     if stored is None:
         raise HTTPException(404, "服务器没有该请求记录，请在交易所核对后处理。")
-    response = stored["response"]
-    if response["status"] == "unknown":
-        if stored["account_revision"] != account_revision(account):
+    if stored["response"]["status"] == "unknown":
+        revision = account_revision(account)
+        if stored["account_revision"] != revision:
             raise HTTPException(409, "账户配置已变化，不能使用新凭据核对原委托。")
-        snapshot = await service.snapshot(account_id, stored["symbol"])
-        order = next((o for o in snapshot["orders"] if o["client_order_id"] == response["client_order_id"]), None)
-        if order:
-            # A fresh venue observation resolves uncertainty, never re-send here.
-            response = {**response, "status": "completed", "order": order,
-                        "message": "已在交易所核对到委托：" + order["status"]}
-    return response
-
+        try:
+            stored = await service.engine.reconcile_request(account, request_id, revision)
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from None
+    return stored["response"]
 
 @router.get("/markets", response_model=ManualMarketsResponse)
 async def market_list(request: Request, _: AdminUser,

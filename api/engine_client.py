@@ -376,24 +376,21 @@ class EngineClient:
         )
         return AccountSnapshot(payload["balances"], payload["info"], payload["positions"], payload["observed_at"])
 
-    async def manual_execute(self, account, symbol, command):
-        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/manual", json={
+    async def trading_state(self, account, symbol):
+        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/trading/state", json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
             "symbol": symbol,
-            "command": command,
         })
 
-    async def command(self, account, action, values, fingerprint, client_order_id):
+    async def command(self, account, action, values):
         return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/orders", json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
             "action": action,
             "values": values,
-            "fingerprint": fingerprint,
-            "client_order_id": client_order_id,
         })
 
     def get_request(self, tenant_id, account_id, request_id):
@@ -404,9 +401,20 @@ class EngineClient:
                 return None
             raise
 
-    def save_request(self, tenant_id, account_id, request_id, body):
+    async def reconcile_request(self, account, request_id, account_revision):
+        return await self._async(
+            "POST", self._account_path(account["tenant_id"], account["id"]) + f"/requests/{request_id}/reconcile",
+            json={
+                "environment": account["environment"],
+                "api_key": account["credentials"]["apiKey"],
+                "api_secret": account["credentials"]["secret"],
+                "account_revision": account_revision,
+            },
+        )
+
+    def mark_ledger_synced(self, tenant_id, account_id, request_id):
         return self._sync(
-            "PUT", self._account_path(tenant_id, account_id) + f"/requests/{request_id}", json=body
+            "POST", self._account_path(tenant_id, account_id) + f"/requests/{request_id}/ledger-sync",
         )
 
     def orders(self, tenant_id, account_id, environment):

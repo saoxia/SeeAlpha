@@ -299,6 +299,27 @@ class Store:
         )
         return stored
 
+    def mark_request_ledger_synced(self, tenant_id, account_id, request_id):
+        with self.lock:
+            self._ensure()
+            row = self.db.execute(
+                """SELECT body_json FROM order_requests
+                   WHERE tenant_id=? AND account_id=? AND request_id=?""",
+                (str(tenant_id), str(account_id), str(request_id)),
+            ).fetchone()
+            if row is None:
+                return None
+            body = json.loads(row["body_json"])
+            if not body.get("ledger_synced"):
+                body["ledger_synced"] = True
+                self.db.execute(
+                    """UPDATE order_requests SET body_json=?, updated_at=?
+                       WHERE tenant_id=? AND account_id=? AND request_id=?""",
+                    (json.dumps(body, ensure_ascii=False), int(time.time() * 1000),
+                     str(tenant_id), str(account_id), str(request_id)),
+                )
+            return body
+
     def upsert_order(self, tenant_id, account_id, environment, order):
         now = int(time.time() * 1000)
         self._write(

@@ -64,7 +64,7 @@ def test_engine_client_rejects_unversioned_and_incompatible_engine(tmp_path):
             return httpx.Response(200, json={"status": "active"})
         return httpx.Response(
             426, json={"detail": "unsupported version"},
-            headers={ENGINE_CONTRACT_HEADER: "2"},
+            headers={ENGINE_CONTRACT_HEADER: "3"},
         )
 
     for host in ("unversioned", "incompatible"):
@@ -106,7 +106,7 @@ def test_engine_container_rejects_other_tenant_and_purpose(tmp_path):
         assert healthy.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
         assert healthy.json()["contract_version"] == ENGINE_CONTRACT_VERSION
         assert http.get(
-            "/health", headers={**headers, ENGINE_CONTRACT_HEADER: "2"},
+            "/health", headers={**headers, ENGINE_CONTRACT_HEADER: "3"},
         ).status_code == 426
 
 
