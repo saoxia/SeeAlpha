@@ -73,7 +73,7 @@ Tick 同时持久化。沿既有期权批量 connector → Feed → history 桥 
 
 ## 技术栈与能力范围
 
-SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。根目录 `pyproject.toml`、`uv.lock` 管理 Python 及依赖，当前引擎固定为 `nautilus-trader==2.0.0rc7`；项目不是引擎源码仓库。
+SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。根目录 `pyproject.toml`、`uv.lock` 管理 Python 及依赖，当前引擎固定为 `nautilus-trader==2.0.0rc8`；项目不是引擎源码仓库。
 
 Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换，保留 Python 回退。`strategy_rust/` 当前只有说明文件，不能视为已有可运行 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
 

@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "SeeAlpha：基于 NautilusTrader 的多资产量化交易系统"
 requires-python = ">=3.13,<3.15"
 dependencies = [
-    "nautilus-trader==2.0.0rc7",
+    "nautilus-trader==2.0.0rc8",
     "numpy>=2.5.4",
     "pandas>=3.1.0",
     "pyarrow>=26.0.0",

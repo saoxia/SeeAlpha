@@ -3,6 +3,7 @@
 import asyncio
 import gc
 import json
+from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -148,7 +149,16 @@ def test_native_node_streams_history_reconnect_unsubscribe_and_shutdown(monkeypa
             task = asyncio.create_task(node.run_async())
             try:
                 await asyncio.wait_for(ready.wait(), 10)
-                await asyncio.wait_for(complete.wait(), 12)
+                try:
+                    await asyncio.wait_for(complete.wait(), 12)
+                except TimeoutError as exc:
+                    state = clients[0].stream_status if clients else {}
+                    tasks = {key: value["task"].done() for key, value in clients[0].streams.items()} if clients else {}
+                    raise AssertionError(
+                        f"期权重连未交付两笔成交: connections={trade_connections}, "
+                        f"trades={len(trades)}, streams={state}, task_done={tasks}, "
+                        f"node_done={task.done()}"
+                    ) from exc
                 for _ in range(100):
                     if quotes and books and bars and history:
                         break
@@ -167,13 +177,16 @@ def test_native_node_streams_history_reconnect_unsubscribe_and_shutdown(monkeypa
                 assert f"{SYMBOL.lower()}@bookTicker" not in clients[0].streams
             finally:
                 node.handle().stop()
-                await asyncio.wait_for(task, 15)
-                node.dispose()
+                try:
+                    await asyncio.wait_for(task, 15)
+                finally:
+                    node.dispose()
             assert not clients[0].streams
-    asyncio.run(scenario())
-    # Native clocks/loggers must be released on their owning thread, before later
-    # HTTP worker allocations can trigger Python's cyclic collector there.
-    gc.collect()
+    try:
+        asyncio.run(scenario())
+    finally:
+        # Release native objects even when the socket assertion fails.
+        gc.collect()
 
 
 def test_bounded_requests_preserve_correlation_and_reject_history_tick(monkeypatch):
@@ -192,6 +205,57 @@ def test_bounded_requests_preserve_correlation_and_reject_history_tick(monkeypat
         request.start_ns = BASE * 1_000_000
         with pytest.raises(ValueError, match="历史 Tick"):
             await client._request_trades(request)
+    asyncio.run(scenario())
+
+
+def test_rc8_batch_subscriptions_and_unsubscriptions(monkeypatch):
+    async def scenario():
+        packet = exchange_info()
+        put = deepcopy(packet["optionSymbols"][0])
+        put.update(symbol="BTC-261225-85000-P", side="PUT")
+        packet["optionSymbols"].append(put)
+        monkeypatch.setattr(options, "get", lambda *args, **kwargs: packet)
+        items = [options.instrument(row) for row in options.markets()]
+        client = BinanceOptionsDataClient(
+            name="OPTIONS", config=BinanceOptionsDataClientConfig(),
+            cache=None, clock=SimpleNamespace(timestamp_ns=lambda: BASE * 1_000_000),
+        )
+        client.instruments = {str(item.raw_symbol): item for item in items}
+        opened = []
+
+        async def subscribe(stream, parser, *, market=False):
+            opened.append((stream, market))
+            client.streams[stream] = {"parser": parser}
+
+        async def unsubscribe(stream):
+            client.streams.pop(stream)
+
+        monkeypatch.setattr(client, "_subscribe_stream", subscribe)
+        monkeypatch.setattr(client, "_unsubscribe_stream", unsubscribe)
+        command = SimpleNamespace(instrument_ids=[item.id for item in items],
+                                  book_type=BookType.L2_MBP, depth=5)
+        bars = SimpleNamespace(bar_types=[
+            BarType.from_str(f"{item.id}-1-MINUTE-LAST-EXTERNAL") for item in items
+        ])
+        await client._subscribe_trades(command)
+        await client._subscribe_quotes(command)
+        await client._subscribe_book_depth(command)
+        await client._subscribe_bars(bars)
+        assert len(opened) == 8 and len(client.streams) == 8
+        assert {stream for stream, market in opened if market} == {
+            f"{str(item.raw_symbol).lower()}@kline_1m" for item in items
+        }
+        await client._unsubscribe_trades(command)
+        await client._unsubscribe_quotes(command)
+        await client._unsubscribe_book_depth(command)
+        await client._unsubscribe_bars(bars)
+        assert not client.streams
+
+        invalid = SimpleNamespace(instrument_ids=[items[0].id, InstrumentId.from_str("UNKNOWN.BINANCE")])
+        with pytest.raises(ValueError, match="请先加载"):
+            await client._subscribe_trades(invalid)
+        assert not client.streams
+
     asyncio.run(scenario())
 
 
