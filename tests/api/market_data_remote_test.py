@@ -1,9 +1,9 @@
 """Business API delegates market-data reads to the tenant Engine, never host paths."""
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
-from types import SimpleNamespace
 
 from api.market_data import router as data_router
 from api.market_data.contracts import DataRange
@@ -89,7 +89,7 @@ def test_data_queries_refuse_missing_engine_and_never_read_platform_files(tmp_pa
 
     manager = object.__new__(DataService)
     manager.project = tmp_path
-    manager.subscriptions = SimpleNamespace(_read=lambda: [])
+    manager.subscriptions = SimpleNamespace(_read=list)
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(market_data=manager)))
     query = DataRange(
         symbol="ETHUSDT", start=datetime(2026, 8, 1, 1, tzinfo=UTC),

@@ -28,7 +28,7 @@ def main():
             raise ValueError("策略包请求过大。")
         body = json.loads(raw)
         if not isinstance(body, dict):
-            raise ValueError("策略包无效。")
+            raise TypeError("策略包无效。")
         archive = base64.b64decode(body["archive"], validate=True)
         with redirect_stdout(io.StringIO()):
             meta, prepared = open_package(archive, body.get("parameters", {}))

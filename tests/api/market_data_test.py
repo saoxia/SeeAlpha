@@ -6,7 +6,6 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 from alembic import command
@@ -17,7 +16,6 @@ from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.main import create_app
-from api.market_data.contracts import DataJobRequest
 from api.market_data.service import DataService
 from engine.pipeline.models import PipelineSettings
 from tests.api.auth_test import login
@@ -614,8 +612,7 @@ def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(
 
 def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context, engine_http):
     from fastapi import HTTPException
-    _client, app, root = context
-    manager = app.state.market_data
+    _client, _app, root = context
     job_lease = engine_http.app.state.market_data._lease("ETHUSDT")
     access_lease = engine_http.app.state.market_data._lease("ETHUSDT", access=True, shared=True)
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
@@ -851,7 +848,7 @@ def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(cont
     from core.market.instruments import bar_type_for
     from engine.pipeline.catalog import ParquetDataCatalog
 
-    client, app, root = context
+    client, _app, root = context
     login(client)
     left = int(time.time() * 1000) // 60000 * 60000
     kind = BarType.from_str(bar_type_for('ETHUSDT', '1m'))

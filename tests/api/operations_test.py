@@ -318,7 +318,6 @@ def test_native_project_event_sink_does_not_confuse_external_claims(ledger):
     from nautilus_trader import model as m
     from nautilus_trader.core import UUID4
 
-    from api.operations.service import OperationService
     from engine.connectors.binance.operations import cached_order_observations, normalize_event
 
     account = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
