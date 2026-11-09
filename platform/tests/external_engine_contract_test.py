@@ -1,4 +1,4 @@
-"""Read-only HTTP v2 smoke against the separately built SeeAlpha Engine.
+"""Read-only HTTP v2 smoke from Engine-free Platform tests.
 
 Opt-in only; use a loopback Engine with isolated test state and a disposable token.
 No state mutation, orders, exchange credentials, or tenant provisioning.
@@ -36,15 +36,15 @@ def test_external_engine_is_reachable_with_platform_http_client():
     health = client._sync("GET", "/health", timeout=5)
     assert health["contract_version"] == ENGINE_CONTRACT_VERSION
 
-    unauthenticated = httpx.get(url + "/health", timeout=5)
-    assert unauthenticated.status_code == 401
-    incompatible = httpx.get(
-        url + "/health",
-        headers={
-            "Authorization": f"Bearer {token}",
-            ENGINE_CONTRACT_HEADER: "incompatible",
-        },
-        timeout=5,
-    )
-    assert incompatible.status_code == 426
-    assert incompatible.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+    with httpx.Client(timeout=5, trust_env=False) as http:
+        unauthenticated = http.get(url + "/health")
+        assert unauthenticated.status_code == 401
+        incompatible = http.get(
+            url + "/health",
+            headers={
+                "Authorization": f"Bearer {token}",
+                ENGINE_CONTRACT_HEADER: "incompatible",
+            },
+        )
+        assert incompatible.status_code == 426
+        assert incompatible.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION

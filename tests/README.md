@@ -1,5 +1,7 @@
 # 项目测试
 
+独立 Engine 的 HTTP v2 真实联调已移至 [`platform/tests/external_engine_contract_test.py`](../platform/tests/external_engine_contract_test.py)，不再被本目录旧进程内 Engine fixture 自动包装。现有联合回归仍用旧实现直到涉及行情、策略和回测的用例完成跨进程迁移。
+
 Platform 纯业务端测试已经逐步迁至 [`platform/tests/`](../platform/tests/)；
 旧 `tests/` 暂保留需要 Engine 实现的联合用例。根目录 `uv run pytest`
 **不会**自动覆盖 Platform 专用环境下的测试，见 [`platform/README.md`](../platform/README.md)。

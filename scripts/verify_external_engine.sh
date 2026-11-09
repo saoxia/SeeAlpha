@@ -18,8 +18,18 @@ if [[ "$docker_host" != unix://* ]]; then
   echo "Smoke is restricted to local Unix-socket Docker context (actual: $docker_host)" >&2
   exit 2
 fi
-if [[ ! -x "$platform_root/.venv/bin/python" ]]; then
-  echo "Platform Python .venv is missing; run 'uv sync --locked --group api' first" >&2
+# Prefer the new Engine-free runtime; retain the previously accepted root-env
+# fallback for the read-only smoke during the gradual migration.
+platform_python="$platform_root/platform/.venv/bin/python"
+if [[ ! -x "$platform_python" ]]; then
+  platform_python="$platform_root/.venv/bin/python"
+fi
+if [[ ! -x "$platform_python" ]]; then
+  echo "Install the standalone Platform environment first: uv sync --project platform --locked" >&2
+  exit 2
+fi
+if [[ "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" && "$platform_python" != "$platform_root/platform/.venv/bin/python" ]]; then
+  echo "Disposable business smoke requires the independent Platform runtime (platform/.venv)" >&2
   exit 2
 fi
 
@@ -77,7 +87,14 @@ export ENGINE_URL="http://$port_binding"
 export ENGINE_TOKEN="$token"
 export ENGINE_SMOKE_TENANT_ID=987654321
 
-"$platform_root/.venv/bin/python" -I "$platform_root/scripts/verify_external_engine_http.py"
+"$platform_python" -I "$platform_root/scripts/verify_external_engine_http.py"
+
+# Optional deeper business boundary: writes only a disposable development
+# tenant row in the container's temporary Engine SQLite state; no exchange calls.
+if [[ "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" ]]; then
+  export SEEALPHA_SMOKE_DISPOSABLE=1
+  "$platform_python" -I "$platform_root/scripts/verify_external_engine_business.py"
+fi
 
 echo "PASS: pinned standalone Engine + isolated Platform HTTP v2 handshake"
 echo "Temporary Engine container, token and test volumes are removed on exit."

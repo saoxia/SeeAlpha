@@ -77,6 +77,17 @@ export ENGINE_TENANT_ROOT=/absolute/path/to/disposable-test-tenants
 
 **验收边界**：通过它只说明新 Engine 能独立构建、启动，且去掉旧源码的 Platform 能通过 HTTP v2 握手。不能替代真实数据任务、历史回测、生产交易状态恢复、升级/回滚和真实账户验证。
 
+## 独立容器中的开发租户边界检查（可选）
+
+保留默认只读 HTTP 握手；需要进行一次非实盘、非回测的业务边界验收时：
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
+```
+
+此模式强制使用独立 `platform/.venv`；脚本先按原流程构建独立 Engine、创建一次性容器、独立挂载状态卷和随机私有令牌，再通过去掉 `engine/` 源码的 Platform `EngineClient` 完成开发租户创建/幂等、回测权限读取、实盘交易门禁、空订单/成交/持仓记录及跨租户访问拒绝。执行结束自动清理。**仅临时测试容器发生状态写入，不会执行任何交易、下载行情或调用交易所。** 此增强测试没有在本轮开发环境运行，须在集中验收时执行。
+
 ## 不启动真实交易的验证
 
 原项目 `tests/api/engine_isolation_test.py` 已经将 `api/` 与 `core/` 复制到不含 `engine/` 的临时目录，独立导入 API：
