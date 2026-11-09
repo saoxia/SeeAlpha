@@ -84,7 +84,8 @@ def test_api_does_not_own_live_nodes_feed_processes_or_the_engine_book():
     assert "manual.execute" not in trading
     assert "queries.account_snapshot" not in service
     assert "engine.connectors.binance.valuation" not in equity
-    assert "from engine.runtime import valuation_events" in equity
+    assert "self.engine.valuation_events(account)" in equity
+    assert "from engine.runtime import valuation_events" not in equity
     assert "subprocess.Popen" not in subscriptions
     assert "engine.supervisor import popen" in subscriptions
     assert "subprocess.Popen" not in jobs

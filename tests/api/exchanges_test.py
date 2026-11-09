@@ -473,7 +473,14 @@ def test_market_catalog_uses_native_contract_names_and_caches(monkeypatch):
                                             ("BTCUSDC-PERP", "BTC", "USDC")]]
 
     monkeypatch.setattr(queries, "instruments", instruments)
-    service = ExchangeService(None)
+
+    from engine.public_queries import PublicRequest, market_catalog
+
+    async def catalogue(environment, product):
+        payload = PublicRequest(environment=environment, product=product)
+        return (await market_catalog("1", payload))["items"]
+
+    service = ExchangeService(None, engine=SimpleNamespace(market_catalog=catalogue))
 
     async def check():
         first = await service.catalog("production")
@@ -562,7 +569,7 @@ def test_portfolio_collectors_share_writer_lock(application):
 
     async def scenario():
         first = app.state.exchanges
-        second = ExchangeService(app.state.accounts, first.portfolio_root)
+        second = ExchangeService(app.state.accounts, first.portfolio_root, engine=app.state.engine)
         await asyncio.gather(first.persist_portfolio(account_id), second.persist_portfolio(account_id))
         assert (await second.persisted_portfolio(account_id))["account"]["total_equity"] == "105"
         assert len(calls) == 1

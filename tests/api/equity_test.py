@@ -223,8 +223,7 @@ def test_http_auth_real_candles_rebuild_and_environment_isolation(database, tmp_
         assert client.get(path + "/equity-candles").json()["candles"][0]["close"] == "100.10"
 
 
-def test_collector_persists_wallet_and_fx_events_and_invalidates_on_shutdown(database, monkeypatch):
-    from api.equity import service as module
+def test_collector_persists_wallet_and_fx_events_and_invalidates_on_shutdown(database):
 
     async def scenario():
         row = {"id": 1, "environment": "production", "credentials_encrypted": "cipher"}
@@ -234,7 +233,7 @@ def test_collector_persists_wallet_and_fx_events_and_invalidates_on_shutdown(dat
         now = int(time.time() * 1000)
         prices = []
 
-        def price(env, currency):
+        async def price(env, currency):
             prices.append((env, currency))
             return {"price": "600" if currency == "BNB" else "1", "priced_at": now // 1000}
 
@@ -245,8 +244,7 @@ def test_collector_persists_wallet_and_fx_events_and_invalidates_on_shutdown(dat
             finished.set()
             await asyncio.Future()
 
-        monkeypatch.setattr(module, "valuation_events", events)
-        monkeypatch.setattr(module.assets, "asset_price", price)
+        service.engine = SimpleNamespace(valuation_events=events, asset_price=price)
         task = asyncio.create_task(service.collect(row))
         await asyncio.wait_for(finished.wait(), 3)
         task.cancel()
@@ -269,7 +267,7 @@ def test_collector_repeated_drift_records_calibration_and_restarts_baseline(data
         monkeypatch.setattr(module, "time", SimpleNamespace(time=lambda: now / 1000, monotonic=lambda: clock[0]))
         checks = []
 
-        def snapshot(_, *, positions):
+        async def snapshot(_, *, positions):
             assert positions is True
             checks.append(True)
             return {"assets": {"USDT": {"walletBalance": "100"}}, "positions": [{
@@ -285,8 +283,7 @@ def test_collector_repeated_drift_records_calibration_and_restarts_baseline(data
                 yield {"time": event["time"], "reason": "update", **{key: val for key, val in event["state"].items() if key != "fx"}}
             await asyncio.Future()
 
-        monkeypatch.setattr(module, "valuation_events", events)
-        monkeypatch.setattr(module.assets, "asset_account", snapshot)
+        service.engine = SimpleNamespace(valuation_events=events, asset_account=snapshot)
         task = asyncio.create_task(service.collect(row))
         try:
             for _ in range(100):

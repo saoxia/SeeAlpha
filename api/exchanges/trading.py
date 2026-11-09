@@ -13,7 +13,6 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
 from core.engine_contracts import EngineConflict
-from engine.connectors.binance import manual
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable
@@ -243,7 +242,7 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
 async def market_list(request: Request, _: AdminUser,
                       environment: Literal["production", "sandbox"] = "production"):
     catalog, snapshot = await asyncio.gather(request.app.state.exchanges.catalog(environment),
-                                             manual.market_tickers(environment))
+                                             request.app.state.engine.market_tickers(environment))
     rows = []
     for item in catalog:
         if item["quote"] not in {"USDT", "USDC"}:

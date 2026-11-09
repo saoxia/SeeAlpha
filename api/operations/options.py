@@ -9,8 +9,8 @@ from itertools import groupby
 
 from core.engine_contracts import QueryError
 from core.market.instruments import normalize_symbol
+from core.option_records import normalize_option_record
 from engine.connectors.binance import options
-from engine.connectors.binance.operations import normalize_option_record
 from engine.connectors.binance.options_account import BinanceOptionsAccountClient
 
 DAY_MS = 86400000
@@ -86,7 +86,7 @@ def ledger_fills(repository, account, start_ms, end_ms):
         cursor = (last["timestamp"], last["id"])
 
 
-async def sync_options(repository, account, state, start_ms, end_ms, *, cashflows_only=False):
+async def sync_options(repository, account, state, start_ms, end_ms, *, cashflows_only=False, engine=None):
     """Advance replay only after every discovered symbol's evidence has persisted."""
     if account["environment"] != "production":
         return 0, 0
@@ -100,15 +100,23 @@ async def sync_options(repository, account, state, start_ms, end_ms, *, cashflow
         current.update(status="syncing", message="期权操作同步中。")
     state["options"] = current
     await asyncio.to_thread(repository.save_sync, **state)
-    credentials = account["credentials"]
-    client = BinanceOptionsAccountClient(credentials["apiKey"], credentials["secret"], environment=account["environment"])
+    if engine is not None:
+        client = engine.options_client(account)
+    else:
+        # Old isolated in-process fixtures; live SeeAlpha uses the Engine HTTP client.
+        credentials = account["credentials"]
+        client = BinanceOptionsAccountClient(
+            credentials["apiKey"], credentials["secret"], environment=account["environment"],
+        )
     baseline = current.get("baseline")
     # Initial REST acquisition is bracketed in exchange time. Activity during it
     # prevents accepting an ambiguous cutoff and is retried on the next sync.
     if baseline is None and not cashflows_only:
-        before = (await asyncio.to_thread(options.get, "time"))["serverTime"]
+        before = (await engine.options_server_time(account) if engine is not None
+                  else await asyncio.to_thread(options.get, "time"))["serverTime"]
         initial = await client.positions()
-        after = (await asyncio.to_thread(options.get, "time"))["serverTime"]
+        after = (await engine.options_server_time(account) if engine is not None
+                 else await asyncio.to_thread(options.get, "time"))["serverTime"]
         if type(before) is not int or type(after) is not int or not 0 < before <= after:
             raise QueryError("期权初始持仓时间无效。")
         if len({row["symbol"] for row in initial}) != len(initial):

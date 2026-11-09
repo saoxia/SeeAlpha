@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.config import EngineConfig
+from engine.public_queries import router as venue_router
 from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
 
@@ -125,6 +126,7 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     app = FastAPI(title="SeeAlpha Engine", version="0.1.0", dependencies=[Depends(authorized)])
     app.state.runtime = runtime
+    app.include_router(venue_router)
 
     @app.middleware("http")
     async def tenant_boundary(request: Request, call_next):
@@ -134,6 +136,10 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             if target != config.tenant_id:
                 return JSONResponse({"detail": "Engine 租户不匹配。"}, status_code=403)
         return await call_next(request)
+
+    @app.exception_handler(QueryError)
+    async def venue_error(request: Request, error: QueryError):
+        return JSONResponse({"detail": str(error)}, status_code=502)
 
     def conflict(error: EngineConflict):
         raise HTTPException(409, error.message) from None
