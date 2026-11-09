@@ -29,6 +29,7 @@ from engine.pipeline.data_management import (
     preview,
     rows,
 )
+from engine.pipeline.models import DataRequest
 from engine.pipeline.sync_binance_batch import plan_daily_archives
 
 router = APIRouter(prefix="/tenants/{tenant_id}/data", tags=["engine-market-data"])
@@ -214,7 +215,14 @@ def data_page(tenant_id: str, body: Page, request: Request):
     project = checked_tenant(request, tenant_id)
 
     def run():
-        query, settings = selection(body)
+        # Small live previews are not UTC-day archive preparation requests.
+        if body.start.tzinfo is None or body.end.tzinfo is None:
+            raise ValueError("时间必须带有时区。")
+        query = DataRequest(
+            (body.symbol,), body.start, body.end,
+            bar_intervals=tuple(body.intervals), market=body.product,
+        )
+        settings = load_settings()
         if body.interval and body.interval not in INTERVALS:
             raise ValueError("K 线周期未配置")
         with read_lease(project, body.symbol, body.product):
