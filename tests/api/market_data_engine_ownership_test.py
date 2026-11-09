@@ -284,3 +284,22 @@ def test_failed_engine_sync_and_failed_orm_rollback_fail_closed(tmp_path):
     assert subscription.policies is None
     assert len(calls) == 2
     subscription.close()
+
+
+def test_platform_market_data_has_no_engine_source_or_runtime_file_reads():
+    import ast
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "api/market_data"
+    for path in root.glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not node.module.startswith("engine."), (path, node.module)
+            if isinstance(node, ast.Import):
+                assert not any(alias.name.startswith("engine.") for alias in node.names), path
+        assert "data/market_data/binance_um_1m/managed" not in source
+        assert 'status.json' not in source
+    assert "def observe(" not in (root / "monitor.py").read_text()
+    assert "def resolve(" not in (root / "subscriptions.py").read_text()

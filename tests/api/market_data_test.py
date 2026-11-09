@@ -52,8 +52,8 @@ def context(tmp_path, monkeypatch, engine_http):
     app.state.market_data = DataService(database, project=tmp_path)
 
     class LocalDataManagerWithHTTPEngine:
-        """Exercise the older local DataService behavior without local EngineClient execution."""
-        remote = False
+        """Keep API policy sync isolated while all reads use actual Engine HTTP."""
+        remote = True
 
         def __init__(self, engine):
             self.engine = engine
@@ -71,6 +71,7 @@ def context(tmp_path, monkeypatch, engine_http):
                     [EnginePolicy.model_validate(p) for p in payload["policies"]],
                     tenant_id=resident.tenant_id,
                 )
+                resident.subscriptions.policies = None
                 return {"synced": len(payload["policies"]), "last_error": None}
             return self.engine.market_control(operation, payload)
 
@@ -482,7 +483,7 @@ def test_legacy_policy_file_does_not_enable_collection_by_default(context):
     assert not hasattr(app.state.market_data.subscriptions, "processes")
 
 
-def test_managed_inventory_and_preview_read_persisted_evidence(context):
+def test_managed_inventory_and_preview_read_persisted_evidence(context, engine_http):
     from api.market_data.contracts import DataPolicy
     from engine.feed.pair_store import PairStore
 
@@ -490,7 +491,7 @@ def test_managed_inventory_and_preview_read_persisted_evidence(context):
     login(client)
     policy = DataPolicy(symbol="ETHUSDT", base_level="1h", realtime_enabled=False)
     app.state.market_data.subscriptions.save(policy)
-    root = app.state.market_data.subscriptions.root(policy)
+    root = engine_http.app.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     stamp = int(datetime(2026, 8, 1, tzinfo=UTC).timestamp() * 1000)
     store = PairStore(root / "collection.sqlite", "ETHUSDT", "1h")
@@ -537,7 +538,7 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
     manager = app.state.market_data
     policy = DataPolicy(symbol="ETHUSDT", base_level="tick", realtime_enabled=False)
     manager.subscriptions.save(policy)
-    root = manager.subscriptions.root(policy)
+    root = engine_http.app.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     path = root / "collection.sqlite"
     store = PairStore(path, policy.symbol, policy.base_level)
@@ -720,7 +721,7 @@ def test_configuration_only_in_database_operations_and_monitor_only_in_files(con
         assert session.scalar(select(func.count()).select_from(ManagementJob)) == 0
 
 
-def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_for_configuration_lock(context):
+def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_for_configuration_lock(context, engine_http):
     import threading
 
     from api.market_data.contracts import DataPolicy
@@ -729,8 +730,15 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
     policy = DataPolicy(symbol="ETHUSDT", base_level="tick", realtime_enabled=False)
     manager.subscriptions.save(policy)
     # Model an enabled service without launching network workers.
-    manager.subscriptions.policies = [policy.model_copy(update={"realtime_enabled": True})]
-    root = manager.subscriptions.root(policy)
+    enabled = policy.model_copy(update={"realtime_enabled": True})
+    manager.subscriptions.policies = [enabled]
+    from engine.data_manager.contracts import DataPolicy as EnginePolicy
+
+    engine_manager = engine_http.app.state.market_data
+    engine_manager.subscriptions.policies = [
+        EnginePolicy.model_validate(enabled.model_dump(mode="json")),
+    ]
+    root = engine_manager.subscriptions.root(policy)
     root.mkdir(parents=True)
     (root / "status.json").write_text(json.dumps({"state": "READY", "valid_until_ms": 0, "backlog": 7}))
     observation = manager.subscriptions.items()[0]["services"]["collection"]
@@ -791,7 +799,7 @@ def test_duration_without_retained_data_uses_today_utc_midnight(context, monkeyp
     assert saved["history_mode"] == "start"
 
 
-def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypatch):
+def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypatch, engine_http):
     from api.market_data.contracts import DataPolicy
     from engine.feed.pair_store import PairStore
 
@@ -803,7 +811,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
     policy = DataPolicy(symbol='ETHUSDT', base_level='1m', realtime_enabled=True)
     subscriptions = app.state.market_data.subscriptions
     subscriptions.policies = [policy]
-    journal_root = subscriptions.root(policy)
+    journal_root = engine_http.app.state.market_data.subscriptions.root(policy)
     journal_root.mkdir(parents=True, exist_ok=True)
     store = PairStore(journal_root / 'collection.sqlite', 'ETHUSDT', '1m', ['1m'])
     store.candle('1m', [left - 60000, '10', '12', '9', '11', '2', left - 1], now)
@@ -972,7 +980,7 @@ def test_option_underlying_scope_manages_all_expiries_and_discovers_only_its_con
     manager.subscriptions.deleting.clear()
 
 
-def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, monkeypatch):
+def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, monkeypatch, engine_http):
     from api.market_data.contracts import DataPolicy
 
     _client, app, _root = context
@@ -982,13 +990,13 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
     subscriptions._write(policies)
     now = int(time.time() * 1000)
     for p in policies[1:]:
-        path = subscriptions.root(p) / "status.json"
+        path = engine_http.app.state.market_data.subscriptions.root(p) / "status.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"state": "READY", "data_ready": True, "reason": "collecting",
                                     "checked_ms": now, "valid_until_ms": now + 60000}))
     assert subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
     reader = DataService(app.state.database, project=_root)
-    reader.subscriptions.policies = policies
+    reader.engine = app.state.market_data.engine
     assert reader.subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
     path.write_text(json.dumps({"state": "READY", "data_ready": True, "checked_ms": 1, "valid_until_ms": 1}))
     item = subscriptions.items(group_options=True)[0]

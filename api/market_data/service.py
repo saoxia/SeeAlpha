@@ -22,14 +22,8 @@ class DataService:
         from .monitor import ServiceMonitor
         self.monitor = ServiceMonitor(self)
 
-    @property
-    def remote(self):
-        return bool(getattr(self, "engine", None) is not None and self.engine.remote)
-
     def reconcile_jobs(self):
         """Apply Engine-terminal policy changes to the business database once."""
-        if not self.remote:
-            return
         from .contracts import DataPolicy
         for job in self.engine.market_control("jobs"):
             if job["status"] != "succeeded" or job["action"] not in {"delete_pair", "trim"}:
