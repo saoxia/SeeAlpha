@@ -5,8 +5,8 @@
 开发租户使用独立历史数据和持久卷，不实施数据缓存复用。
 `api/tenant_docker.py` 在同宿主机上创建/停止带资源限制的 Engine 容器，
 `api/engine_client.py` 按租户选择私有 HTTP 端点；`engine/app.py` 限制固定租户身份。
-历史默认租户继续使用原数据目录，以保持数据管理 UI 与任务结果的兼容性。
-`ENGINE_DEPLOYMENT=single` 仍为默认，旧 Engine SQLite 状态不自动搬迁。
+全部租户（包括初始正式租户）均使用独立数据卷，不再绑定旧项目数据目录。
+`ENGINE_DEPLOYMENT=single` 仍为默认；改用 Docker 需全新初始化，旧 Engine 状态不自动搬迁。
 详情与部署前必要迁移见 [运行说明](TENANT_DOCKER_RUNTIME.md)。
 跨服务器调度、Harness、共享缓存与不可信代码沙箱均不属于本阶段。
 
