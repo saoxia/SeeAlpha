@@ -408,7 +408,14 @@ class EngineRuntime:
             starting = Money.from_str(f"{format(amount, 'f')} {quote_currency}")
         except (TypeError, ValueError) as exc:
             raise EngineConflict("初始资金与报价币种精度不匹配。") from exc
-        bars = read_history(catalog_directory(self.project), symbol, interval, start_at, end_at)
+        if not (self.project / "data").is_dir():
+            raise EngineConflict("租户历史数据目录不可用。")
+        from engine.data_queries import read_lease
+
+        # Delete/trim jobs must not unlink a Catalog dataset while a backtest
+        # is loading its historical bars.
+        with read_lease(self.project, symbol, "futures_um"):
+            bars = read_history(catalog_directory(self.project), symbol, interval, start_at, end_at)
         if not bars:
             raise EngineConflict("指定区间没有可用的本地 K 线。")
         result = run_issued_history(loads, bars, starting)
