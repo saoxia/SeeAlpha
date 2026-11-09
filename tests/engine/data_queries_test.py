@@ -47,6 +47,11 @@ def test_tenant_data_reads_reject_unauthorized_and_other_tenant(tmp_path, monkey
         assert client.post(
             "/tenants/42/data/page", json={**request, "limit": 30}, headers=headers,
         ).status_code == 404
+        recent_preview = client.post("/tenants/42/data/page", json={
+            **request, "start": "2026-08-01T09:00:00Z",
+            "end": "2026-08-01T09:05:00Z",
+        }, headers=headers)
+        assert recent_preview.status_code == 404
         chart = client.post("/tenants/42/data/chart", json={
             "symbol": "ETHUSDT", "interval": "1m",
         }, headers=headers)
