@@ -1,5 +1,8 @@
 """Business API delegates market-data reads to the tenant Engine, never host paths."""
 from datetime import UTC, datetime
+
+import pytest
+from fastapi import HTTPException
 from types import SimpleNamespace
 
 from api.market_data import router as data_router
@@ -79,3 +82,30 @@ def test_market_export_is_streamed_from_engine_not_platform_files(tmp_path):
     assert response.headers["content-disposition"] == f'attachment; filename="ticks-{identity}.csv"'
     assert requested == [identity]
     assert not (tmp_path / "data/exports").exists()
+
+
+def test_data_queries_refuse_missing_engine_and_never_read_platform_files(tmp_path):
+    from api.market_data.service import DataService
+
+    manager = object.__new__(DataService)
+    manager.project = tmp_path
+    manager.subscriptions = SimpleNamespace(_read=lambda: [])
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(market_data=manager)))
+    query = DataRange(
+        symbol="ETHUSDT", start=datetime(2026, 8, 1, 1, tzinfo=UTC),
+        end=datetime(2026, 8, 1, 1, 5, tzinfo=UTC), intervals=[],
+    )
+    for operation in (
+        lambda: data_router.datasets(request, None),
+        lambda: data_router.latest_data_times(request, None),
+        lambda: data_router.data_coverage(request, None, query),
+        lambda: data_router.preview_data(request, query, 100, None),
+        lambda: data_router.local_chart(request, None, symbol="ETHUSDT", interval="1m"),
+        lambda: manager.storage(),
+        lambda: manager.plan(query),
+    ):
+        with pytest.raises(HTTPException) as error:
+            operation()
+        assert error.value.status_code == 503
+    assert not (tmp_path / "data").exists()
+    assert not (tmp_path / ".local").exists()
