@@ -49,3 +49,33 @@ def test_business_data_reads_use_the_engine_http_contract():
     for _, body in engine.calls:
         if body is not None:
             assert "path" not in body and "project" not in body
+
+
+def test_market_export_is_streamed_from_engine_not_platform_files(tmp_path):
+    from fastapi.responses import StreamingResponse
+
+    requested = []
+
+    class Engine:
+        def market_export(self, identity):
+            requested.append(identity)
+            return iter([b"timestamp,price\\n", b"1,2000\\n"])
+
+    class Manager:
+        def job(self, identity):
+            return {"id": identity, "action": "export", "status": "succeeded"}
+
+        def _required_engine(self):
+            return Engine()
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(market_data=Manager())),
+    )
+    from api.market_data import router as data_router
+
+    identity = "a" * 32
+    response = data_router.download(request, identity, None)
+    assert isinstance(response, StreamingResponse)
+    assert response.headers["content-disposition"] == f'attachment; filename="ticks-{identity}.csv"'
+    assert requested == [identity]
+    assert not (tmp_path / "data/exports").exists()
