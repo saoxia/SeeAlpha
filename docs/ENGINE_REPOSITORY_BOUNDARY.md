@@ -26,12 +26,15 @@
 | `api/exchanges/trading.py` | 手动交易市场行情；改为 Engine 查询接口 |
 | `api/equity/service.py` | 资产估值外部取价及对账查询；改为受授权的 Engine HTTP 查询，API 保留核算逻辑 |
 | `api/operations/service.py` 与 `options.py` | 交易所操作与期权历史；增加受控分页查询接口 |
-| `api/market_data/contract(s).py`、`router.py`、`service.py`、`subscriptions.py`、`monitor.py` | Catalog 覆盖、查询、导出、行情子进程、期权数据与管理任务；将数据执行/读取下沉 Engine，业务配置与授权仍在 API |
+| `api/market_data/router.py`、`service.py`、`subscriptions.py` | Catalog 覆盖/查询、导出、行情子进程、期权和管理任务的旧本地执行分支仍在；逐项迁往已有 Engine HTTP，保留 Platform 的业务配置与授权 |
+| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；剩余 `observe` 仅供尚待迁移的本地订阅计算，后续与 `subscriptions.py` 一起删除 |
 | `api/strategies/service.py` | 动态策略包校验与参数准备依赖 `engine.strategies.package`；需将校验放在受隔离的研究运行时或通过 Engine 授权接口调用 |
 
 **禁止仅将 import 路径改名、复制 Connector/回测实现到 API 或把所有
 Engine 实现移动到 `core` 来掩盖耦合。** 需要真正的远程协议隔离和现有
 调用/异常/幂等行为回归验证。
+
+本轮行情监控状态（`/api/data/services`）与 Feed 实时状态（`/api/data/feed/status`）已改为只读 Engine HTTP，不在 Platform 主机目录查找监控文件。Engine 内继续负责过期、字段与租户验证。此项仅清理只读状态路径，未移除 DataService/Subscriptions 的本地行情任务兼容实现。
 
 建议下轮优先隔离交易所只读查询，再迁移操作记录，最后迁移数据管理链路；
 这些功能改造与未来独立仓库发布应分别验收。
