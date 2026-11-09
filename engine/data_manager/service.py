@@ -501,8 +501,8 @@ class DataService:
                         status = "failed"
                         error = "行情文件已删除，但配置移除失败；请重新预览并重试删除交易对。"
                 if status == "succeeded" and job["action"] == PREFIX + "trim":
-                    from .repository import StorageUnavailable
                     from .contracts import DataPolicy
+                    from .repository import StorageUnavailable
                     try:
                         with self.subscriptions.lock:
                             self.subscriptions.deleting.discard((job["parameters"]["product"], job["parameters"]["symbol"]))

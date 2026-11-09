@@ -209,11 +209,11 @@ class EngineClient:
         path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
         url, headers = self._target(path)
         try:
-            with httpx.Client(timeout=None) as client:
-                with client.stream("GET", url + path, headers=headers) as response:
-                    if response.status_code >= 400:
-                        raise QueryError("导出文件不可用。")
-                    yield from response.iter_bytes(chunk_size=65536)
+            with (httpx.Client(timeout=None) as client,
+                  client.stream("GET", url + path, headers=headers) as response):
+                if response.status_code >= 400:
+                    raise QueryError("导出文件不可用。")
+                yield from response.iter_bytes(chunk_size=65536)
         except httpx.HTTPError as exc:
             raise OSError("租户 Engine 导出服务不可用。") from exc
 
