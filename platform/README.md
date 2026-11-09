@@ -39,3 +39,16 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 `platform/tests/engine_http_routing_test.py` 已将原 `tests/api/tenant_docker_test.py` 中不需要真实 Engine 的关键消费者检查提取到独立 Platform 测试套件：HTTP v2、错误版本拒绝、Engine 不可用时失败关闭、租户 Token 隔离和旧镜像禁止复用。这些用例使用 HTTPX MockTransport 和临时目录，不依赖 NautilusTrader、原 `engine/` 或 Docker daemon。原测试保留，直到旧测试夹具完成跨进程迁移并集中验收。
 
 这不等于迁移了真实的行情、策略和回测集成测试；那些用例仍由单独的 Engine/跨仓库测试负责。
+
+## 行情消费端测试归属
+
+行情数据读取的 HTTP 委派测试已从 `tests/api/market_data_remote_test.py` 移至
+`platform/tests/market_data_remote_test.py`。原
+`tests/api/market_data_engine_ownership_test.py` 中不需要 Engine 实现的 11 项测试已迁至
+`platform/tests/market_data_engine_ownership_test.py`；仅保留真正比较 Engine 与 Platform
+锁生命周期的联合测试在旧目录。原 `tests/api/engine_isolation_test.py` 的源码导入静态
+规则也复制到 `platform/tests/runtime_boundary_test.py`，以便在没有 NautilusTrader 的依赖环境中执行。
+
+`./scripts/check_platform_runtime.sh` 运行这批 Platform 测试；根目录旧测试继续负责
+需要 Engine/行情 Catalog/策略执行环境的测试。**单独运行 `uv run pytest` 不能代表
+两套独立测试全部通过**，后续集中验收应同时运行两套。迁移只改变测试归属，未改生产代码。

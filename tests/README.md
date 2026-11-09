@@ -1,5 +1,9 @@
 # 项目测试
 
+Platform 纯业务端测试已经逐步迁至 [`platform/tests/`](../platform/tests/)；
+旧 `tests/` 暂保留需要 Engine 实现的联合用例。根目录 `uv run pytest`
+**不会**自动覆盖 Platform 专用环境下的测试，见 [`platform/README.md`](../platform/README.md)。
+
 测试集中存放，按业务模块分组，不要求与每个实现文件一一对应。
 
 ```text
