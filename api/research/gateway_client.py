@@ -5,7 +5,6 @@ Only a trusted server-side research-task provisioner may instantiate this.
 """
 from __future__ import annotations
 
-import hmac
 import json
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
