@@ -36,3 +36,5 @@ uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.p
 `tests/baselines/lint_baseline.json` 当前没有逐文件样式例外。仍在仓库里的已授权源码变更登记在 `tests/baselines/source_updates.json`。
 `tests/__init__.py` 固定本项目测试包的来源，测试间引用辅助函数时使用 `tests.` 前缀。
 策略包约定见 [双均线示例](../packages/ema_crossover/README.md)。
+
+租户 Docker/HTTP 客户端的独立测试已迁至 [`platform/tests/tenant_docker_test.py`](../platform/tests/tenant_docker_test.py)，固定租户 Engine ASGI HTTP 安全测试已迁至独立 `seealpha-engine/tests/engine/tenant_http_isolation_test.py`。旧联合目录不再包含 `tenant_docker_test.py`。

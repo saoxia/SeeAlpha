@@ -93,7 +93,8 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 原项目 `tests/api/engine_isolation_test.py` 已经将 `api/` 与 `core/` 复制到不含 `engine/` 的临时目录，独立导入 API：
 
 ```bash
-uv run pytest -q tests/api/engine_isolation_test.py tests/api/tenant_docker_test.py
+uv run pytest -q tests/api/engine_isolation_test.py
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/tenant_docker_test.py
 ```
 
 当新仓库 Engine 使用**隔离本地开发令牌和状态卷**启动后，可运行一条只读 HTTP v2 验证：
@@ -102,7 +103,7 @@ uv run pytest -q tests/api/engine_isolation_test.py tests/api/tenant_docker_test
 SEEALPHA_TEST_EXTERNAL_ENGINE=1 \
 ENGINE_URL=http://127.0.0.1:8766 \
 ENGINE_TOKEN='<随机私有开发令牌>' \
-uv run pytest -q tests/api/external_engine_contract_test.py
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/external_engine_contract_test.py
 ```
 
 测试只访问本地 loopback Engine 的 `/health`，验证 401、成功状态和 426，不创建租户、不读交易所凭据、不发订单。未设置开关时跳过。

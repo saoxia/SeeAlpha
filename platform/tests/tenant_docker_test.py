@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from api.engine_client import EngineClient
 from api.tenant_docker import DockerTenantManager
-from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
-from engine.app import create_app
-from engine.config import EngineConfig
-from engine.runtime import EngineConflict
+from core.engine_contracts import (
+    ENGINE_CONTRACT_HEADER,
+    ENGINE_CONTRACT_VERSION,
+    EngineConflict,
+    QueryError,
+)
 
 
 class FakeTenantManager:
@@ -73,41 +74,6 @@ def test_engine_client_rejects_unversioned_and_incompatible_engine(tmp_path):
         )
         with pytest.raises(QueryError, match="契约版本"):
             client.ensure_tenant(7, "development")
-
-
-def test_engine_container_rejects_other_tenant_and_purpose(tmp_path):
-    config = EngineConfig(
-        tmp_path / "state", token="secret", project=tmp_path,
-        tenant_id="42", tenant_purpose="development",
-    )
-    app = create_app(config)
-    headers = {"Authorization": "Bearer secret"}
-    with TestClient(app) as http:
-        denied = http.put(
-            "/tenants/43", headers=headers, json={"purpose": "development"},
-        )
-        assert denied.status_code == 403
-        assert http.get("/tenants/43/export", headers=headers).status_code == 403
-        assert http.put(
-            "/tenants/42", headers=headers, json={"purpose": "production"},
-        ).status_code == 403
-        assert http.put(
-            "/tenants/42", headers=headers, json={"purpose": "development"},
-        ).status_code == 200
-        assert http.post(
-            "/tenants/42/runnable", headers=headers, json={"action": "backtest"},
-        ).status_code == 200
-        assert http.post(
-            "/tenants/42/runnable", headers=headers, json={"action": "live"},
-        ).status_code == 409
-        assert http.get("/health").status_code == 401
-        healthy = http.get("/health", headers=headers)
-        assert healthy.status_code == 200
-        assert healthy.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
-        assert healthy.json()["contract_version"] == ENGINE_CONTRACT_VERSION
-        assert http.get(
-            "/health", headers={**headers, ENGINE_CONTRACT_HEADER: "3"},
-        ).status_code == 426
 
 
 def test_engine_client_selects_tenant_endpoint_without_cross_tenant_tokens(tmp_path, monkeypatch):
@@ -285,3 +251,15 @@ def test_existing_tenant_engine_refuses_implicit_image_switch(tmp_path, monkeypa
     with pytest.raises(EngineConflict, match="镜像"):
         manager.endpoint("7")
     assert not (tmp_path / "tenants" / "7" / "engine.env").exists()
+
+
+def test_engine_offline_fails_without_fallback(tmp_path):
+    def unavailable(request):
+        raise httpx.ConnectError("isolated Engine unavailable", request=request)
+
+    client = EngineClient(
+        tmp_path, url="http://engine.example",
+        sync_transport=httpx.MockTransport(unavailable),
+    )
+    with pytest.raises(OSError, match="交易引擎不可用"):
+        client._sync("GET", "/health")
