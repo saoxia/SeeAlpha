@@ -1,12 +1,13 @@
 """Authorize a package version, then issue its archive to the engine for one tenant."""
 
 import base64
+import binascii
+import hashlib
 
 from fastapi import HTTPException
 
 from api.db.errors import StorageConflict
-from core.engine_contracts import EngineConflict
-from engine.strategies.package import PackageError, digest, open_package
+from core.engine_contracts import EngineConflict, QueryError
 
 from .repository import StrategyRepository
 
@@ -28,10 +29,10 @@ class StrategyStore:
         return packages
 
     def create_package(self, archive_b64, parameters):
-        metadata, prepared, archive = _open(archive_b64, parameters)
+        metadata, prepared, archive = _open(self.engine, archive_b64, parameters)
         try:
             package = self.repository.create_package(
-                metadata.name, metadata.title, metadata.description,
+                metadata["name"], metadata["title"], metadata["description"],
             )
         except StorageConflict as exc:
             raise HTTPException(409, "策略包名称或实现不能重复。") from exc
@@ -42,8 +43,8 @@ class StrategyStore:
         package = self.repository.get_package(package_id)
         if package is None:
             raise HTTPException(404, "策略包不存在。")
-        metadata, prepared, archive = _open(archive_b64, parameters)
-        if metadata.name != package["code_key"]:
+        metadata, prepared, archive = _open(self.engine, archive_b64, parameters)
+        if metadata["name"] != package["code_key"]:
             raise HTTPException(422, "策略包名称与归档不一致。")
         version = self._store_version(package, metadata, prepared, archive)
         return _public_version(version)
@@ -92,14 +93,23 @@ class StrategyStore:
             raise HTTPException(409, "该策略版本还不能加载到开发租户。")
         account = str(account_id).strip()
         self._require_account(tenant, account)
-        try:
-            _metadata, parameters = open_package(
-                version["archive"], {**version["parameters"], **(overrides or {})},
-            )
-        except PackageError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        if digest(version["archive"]) != version["package_hash"]:
+        if hashlib.sha256(version["archive"]).hexdigest() != version["package_hash"]:
             raise HTTPException(409, "策略包哈希不一致。")
+        try:
+            result = self.engine.inspect_strategy(
+                base64.b64encode(version["archive"]).decode(),
+                {**version["parameters"], **(overrides or {})}, tenant_id=tenant["id"],
+            )
+        except QueryError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(503, "策略校验 Engine 暂时不可用。") from exc
+        metadata = result["metadata"]
+        if (metadata["digest"] != version["package_hash"]
+                or metadata["entry_point"] != version["entry_point"]
+                or metadata["name"] != package["code_key"]):
+            raise HTTPException(409, "策略归档的身份与已保存版本不一致。")
+        parameters = result["parameters"]
         issuance = self.repository.create_issuance(
             tenant["id"], account, version["id"], tenant["purpose"], parameters,
         )
@@ -130,8 +140,8 @@ class StrategyStore:
     def _store_version(self, package, metadata, prepared, archive):
         try:
             return self.repository.create_version(
-                package["id"], metadata.version, prepared, metadata.entry_point,
-                metadata.digest, archive,
+                package["id"], metadata["version"], prepared, metadata["entry_point"],
+                metadata["digest"], archive,
             )
         except StorageConflict as exc:
             raise HTTPException(409, "同一策略包的版本号不能重复。") from exc
@@ -218,13 +228,17 @@ class StrategyStore:
             raise HTTPException(404, "账户不属于该租户。")
 
 
-def _open(archive_b64, parameters):
+def _open(engine, archive_b64, parameters):
     try:
         archive = base64.b64decode(archive_b64, validate=True)
-        metadata, prepared = open_package(archive, parameters or {})
-    except (ValueError, PackageError) as exc:
-        message = str(exc) if isinstance(exc, PackageError) and str(exc) else "策略包无效。"
-        raise HTTPException(422, message) from exc
+        inspection = engine.inspect_strategy(archive_b64, parameters or {})
+        metadata, prepared = inspection["metadata"], inspection["parameters"]
+        if metadata["digest"] != hashlib.sha256(archive).hexdigest():
+            raise HTTPException(409, "策略包哈希不一致。")
+    except (ValueError, binascii.Error, QueryError) as exc:
+        raise HTTPException(422, "策略包无效。" if isinstance(exc, binascii.Error) else str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(503, "策略校验 Engine 暂时不可用。") from exc
     return metadata, prepared, archive
 
 
