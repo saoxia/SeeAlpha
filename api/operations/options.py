@@ -103,7 +103,7 @@ async def sync_options(repository, account, state, start_ms, end_ms, *, cashflow
     # Initial REST acquisition is bracketed in exchange time. Activity during it
     # prevents accepting an ambiguous cutoff and is retried on the next sync.
     if baseline is None and not cashflows_only:
-        before = await engine.options_server_time(account)["serverTime"]
+        before = (await engine.options_server_time(account))["serverTime"]
         initial = await client.positions()
         after = (await engine.options_server_time(account))["serverTime"]
         if type(before) is not int or type(after) is not int or not 0 < before <= after:
