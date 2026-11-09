@@ -7,6 +7,9 @@ when SeeAlpha Engine moves into its own repository.
 
 from dataclasses import dataclass
 
+ENGINE_CONTRACT_HEADER = "X-SeeAlpha-Engine-Contract-Version"
+ENGINE_CONTRACT_VERSION = "1"
+
 
 class QueryError(RuntimeError):
     """A sanitized connector/Engine query error safe for an API caller."""

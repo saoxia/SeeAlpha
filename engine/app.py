@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
 from engine.config import EngineConfig
 from engine.data_queries import router as market_data_router
 from engine.data_manager.routes import router as control_router
@@ -185,12 +186,23 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     @app.middleware("http")
     async def tenant_boundary(request: Request, call_next):
+        requested_version = request.headers.get(ENGINE_CONTRACT_HEADER)
+        if requested_version is not None and requested_version != ENGINE_CONTRACT_VERSION:
+            return JSONResponse(
+                {"detail": "Engine HTTP 契约版本不兼容。"}, status_code=426,
+                headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION},
+            )
         # A tenant Engine must reject another tenant's HTTP operations.
         if config.tenant_id is not None and request.url.path.startswith("/tenants/"):
             target = request.url.path[len("/tenants/"):].split("/", 1)[0]
             if target != config.tenant_id:
-                return JSONResponse({"detail": "Engine 租户不匹配。"}, status_code=403)
-        return await call_next(request)
+                return JSONResponse(
+                    {"detail": "Engine 租户不匹配。"}, status_code=403,
+                    headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION},
+                )
+        response = await call_next(request)
+        response.headers[ENGINE_CONTRACT_HEADER] = ENGINE_CONTRACT_VERSION
+        return response
 
     @app.exception_handler(QueryError)
     async def venue_error(request: Request, error: QueryError):
@@ -201,7 +213,7 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     @app.get("/health")
     def health(tenant_id: str | None = None, account_id: str | None = None):
-        return runtime.health(tenant_id, account_id)
+        return {**runtime.health(tenant_id, account_id), "contract_version": ENGINE_CONTRACT_VERSION}
 
     @app.put("/tenants/{tenant_id}")
     def ensure_tenant(tenant_id: str, body: TenantBody):
