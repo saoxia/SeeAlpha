@@ -17,6 +17,15 @@ def test_business_api_never_imports_engine_or_nautilus_runtime():
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
                 names = [node.module] if node.module else []
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "__import__"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                names = [node.args[0].value]
             else:
                 continue
             for name in names:
@@ -36,6 +45,11 @@ import sys
 from pathlib import Path
 root = Path(sys.argv[1])
 sys.path.insert(0, str(root))
+class RejectEngineImports:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split(".", 1)[0] in {"engine", "nautilus_trader"}:
+            raise RuntimeError("Platform imported forbidden runtime: " + fullname)
+sys.meta_path.insert(0, RejectEngineImports())
 from api.config import Settings
 from api.main import create_app
 app = create_app(Settings(root / "unused.db", database_url="sqlite:///" + str(root / "business.db")))
