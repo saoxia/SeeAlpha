@@ -19,8 +19,7 @@ def configured(context, monkeypatch):
     client, app, root = context
     login(client)
     manager = app.state.market_data
-    starts = []
-    monkeypatch.setattr(manager.subscriptions, "_start", starts.append)
+    sync_start = len(manager.engine.sync_calls)
     payload = {"symbol": "ETHUSDT", "base_level": "tick", "realtime_enabled": False,
                "history_enabled": True, "history_mode": "start", "history_start": "2026-08-01T00:00:00Z"}
     response = client.post("/api/data/subscriptions", json=payload)
@@ -39,17 +38,18 @@ def configured(context, monkeypatch):
                                AggressorSide.BUY, TradeId(str(index + 1)), stamp, stamp))
         (source / f"ETHUSDT-trades-{day}.zip").write_bytes(b"archive")
     catalog.write_data(ticks)
-    return client, manager, root, settings, catalog, source, payload, starts
+    return client, manager, root, settings, catalog, source, payload, sync_start
 
 
 def test_earlier_start_saves_and_restarts_history_without_deleting(configured):
-    client, manager, _root, _settings, catalog, source, payload, starts = configured
+    client, manager, _root, _settings, catalog, source, payload, sync_start = configured
     response = client.post("/api/data/subscriptions", json={**payload, "history_start": "2026-07-01T00:00:00Z"})
     assert response.status_code == 200 and "job" not in response.json()
     assert len(catalog.trade_ticks()) == 2 and len(list(source.glob("*.zip"))) == 2
     saved = manager.policy_repository.list()[0]
     assert saved["history_start"].startswith("2026-07-01") and saved["history_enabled"]
-    assert starts[-1].history_start == datetime(2026, 7, 1, tzinfo=UTC)
+    assert len(manager.engine.sync_calls) > sync_start
+    assert manager.engine.sync_calls[-1]["policies"][0]["history_start"] == "2026-07-01T00:00:00Z"
 
 
 def test_later_start_requires_bound_confirmation_and_rejects_changed_sources(configured):

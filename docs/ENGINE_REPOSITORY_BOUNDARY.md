@@ -26,8 +26,8 @@
 | `api/exchanges/trading.py` | 手动交易市场行情；改为 Engine 查询接口 |
 | `api/equity/service.py` | 资产估值外部取价及对账查询；改为受授权的 Engine HTTP 查询，API 保留核算逻辑 |
 | `api/operations/service.py` 与 `options.py` | 交易所操作与期权历史；增加受控分页查询接口 |
-| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性数据任务的启动、取消、重试、进度和故障恢复已由 Engine 独占；剩余 Catalog 本地读取/计划、订阅采集及期权进程分支仍待迁移，Platform 保留业务配置与授权 |
-| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；剩余 `observe` 仅供尚待迁移的本地订阅计算，后续与 `subscriptions.py` 一起删除 |
+| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性数据任务及永续/期权实时采集工作进程已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现及同步；剩余 Catalog 本地读取/预览、历史起点解析及部分本地状态文件读取仍待迁移 |
+| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；剩余 `observe` 是历史本地文件状态兼容读取，后续与本地 Catalog 读取一起删除 |
 | `api/strategies/service.py` | 动态策略包校验与参数准备依赖 `engine.strategies.package`；需将校验放在受隔离的研究运行时或通过 Engine 授权接口调用 |
 
 **禁止仅将 import 路径改名、复制 Connector/回测实现到 API 或把所有
@@ -37,9 +37,16 @@ Engine 实现移动到 `core` 来掩盖耦合。** 需要真正的远程协议�
 本轮进一步删除了 `api/market_data/service.py` 内的 API 本地任务进程、任务结果读取与恢复逻辑。
 `EngineDataService` 独占任务操作记录、交易对排他、超时取消和中断恢复；Platform 只通过 Engine HTTP
 获取任务状态，并在 Engine 确认删除/裁剪成功后使用 `.local/state/api/market_settlements/` 的幂等结算标记
-更新业务配置。旧 API 任务目录不会被 Engine 自动接管。订阅工作进程与本地数据读取仍需后续独立清理。
+更新业务配置。旧 API 任务目录不会被 Engine 自动接管。实时订阅工作进程也已归属 Engine；本地 Catalog 读取仍需后续独立清理。
 
-本轮行情监控状态（`/api/data/services`）与 Feed 实时状态（`/api/data/feed/status`）已改为只读 Engine HTTP，不在 Platform 主机目录查找监控文件。Engine 内继续负责过期、字段与租户验证。此项仅清理只读状态路径，未移除 DataService/Subscriptions 的本地行情任务兼容实现。
+本轮行情监控状态（`/api/data/services`）与 Feed 实时状态（`/api/data/feed/status`）已改为只读 Engine HTTP，不在 Platform 主机目录查找监控文件。Engine 内继续负责过期、字段与租户验证。只读状态以 Engine 为真源；部分用于旧测试的本地数据文件投影仍保留，尚待移除。
+
+本次订阅工作进程清理：Platform 的 `Subscriptions` 不再持有 `processes/auxiliary`，
+也不直接执行 `engine.feed.managed`、`engine.pipeline.pair_data`，不管理期权共享进程，
+不会在业务 API 停止时关闭 Engine 工作进程。业务库配置变更后调用 Engine `sync`；
+业务 API 周期性恢复只重发 ORM 订阅意图。行情访问许可、进程恢复、期权批处理 manifest
+均由 Engine 负责。平台使用 `.local/run/api/market_policy_writer.lock` 保护业务配置写入；
+Engine 的采集进程继续使用独立的租户采集锁。即使两者运行在同一宿主机，也不共享锁名。
 
 建议下轮优先隔离交易所只读查询，再迁移操作记录，最后迁移数据管理链路；
 这些功能改造与未来独立仓库发布应分别验收。

@@ -1,11 +1,8 @@
-"""Manage existing feed processes and their product/symbol settings, never market storage."""
+"""Platform-owned subscription intent; Engine alone runs feed and history workers."""
 
 import asyncio
 import fcntl
 import json
-import os
-import subprocess
-import sys
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -20,8 +17,6 @@ class Subscriptions:
         self.manager = manager
         self.project = manager.project
         self.lock = threading.RLock()
-        self.processes = {}
-        self.auxiliary = {}
         self.policies = None
         self.last_error = None
         self.lease = None
@@ -56,14 +51,14 @@ class Subscriptions:
             raise HTTPException(503, "服务正在停止")
         if self.lease is not None:
             return
-        path = self.project / ".local/run/api/subscriptions.lock"
+        path = self.project / ".local/run/api/market_policy_writer.lock"
         path.parent.mkdir(parents=True, exist_ok=True)
         lease = path.open("a")
         try:
             fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             lease.close()
-            raise HTTPException(409, "实时采集由另一个 API 进程管理，请在所属服务操作") from None
+            raise HTTPException(409, "行情业务配置正在由另一个 API 进程修改，请稍后重试") from None
         self.lease = lease
 
     def root(self, policy):
@@ -78,121 +73,25 @@ class Subscriptions:
         paths = [self.root(policy) / "collection.sqlite", *(root / level / "collection.sqlite" for level in ("tick", *INTERVALS))]
         return list(dict.fromkeys(path for path in paths if path.is_file())) if policy.product == "futures_um" else []
 
-    def _launch(self, command, log_name, access=None):
-        """Ask the resident engine to fork feed/history. In-process mode keeps the same lock fds."""
-        directory = self.project / "logs/api/data/feed"
-        directory.mkdir(parents=True, exist_ok=True)
-        log_path = directory / log_name
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            return engine.spawn_worker(
-                command, log_path, tenant_id=self.bound_tenant_id(), access=access,
-                hold_lease=self.lease is not None,
-            )
-        import contextlib
-
-        from engine.supervisor import popen
-
-        stack = contextlib.ExitStack()
-        output = stack.enter_context(log_path.open("ab", buffering=0))
-        fds = [self.lease.fileno()] if self.lease is not None else []
-        if access is not None:
-            symbol, product, shared = access
-            lease = stack.enter_context(self.manager._lease(symbol, product, access=True, shared=shared))
-            fds.append(lease.fileno())
-        try:
-            process = popen(
-                command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT,
-                start_new_session=True, pass_fds=tuple(fds), env={**os.environ, "PYTHONUNBUFFERED": "1"},
-            )
-        finally:
-            stack.close()
-        if engine is not None:
-            engine.note_worker(command, tenant_id=self.bound_tenant_id())
-        return process
-
-    def _start(self, policy):
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            return  # The resident Engine owns all feed workers.
-        if policy.product == "options":
-            self._start_options()
-            return
-        key = (policy.product, policy.symbol)
-        roles = (["collection"] if policy.realtime_enabled else [])
-        if policy.base_level != "auto" and policy.product == "futures_um":
-            if policy.realtime_enabled or policy.history_enabled:
-                roles.append("calculation")
-            if policy.history_enabled:
-                roles.append("history")
-        for role in roles:
-            processes = self.processes if role == "collection" else self.auxiliary
-            identity = key if role == "collection" else (*key, role)
-            existing = processes.get(identity)
-            if existing is not None and existing.poll() is None:
-                continue
-            command = ([sys.executable, "-m", "engine.pipeline.pair_data", "--service", "--root", str(self.root(policy)),
-                        "--request", policy.model_dump_json()] if role == "history" else
-                       [sys.executable, "-m", "engine.feed.managed", "--symbol", policy.symbol,
-                        "--data-root", str(self.project / "data"), "--root", str(self.root(policy)),
-                        "--catalog", str(self.project / "data/catalog"), "--intervals", "1m",
-                        *(["--policy", policy.model_dump_json(), "--role", role] if policy.base_level != "auto" else policy.intervals)])
-            processes[identity] = self._launch(
-                command, f"{policy.symbol}-{role}.log", access=(policy.symbol, policy.product, True),
-            )
-
     def restore(self):
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            with self.lock:
-                try:
-                    policies = self._read(refresh=True)
-                    result = engine.market_control("sync", {
-                        "policies": [p.model_dump(mode="json") for p in policies],
-                    })
-                    self.last_error = result.get("last_error")
-                except (OSError, HTTPException, ValueError) as exc:
-                    self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
-            return
-
+        """Reconcile ORM policy intent into the resident Engine, never spawn locally."""
         from api.db.errors import StorageUnavailable
+
         with self.lock:
             try:
-                previous = self.policies or []
                 policies = self._read(refresh=True)
-                if any(p.product == "options" for p in [*previous, *policies]):
-                    self._claim()
-                    self._publish_options()
-                    self._start_options()
-                if previous:
-                    self._claim()
-                    for old in previous:
-                        if old.product == "options":
-                            continue
-                        key = (old.product, old.symbol)
-                        new = next((p for p in policies if (p.product, p.symbol) == key), None)
-                        if new != old:
-                            same_collection = (new is not None and old.realtime_enabled and new.realtime_enabled
-                                               and old.base_level == new.base_level and set(old.intervals) == set(new.intervals))
-                            self._stop_pair(key, collection=not same_collection)
-                if not any(p.realtime_enabled or p.history_enabled for p in policies):
-                    self.last_error = None
-                    return
-                self.manager.require_storage(write=True)
-                self._claim()
-                errors = []
-                for policy in policies:
-                    if policy.product == "options":
-                        continue
-                    if policy.realtime_enabled or policy.history_enabled:
-                        try:
-                            self._start(policy)
-                        except (HTTPException, OSError) as exc:
-                            errors.append(f"{policy.symbol}: {exc}")
-                self.last_error = "；".join(errors) or None
-            except (HTTPException, StorageUnavailable, OSError) as exc:
+                result = self._engine().market_control("sync", {
+                    "policies": [p.model_dump(mode="json") for p in policies],
+                })
+                self.last_error = result.get("last_error")
+            except (OSError, HTTPException, StorageUnavailable, ValueError) as exc:
                 self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
-                # Retain the previous configuration and running services on outages.
+
+    def _engine(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is None:
+            raise HTTPException(503, "行情 Engine 未配置，不能修改或读取订阅。")
+        return engine
 
     async def sync_options(self, exchanges):
         """Discover contracts for persisted underlying scopes using the cached catalogue."""
@@ -235,26 +134,8 @@ class Subscriptions:
                        if p.product == "options" and p.symbol in metadata else p for p in policies]
             if additions or updated != policies:
                 self._write([*updated, *additions])
-                if any(p.realtime_enabled or p.history_enabled for p in additions):
-                    self.manager.require_storage(write=True)
-                    self._start(additions[0])
             if self.last_error == "期权目录同步失败；保留原配置，稍后重试":
                 self.last_error = None
-
-    def _stop_pair(self, key, *, collection=True, auxiliary=True):
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            return
-        if key[0] == "options":
-            self._start_options()
-            return
-        if collection:
-            process = self.processes.pop(key, None)
-            if process is not None:
-                self.manager._stop(process)
-        if auxiliary:
-            for identity in [value for value in self.auxiliary if value[:2] == key]:
-                self.manager._stop(self.auxiliary.pop(identity))
 
     def save(self, policy):
         # Shared access coexists with historical work; only deletion excludes it.
@@ -319,9 +200,6 @@ class Subscriptions:
             if (policy.product == "futures_um" and not allow_later_start and old is not None and old.history_mode == "start" and old.history_start is not None
                     and policy.history_start is not None and policy.history_start > old.history_start):
                 raise HTTPException(409, "开始日期调晚须先预览并确认删除旧数据")
-            same_collection = (old is not None and old.realtime_enabled and policy.realtime_enabled
-                               and old.base_level == policy.base_level
-                               and set(old.intervals) == set(policy.intervals))
             if policy.product == "options" and "-" not in policy.symbol:
                 # A user save applies the scope to existing contracts in one transaction.
                 if any(product == "options" and (policy.symbol == "ALL" or symbol == policy.symbol
@@ -332,74 +210,25 @@ class Subscriptions:
                            if item.product == "options" and (policy.symbol == "ALL" or item.pair == policy.symbol)
                            else item for item in policies if (item.product, item.symbol) != key]
                 self._write([*updated, policy])
-                self._start(policy)
                 return self._public(policy)
             policies = [item for item in policies if (item.product, item.symbol) != key] + [policy]
             self._write(policies)
-            if not same_collection:
-                self._stop_pair(key, auxiliary=False)
-            if old != policy:
-                self._stop_pair(key, collection=False)
-            if policy.realtime_enabled or policy.history_enabled:
-                try:
-                    self._start(policy)
-                    self.last_error = None
-                except (OSError, HTTPException) as exc:
-                    self.last_error = str(exc)
             return self._public(policy)
 
     def _write(self, policies):
+        """Commit desired policies, then reconcile Engine-owned workers.
+
+        If Engine sync fails after the ORM commit, periodic restore retries
+        the same durable intent. No API worker can be launched.
+        """
         if self.manager.policy_repository is None:
             raise HTTPException(503, "行情服务配置需要已迁移的 ORM 数据库")
+        engine = self._engine()
         self.manager.policy_repository.save(policies, tenant_id=self.bound_tenant_id())
         self.policies = list(policies)
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            # Business DB stores desired configuration; Engine owns all runtime state.
-            engine.market_control("sync", {
-                "policies": [p.model_dump(mode="json") for p in policies],
-            })
-            return
-        if any(p.product == "options" for p in policies) or (self.manager.directory / "options-runtime.json").exists():
-            self._publish_options()
-
-    def _publish_options(self):
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            return None
-        from engine.pipeline.convert_binance_bars import write_record
-        path = self.manager.directory / "options-runtime.json"
-        values = [p.model_dump(mode="json") for p in self.policies or [] if p.product == "options" and "-" in p.symbol]
-        write_record(path, {"version": 1, "policies": values})
-        return path
-
-    def _start_options(self):
-        """Two shared processes; no contract-sized process or inherited FD lists."""
-        engine = getattr(self.manager, "engine", None)
-        if engine is not None and engine.remote:
-            return
-        path = self._publish_options()
-        root = self.project / "data/market_data/binance_um_1m/managed/.options"
-        for role in ("collection", "history"):
-            processes = self.processes if role == "collection" else self.auxiliary
-            key = ("options", "ALL") if role == "collection" else ("options", "ALL", role)
-            enabled = any(p.product == "options" and "-" in p.symbol and
-                          (p.realtime_enabled if role == "collection" else p.history_enabled)
-                          and (p.product, p.symbol) not in self.deleting for p in self.policies or [])
-            existing = processes.get(key)
-            if not enabled:
-                if existing is not None:
-                    self.manager._stop(processes.pop(key))
-                continue
-            if existing is not None and existing.poll() is None:
-                continue
-            self.manager.require_storage(write=True)
-            command = ([sys.executable, "-m", "engine.feed.managed", "--options-config", str(path),
-                        "--root", str(root), "--data-root", str(self.project / "data"),
-                        "--catalog", str(self.project / "data/catalog")] if role == "collection" else
-                       [sys.executable, "-m", "engine.pipeline.pair_data", "--service", "--options-config", str(path),
-                        "--root", str(root)])
-            processes[key] = self._launch(command, f"options-{role}.log")
+        engine.market_control("sync", {
+            "policies": [p.model_dump(mode="json") for p in policies],
+        })
 
     def pause_for_deletion(self, symbol, product):
         with self.lock:
@@ -414,22 +243,6 @@ class Subscriptions:
             if members:
                 self._write([p.model_copy(update={"realtime_enabled": False, "history_enabled": False})
                              if p in members else p for p in policies])
-                self._stop_pair((product, symbol))
-                if product == "options":
-                    # Both batch workers must finish writes for every selected
-                    # contract before taking a stable deletion preview.
-                    deadline = time.monotonic() + 5
-                    for member in members:
-                        if "-" not in member.symbol:
-                            continue
-                        while True:
-                            try:
-                                self.manager._lease(member.symbol, product, access=True).close()
-                                break
-                            except HTTPException:
-                                if time.monotonic() >= deadline:
-                                    raise HTTPException(409, "该期权正在停止采集或补齐，请稍后重新预览删除。") from None
-                                time.sleep(0.05)
 
     def remove(self, symbol, product):
         with self.lock:
@@ -480,10 +293,7 @@ class Subscriptions:
                     state.update(state="DEGRADED", data_ready=False, reason="status_expired", bar_updates=[])
         except (OSError, ValueError, TypeError):
             state.update(state="DEGRADED", data_ready=False, reason="invalid_status", bar_updates=[])
-        process = self.processes.get((policy.product, "ALL" if policy.product == "options" else policy.symbol))
-        if process is not None and process.poll() is not None and state.get("reason") != "expired":
-            state.update(state="DEGRADED", data_ready=False, reason="process_exited", bar_updates=[])
-        elif not policy.realtime_enabled:
+        if not policy.realtime_enabled:
             state.update(state="STOPPED", data_ready=False, reason="disabled", bar_updates=[])
         from .monitor import observe
         services = observe(self, policy, int(time.time() * 1000))
@@ -541,12 +351,9 @@ class Subscriptions:
         return [self._public(policy) for policy in policies]
 
     def close(self):
+        """Release only Platform's policy writer lease, never Engine workers."""
         with self.lock:
             self.closed = True
-            for process in [*self.processes.values(), *self.auxiliary.values()]:
-                self.manager._stop(process)
-            self.processes.clear()
-            self.auxiliary.clear()
             if self.lease:
                 self.lease.close()
                 self.lease = None

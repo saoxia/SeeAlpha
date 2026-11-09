@@ -29,15 +29,10 @@ def observe(subscriptions, policy, now):
                     item.update(state="DEGRADED", healthy=False, reason="status_expired")
             except (OSError, ValueError, TypeError):
                 item.update(state="DEGRADED", reason="status_unavailable")
-            processes = subscriptions.processes if role == "collection" else subscriptions.auxiliary
-            symbol = "ALL" if policy.product == "options" else policy.symbol
-            key = (policy.product, symbol) if role == "collection" else (policy.product, symbol, role)
-            process = processes.get(key)
+            # File-only compatibility observations cannot determine process
+            # ownership. Engine HTTP is authoritative for live worker state.
             if item.get("reason") == "expired" and item.get("expiry_ms", float("inf")) <= now:
                 item.update(state="STOPPED", healthy=True)
-            # A read-only API worker has no local handles for the owner's processes.
-            elif (process is None and subscriptions.lease is not None) or (process is not None and process.poll() is not None):
-                item.update(state="DEGRADED", healthy=False, reason="process_not_running")
         result[role] = item
     return result
 

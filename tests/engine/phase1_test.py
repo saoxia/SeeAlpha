@@ -87,7 +87,12 @@ def test_api_does_not_own_live_nodes_feed_processes_or_the_engine_book():
     assert "self.engine.valuation_events(account)" in equity
     assert "from engine.runtime import valuation_events" not in equity
     assert "subprocess.Popen" not in subscriptions
-    assert "engine.supervisor import popen" in subscriptions
+    assert "engine.supervisor import popen" not in subscriptions
+    assert "self.processes" not in subscriptions and "self.auxiliary" not in subscriptions
+    assert 'market_control("sync"' in subscriptions
+    engine_subscriptions = (PROJECT / "engine/data_manager/subscriptions.py").read_text(encoding="utf-8")
+    assert "engine.supervisor import popen" in engine_subscriptions
+    assert "self.processes" in engine_subscriptions
     assert "subprocess.Popen" not in jobs
     assert '"job/start"' in jobs and '"job/retry"' in jobs and '"job/cancel"' in jobs
     assert "from engine.supervisor import popen as start_worker" not in jobs

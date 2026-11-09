@@ -184,11 +184,11 @@ Engine 源码依赖不因此自动消除。
 
 `/api/data/*` 提供已接入 trades 归档及 Tick / K 线的覆盖查询、预览、
 准备计划、异步数据准备、逐笔校验、派生 K 线、Tick 导出和任务状态。
-复用现有 Pipeline；兼容操作状态写文件，配置单独写 `market_data_policies`，不提供强制重建。
+复用 Engine Pipeline，任务状态由租户 Engine 文件持有；业务订阅配置保存在 `market_data_policies`，不提供强制重建。
 管理员可预览完整 UTC 日范围并确认删除，默认保留原始归档；删除同步清理相关物化与依赖缓存。
 历史数据管理已取消固定 31 天范围上限，能力接口 `max_range_days=null`；跨月、跨年任务沿用
 现有逐日处理、任务锁、取消和六小时运行超时，预览仍限制为 15 分钟，删除仍需文件快照及明确确认。
-统一清单通过 all_levels 查询展示各级别历史区间，状态发布各品种实际采集进度并保留过期降级；按明确保存的实时配置启动固定 Feed 子进程。
+统一清单通过 all_levels 查询展示各级别历史区间，状态由 Engine 按品种发布并保留过期降级；Engine 按业务同步的实时配置启动固定 Feed 子进程。
 详见 [数据管理 API](../docs/DATA_MANAGEMENT_API.md)。
 
 任务文件与锁由各租户 Engine 保管。Platform 的 `.local/state/api/market_settlements/`
@@ -202,16 +202,18 @@ Engine 源码依赖不因此自动消除。
 目录包含标的、到期、方向、行权价及单位；提供近期最多 500 笔和交易所历史 K 线，
 不承诺完整历史 Tick。既有本地期权可离线查看、校验和确认删除，无新增迁移。
 
-行情管理新增按产品/交易对保存配置和分钟采集启停，API 管理固定 Feed 子进程，
-正常关闭释放进程和锁，重启恢复明确开启的订阅。不迁移行情或业务数据库，不启动交易。
+行情管理按产品/交易对保存采集配置。Platform 仅负责 ORM 意图、认证、期权目录发现与 Engine HTTP 同步；
+固定 Feed/历史/计算工作进程全部由 Engine 托管。业务 API 重启不终止采集，Engine 自行恢复启用订阅。
+本轮不迁移真实行情或业务数据库，也不启动交易。
 范围、存储及接口见 [数据管理说明](../docs/DATA_MANAGEMENT_API.md#按交易对配置与分钟实时管理2026-10-29)。
 
 交易对配置保存于 `market_data_policies`，只管理实时开关、历史起点、最小粒度和所选周期。
 启用历史补齐并保存配置时，全部历史、指定起点和追加天数统一解析为固定的 UTC 零点开始日期，
 复用 `history_start` 保存，`history_mode` 统一为 `start`；进度仍由文件持有。
-API 托管接入、补齐与计算三个进程，监控循环每 5 秒把健康及积压写文件；配置每 15 秒刷新。
+Engine 托管接入、补齐和计算进程，并写入运行状态证据；Platform 每 15 秒同步业务配置意图，
+监控读取 Engine HTTP 状态而不在 API 内维护进程或生成采集快照。
 历史不再由数据库任务启动，失败从文件检查点续跑；兼容 `/jobs` 状态也仅写本地文件。
-切换须先授权迁移并显式导入旧配置，详见[四个服务与配置切换](../docs/DATA_MANAGEMENT_API.md#四个服务与配置切换2026-10-29)。
+本版本按全新部署初始化业务数据库，不提供旧版行情配置导入 CLI；此前的切换说明仅作历史架构记录。
 
 
 ### 删除交易对及全部行情数据
@@ -318,8 +320,8 @@ LIVE 使用真实权益 K 线并支持单账户一键重算；缺价和断线保
 历史 Tick 不保证完整，空历史来源不推进检查点；详情见
 [期权全选与采集](../docs/DATA_MANAGEMENT_API.md#期权全选与新合约自动纳入2026-11-07)。
 
-期权批量托管已获授权：管理端只运行一个 `engine.feed.managed --options-config` 采集进程
-及一个 `engine.pipeline.pair_data --service --options-config` 历史进程。配置快照在原 API 本地状态目录，
+期权批量托管由 Engine 独占：每租户只运行一个 `engine.feed.managed --options-config` 采集进程
+及一个 `engine.pipeline.pair_data --service --options-config` 历史进程。配置快照在 Engine 的租户状态目录，
 参数真源仍为 `market_data_policies`。新增、修改和暂停动态生效；删除只等待对应合约释放
 自己的访问锁，不停止其他合约。原鉴权、删除快照、来源检查与 ORM 配置职责不变。
 
