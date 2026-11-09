@@ -26,7 +26,7 @@
 | `api/exchanges/trading.py` | 手动交易市场行情；改为 Engine 查询接口 |
 | `api/equity/service.py` | 资产估值外部取价及对账查询；改为受授权的 Engine HTTP 查询，API 保留核算逻辑 |
 | `api/operations/service.py` 与 `options.py` | 交易所操作与期权历史；增加受控分页查询接口 |
-| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性数据任务及永续/期权实时采集工作进程已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现及同步；剩余 Catalog 本地读取/预览、历史起点解析及部分本地状态文件读取仍待迁移 |
+| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性任务、永续/期权实时采集进程，以及 Catalog 清单、最新数据时间、覆盖率、历史预览、图表、删除快照已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现与 HTTP 同步；历史起点解析及部分本地状态文件读取待后续清理 |
 | `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；剩余 `observe` 是历史本地文件状态兼容读取，后续与本地 Catalog 读取一起删除 |
 | `api/strategies/service.py` | 动态策略包校验与参数准备依赖 `engine.strategies.package`；需将校验放在受隔离的研究运行时或通过 Engine 授权接口调用 |
 
@@ -40,6 +40,14 @@ Engine 实现移动到 `core` 来掩盖耦合。** 需要真正的远程协议�
 更新业务配置。旧 API 任务目录不会被 Engine 自动接管。实时订阅工作进程也已归属 Engine；本地 Catalog 读取仍需后续独立清理。
 
 本轮行情监控状态（`/api/data/services`）与 Feed 实时状态（`/api/data/feed/status`）已改为只读 Engine HTTP，不在 Platform 主机目录查找监控文件。Engine 内继续负责过期、字段与租户验证。只读状态以 Engine 为真源；部分用于旧测试的本地数据文件投影仍保留，尚待移除。
+
+本次数据查询清理：Platform `api/market_data/router.py` 不再导入 NautilusTrader、Pipeline
+Catalog 或本地行情工作集，也不使用宿主机锁判断数据可读。库存、最近事件时间、覆盖率、
+准备预览、分页、实时图表统一调用现有 Engine HTTP 数据接口。Platform
+`DataService` 的存储检查、归档计划、删除计划和裁剪方案也不再本地计算。
+Engine 缺失时显式 503，不创建本地替代目录。读取租户数据卷、共享访问锁以及
+历史快照校验始终由 Engine 执行。尚待清理的是 `Subscriptions` 中历史本地
+状态投影，以及订阅起始日期解析中的某些直连数据实现。
 
 本次订阅工作进程清理：Platform 的 `Subscriptions` 不再持有 `processes/auxiliary`，
 也不直接执行 `engine.feed.managed`、`engine.pipeline.pair_data`，不管理期权共享进程，
