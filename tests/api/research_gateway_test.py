@@ -6,7 +6,6 @@ import pytest
 
 from api.research.gateway_client import (
     GATEWAY_HEADER,
-    BridgeRegistration,
     GatewayControlClient,
     GatewayRegistrationError,
 )
