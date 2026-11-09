@@ -22,7 +22,7 @@ class Settings:
     require_database_url: bool = False
     operation_sync_seconds: int = 0
     equity_enabled: bool = False
-    engine_url: str = "inprocess"
+    engine_url: str = "http://127.0.0.1:8766"
     engine_token: str = field(default="seealpha-local-engine", repr=False)
     engine_market_account_id: str = "market-data"
     engine_deployment: str = "single"
