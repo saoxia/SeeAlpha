@@ -75,17 +75,15 @@ def test_rejects_missing_headers_and_inconsistent_lease():
     with GatewayControlClient(
         "http://trusted-gateway", TOKEN,
         transport=httpx.MockTransport(mismatch),
-    ) as client:
-        with pytest.raises(GatewayRegistrationError, match="inconsistent"):
-            client.register(GRANT)
+    ) as client, pytest.raises(GatewayRegistrationError, match="inconsistent"):
+        client.register(GRANT)
     def no_version(_request):
         return httpx.Response(201, json={})
     with GatewayControlClient(
         "http://trusted-gateway", TOKEN,
         transport=httpx.MockTransport(no_version),
-    ) as client:
-        with pytest.raises(GatewayRegistrationError, match="contract mismatch"):
-            client.register(GRANT)
+    ) as client, pytest.raises(GatewayRegistrationError, match="contract mismatch"):
+        client.register(GRANT)
 
 
 def test_never_echoes_gateway_error_bodies_or_secrets():
