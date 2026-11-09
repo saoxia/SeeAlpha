@@ -5,7 +5,7 @@ import time
 
 from fastapi import HTTPException
 
- ROLES = ("collection", "history", "calculation")
+ROLES = ("collection", "history", "calculation")
 
 
 def observe(subscriptions, policy, now):
