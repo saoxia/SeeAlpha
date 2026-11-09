@@ -43,19 +43,16 @@ async def _ticker(env):
 def test_production_venue_history_and_precision_are_isolated(tmp_path, monkeypatch):
     import json
 
-    from engine.connectors.binance import assets
+    from engine.connectors.binance import assets, operations, options, options_account
     from engine.connectors.binance import income as income_module
-    from engine.connectors.binance import operations
-    from engine.connectors.binance import options
-    from engine.connectors.binance import options_account
 
     monkeypatch.setattr(assets, "asset_account", lambda account, *, positions=False: {
         "multi_assets": False,
         "observed_at": 123,
         "totals": {"total_wallet_balance": "100.000000000001"},
         "assets": {"USDT": {"walletBalance": Decimal("100.000000000001"),
-                            "unrealizedProfit": Decimal("0"),
-                            "maintMargin": Decimal("0")}},
+                            "unrealizedProfit": Decimal(0),
+                            "maintMargin": Decimal(0)}},
     })
 
     async def history(account, start_ms, end_ms):
