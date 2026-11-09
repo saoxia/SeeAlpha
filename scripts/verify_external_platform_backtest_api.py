@@ -17,7 +17,9 @@ from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlsplit
+from time import monotonic, sleep
 
+import httpx
 from fastapi.testclient import TestClient
 
 
@@ -201,6 +203,32 @@ def test_development_tenant_backtests_an_issued_package(tmp_path, archive):
         assert blocked.status_code == 409
         assert "归档" in blocked.json()["detail"]
 
+    # Release the disposable business database engine explicitly.
+    app.state.database.close()
+
+
+def _wait_http_engine():
+    from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
+
+    deadline = monotonic() + 60
+    with httpx.Client(timeout=3, trust_env=False) as http:
+        while monotonic() < deadline:
+            try:
+                response = http.get(
+                    os.environ["ENGINE_URL"].rstrip("/") + "/health",
+                    headers={
+                        "Authorization": f'Bearer {os.environ["ENGINE_TOKEN"]}',
+                        ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
+                    },
+                )
+                if (response.status_code == 200
+                        and response.headers.get(ENGINE_CONTRACT_HEADER) == ENGINE_CONTRACT_VERSION):
+                    return
+            except httpx.TransportError:
+                pass
+            sleep(0.5)
+    raise RuntimeError("Disposable multi-tenant Engine HTTP did not become ready")
+
 
 def main():
     root, state, package = _environment()
@@ -220,6 +248,7 @@ def main():
     assert Path(api.__file__).resolve().is_relative_to(root)
     assert Path(core.__file__).resolve().is_relative_to(root)
     assert "engine" not in sys.modules and "nautilus_trader" not in sys.modules
+    _wait_http_engine()
     test_development_tenant_backtests_an_issued_package(
         state, _zip_strategy_directory(package),
     )
