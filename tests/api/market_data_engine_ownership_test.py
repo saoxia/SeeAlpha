@@ -128,3 +128,16 @@ def test_missing_engine_fails_closed_without_local_job_execution(tmp_path):
         ))
     assert error.value.status_code == 503
     assert not (tmp_path / ".local").exists()
+
+
+def test_delete_cannot_pause_business_policy_before_engine_is_available(tmp_path):
+    manager = object.__new__(DataService)
+    manager.project = tmp_path
+    paused = []
+    manager.subscriptions = SimpleNamespace(pause_for_deletion=lambda *_: paused.append(True))
+    request = SimpleNamespace(action="delete_pair", symbol="ETHUSDT", product="futures_um")
+    with pytest.raises(HTTPException) as error:
+        manager.start(request)
+    assert error.value.status_code == 503
+    assert paused == []
+    assert not (tmp_path / ".local").exists()
