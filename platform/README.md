@@ -52,3 +52,28 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 `./scripts/check_platform_runtime.sh` 运行这批 Platform 测试；根目录旧测试继续负责
 需要 Engine/行情 Catalog/策略执行环境的测试。**单独运行 `uv run pytest` 不能代表
 两套独立测试全部通过**，后续集中验收应同时运行两套。迁移只改变测试归属，未改生产代码。
+
+## 跨进程独立 Engine 验证
+
+原 `tests/api/external_engine_contract_test.py` 已迁移至
+`platform/tests/external_engine_contract_test.py`：它仅通过独立 HTTP 服务访问 Engine，
+不再触发旧 `tests/api/conftest.py` 的自动进程内 Engine fixture。
+正常执行 Platform 测试时，该网络验证因开关关闭而跳过。
+
+在**隔离 Docker 主机**上，`./scripts/verify_external_engine.sh` 优先使用
+`platform/.venv`（若尚未安装则退回根目录旧环境完成历史只读握手）。
+需要额外检查临时租户创建、重复幂等操作、开发租户禁止实盘及空账本隔离时，
+可在集中验收阶段执行：
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
+```
+
+此增强模式**只在脚本临时创建的容器和独立临时状态卷内**写入一个开发租户。
+它不读取或保存交易所凭据，不发单，不下载行情、不跑策略和回测。
+不能把此基础业务边界验证当成完整业务链路验收。
+
+旧 `tests/api/conftest.py` 仍服务于依赖 Engine 实现与真实回测数据的联合回归；
+其 Engine 实现导入已下沉到夹具执行时，而不在测试收集阶段加载。
+旧联合测试完全改为跨进程前不能删除旧 `engine/`。

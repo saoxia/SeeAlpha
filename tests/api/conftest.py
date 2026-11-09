@@ -1,8 +1,12 @@
-"""HTTP-only Engine fixture for business API integration tests.
+"""Legacy in-process Engine fixture for combined business API regressions.
 
-The Platform client never creates EngineRuntime or imports its implementation.
-Tests host the real Engine ASGI application behind HTTPX transports and may
-inspect only the Engine's exposed HTTP contract.
+This suite still uses the old Engine implementation for tests that inspect
+Engine internals or inject Catalog/data fixtures. Do not reuse this fixture in
+standalone Platform tests. The independent cross-process checks belong to
+platform/tests and scripts/verify_external_engine*.py.
+
+Engine imports are intentionally delayed until a legacy test runs, rather than
+being loaded while pytest collects Platform-related test modules.
 """
 
 import httpx
@@ -11,12 +15,13 @@ from fastapi.testclient import TestClient
 
 import api.main as api_main
 from api.engine_client import EngineClient
-from engine.app import create_app as create_engine_app
-from engine.config import EngineConfig
 
 
 @pytest.fixture(autouse=True)
 def engine_http(tmp_path, monkeypatch):
+    from engine.app import create_app as create_engine_app
+    from engine.config import EngineConfig
+
     engine_app = create_engine_app(
         EngineConfig(
             tmp_path / "engine", token="seealpha-local-engine",
