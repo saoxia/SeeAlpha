@@ -105,3 +105,14 @@ Engine 侧测试断言生成字节与实际 `archive_directory` 相同，避免�
 原 `tests/api/backtest_test.py` 已不再导入任何 `tests.engine.*` 模块，
 但仍会在测试期间通过 Engine 专用 Catalog 夹具加载实际行情，因此**不能迁入
 `platform/tests/`**，直至该部分改为独立 Engine HTTP + 共享临时 Catalog 验证。
+
+## 通过独立 Engine 实测历史回测（集中验收时运行）
+
+`SEEALPHA_VERIFY_BACKTEST=1 ./scripts/verify_external_engine.sh` 会在临时 Docker
+Engine 容器内生成合成 Parquet Catalog，隔离的 Platform `EngineClient` 仅通过 HTTP
+下发实际示例策略并运行 NautilusTrader 回测。输出校验资金、订单、成交、净持仓、
+策略包身份、订阅门禁、租户隔离与最新记录，不使用真实行情或交易所。
+
+详情与安全限制见 [独立 Engine 跨仓库验收](../docs/EXTERNAL_ENGINE.md)。
+该检查**不是**独立 `platform/tests/` 的普通单元测试，需要显式设置开关并在隔离 Docker
+主机上执行；当前只提交代码，执行状态仍为“待集中验收”。
