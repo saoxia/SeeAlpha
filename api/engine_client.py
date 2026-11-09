@@ -335,6 +335,40 @@ class EngineClient:
             },
         )
 
+    def submit_task(self, tenant_id, kind, parameters, *, idempotency_key=None):
+        """Enqueue work on the tenant Engine; never execute CPU work in API."""
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync(
+            "POST", f"/tenants/{tenant_id}/jobs",
+            json={"kind": kind, "parameters": parameters, "idempotency_key": idempotency_key},
+        )
+
+    def list_tasks(self, tenant_id):
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync("GET", f"/tenants/{tenant_id}/jobs")["items"]
+
+    def task(self, tenant_id, identity):
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync("GET", f"/tenants/{tenant_id}/jobs/{identity}")
+
+    def task_result(self, tenant_id, identity):
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync("GET", f"/tenants/{tenant_id}/jobs/{identity}/result", timeout=120)
+
+    def cancel_task(self, tenant_id, identity):
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync("POST", f"/tenants/{tenant_id}/jobs/{identity}/cancel")
+
+    def retry_task(self, tenant_id, identity):
+        if self.runtime is not None:
+            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
+        return self._sync("POST", f"/tenants/{tenant_id}/jobs/{identity}/retry")
+
     def latest_backtest(self, tenant_id, account_id):
         if self.runtime is not None:
             return self.runtime.latest_backtest(tenant_id, account_id)
