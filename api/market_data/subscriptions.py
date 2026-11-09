@@ -75,6 +75,8 @@ class Subscriptions:
 
     def restore(self):
         """Reconcile ORM policy intent into the resident Engine, never spawn locally."""
+        from api.db.errors import StorageUnavailable
+
         with self.lock:
             try:
                 policies = self._read(refresh=True)
@@ -82,7 +84,7 @@ class Subscriptions:
                     "policies": [p.model_dump(mode="json") for p in policies],
                 })
                 self.last_error = result.get("last_error")
-            except (OSError, HTTPException, ValueError) as exc:
+            except (OSError, HTTPException, StorageUnavailable, ValueError) as exc:
                 self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
 
     def _engine(self):
