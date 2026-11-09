@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from api.market_data.contracts import DataJobRequest
 from api.market_data.monitor import ServiceMonitor
 from api.market_data.service import DataService
+from api.market_data.subscriptions import Subscriptions
 
 
 class FakeEngine:
@@ -140,4 +141,64 @@ def test_delete_cannot_pause_business_policy_before_engine_is_available(tmp_path
         manager.start(request)
     assert error.value.status_code == 503
     assert paused == []
+    assert not (tmp_path / ".local").exists()
+
+
+def test_platform_subscription_sync_never_starts_or_stops_workers(tmp_path):
+    from api.market_data.contracts import DataPolicy
+
+    written = []
+    controls = []
+
+    class Repository:
+        def save(self, policies, *, tenant_id):
+            written.append((tenant_id, [p.model_dump(mode="json") for p in policies]))
+
+        def list(self, *, tenant_id):
+            return written[-1][1] if written else []
+
+    class Engine:
+        remote = True
+
+        def market_control(self, operation, payload=None):
+            controls.append((operation, payload))
+            if operation == "sync":
+                return {"synced": len(payload["policies"]), "last_error": None}
+            if operation == "subscriptions":
+                return {"items": []}
+            raise AssertionError(operation)
+
+    manager = SimpleNamespace(
+        project=tmp_path, policy_repository=Repository(), engine=Engine(),
+    )
+    subscription = Subscriptions(manager)
+    subscription._bound_tenant_id = 42
+    subscription._write([DataPolicy(symbol="ETHUSDT", realtime_enabled=False)])
+    assert written[0][0] == 42
+    assert controls[-1][0] == "sync"
+    assert controls[-1][1]["policies"][0]["symbol"] == "ETHUSDT"
+    assert not hasattr(subscription, "processes")
+    assert not hasattr(subscription, "auxiliary")
+    assert not hasattr(subscription, "_launch")
+    assert not hasattr(subscription, "_start_options")
+    assert not (tmp_path / "data").exists()
+
+    subscription.restore()
+    assert [op for op, _ in controls] == ["sync", "sync"]
+    subscription.close()
+    assert [op for op, _ in controls] == ["sync", "sync"]
+    assert not (tmp_path / "logs").exists()
+
+
+def test_platform_cannot_store_new_policy_without_an_engine(tmp_path):
+    from api.market_data.contracts import DataPolicy
+
+    saved = []
+    repo = SimpleNamespace(save=lambda *args, **kwargs: saved.append((args, kwargs)))
+    subscription = Subscriptions(SimpleNamespace(project=tmp_path, policy_repository=repo))
+    subscription._bound_tenant_id = 42
+    with pytest.raises(HTTPException) as error:
+        subscription._write([DataPolicy(symbol="ETHUSDT", realtime_enabled=True)])
+    assert error.value.status_code == 503
+    assert saved == []
     assert not (tmp_path / ".local").exists()
