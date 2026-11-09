@@ -51,7 +51,7 @@ class Subscriptions:
             raise HTTPException(503, "服务正在停止")
         if self.lease is not None:
             return
-        path = self.project / ".local/run/api/subscriptions.lock"
+        path = self.project / ".local/run/api/market_policy_writer.lock"
         path.parent.mkdir(parents=True, exist_ok=True)
         lease = path.open("a")
         try:
