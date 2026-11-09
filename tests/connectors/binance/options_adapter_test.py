@@ -3,6 +3,7 @@
 import asyncio
 import gc
 import json
+from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -204,6 +205,57 @@ def test_bounded_requests_preserve_correlation_and_reject_history_tick(monkeypat
         request.start_ns = BASE * 1_000_000
         with pytest.raises(ValueError, match="历史 Tick"):
             await client._request_trades(request)
+    asyncio.run(scenario())
+
+
+def test_rc8_batch_subscriptions_and_unsubscriptions(monkeypatch):
+    async def scenario():
+        packet = exchange_info()
+        put = deepcopy(packet["optionSymbols"][0])
+        put.update(symbol="BTC-261225-85000-P", side="PUT")
+        packet["optionSymbols"].append(put)
+        monkeypatch.setattr(options, "get", lambda *args, **kwargs: packet)
+        items = [options.instrument(row) for row in options.markets()]
+        client = BinanceOptionsDataClient(
+            name="OPTIONS", config=BinanceOptionsDataClientConfig(),
+            cache=None, clock=SimpleNamespace(timestamp_ns=lambda: BASE * 1_000_000),
+        )
+        client.instruments = {str(item.raw_symbol): item for item in items}
+        opened = []
+
+        async def subscribe(stream, parser, *, market=False):
+            opened.append((stream, market))
+            client.streams[stream] = {"parser": parser}
+
+        async def unsubscribe(stream):
+            client.streams.pop(stream)
+
+        monkeypatch.setattr(client, "_subscribe_stream", subscribe)
+        monkeypatch.setattr(client, "_unsubscribe_stream", unsubscribe)
+        command = SimpleNamespace(instrument_ids=[item.id for item in items],
+                                  book_type=BookType.L2_MBP, depth=5)
+        bars = SimpleNamespace(bar_types=[
+            BarType.from_str(f"{item.id}-1-MINUTE-LAST-EXTERNAL") for item in items
+        ])
+        await client._subscribe_trades(command)
+        await client._subscribe_quotes(command)
+        await client._subscribe_book_depth(command)
+        await client._subscribe_bars(bars)
+        assert len(opened) == 8 and len(client.streams) == 8
+        assert {stream for stream, market in opened if market} == {
+            f"{str(item.raw_symbol).lower()}@kline_1m" for item in items
+        }
+        await client._unsubscribe_trades(command)
+        await client._unsubscribe_quotes(command)
+        await client._unsubscribe_book_depth(command)
+        await client._unsubscribe_bars(bars)
+        assert not client.streams
+
+        invalid = SimpleNamespace(instrument_ids=[items[0].id, InstrumentId.from_str("UNKNOWN.BINANCE")])
+        with pytest.raises(ValueError, match="请先加载"):
+            await client._subscribe_trades(invalid)
+        assert not client.streams
+
     asyncio.run(scenario())
 
 
