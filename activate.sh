@@ -25,8 +25,7 @@ export CARGO_HOME="$PROJECT_ROOT/.local/cargo"
 export RUSTUP_HOME="$PROJECT_ROOT/.local/rustup"
 export PATH="$PROJECT_ROOT/.local/bin:$CARGO_HOME/bin:$PATH"
 
-# Use the converter crate's local Cargo build directory.
-export CARGO_TARGET_DIR="$PROJECT_ROOT/engine/pipeline/rust_converter/target"
+# Rust converter artifacts are now owned by the independent Engine checkout.
 
 mkdir -p \
     "$XDG_CACHE_HOME" \

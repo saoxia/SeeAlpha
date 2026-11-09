@@ -11,14 +11,14 @@ Web/FastAPI、用户权限、业务数据库和策略商店不进入租户容器
 
 ## 准备镜像
 
-需要安装 Docker Engine、Docker CLI，并确保业务 API 的宿主机用户具有 Docker
+需要安装 Git、Docker Engine、Docker CLI，并确保业务 API 的宿主机用户具有 Docker
 操作权限（此权限等同于高权限，**不要**授予普通用户、策略代码或 Harness）。
 
 ```bash
-docker build -f docker/engine.Dockerfile -t seealpha-engine:latest .
+./scripts/build_external_engine.sh
 ```
 
-镜像包含 NautilusTrader / FastAPI、所需 Python 依赖和 release 版 Rust
+镜像直接从 `saoxia/seealpha-engine` 独立仓库的固定提交构建；新仓库访问要求、已验收版本和升级安全约束见 [跨仓库接入](EXTERNAL_ENGINE.md)。镜像包含 NautilusTrader / FastAPI、所需 Python 依赖和 release 版 Rust
 `nautilus-data-converter`。部署新版本时重新构建镜像、按停机流程重建对应租户
 容器；删除容器不会自动删除绑定的数据卷，删除租户时旧目录会进入 `.retired` 隔离区。
 
@@ -29,7 +29,7 @@ docker build -f docker/engine.Dockerfile -t seealpha-engine:latest .
 
 ```bash
 export ENGINE_DEPLOYMENT=docker
-export ENGINE_DOCKER_IMAGE=seealpha-engine:latest
+export ENGINE_DOCKER_IMAGE=seealpha-engine:9e670a6d2d4c
 export ENGINE_TENANT_ROOT=/absolute/path/to/seealpha/.local/tenants
 export ENGINE_PRODUCTION_CPUS=2
 export ENGINE_PRODUCTION_MEMORY=4g
