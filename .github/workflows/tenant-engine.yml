@@ -66,3 +66,17 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"purpose":"development"}' \
             -X PUT http://127.0.0.1:18766/tenants/42)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d '{"symbols":["ETHUSDT"]}' \
+            -X POST http://127.0.0.1:18766/tenants/42/data/datasets)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"symbols":["ETHUSDT"]}' \
+            -X POST http://127.0.0.1:18766/tenants/99/data/datasets)" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"symbols":["ETHUSDT"]}' \
+            -X POST http://127.0.0.1:18766/tenants/42/data/datasets)" = 200
