@@ -247,3 +247,46 @@ def test_real_data_manager_rejects_duplicate_key_before_second_process(tmp_path)
     with pytest.raises(HTTPException) as conflict:
         manager.start(payload, idempotency_key="unique-key", request_hash="fingerprint-b")
     assert conflict.value.status_code == 409
+
+
+def test_actual_nautilus_backtest_runs_inside_background_engine_worker(tmp_path):
+    """Exercise a real issued strategy, not only the mocked HTTP executor."""
+    from datetime import UTC, datetime
+
+    from tests.engine.backtest_test import (
+        _intent,
+        _issue,
+        _window,
+        write_crossover_catalog,
+    )
+
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    write_crossover_catalog(tmp_path / "data" / "catalog", start)
+    app = create_app(EngineConfig(
+        tmp_path / "state", "secret", project=tmp_path,
+        tenant_id="dev", tenant_purpose="development",
+    ))
+    runtime = app.state.runtime
+    runtime.ensure_tenant("dev", "development")
+    _intent(runtime, "dev")
+    _issue(runtime, "dev", "development", "real-1")
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/tenants/dev/jobs",
+            headers={"Authorization": "Bearer secret"},
+            json={"kind": "backtest", "parameters": {
+                **_window(start), "account_id": "desk",
+            }},
+        )
+        assert response.status_code == 202, response.text
+        identity = response.json()["id"]
+        assert done(app.state.tasks, "dev", identity)["status"] == "SUCCEEDED"
+        result = client.get(
+            f"/tenants/dev/jobs/{identity}/result",
+            headers={"Authorization": "Bearer secret"},
+        )
+        assert result.status_code == 200, result.text
+        assert result.json()["bar_count"] > 0
+        assert result.json()["fills"]
+    runtime.close()
