@@ -344,52 +344,28 @@ def test_subscription_configuration_auth_validation_and_missing_mount_stop(conte
     assert not (root / "data").exists()
 
 
-def test_subscription_process_restore_stop_expiry_and_delete_protection(context, monkeypatch):
+def test_subscription_intent_syncs_to_engine_and_recovers_on_restart(context):
     client, app, root = context
     login(client)
-    commands, stopped = [], []
-
-    class Process:
-        def poll(self):
-            return None
-
-    def spawn(command, **kwargs):
-        commands.append((command, kwargs))
-        return Process()
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    monkeypatch.setattr(app.state.market_data, "_stop", stopped.append)
-    payload = {"symbol": "ETHUSDT", "base_level": "1m", "intervals": ["5m", "15m"], "realtime_enabled": True}
+    manager = app.state.market_data
+    engine = manager.engine
+    payload = {"symbol": "ETHUSDT", "base_level": "1m", "realtime_enabled": True}
     response = client.post("/api/data/subscriptions", json=payload)
     assert response.status_code == 200, response.text
-    assert commands[0][0][2] == "engine.feed.managed"
-    saved = app.state.market_data.policy_repository.list()
-    assert saved and saved[0]["symbol"] == "ETHUSDT"
-    runtime_rows = app.state.engine.subscriptions(tenant_id=1)
-    assert any(row["symbol"] == "ETHUSDT" and row["account_id"] == app.state.engine.market_account_id
-               for row in runtime_rows)
-    assert commands[0][1]["pass_fds"] and "--catalog" in commands[0][0]
-    assert not (root / "data/market_data").exists()  # Fake worker never touches market data.
-    path = root / "data/market_data/binance_um_1m/managed/ETHUSDT/1m/status.json"
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"state": "READY", "data_ready": True, "reason": "continuous_closed_minutes",
-                                "valid_until_ms": 1, "bar_updates": [{"is_closed": False}]}))
-    state = client.get("/api/data/subscriptions").json()["items"][0]["runtime"]
-    assert state["state"] == "DEGRADED" and not state["data_ready"] and not state["bar_updates"]
-    # Active readers must be stopped before deleting the history they import.
-    deletion = {**PARAMETERS, "action": "delete", "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"}
-    assert client.post("/api/data/jobs", json=deletion).status_code == 409
-    first = app.state.market_data.subscriptions
-    first.close()
-    assert len(stopped) == 2
+    assert engine.sync_calls[-1]["policies"][0]["symbol"] == "ETHUSDT"
+    assert not hasattr(manager.subscriptions, "processes")
+    assert not (root / "data/market_data").exists()
+
     from api.market_data.subscriptions import Subscriptions
-    restored = Subscriptions(app.state.market_data)
-    app.state.market_data.subscriptions = restored
-    restored.restore()
-    assert len(commands) == 4
-    assert client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False}).status_code == 200
-    assert len(stopped) == 4 and not restored.processes and not restored.auxiliary
-    assert client.get("/api/data/subscriptions").json()["items"][0]["runtime"]["reason"] == "disabled"
+    manager.subscriptions.close()
+    manager.subscriptions = Subscriptions(manager)
+    before = len(engine.sync_calls)
+    manager.subscriptions.restore()
+    assert len(engine.sync_calls) == before + 1
+    assert engine.sync_calls[-1]["policies"][0]["realtime_enabled"]
+    stopped = client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False})
+    assert stopped.status_code == 200
+    assert engine.sync_calls[-1]["policies"][0]["realtime_enabled"] is False
 
 
 def test_invalid_database_configuration_is_preserved_and_control_has_single_owner(context):
@@ -416,31 +392,25 @@ def test_invalid_database_configuration_is_preserved_and_control_has_single_owne
         assert session.get(MarketDataPolicy, (1, "futures_um", "ETHUSDT")).parameters["base_level"] == "unknown"
 
 
-def test_legacy_auto_save_uses_all_official_periods_and_explicit_runtime(context, monkeypatch):
+def test_auto_policy_normalizes_official_periods_before_engine_sync(context):
     client, app, _root = context
     login(client)
-    commands = []
-
-    class Process:
-        def poll(self):
-            return None
-
-    def spawn(command, **_kwargs):
-        commands.append(command)
-        return Process()
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    monkeypatch.setattr(app.state.market_data, "_stop", lambda _process: None)
-    payload = {"symbol": "ETHUSDT", "base_level": "auto", "intervals": ["5m", "15m"], "realtime_enabled": True}
+    payload = {"symbol": "ETHUSDT", "base_level": "auto",
+               "intervals": ["5m", "15m"], "realtime_enabled": True}
     response = client.post("/api/data/subscriptions", json=payload)
     assert response.status_code == 200, response.text
     assert response.json()["policy"]["base_level"] == "1m"
     from core.market.instruments import INTERVALS
-    runtime_policy = json.loads(commands[0][commands[0].index("--policy") + 1])
-    assert runtime_policy["intervals"] == list(INTERVALS)
-    app.state.market_data.subscriptions._read()  # Saved explicit policies also validate on restart.
-    assert client.post("/api/data/subscriptions", json={**payload, "intervals": ["1s"]}).status_code == 422
-    assert client.post("/api/data/subscriptions", json={**payload, "intervals": ["1s"], "realtime_enabled": False}).status_code == 200
+    saved = app.state.market_data.engine.sync_calls[-1]["policies"][0]
+    assert saved["intervals"] == list(INTERVALS)
+    assert saved["base_level"] == "1m"
+    assert not hasattr(app.state.market_data.subscriptions, "auxiliary")
+    assert client.post(
+        "/api/data/subscriptions", json={**payload, "intervals": ["1s"]},
+    ).status_code == 422
+    assert client.post(
+        "/api/data/subscriptions", json={**payload, "intervals": ["1s"], "realtime_enabled": False},
+    ).status_code == 200
 
 
 def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monkeypatch):
