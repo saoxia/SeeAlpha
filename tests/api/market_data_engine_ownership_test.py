@@ -287,8 +287,8 @@ def test_failed_engine_sync_and_failed_orm_rollback_fail_closed(tmp_path):
 
 
 def test_platform_market_data_has_no_engine_source_or_runtime_file_reads():
-    from pathlib import Path
     import ast
+    from pathlib import Path
 
     root = Path(__file__).resolve().parents[2] / "api/market_data"
     for path in root.glob("*.py"):
