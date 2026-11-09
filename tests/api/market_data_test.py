@@ -416,43 +416,50 @@ def test_auto_policy_normalizes_official_periods_before_engine_sync(context):
 def test_pair_defaults_history_modes_and_raw_minimum_configuration(context, monkeypatch):
     client, app, _root = context
     login(client)
-    commands = []
-
-    class Process:
-        def poll(self):
-            return None
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda command, **kwargs: commands.append(command) or Process())
-    response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "tick", "intervals": ["1s", "30m", "1h", "1M"]})
+    response = client.post("/api/data/subscriptions", json={
+        "symbol": "ETHUSDT", "base_level": "tick", "intervals": ["1s", "30m", "1h", "1M"],
+    })
     assert response.status_code == 200, response.text
     assert response.json()["policy"]["realtime_enabled"]
-    assert "--policy" in commands[0]
-    assert json.loads(commands[0][commands[0].index("--policy") + 1])["base_level"] == "tick"
+    assert app.state.market_data.engine.sync_calls[-1]["policies"][0]["base_level"] == "tick"
     capabilities = client.get("/api/data/capabilities").json()
     assert "1M" in capabilities["intervals"] and capabilities["realtime_ticks"]
-    response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "1h", "intervals": ["5m"]})
+    response = client.post("/api/data/subscriptions", json={
+        "symbol": "ETHUSDT", "base_level": "1h", "intervals": ["5m"],
+    })
     assert response.status_code == 200
-    assert len(response.json()["policy"]["intervals"]) == 16 and "1s" in response.json()["policy"]["intervals"]
-    assert client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "history_enabled": True, "history_mode": "start"}).status_code == 422
-    assert client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "history_enabled": True, "history_mode": "duration", "history_days": 0}).status_code == 422
-    captured = []
+    assert len(response.json()["policy"]["intervals"]) == 16
+    assert "1s" in response.json()["policy"]["intervals"]
+    assert client.post("/api/data/subscriptions", json={
+        "symbol": "ETHUSDT", "history_enabled": True, "history_mode": "start",
+    }).status_code == 422
+    assert client.post("/api/data/subscriptions", json={
+        "symbol": "ETHUSDT", "history_enabled": True,
+        "history_mode": "duration", "history_days": 0,
+    }).status_code == 422
+
     async def earliest(self, endpoint, **params):
         return [[int(datetime(2020, 1, 1, 8, tzinfo=UTC).timestamp() * 1000)]]
+
     monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", earliest)
-    monkeypatch.setattr(app.state.market_data, "start", lambda payload: captured.append(payload) or {"id": "a" * 32, "status": "running"})
     for mode in ("all", "start", "duration"):
-        response = client.post("/api/data/subscriptions", json={"symbol": "ETHUSDT", "base_level": "1h", "realtime_enabled": False, "history_enabled": True,
-            "history_mode": mode, "history_start": "2026-08-01T00:00:00Z", "history_days": 90})
+        response = client.post("/api/data/subscriptions", json={
+            "symbol": "ETHUSDT", "base_level": "1h", "realtime_enabled": False,
+            "history_enabled": True, "history_mode": mode,
+            "history_start": "2026-08-01T00:00:00Z", "history_days": 90,
+        })
         assert response.status_code == 200, response.text
-        assert "history_job" not in response.json() and not captured
         saved = response.json()["policy"]
         assert saved["history_mode"] == "start" and saved["history_days"] == 30
-        expected = {"all": datetime(2020, 1, 1, tzinfo=UTC), "start": datetime(2026, 8, 1, tzinfo=UTC),
-                    "duration": datetime(2026, 8, 1, tzinfo=UTC) - timedelta(days=90)}[mode]
+        expected = {
+            "all": datetime(2020, 1, 1, tzinfo=UTC),
+            "start": datetime(2026, 8, 1, tzinfo=UTC),
+            "duration": datetime(2026, 8, 1, tzinfo=UTC) - timedelta(days=90),
+        }[mode]
         assert datetime.fromisoformat(saved["history_start"]) == expected
+        assert app.state.market_data.engine.sync_calls[-1]["policies"][0] == saved
         stored = app.state.market_data.policy_repository.list()[0]
-        assert stored["history_mode"] == "start" and stored["history_start"] == saved["history_start"]
-        assert any(command[2] == "engine.pipeline.pair_data" and "--service" in command for command in commands)
+        assert stored["history_start"] == saved["history_start"]
 
 
 def test_legacy_policy_file_does_not_enable_collection_by_default(context):
