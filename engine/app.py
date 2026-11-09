@@ -14,6 +14,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.engine_contracts import (
+    ENGINE_PROTOCOL_HEADER, ENGINE_PROTOCOL_MAJOR, ENGINE_PROTOCOL_MINOR,
+    ENGINE_PROTOCOL_VERSION,
+)
+
 from engine.config import EngineConfig
 from engine.data_queries import router as market_data_router
 from engine.data_manager.routes import router as control_router
@@ -198,6 +203,19 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
 
     def conflict(error: EngineConflict):
         raise HTTPException(409, error.message) from None
+
+    @app.middleware("http")
+    async def version_header(request: Request, call_next):
+        response = await call_next(request)
+        response.headers[ENGINE_PROTOCOL_HEADER] = ENGINE_PROTOCOL_VERSION
+        return response
+
+    @app.get("/protocol")
+    def protocol():
+        return {
+            "service": "seealpha-engine", "major": ENGINE_PROTOCOL_MAJOR,
+            "minor": ENGINE_PROTOCOL_MINOR,
+        }
 
     @app.get("/health")
     def health(tenant_id: str | None = None, account_id: str | None = None):
