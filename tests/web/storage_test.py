@@ -165,10 +165,12 @@ def test_retired_console_directory_is_ignored_without_side_effects(tmp_path):
     retired.mkdir(parents=True)
     (retired / "access_password").write_text("retired-password\n")
     (retired / "server.lock").write_text("retired-lock\n")
-    with external_lock(retired / "server.lock"):
-        with management_runtime(tmp_path, database=None) as owner:
-            assert owner.jobs.executor is True
-            assert owner.jobs.list_jobs() == []
+    with (
+        external_lock(retired / "server.lock"),
+        management_runtime(tmp_path, database=None) as owner,
+    ):
+        assert owner.jobs.executor is True
+        assert owner.jobs.list_jobs() == []
     assert (retired / "access_password").read_text() == "retired-password\n"
     assert (retired / "server.lock").read_text() == "retired-lock\n"
     assert paths.lock.exists()
