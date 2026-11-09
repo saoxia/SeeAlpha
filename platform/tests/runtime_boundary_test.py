@@ -75,5 +75,23 @@ def test_business_api_never_imports_engine_or_nautilus_runtime():
                 continue
             for name in names:
                 assert name.split(".", 1)[0] not in {"engine", "nautilus_trader"}, (
-                    path.relative_to(PROJECT), name,
+                    path.relative_to(PLATFORM_ROOT), name,
+                )
+
+
+def test_platform_tests_do_not_import_legacy_engine_or_test_helpers():
+    """Keep the standalone suite independent of old in-process test fixtures."""
+    forbidden = {"engine", "nautilus_trader", "nautilus_support"}
+    for path in sorted((PLATFORM_ROOT / "platform/tests").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module] if node.module else []
+            else:
+                continue
+            for name in names:
+                assert name.split(".", 1)[0] not in forbidden | {"tests"}, (
+                    path.relative_to(PLATFORM_ROOT), name,
                 )
