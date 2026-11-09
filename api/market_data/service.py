@@ -6,8 +6,6 @@ import json
 import os
 import re
 import shutil
-import signal
-import subprocess
 import threading
 from contextlib import ExitStack
 from datetime import UTC, datetime
@@ -340,23 +338,6 @@ class DataService:
 
     def retry(self, identity):
         return self._required_engine().market_control("job/retry", {"id": identity})
-
-    @staticmethod
-    def _stop(process):
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                pass
-            # Kill surviving conversion descendants as well as the process leader.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait(timeout=5)
-        except ProcessLookupError:
-            pass
 
     def cancel(self, identity):
         return self._required_engine().market_control("job/cancel", {"id": identity})
