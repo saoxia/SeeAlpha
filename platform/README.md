@@ -33,3 +33,9 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 - `tests/api/backtest_test.py` 还依赖 `tests/engine/` 的数据构建辅助。移除旧 Engine 源码前必须将该辅助变成独立测试夹具或跨仓库验收素材，而不是直接删除有效测试。
 - 原仓库 `docker/engine.Dockerfile`、根 `pyproject.toml`/`uv.lock` 仍为历史构建入口，当前统一对外构建流程应使用 `scripts/build_external_engine.sh`，勿依赖这些旧构建产物。
 - `engine/` 的 82 个源文件在这一过渡 PR 中不删除。行情、策略、回测、状态恢复的完整业务链路验收仍须单独完成。
+
+## Platform 独立 HTTP / Docker 路由单元测试
+
+`platform/tests/engine_http_routing_test.py` 已将原 `tests/api/tenant_docker_test.py` 中不需要真实 Engine 的关键消费者检查提取到独立 Platform 测试套件：HTTP v2、错误版本拒绝、Engine 不可用时失败关闭、租户 Token 隔离和旧镜像禁止复用。这些用例使用 HTTPX MockTransport 和临时目录，不依赖 NautilusTrader、原 `engine/` 或 Docker daemon。原测试保留，直到旧测试夹具完成跨进程迁移并集中验收。
+
+这不等于迁移了真实的行情、策略和回测集成测试；那些用例仍由单独的 Engine/跨仓库测试负责。
