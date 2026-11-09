@@ -43,7 +43,7 @@ SeeAlpha = **量化交易能力内核（Engine）** + **量化研发与运营平
 
 截至 2026-11-09，仓库已有 `engine/`、`api/`、`web/`、`core/` 和策略 `packages/`；Engine 有单独启动入口和独立 Docker 镜像，且支持按租户管理 Engine 容器。当前 Docker 模式为可选，同宿主机部署，不包含跨服务器调度或不可信策略安全沙箱。
 
-**尚未达到独立仓库条件**。业务 API 仍有对 Engine 实现的直接依赖，涉及交易所只读查询、操作流水、市场数据管理和策略包校验等。具体剩余路径与顺序以 [Engine 独立仓库前的代码依赖边界](ENGINE_REPOSITORY_BOUNDARY.md) 为准；实际部署及默认租户历史数据目录例外见 [每租户 Docker Engine](TENANT_DOCKER_RUNTIME.md)。
+**尚未达到独立仓库条件**。业务 API 仍有对 Engine 实现的直接依赖，涉及交易所只读查询、操作流水、市场数据管理和策略包校验等。具体剩余路径与顺序以 [Engine 独立仓库前的代码依赖边界](ENGINE_REPOSITORY_BOUNDARY.md) 为准；实际的统一租户目录与当前默认行情路由约束见 [每租户 Docker Engine](TENANT_DOCKER_RUNTIME.md)。
 
 ## 独立仓库就绪的验收标准
 
