@@ -42,7 +42,7 @@ ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 `engine.pipeline.data_management` 的准备、删除和裁剪）。业务 API 通过 Engine HTTP
 读取任务并保留业务授权；删除/裁剪成功后的业务配置调整以独立幂等结算标记记录，
 不再写入或恢复 API 本地任务记录。
-操作账本的只读同步和资产校准 REST 仍在 API 进程调用连接器。
+操作账本只读同步与资产校准由 API 编排，通过 Engine HTTP 读取交易所数据；业务归档与核算仍在 API。
 
 API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文件，
 并使用 Alembic 完成结构迁移。未配置连接时服务不会自动创建或切换到本地数据库。
@@ -177,8 +177,8 @@ ORM 启动前会检查 Alembic 版本；不会自动创建、覆盖或接管旧�
 `ENGINE_URL` 在部署环境必须为 HTTP(S) 地址，禁止进程内 Engine 回退；
 不配置时默认 `http://127.0.0.1:8766`。当前 `EngineClient` 在生产和测试中
 均只支持 HTTP 契约；API 集成测试使用注入的 HTTPX 测试传输连接真实 Engine ASGI 应用，
-而非在业务进程内创建 Engine Runtime。注意行情管理等其他 API 模块的剩余
-Engine 源码依赖不因此自动消除。
+而非在业务进程内创建 Engine Runtime。业务 API 的直接 Engine/Nautilus 运行时导入已纳入
+隔离测试；这不代表真实资金下单、部署升级或不可信策略沙箱已经验收。
 
 ## 行情数据管理
 
@@ -336,6 +336,8 @@ LIVE 使用真实权益 K 线并支持单账户一键重算；缺价和断线保
 
 ## Engine 仓库解耦进度
 
-Engine HTTP DTO、异常合同与容器构建边界已提取，但行情、操作记录与部分交易所
-查询仍直接依赖 `engine/` 源码。**当前不能移走 `engine/` 或认定 API 已完全脱离 Engine。**
-剩余依赖和验收条件见 [Engine 独立仓库边界](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。
+截至 2026-11-09，Engine/Platform 第 8–14 批改造已合并：业务 API 经认证、
+版本化的 Engine HTTP 契约访问计算与交易所数据，独立 Engine 镜像不打包 API/Web，
+已有不加载 Engine/Nautilus runtime 的 Platform 隔离测试及跨进程 CI 验收代码。
+仍采用单仓库开发，**未授权拆仓或迁移现有实盘状态**；真实账户与长时间运行验收尚未完成。
+具体边界与验证范围见 [Engine 独立仓库边界](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。
