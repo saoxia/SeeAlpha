@@ -551,37 +551,31 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
         reader.close()
 
 
-def test_realtime_configuration_coexists_with_history_and_does_not_restart_unchanged_collection(context, monkeypatch):
+def test_realtime_and_history_configuration_are_synced_as_intent(context, monkeypatch):
     client, app, _root = context
     login(client)
     manager = app.state.market_data
-    spawned, stopped = [], []
-    class Collector:
-        def poll(self):
-            return None
-    def spawn(command, **kwargs):
-        assert len(kwargs["pass_fds"]) == 2  # ownership plus shared data access
-        spawned.append(command)
-        return Collector()
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    monkeypatch.setattr(manager, "_stop", stopped.append)
-    payload = {"symbol": "ETHUSDT", "base_level": "1m", "intervals": ["5m"], "realtime_enabled": True}
-    with manager._lease("ETHUSDT"), manager._lease("ETHUSDT", access=True, shared=True):
-        response = client.post("/api/data/subscriptions", json=payload)
-        assert response.status_code == 200, response.text
-        collector = manager.subscriptions.processes[("futures_um", "ETHUSDT")]
-        # Saving historical-only changes leaves the already running collector intact.
-        async def earliest(self, endpoint, **params):
-            return [[int(datetime(2020, 1, 1, tzinfo=UTC).timestamp() * 1000)]]
-        monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", earliest)
-        response = client.post("/api/data/subscriptions", json={**payload, "history_enabled": True})
-        assert response.status_code == 200 and "history_error" not in response.json()
-        assert manager.subscriptions.processes[("futures_um", "ETHUSDT")] is collector
-        assert len(spawned) == 4 and len(stopped) == 1
-        assert any(command[2] == "engine.pipeline.pair_data" for command in spawned)
-        assert client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"}).status_code == 200
-        assert client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False}).status_code == 200
-        assert collector in stopped and collector not in manager.subscriptions.processes.values()
+    payload = {"symbol": "ETHUSDT", "base_level": "1m",
+               "intervals": ["5m"], "realtime_enabled": True}
+    first = client.post("/api/data/subscriptions", json=payload)
+    assert first.status_code == 200, first.text
+
+    async def earliest(self, endpoint, **params):
+        return [[int(datetime(2020, 1, 1, tzinfo=UTC).timestamp() * 1000)]]
+
+    monkeypatch.setattr("engine.connectors.binance.pair_data.PairREST.get", earliest)
+    history = client.post("/api/data/subscriptions", json={**payload, "history_enabled": True})
+    assert history.status_code == 200, history.text
+    assert manager.engine.sync_calls[-1]["policies"][0]["history_enabled"]
+    assert manager.engine.sync_calls[-1]["policies"][0]["realtime_enabled"]
+    other = client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"})
+    assert other.status_code == 200
+    stopped = client.post("/api/data/subscriptions", json={**payload, "realtime_enabled": False})
+    assert stopped.status_code == 200
+    policies = {p["symbol"]: p for p in manager.engine.sync_calls[-1]["policies"]}
+    assert not policies["ETHUSDT"]["realtime_enabled"]
+    assert policies["XRPUSDT"]["realtime_enabled"]
+    assert not hasattr(manager.subscriptions, "processes")
 
 
 def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(context):
@@ -621,7 +615,8 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
         with other._lease("ETHUSDT", access=True, shared=True), other._lease("XRPUSDT"):
             pass
     finally:
-        manager._stop(child)
+        child.terminate()
+        child.wait(timeout=5)
         other.close()
     with manager._lease("ETHUSDT"), manager._lease("ETHUSDT", access=True):
         pass
