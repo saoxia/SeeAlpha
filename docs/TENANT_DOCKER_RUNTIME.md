@@ -6,7 +6,7 @@ Web/FastAPI、用户权限、业务数据库和策略商店不进入租户容器
 `tenant_id` 路由到不同的容器。容器本身不暴露给公网，也不持有 Docker socket。
 
 本阶段**不实现**共享数据缓存、数据预加载、分布式 Worker 或 DeepSeek Harness。
-每个开发租户有独立的 `data/`，需要自行准备所需历史数据；重复回测仍由现有
+每个租户有独立的 `data/`，需要自行准备所需历史数据；重复回测仍由现有
 `run_backtest()` 逐次从本租户 Catalog 读取。
 
 ## 准备镜像
@@ -24,8 +24,8 @@ docker build -f docker/engine.Dockerfile -t seealpha-engine:latest .
 
 ## 开启 Docker 部署
 
-仅在已经完成旧 Engine 状态迁移或**全新部署**时开启。
-保持现有 API 的数据库、会话和密钥配置不变，增加：
+本轮按**全新部署**约定启用，不提供旧 Engine 目录或订单状态的自动迁移。
+先初始化新的业务数据库和租户状态目录，再增加：
 
 ```bash
 export ENGINE_DEPLOYMENT=docker
@@ -39,11 +39,11 @@ export ENGINE_DEVELOPMENT_MEMORY=8g
 ```
 
 以上只是默认配额示例，须结合机器容量和实际内存峰值调整。
-`ENGINE_DEPLOYMENT=single`（默认）保留原来的单 Engine 行为，便于开发和回滚；
+`ENGINE_DEPLOYMENT=single` 仍保留现有单 Engine 模式供开发使用；
 Docker 模式不在失败时偷偷回退到生产进程内执行。
 
 首次 API 启动时会确保业务库里的活跃租户各有一个 `seealpha-engine-<tenant_id>`
-容器。创建开发租户 / 新用户时也会部署容器。
+容器。管理员创建额外正式租户、用户创建开发租户或新用户入驻时也会部署容器。
 开发租户归档会先导出 Engine 切片，然后停止并移除容器；恢复时从持久状态卷
 重建容器并导入切片。删除租户会停止并移除容器，随后将其旧数据、日志、令牌和状态目录
 **整体隔离保留**在 `.local/tenants/.retired/<tenant_id>-<随机标识>/`；
@@ -58,7 +58,7 @@ Docker 使用 `--cpus`、`--memory`、`--memory-swap`、`--pids-limit`，
 
 ## 存储和网络
 
-普通租户的宿主机持久目录：
+所有租户（含初始正式租户）的宿主机持久目录：
 
 ```text
 .local/tenants/<tenant_id>/
@@ -69,10 +69,10 @@ Docker 使用 `--cpus`、`--memory`、`--memory-swap`、`--pids-limit`，
   logs/            # 子进程日志
 ```
 
-**例外：** 为保持已有行情管理页面、删除/裁剪任务与结果文件的路径兼容，
-数据库标记为 `system_key=default` 的默认正式租户继续绑定宿主机项目
-`data/`，以及 `.local/state/api/data_jobs/`。这是该租户自己的数据目录，
-不被其他租户 Engine 共享。其他所有租户均绑定上述独立 `data/`。
+**没有默认租户存储特例。** 每个 Engine 都只挂载 `.local/tenants/<tenant_id>/data/` 为
+`/app/data`，不额外挂载旧项目 `data/` 或旧 API 数据任务目录。现有全局行情管理
+API 仍选择业务库里 `system_key=default` 的租户作为请求目标，属于尚待按租户改造
+的业务路由，而不是特殊的存储或执行方式。
 
 开发租户的历史 Catalog 不会自动复制。准备策略回测前，应当在其独立数据目录
 中生成或**复制属于该租户的数据**。如原始数据保存在项目 `data/catalog`，
@@ -87,22 +87,17 @@ Engine 还校验 URL 里的租户 ID 和登记用途。不要在外部反向代�
 现在 Docker 管理只支持**同一 Docker 宿主机**；跨服务器部署需要另行加入
 可信 Worker Agent / 节点路由，而不是暴露 Docker daemon TCP 端口。
 
-## 旧 Engine 迁移与回滚（必须先做）
+## 全新部署与数据保护
 
-仅切换 `ENGINE_DEPLOYMENT` **不会搬迁**原
-`.local/state/engine/book.sqlite` 中的订单幂等、成交、持仓、缺口与事件。
-对已经有生产记录的部署，禁止直接开启 Docker 模式，否则新租户状态卷会从空库启动。
+不沿用旧数据库和租户状态卷；执行新版本 Alembic 迁移后再创建账号与 Engine。
+本轮清理不自动复制旧 `data/` 或 `.local/state/engine/`。
+如仍保留旧本地实验数据，请自行备份；不要在旧状态有未结订单或真实仓位时直接
+复用交易账户。后续正式上线后，升级仍需要可靠的备份、恢复及停机流程。
 
-先安排交易停机窗口，停止旧 API、旧 Engine 及其行情子进程，备份业务库、
-`.local/state/engine/` 和 `data/`；由运维在离线环境使用 Engine 已有的
-`export_tenant()/import_tenant()` 将每个租户状态迁移到独立容器，
-核对订单请求 ID、持仓、成交、策略下发、缺口与订阅数量后再切换 API。
-**本 PR 不会自动迁移或删除旧状态，且不会自动启动实盘策略。**
-迁移失败时保持旧 API/Engine 停机、保留备份，不应把两个 Engine 同时连接到同一个真实账户。
-
-如需回滚到 `ENGINE_DEPLOYMENT=single`，必须先停止 Docker 容器；
-在 Docker 模式下新产生的 Engine 事实也必须先反向迁移，不能直接使用旧 SQLite，
-否则会遗漏幂等请求和成交证据。
+额外正式租户通过管理员授权的 `POST /api/tenants` 创建，指定
+`purpose: production` 或正式模板。普通用户可创建开发租户。
+为了保持安全边界，目前正式租户不能直接删除或修改用途；资源限制统一由
+部署管理器按用途配置。此处尚未实现 per-user 配额与多实例调度。
 
 ## 测试
 
