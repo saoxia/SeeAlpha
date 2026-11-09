@@ -230,6 +230,9 @@ class Subscriptions:
         )
 
     def items(self, *, group_options=False):
+        # The Platform ORM remains the authoritative business policy intent.
+        # A corrupt ORM policy must not be hidden by a cached Engine snapshot.
+        self._read(refresh=True)
         return self._engine().market_control(
             "subscriptions", {"group_options": group_options},
         )["items"]
