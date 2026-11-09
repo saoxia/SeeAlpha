@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
-from core.trading_contracts import CancelOrderValues, SubmitOrderValues, TRADING_SYMBOL
+from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
 from engine.config import EngineConfig
 from engine.connectors.binance.queries import QueryError
 from engine.data_manager.routes import router as control_router
