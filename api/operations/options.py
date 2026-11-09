@@ -105,8 +105,7 @@ async def sync_options(repository, account, state, start_ms, end_ms, *, cashflow
     if baseline is None and not cashflows_only:
         before = await engine.options_server_time(account)["serverTime"]
         initial = await client.positions()
-        after = (await engine.options_server_time(account) if engine is not None
-                 else await asyncio.to_thread(options.get, "time"))["serverTime"]
+        after = (await engine.options_server_time(account))["serverTime"]
         if type(before) is not int or type(after) is not int or not 0 < before <= after:
             raise QueryError("期权初始持仓时间无效。")
         if len({row["symbol"] for row in initial}) != len(initial):
