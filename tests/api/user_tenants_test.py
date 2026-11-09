@@ -1,10 +1,10 @@
-"""User ownership, one production tenant, copy/share, and impersonation."""
+"""User ownership, production instance creation, copy/share, and impersonation."""
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select
 
 from api.auth.security import hash_password
 from api.config import Settings
@@ -37,7 +37,7 @@ def _production_count(app, username):
         return user.id, len(rows)
 
 
-def test_new_user_gets_one_production_tenant_and_a_second_is_rejected(client):
+def test_users_start_with_one_production_tenant_and_admin_can_create_more(client):
     http, app = client
     created = http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
     assert created.status_code == 201, created.text
@@ -50,18 +50,26 @@ def test_new_user_gets_one_production_tenant_and_a_second_is_rejected(client):
     assert body["production_tenant_id"]
     listed = http.get("/api/users").json()
     assert {row["username"] for row in listed} >= {"admin", "alice"}
-    admin_rows = http.get("/api/tenants").json()
-    assert sum(row["purpose"] == "production" for row in admin_rows) == 1
-    rejected = http.post("/api/tenants", json={"name": "第二个正式", "purpose": "production"})
-    assert rejected.status_code == 409
+
+    extra = http.post("/api/tenants", json={"name": "第二个正式", "purpose": "production"})
+    assert extra.status_code == 201, extra.text
+    assert extra.json()["purpose"] == "production"
     template = next(
         row for row in http.get("/api/tenants/templates").json() if row["purpose"] == "production"
     )
-    again = http.post("/api/tenants", json={"template_id": template["id"], "name": "模板正式"})
-    assert again.status_code == 409
+    another = http.post("/api/tenants", json={"template_id": template["id"], "name": "模板正式"})
+    assert another.status_code == 201, another.text
+    assert http.post("/api/tenants", json={
+        "name": "类型冲突", "purpose": "development", "template_id": template["id"],
+    }).status_code == 422
     _, admin_count = _production_count(app, "admin")
-    assert admin_count == 1
-    assert user_id != _production_count(app, "admin")[0]
+    assert admin_count == 3
+
+    http.post("/api/auth/logout")
+    login(http, username="alice")
+    denied = http.post("/api/tenants", json={"name": "越权正式", "purpose": "production"})
+    assert denied.status_code == 403
+    assert _production_count(app, "alice") == (user_id, 1)
 
 
 def test_owner_manages_development_tenants_and_cannot_remove_production(client):
@@ -191,64 +199,28 @@ def test_impersonation_scopes_tenant_access_to_the_target_user(client):
     assert alice_count == 1
 
 
-def test_migration_assigns_the_default_tenant_without_a_second_production(tmp_path):
-    url = f"sqlite:///{tmp_path / 'legacy.db'}"
+def test_fresh_schema_assigns_default_to_first_user_without_merging(tmp_path):
+    url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url
-    command.upgrade(config, "d8a41c6e2b17")
-    engine = create_engine(url)
-    with engine.begin() as connection:
-        connection.execute(text(
-            "INSERT INTO users (username, password_hash, created_at) VALUES ('admin', 'hash', 1)"
-        ))
-        connection.execute(text(
-            "INSERT INTO users (username, password_hash, created_at) VALUES ('second', 'hash', 2)"
-        ))
-        template = connection.execute(text(
-            "SELECT id FROM tenant_templates WHERE purpose = 'production'"
-        )).scalar()
-        connection.execute(
-            text(
-                """INSERT INTO tenants (
-                       template_id, purpose, name, description, status, created_at
-                   ) VALUES (:template, 'production', '额外正式', NULL, 'active', 3)"""
-            ),
-            {"template": template},
-        )
-        extra = connection.execute(text("SELECT id FROM tenants WHERE name = '额外正式'")).scalar()
-        connection.execute(
-            text(
-                """INSERT INTO exchange_accounts (
-                       tenant_id, exchange, account_name, environment, credentials_encrypted,
-                       market_symbols_json, created_at, updated_at
-                   ) VALUES (:tenant, 'binance', 'desk', 'production', 'cipher-text', '[]', 1, 1)"""
-            ),
-            {"tenant": extra},
-        )
     command.upgrade(config, "head")
     app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
     app.state.database.initialize()
+    repository = auth_repository(app.state.database)
+    repository.create_user("admin", hash_password("test-password-123"))
+    repository.create_user("second", hash_password("test-password-123"))
     with app.state.database.session() as session:
         admin = session.scalar(select(User).where(User.username == "admin"))
         second = session.scalar(select(User).where(User.username == "second"))
         default = session.scalar(select(Tenant).where(Tenant.system_key == "default"))
-        extra = session.scalar(select(Tenant).where(Tenant.name == "额外正式"))
-        account = session.scalar(select(ExchangeAccount))
-        admin_production = session.scalars(
-            select(Tenant).where(Tenant.owner_id == admin.id, Tenant.purpose == "production")
+        owners = session.scalars(
+            select(Tenant).where(
+                Tenant.owner_id.in_([admin.id, second.id]), Tenant.purpose == "production"
+            ).order_by(Tenant.id)
         ).all()
-        second_production = session.scalars(
-            select(Tenant).where(Tenant.owner_id == second.id, Tenant.purpose == "production")
-        ).all()
-    assert default.name == "默认正式"
     assert default.owner_id == admin.id
-    assert default.purpose == "production"
-    assert len(admin_production) == 1
-    assert extra.purpose == "development"
-    assert extra.owner_id == admin.id
-    assert account.tenant_id == default.id
-    assert account.credentials_encrypted == "cipher-text"
-    assert len(second_production) == 1
-    assert second_production[0].id != default.id
+    assert len(owners) == 2
+    assert owners[0].id == default.id
+    assert owners[1].owner_id == second.id
     app.state.engine.close()
     app.state.database.close()

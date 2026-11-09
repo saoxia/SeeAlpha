@@ -187,10 +187,6 @@ class Database:
                 "ALTER TABLE sessions ADD COLUMN impersonate_user_id INTEGER REFERENCES users(id)"
             )
         connection.execute("CREATE INDEX IF NOT EXISTS tenants_owner_idx ON tenants(owner_id)")
-        connection.execute(
-            """CREATE UNIQUE INDEX IF NOT EXISTS tenants_one_production_per_owner
-               ON tenants(owner_id) WHERE purpose = 'production'"""
-        )
 
     def close(self):
         pass

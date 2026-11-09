@@ -24,7 +24,7 @@ import {
 type Section = "list" | "create" | "copy" | "share";
 
 const sections: Array<{ id: Section; number: string; label: string; description: string }> = [
-  { id: "list", number: "01", label: "我的租户", description: "正式租户为默认" },
+  { id: "list", number: "01", label: "我的租户", description: "正式与开发实例" },
   { id: "create", number: "02", label: "新建开发租户", description: "用于回测和试策略" },
   { id: "copy", number: "03", label: "复制配置", description: "订阅复制到新开发租户" },
   { id: "share", number: "04", label: "分享配置", description: "对方获得开发租户" },
@@ -190,7 +190,7 @@ export function TenantPage() {
                   <input name="description" maxLength={500} placeholder="可选" />
                 </label>
                 <p className="field field-wide github-key-note">
-                  新建的只能是开发租户。每个用户已经有且只能有一个正式租户。
+                  此页面创建开发租户。管理员可以通过业务后台接口为用户创建额外正式租户。
                 </p>
                 <div className="field field-wide">
                   <button className="monitor-add-button" type="submit" disabled={busy}>
@@ -288,7 +288,7 @@ function TenantList({
         <article key={tenant.id} className="tenant-row">
           <div>
             <b>{tenant.name}</b>
-            <small>{tenant.description || (tenant.purpose === "production" ? "默认正式租户" : "开发租户")}</small>
+            <small>{tenant.description || (tenant.purpose === "production" ? "正式租户" : "开发租户")}</small>
           </div>
           <span className={tenant.purpose === "production" ? "tenant-badge production" : "tenant-badge"}>
             {purposeLabel(tenant.purpose)}

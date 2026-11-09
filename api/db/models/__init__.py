@@ -87,13 +87,6 @@ class Tenant(Base):
         Index("tenants_name_unique", func.lower(name), unique=True),
         Index("tenants_system_key_unique", system_key, unique=True),
         Index("tenants_owner_idx", owner_id),
-        Index(
-            "tenants_one_production_per_owner",
-            owner_id,
-            unique=True,
-            sqlite_where=text("purpose = 'production'"),
-            postgresql_where=text("purpose = 'production'"),
-        ),
     )
 
 

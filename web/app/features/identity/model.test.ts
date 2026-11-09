@@ -76,7 +76,7 @@ test("identity paths and banner name the active view", () => {
 });
 
 test("API error bodies surface the server detail", () => {
-  assert.equal(errorDetail({ detail: "每个用户只能有一个正式租户。" }, "失败"), "每个用户只能有一个正式租户。");
+  assert.equal(errorDetail({ detail: "仅管理员可创建额外的正式租户。" }, "失败"), "仅管理员可创建额外的正式租户。");
   assert.equal(errorDetail({ detail: [{ msg: "x" }] }, "失败"), "失败");
   assert.equal(errorDetail(null, "失败"), "失败");
 });

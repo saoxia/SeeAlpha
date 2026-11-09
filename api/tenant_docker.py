@@ -34,9 +34,7 @@ class DockerTenantManager:
         self.image = image
         self.log_root = Path(log_root).expanduser().resolve()
         self._endpoints = {}
-        self.primary_tenant_id = None
-        self.primary_data = None
-        self.primary_jobs = None
+        self.market_tenant_id = None
         self.limits = {
             "production": (str(production_cpus), str(production_memory)),
             "development": (str(development_cpus), str(development_memory)),
@@ -48,15 +46,9 @@ class DockerTenantManager:
             raise ValueError("Invalid Docker Engine image or resource limits")
         self._lock = RLock()
 
-    def bind_primary_data(self, tenant_id, data: Path, jobs: Path):
-        """Keep the managed-data API on the original default tenant's storage."""
-        tenant_id = self._id(tenant_id)
-        data = Path(data).expanduser().resolve()
-        if not data.is_dir():
-            raise OSError("默认租户历史数据目录不可用；不会自动创建或替换。")
-        self.primary_tenant_id = tenant_id
-        self.primary_data = data
-        self.primary_jobs = Path(jobs).expanduser().resolve()
+    def bind_market_tenant(self, tenant_id):
+        """Select the current business API's market-data target, not a storage override."""
+        self.market_tenant_id = self._id(tenant_id)
 
     @staticmethod
     def _id(tenant_id):
@@ -155,14 +147,6 @@ class DockerTenantManager:
                         path.mkdir(parents=True, exist_ok=True, mode=0o700)
                     token = self._credentials(env_path, tenant_id, purpose, create=True)
                     cpu, memory = self.limits[purpose]
-                    data_source = self.primary_data if tenant_id == self.primary_tenant_id else data
-                    mounts = []
-                    if tenant_id == self.primary_tenant_id:
-                        self.primary_jobs.mkdir(parents=True, exist_ok=True, mode=0o700)
-                        mounts = [
-                            "--mount",
-                            f"type=bind,src={self.primary_jobs},dst=/app/.local/state/api/data_jobs",
-                        ]
                     self._docker(
                         "run", "--detach", "--name", name,
                         "--label", "seealpha.managed=tenant-engine",
@@ -175,15 +159,15 @@ class DockerTenantManager:
                         "--publish", "127.0.0.1::8766",
                         "--env-file", str(env_path),
                         "--mount", f"type=bind,src={state},dst=/app/.local/state/engine",
-                        "--mount", f"type=bind,src={data_source},dst=/app/data",
+                        "--mount", f"type=bind,src={data},dst=/app/data",
                         "--mount", f"type=bind,src={local},dst=/app/.local/run",
                         "--mount", f"type=bind,src={root / "logs"},dst=/app/logs",
-                        *mounts, self.image,
+                        self.image,
                     )
                     container = self._inspect(name)
                 else:
                     self._validate_container(container, tenant_id, purpose)
-                    expected_data = self.primary_data if tenant_id == self.primary_tenant_id else data
+                    expected_data = data
                     mounts = {item["Destination"]: Path(item["Source"]).resolve()
                               for item in container.get("Mounts", [])}
                     if mounts.get("/app/data") != expected_data.resolve():
@@ -262,7 +246,7 @@ class DockerTenantManager:
             if original.resolve() != target:
                 raise EngineConflict("日志符号链接不属于当前租户。")
         elif original.exists():
-            raise EngineConflict("已有同名日志，请先迁移再切换 Docker 部署。")
+            raise EngineConflict("已有同名日志，拒绝覆盖。")
         else:
             original.symlink_to(target)
         return str(Path("/app/logs") / relative)

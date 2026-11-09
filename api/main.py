@@ -59,10 +59,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             if manager is not None:
                 default = app.state.tenants.repository.require_default()
                 if default is not None:
-                    root = project if project is not None else PROJECT
-                    manager.bind_primary_data(
-                        default["id"], root / "data", root / ".local/state/api/data_jobs",
-                    )
+                    manager.bind_market_tenant(default["id"])
             for tenant in app.state.tenants.repository.list_tenants():
                 if tenant["status"] == "active":
                     app.state.engine.ensure_tenant(

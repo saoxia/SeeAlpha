@@ -85,21 +85,23 @@ class TenantService:
             raise HTTPException(409, "已归档的租户不能交易、回测或修改内容。")
         return tenant
 
-    def create_development(self, owner_id, name, description):
-        if self.repository.production_for_owner(owner_id) is None:
+    def create_for_owner(self, owner_id, purpose, name, description):
+        if purpose not in PURPOSES:
+            raise HTTPException(422, "租户类型只能是正式或开发。")
+        if purpose == "development" and self.repository.production_for_owner(owner_id) is None:
             raise HTTPException(409, "用户还没有正式租户。")
         try:
             tenant = self.repository.create_tenant(
-                self.repository.template_id_for("development"),
-                "development",
-                name.strip(),
-                description,
-                owner_id,
+                self.repository.template_id_for(purpose), purpose, name.strip(),
+                description, owner_id,
             )
         except StorageConflict as exc:
             raise HTTPException(409, "租户名称不能重复。") from exc
         self.engine.ensure_tenant(tenant["id"], tenant["purpose"], "active")
         return self.publish(tenant)
+
+    def create_development(self, owner_id, name, description):
+        return self.create_for_owner(owner_id, "development", name, description)
 
     def _archive_path(self, tenant_id):
         return self.archives / f"{tenant_id}.tar.gz"

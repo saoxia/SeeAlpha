@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser, CurrentUser
+from ..auth.dependencies import AdminUser, CurrentContext, CurrentUser, actor_is_admin
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -85,18 +85,22 @@ def list_tenants(request: Request, user: CurrentUser):
 
 
 @router.post("", status_code=201)
-def create_tenant(request: Request, payload: TenantCreate, user: CurrentUser):
+def create_tenant(
+    request: Request, payload: TenantCreate, user: CurrentUser, context: CurrentContext,
+):
     if payload.purpose not in (None, "development", "production"):
         raise HTTPException(422, "租户类型只能是正式或开发。")
-    if payload.purpose == "production":
-        raise HTTPException(409, "每个用户只能有一个正式租户。")
+    purpose = payload.purpose or "development"
     if payload.template_id is not None:
         template = tenants(request).repository.get_template(payload.template_id)
         if template is None:
             raise HTTPException(404, "模板不存在。")
-        if template["purpose"] == "production":
-            raise HTTPException(409, "每个用户只能有一个正式租户。")
-    return tenants(request).create_development(user.id, payload.name, payload.description)
+        if payload.purpose is not None and payload.purpose != template["purpose"]:
+            raise HTTPException(422, "模板类型与租户用途不匹配。")
+        purpose = template["purpose"]
+    if purpose == "production" and not actor_is_admin(request, context.actor.username):
+        raise HTTPException(403, "仅管理员可创建额外的正式租户。")
+    return tenants(request).create_for_owner(user.id, purpose, payload.name, payload.description)
 
 
 @router.post("/{tenant_id}/copy", status_code=201)
