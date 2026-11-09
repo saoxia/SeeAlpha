@@ -499,7 +499,7 @@ def test_managed_inventory_and_preview_read_persisted_evidence(context):
     login(client)
     policy = DataPolicy(symbol="ETHUSDT", base_level="1h", realtime_enabled=False)
     app.state.market_data.subscriptions.save(policy)
-    root = app.state.test_engine.state.market_data.app.state.test_engine.state.market_data.subscriptions.root(policy)
+    root = app.state.test_engine.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     stamp = int(datetime(2026, 8, 1, tzinfo=UTC).timestamp() * 1000)
     store = PairStore(root / "collection.sqlite", "ETHUSDT", "1h")
@@ -546,7 +546,7 @@ def test_pair_delete_snapshot_survives_inventory_polling_and_excludes_readers(co
     manager = app.state.market_data
     policy = DataPolicy(symbol="ETHUSDT", base_level="tick", realtime_enabled=False)
     manager.subscriptions.save(policy)
-    root = app.state.test_engine.state.market_data.app.state.test_engine.state.market_data.subscriptions.root(policy)
+    root = app.state.test_engine.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     path = root / "collection.sqlite"
     store = PairStore(path, policy.symbol, policy.base_level)
@@ -623,7 +623,9 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
                              pass_fds=(job_lease.fileno(), access_lease.fileno()), start_new_session=True)
     job_lease.close()
     access_lease.close()
-    other = DataService(app.state.database, project=root)
+    from engine.data_manager.service import DataService as EngineDataService
+
+    other = EngineDataService("1", project=root, state_root=root / "isolated-engine")
     try:
         with pytest.raises(HTTPException) as busy:
             other._lease("ETHUSDT")
@@ -732,7 +734,7 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
     manager.subscriptions.save(policy)
     # Model an enabled service without launching network workers.
     manager.subscriptions.policies = [policy.model_copy(update={"realtime_enabled": True})]
-    root = app.state.test_engine.state.market_data.app.state.test_engine.state.market_data.subscriptions.root(policy)
+    root = app.state.test_engine.state.market_data.subscriptions.root(policy)
     root.mkdir(parents=True)
     (root / "status.json").write_text(json.dumps({"state": "READY", "valid_until_ms": 0, "backlog": 7}))
     observation = manager.subscriptions.items()[0]["services"]["collection"]
@@ -992,8 +994,9 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
         path.write_text(json.dumps({"state": "READY", "data_ready": True, "reason": "collecting",
                                     "checked_ms": now, "valid_until_ms": now + 60000}))
     assert subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
+    # Independent Platform readers receive the same Engine-validated state.
     reader = DataService(app.state.database, project=_root)
-    reader.subscriptions.policies = policies
+    reader.engine = app.state.market_data.engine
     assert reader.subscriptions.items(group_options=True)[0]["runtime"]["data_ready"]
     path.write_text(json.dumps({"state": "READY", "data_ready": True, "checked_ms": 1, "valid_until_ms": 1}))
     item = subscriptions.items(group_options=True)[0]
