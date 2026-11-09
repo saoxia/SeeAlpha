@@ -23,16 +23,9 @@ def upgrade() -> None:
     """Upgrade schema."""
     connection = op.get_bind()
     schema = op.get_context().opts.get("version_table_schema")
-    if connection.dialect.name == "postgresql":
-        from api.db.schema_compat import verify_existing_postgres
-
-        if verify_existing_postgres(connection, schema):
-            return  # Existing records remain in place; Alembic only records the verified baseline.
-    elif any(
-        name != "alembic_version" and not name.startswith("sqlite_")
-        for name in sa.inspect(connection).get_table_names()
-    ):
-        raise RuntimeError("目标 SQLite 已有业务表；请使用独立目标并执行数据导入。")
+    tables = set(sa.inspect(connection).get_table_names(schema=schema))
+    if tables - {"alembic_version"}:
+        raise RuntimeError("目标业务 schema 已存在旧表；请使用全新、空的数据库/schema 初始化。")
     # New, empty databases receive the initial schema.
     op.create_table(
         "exchange_accounts",
@@ -226,5 +219,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """This baseline may represent an existing populated database."""
-    raise RuntimeError("初始业务库不能自动删除；请从备份恢复并按数据迁移流程处理。")
+    """Initial schema is not automatically dropped to protect business data."""
+    raise RuntimeError("初始业务库不能自动删除，请重建测试数据库或从备份恢复。")
