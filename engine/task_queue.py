@@ -243,8 +243,6 @@ class TaskCoordinator:
             raise HTTPException(409, "只有开发租户可以提交异步回测。")
         if not isinstance(parameters.get("account_id"), str):
             raise HTTPException(422, "缺少回测账户。")
-        if not self.runtime.store.strategy_loads(tenant_id, parameters["account_id"], include_archive=True):
-            raise HTTPException(409, "该租户账户没有已下发的策略。")
         fingerprint = _fingerprint(kind, parameters)
         with self.lock:
             if idempotency_key:
@@ -254,6 +252,12 @@ class TaskCoordinator:
                     if job["fingerprint"] != fingerprint:
                         raise HTTPException(409, "相同幂等键不能用于不同任务参数。")
                     return self._public(job)
+            # A replay returns its original handle even if its strategy version
+            # was archived after the first durable submission.
+            if not self.runtime.store.strategy_loads(
+                tenant_id, parameters["account_id"], include_archive=True,
+            ):
+                raise HTTPException(409, "该租户账户没有已下发的策略。")
             if self.pending.full():
                 raise HTTPException(429, "该 Engine 的回测等待队列已满。")
             identity = uuid4().hex
