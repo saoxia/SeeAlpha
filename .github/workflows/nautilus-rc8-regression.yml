@@ -30,6 +30,8 @@ jobs:
         run: uv sync --locked
       - name: Check NautilusTrader version
         run: uv run python -c 'import nautilus_trader; assert nautilus_trader.__version__ == "2.0.0rc8"'
+      - name: Isolated options reconnect regression
+        run: uv run pytest -q tests/connectors/binance/options_adapter_test.py::test_native_node_streams_history_reconnect_unsubscribe_and_shutdown
       - name: Install shell dependency for tests
         run: sudo apt-get update -qq && sudo apt-get install -y zsh
       - name: Build Rust converter
