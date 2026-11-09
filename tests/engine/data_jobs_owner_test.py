@@ -156,3 +156,33 @@ def test_engine_http_job_list_detail_cancel_and_tenant_isolation(tmp_path):
             root + "/job", json={"id": "../invalid"}, headers=headers,
         ).status_code == 422
     app.state.runtime.close()
+
+
+def test_engine_export_rejects_symlink_escape_and_missing_file(tmp_path):
+    (tmp_path / "data").mkdir()
+    app = create_app(EngineConfig(
+        tmp_path / "engine-state", "secret", project=tmp_path,
+        tenant_id="42", tenant_purpose="development",
+    ))
+    app.state.runtime.ensure_tenant("42", "development")
+    entry = job(status="succeeded", action="export")
+    app.state.market_data.repository.save_job(entry)
+    export_dir = tmp_path / "data/exports/ticks"
+    export_dir.mkdir(parents=True)
+    destination = export_dir / f"{entry['id']}.csv"
+    destination.write_text("timestamp,price\\n1,2000\\n")
+    url = f"/tenants/42/data/control/exports/{entry['id']}"
+    headers = {"Authorization": "Bearer secret"}
+    with TestClient(app) as client:
+        assert client.get(url).status_code == 401
+        assert client.get(url.replace("/42/", "/99/"), headers=headers).status_code == 403
+        exported = client.get(url, headers=headers)
+        assert exported.status_code == 200
+        assert exported.text == "timestamp,price\\n1,2000\\n"
+        destination.unlink()
+        secret = tmp_path / "private-business.db"
+        secret.write_text("never-expose")
+        destination.symlink_to(secret)
+        assert client.get(url, headers=headers).status_code == 404
+        assert secret.read_text() == "never-expose"
+    app.state.runtime.close()
