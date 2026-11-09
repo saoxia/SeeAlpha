@@ -74,15 +74,16 @@ python -m engine
 再对当前净持仓提交差额。预览和历史回测都不连接交易所。归档租户不能运行。
 正式租户不能使用这条历史回测。
 
-## 尚未纳入
+## 待验收与仍未启用
 
-把操作账本同步和资产校准 REST 改成纯事件消费。这两类只读连接器调用仍在 API 进程。
-已下发策略的预览不是交易所实盘。管理端不再启动已删除的研究回测目录。
+操作账本同步和资产校准仍由 Platform 编排和核算，交易所原生读取由 Engine HTTP 提供；
+尚未改造成只依赖完整执行事件流的对账模式。真实账户凭据和真实成交尚未验收。
+已下发策略的预览不是交易所实盘，自动策略实盘未启用。管理端不再启动已删除的研究回测目录。
 冻结研究快照里的 `pipeline` 导入保持原字节，不是当前可运行入口。
 
 ## Engine 镜像源码范围
 
 独立 Engine Docker 镜像现在只包含 `engine/`、`core/`、`nautilus_support.py`、
 `packages/` 和构建依赖，不包含业务后台和前端源码。跨进程错误与账户结果类型
-在 `core/engine_contracts.py` 定义。仓库尚未独立；详见
-[后续 API 解耦清单](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。
+在 `core/engine_contracts.py` 定义。仓库仍为 Monorepo，API 通过 Engine HTTP
+访问计算与交易所数据；详见 [当前运行边界与未验收范围](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。
