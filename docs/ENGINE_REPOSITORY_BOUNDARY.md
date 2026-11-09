@@ -8,56 +8,33 @@
 - `api/engine_client.py` 已删除进程内 `EngineRuntime` 构造、调用及兜底，
   始终通过 `httpx` 调用 Engine 的 HTTP 契约；独立 Engine 未启动时不能回退为业务
   进程内执行。业务 API 不再拥有 Engine Runtime 生命周期。
-  API 集成测试使用 Engine FastAPI 应用和 HTTPX 测试传输，验证相同的 HTTP 路由，
-  但此类测试不等同于两个真实独立进程的全链路验收。
+  API 集成测试使用 Engine FastAPI 应用和 HTTPX 测试传输；第 14 项还在独立
+  Engine Docker 容器重启后，以只包含 API/core 的隔离 Platform 进程完成 HTTP
+  版本、租户路由及错误响应验证。此项仍不等同于真实交易环境验收。
 - Engine Docker 构建只复制 `engine/`、`core/`、
   `nautilus_support.py`、策略示例 `packages/` 与锁定依赖，不再复制
   `api/`、`web/`、迁移或业务后台源码。
 
 本轮**不**拆分仓库、不改变业务 API、不改变线上部署模式，也不迁移真实账户。
 
-## 拆仓前仍需完成的解耦（不能宣称已独立）
+## 第 8–14 项合并后的当前边界（2026-11-09）
 
-当前业务 API 的以下模块仍直接依赖 Engine 实现代码：
+此前的“尚未切割”模块清单是第 8–14 项实施前的任务清单，不能继续当作现状。
+现已验证：
 
-| API 模块 | 剩余依赖及建议处理方式 |
-| --- | --- |
-| `api/exchanges/service.py` | Binance 账户资产、品种及现货/合约行情查询；在 Engine 增加受限只读 HTTP 能力 |
-| `api/exchanges/trading.py` | 手动交易市场行情；改为 Engine 查询接口 |
-| `api/equity/service.py` | 资产估值外部取价及对账查询；改为受授权的 Engine HTTP 查询，API 保留核算逻辑 |
-| `api/operations/service.py` 与 `options.py` | 交易所操作与期权历史；增加受控分页查询接口 |
-| `api/market_data/router.py`、`service.py`、`subscriptions.py` | 一次性任务、永续/期权实时采集进程，以及 Catalog 清单、最新数据时间、覆盖率、历史预览、图表、删除快照已由 Engine 独占；Platform 保留业务 ORM 订阅意图、期权目录发现与 HTTP 同步；历史起点解析及实时状态读取统一通过 Engine 配置预览与 HTTP 状态接口，Platform 不再读取 Engine 数据卷；其余交易和策略模块仍待切割 |
-| `api/market_data/monitor.py` | 平台已不再采样/写入服务监控，仅从 Engine HTTP 读取；已删除 `observe` 本地文件状态读取，仅保留 Engine HTTP 监控代理 |
-| `api/strategies/service.py` | 动态策略包校验与参数准备依赖 `engine.strategies.package`；需将校验放在受隔离的研究运行时或通过 Engine 授权接口调用 |
+- 生产 Platform 不直接导入 `engine.*` 或 `nautilus_trader`；业务端通过
+  `api/engine_client.py` 以版本化 HTTP 请求调用 Engine，不可用时不得退回本地执行。
+- 交易所只读数据与账户相关查询、操作流水、行情目录及管理任务经 Engine HTTP 提供；
+  Platform 继续持有业务授权、订阅意图、核算和账本记录。
+- Feed、历史补齐与数据任务的真实执行、状态和恢复归 Engine；策略包验证在 Engine
+  的有界工作进程内进行。这是执行隔离，不是不可信第三方策略的完整安全沙箱。
+- Engine Docker 镜像不包含 API/Web/业务迁移；独立容器和隔离 Platform 的 HTTP
+  联调、版本错误和租户拒绝路径已在
+  [PR #38](https://github.com/saoxia/SeeAlpha/pull/38) 关联 CI 中验证。
 
-**禁止仅将 import 路径改名、复制 Connector/回测实现到 API 或把所有
-Engine 实现移动到 `core` 来掩盖耦合。** 需要真正的远程协议隔离和现有
-调用/异常/幂等行为回归验证。
-
-本轮进一步删除了 `api/market_data/service.py` 内的 API 本地任务进程、任务结果读取与恢复逻辑。
-`EngineDataService` 独占任务操作记录、交易对排他、超时取消和中断恢复；Platform 只通过 Engine HTTP
-获取任务状态，并在 Engine 确认删除/裁剪成功后使用 `.local/state/api/market_settlements/` 的幂等结算标记
-更新业务配置。旧 API 任务目录不会被 Engine 自动接管。实时订阅工作进程也已归属 Engine；本地 Catalog 读取仍需后续独立清理。
-
-本轮行情监控状态（`/api/data/services`）与 Feed 实时状态（`/api/data/feed/status`）已改为只读 Engine HTTP，不在 Platform 主机目录查找监控文件。Engine 内继续负责过期、字段与租户验证。只读状态以 Engine 为真源；部分用于旧测试的本地数据文件投影仍保留，尚待移除。
-
-本次数据查询清理：Platform `api/market_data/router.py` 不再导入 NautilusTrader、Pipeline
-Catalog 或本地行情工作集，也不使用宿主机锁判断数据可读。库存、最近事件时间、覆盖率、
-准备预览、分页、实时图表统一调用现有 Engine HTTP 数据接口。Platform
-`DataService` 的存储检查、归档计划、删除计划和裁剪方案也不再本地计算。
-Engine 缺失时显式 503，不创建本地替代目录。读取租户数据卷、共享访问锁以及
-历史快照校验始终由 Engine 执行。尚待清理的是 `Subscriptions` 中历史本地
-状态投影，以及订阅起始日期解析中的某些直连数据实现。
-
-本次订阅工作进程清理：Platform 的 `Subscriptions` 不再持有 `processes/auxiliary`，
-也不直接执行 `engine.feed.managed`、`engine.pipeline.pair_data`，不管理期权共享进程，
-不会在业务 API 停止时关闭 Engine 工作进程。业务库配置变更后调用 Engine `sync`；
-业务 API 周期性恢复只重发 ORM 订阅意图。行情访问许可、进程恢复、期权批处理 manifest
-均由 Engine 负责。平台使用 `.local/run/api/market_policy_writer.lock` 保护业务配置写入；
-Engine 的采集进程继续使用独立的租户采集锁。即使两者运行在同一宿主机，也不共享锁名。
-
-建议下轮优先隔离交易所只读查询，再迁移操作记录，最后迁移数据管理链路；
-这些功能改造与未来独立仓库发布应分别验收。
+**后续仍需验收**：真实账户与下单、长期稳定性、生产状态卷备份恢复、
+完整升级兼容矩阵。当前同宿主机多租户不等于跨机器调度；
+这些缺口不应被描述为剩余 Python import 问题。
 
 ## 完全独立的验收条件
 
