@@ -17,6 +17,8 @@ from engine.data_manager.service import DataService as EngineDataService
 from engine.public_queries import router as venue_router
 from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
+from engine.task_queue import TaskCoordinator
+from engine.task_routes import router as task_router
 
 
 class Credentials(BaseModel):
@@ -137,6 +139,8 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
     app.include_router(venue_router)
     app.include_router(market_data_router)
     app.include_router(control_router)
+    app.state.tasks = TaskCoordinator(runtime, app.state.market_data, runtime.root)
+    app.include_router(task_router)
 
     stop_monitor = threading.Event()
     monitor_thread = None
@@ -166,6 +170,7 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
         stop_monitor.set()
         if monitor_thread is not None:
             monitor_thread.join(timeout=8)
+        app.state.tasks.close()
         app.state.market_data.close()
 
     @app.middleware("http")
