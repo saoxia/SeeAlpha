@@ -361,11 +361,10 @@ API 每 15 秒重读配置，参数不变不重启服务；读取失败时保留
 的兼容入口。仅保存 K 线时，真实秒线所需 Tick 放在原 `history/source_catalog` 内部目录。
 既有闭合冲突及待办重放规则保留。
 
-部署前须获得数据库迁移授权：停 API 及受管服务，使用既有数据库环境执行
-`.venv/bin/python -m alembic upgrade head`，再显式执行
-`.venv/bin/python -m api.market_data.import_configuration .local/state/api/data_policies.json`。
-导入仅补充数据库中尚不存在的交易对参数，保留原 JSON，不导入任务或运行进度；
-随后重启 API。已有 `history_enabled=true` 的配置会开始持续补齐，不是自动重试旧任务。
+以下 2026-10-29 迁移记载仅为历史记录，不适用于当前版本部署。
+当前新实例要求使用**全新空业务数据库/schema** 执行 `.venv/bin/alembic upgrade head`。
+`api.market_data.import_configuration` 旧版 JSON 参数导入 CLI 已删除，不提供旧环境原地接管；
+行情配置由 Platform ORM 保存并同步至 Engine，旧进程和任务数据不会自动迁移。
 本机已于 2026-10-29 获得用户明确授权后执行迁移与参数导入，并以干净行情数据切换。
 清理了旧 Catalog、Binance 原始行情、转换状态、连续行情日志及旧行情操作文件，
 同时仅按 `tick_data:` 前缀清除 8 条旧数据库行情任务；保留当前 ETHUSDC 配置。
