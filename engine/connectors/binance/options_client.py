@@ -112,7 +112,7 @@ class BinanceOptionsDataClient(MarketDataClient):
                                                   self.clock.timestamp_ns(), params=request.params))
 
     async def _request_instrument(self, request):
-        if len(getattr(request, "instrument_ids", (request.instrument_id,))) != 1:
+        if getattr(request, "instrument_ids", None) is not None and len(request.instrument_ids) != 1:
             raise ValueError("期权合约查询暂不支持批量请求")
         await self._load()
         item = self._instrument(request.instrument_id)
@@ -120,7 +120,7 @@ class BinanceOptionsDataClient(MarketDataClient):
                                                  self.clock.timestamp_ns(), params=request.params))
 
     async def _request_trades(self, request):
-        if len(getattr(request, "instrument_ids", (request.instrument_id,))) != 1:
+        if getattr(request, "instrument_ids", None) is not None and len(request.instrument_ids) != 1:
             raise ValueError("期权成交查询暂不支持批量请求")
         if request.start_ns is not None or request.end_ns is not None:
             raise ValueError("期权仅支持近期成交请求，不支持任意历史 Tick 时间查询")
@@ -151,7 +151,7 @@ class BinanceOptionsDataClient(MarketDataClient):
         raise ValueError("期权适配器仅支持外部 LAST 1m、5m、15m K 线")
 
     async def _request_bars(self, request):
-        if len(getattr(request, "bar_types", (request.bar_type,))) != 1:
+        if getattr(request, "bar_types", None) is not None and len(request.bar_types) != 1:
             raise ValueError("期权 K 线查询暂不支持批量请求")
         item, period = self._bar_level(request.bar_type)
         if request.start_ns is None or request.end_ns is None or request.start_ns > request.end_ns:
