@@ -102,6 +102,23 @@ def test_api_does_not_own_live_nodes_feed_processes_or_the_engine_book():
     assert 'os.getenv("ENGINE_URL", "http://127.0.0.1:8766")' in config
 
 
+def test_api_market_data_imports_no_engine_data_implementations_or_native_file_paths():
+    forbidden = ("engine.pipeline", "engine.feed", "engine.data_queries",
+                 "data/catalog", "data/market_data/", "collection.sqlite",
+                 "status.json", ".locks/")
+    for path in (PROJECT / "api/market_data").glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        for marker in forbidden:
+            assert marker not in source, f"{path} still owns Engine data path {marker}"
+    router = (PROJECT / "api/market_data/router.py").read_text(encoding="utf-8")
+    for route in ("datasets", "latest", "coverage", "page", "chart"):
+        assert f'data_query("{route}"' in router
+    service = (PROJECT / "api/market_data/service.py").read_text(encoding="utf-8")
+    assert "def _lease(" not in service
+    assert 'market_control("delete-plan"' in service
+    assert 'market_control("pair-delete-plan"' in service
+
+
 def test_connectors_stay_below_feed_pipeline_and_api():
     for path in (PROJECT / "engine/connectors").rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
