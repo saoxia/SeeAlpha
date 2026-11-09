@@ -254,3 +254,34 @@ def test_archiving_does_not_quarantine_tenant_files(tmp_path, monkeypatch):
 
     assert (root / "9").is_dir()
     assert not (root / ".retired").exists()
+
+
+def test_existing_tenant_engine_refuses_implicit_image_switch(tmp_path, monkeypatch):
+    """Changing ENGINE_DOCKER_IMAGE cannot silently reuse a legacy Engine."""
+    manager = DockerTenantManager(
+        tmp_path / "tenants", image="seealpha-engine:new-ref",
+        production_cpus="2", production_memory="4g",
+        development_cpus="4", development_memory="8g",
+        log_root=tmp_path / "logs",
+    )
+    existing = {
+        "Config": {
+            "Image": "seealpha-engine:old-ref",
+            "Labels": {
+                "seealpha.managed": "tenant-engine",
+                "seealpha.tenant": "7",
+                "seealpha.purpose": "development",
+            },
+        },
+        "State": {"Running": True},
+    }
+    monkeypatch.setattr(manager, "_inspect", lambda name: existing)
+    def no_docker(*_args, **_kwargs):
+        raise AssertionError("Existing container must not be restarted or replaced")
+    monkeypatch.setattr(manager, "_docker", no_docker)
+
+    with pytest.raises(EngineConflict, match="镜像"):
+        manager.ensure("7", "development")
+    with pytest.raises(EngineConflict, match="镜像"):
+        manager.endpoint("7")
+    assert not (tmp_path / "tenants" / "7" / "engine.env").exists()
