@@ -1,4 +1,4 @@
-"""API orchestration; market-data jobs run in the engine pipeline."""
+"""Business market-data configuration and Engine-owned task orchestration."""
 
 import fcntl
 import hashlib
@@ -8,7 +8,6 @@ import re
 import shutil
 import signal
 import subprocess
-import sys
 import threading
 from contextlib import ExitStack
 from datetime import UTC, datetime
@@ -18,7 +17,7 @@ from fastapi import HTTPException
 
 from core.paths import PROJECT_ROOT
 
-from .repository import OperationFiles, PolicyRepository
+from .repository import PolicyRepository
 
 
 def load_settings():
@@ -51,18 +50,11 @@ def plan_daily_archives(*args, **kwargs):
     return native_plan(*args, **kwargs)
 
 
-PREFIX = "tick_data:"
-
-
 class DataService:
     def __init__(self, database, *, project=PROJECT_ROOT):
         self.project = project
-        self.repository = OperationFiles(self.directory / "operations")
         self.policy_repository = PolicyRepository(database) if database.backend == "orm" else None
         self.lock = threading.RLock()
-        self.processes = {}
-        self.threads = []
-        self.closed = False
         from .subscriptions import Subscriptions
         self.subscriptions = Subscriptions(self)
         from .monitor import ServiceMonitor
@@ -314,257 +306,39 @@ class DataService:
                 lease.enter_context(self._lease(policy.symbol, policy.product, access=True, shared=True))
                 return self.subscriptions._save(policy, allow_later_start=True)
 
-    def _records(self):
-        return [job for job in self.repository.list_jobs()
-                if job.get("action", "").startswith(PREFIX)]
-
-    def recover(self):
-        records = self._records()
-        for record in records:
-            if record["status"] != "running":
-                continue
-            parameters = record.get("parameters", {})
-            if not isinstance(parameters, dict) or not isinstance(parameters.get("symbol"), str):
-                continue
-            try:
-                lease = self._lease(parameters.get("symbol", ""), parameters.get("product", "futures_um"))
-            except HTTPException as exc:
-                if exc.status_code == 409:
-                    continue  # The owning worker still holds this pair's inherited lease.
-                raise
-            except ValueError:
-                continue  # Unknown scope stays unconfirmed; never infer that it stopped.
-            with lease:
-                # Re-read after claiming the pair: a worker may have finished since
-                # the first snapshot. Never overwrite its committed terminal state.
-                job = next((item for item in self._records() if item["id"] == record["id"]), None)
-                if job is not None and job["status"] == "running":
-                    job.update(status="interrupted", finished_at=datetime.now(UTC).isoformat(),
-                               result=self._result(job["id"]),
-                               error=("上次删除任务中断，可能已删除部分文件；请查看日志并重新预览。"
-                                      if job["action"] in {PREFIX + "delete", PREFIX + "delete_pair", PREFIX + "trim"} else
-                                      "上次任务未正常结束；已保留数据和结果，请校验后重试。"))
-                    self.repository.save_job(job)
-                if job is not None:
-                    record.update(job)
-        return records
+    def _required_engine(self):
+        """Never fall back to API-local workers or persisted job records."""
+        engine = getattr(self, "engine", None)
+        if engine is None:
+            raise HTTPException(503, "行情 Engine 未配置，无法执行或读取数据任务。")
+        return engine
 
     def jobs(self, *, reconcile=True):
-        if self.remote:
-            result = self.engine.market_control("jobs")
-            if reconcile:
-                self.reconcile_jobs()
-            return result
-        # Reconcile an orphan only after its inherited worker lease has been released.
-        records = self.recover() if reconcile else self._records()
-        result = []
-        for job in sorted(records, key=lambda j: j["created_at"], reverse=True)[:100]:
-            result.append(self._public(job))
+        result = self._required_engine().market_control("jobs")
+        if reconcile:
+            self.reconcile_jobs()
         return result
 
-    def _public(self, job):
-        value = dict(job)
-        value["action"] = value["action"].removeprefix(PREFIX)
-        owned = job["id"] in self.processes
-        value["cancellable"] = job["status"] == "running" and owned
-        if job["status"] == "running" and not owned:
-            # A worker may outlive an interrupted API. Inspect its durable result,
-            # but do not assume success or kill a PID from persisted metadata.
-            value["status"] = "unknown"
-            value["error"] = "任务所属 API 已变化，执行状态未确认；不会自动重试。"
-        return value
-
     def job(self, identity):
-        if self.remote:
-            result = self.engine.market_control("job", {"id": identity})
-            if result["status"] == "succeeded":
-                self.reconcile_jobs()
-            return result
-        if not re.fullmatch(r"[0-9a-f]{32}", identity):
-            raise HTTPException(404, "数据任务不存在")
-        with self.lock:
-            matches = [job for job in self._records() if job["id"] == identity]
-            if not matches:
-                raise HTTPException(404, "数据任务不存在")
-            value = self._public(matches[0])
-        return self._with_log(value)
+        result = self._required_engine().market_control("job", {"id": identity})
+        if result["status"] == "succeeded":
+            self.reconcile_jobs()
+        return result
 
     def task_snapshot(self, selected=""):
-        if self.remote:
-            return self.engine.market_control("snapshot", {"selected": selected})
-        # Publishing is read-only; startup/start/status perform durable recovery.
-        tasks = self.jobs(reconcile=False)
-        detail = None
-        for index, job in enumerate(tasks):
-            if job["status"] in {"running", "unknown"} or job["id"] == selected:
-                value = self._with_log(job)
-                tasks[index] = {**job, "progress": value["progress"]}
-                if job["id"] == selected:
-                    detail = value
-        snapshot = {"type": "tasks", "tasks": tasks, "detail": detail}
-        snapshot["subscriptions"] = self.subscriptions.items()
-        return snapshot
+        return self._required_engine().market_control("snapshot", {"selected": selected})
 
-    def _with_log(self, value):
-        identity = value["id"]
-        value = dict(value)
-        try:
-            with (self.log_directory / f"{identity}.log").open("rb") as log:
-                size = log.seek(0, os.SEEK_END)
-                log.seek(max(0, size - 32_768))
-                value.update(log=log.read(32_768).decode("utf-8", errors="replace"),
-                             log_truncated=size > 32_768)
-        except FileNotFoundError:
-            value.update(log="", log_truncated=False)
-        lines = value["log"].splitlines()
-        value["progress"] = next((line.strip()[-300:] for line in reversed(lines) if line.strip()), "")
-        # Preserve a completed validation result even when the API owner was lost.
-        if value["status"] == "unknown":
-            value["result"] = self._result(identity)
-        return value
-
-    def _result(self, identity):
-        try:
-            return json.loads((self.directory / f"{identity}.json").read_text())
-        except (OSError, ValueError):
-            return None
-
-    def start(self, payload, *, resolved_history=None):
-        if self.remote:
-            if payload.action in {"delete_pair", "trim"}:
-                self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
-            return self.engine.market_control(
-                "job/start", {"payload": payload.model_dump(mode="json", exclude_none=True)},
-            )
-        self.require_storage(write=True)
-        if payload.action not in {"backfill", "delete_pair", "trim"}:
-            selection, _settings = self.request(payload)
-        if payload.product == "options":
-            if payload.action not in {"prepare", "validate", "delete", "delete_pair"}:
-                raise ValueError("期权仅支持获取官方数据、本地来源校验和确认删除")
-            if payload.action == "prepare":
-                from engine.pipeline.options_data import check_download
-                check_download(selection)
-        if payload.action not in {"delete_pair", "delete", "trim"} and any(
-                policy.symbol == payload.symbol and policy.product == payload.product and policy.history_enabled
-                for policy in self.subscriptions._read()):
-            raise HTTPException(409, "该交易对由历史补齐服务管理；请先暂停历史补齐，再执行兼容数据操作。")
-        self.recover()
-        with self.lock:
-            if self.closed:
-                raise HTTPException(503, "服务正在停止")
-            lease = ExitStack()
-            process = None
-            marked_deleting = False
-            try:
-                job_lease = lease.enter_context(self._lease(payload.symbol, payload.product))
-                if payload.action == "delete_pair":
-                    from engine.pipeline.pair_deletion import pair_deletion_plan
-                    with self.subscriptions.lock:
-                        self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
-                        access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True))
-                        plan = pair_deletion_plan(payload.symbol, payload.product, load_settings(), project=self.project)
-                        if plan["snapshot"] != payload.deletion_snapshot:
-                            raise HTTPException(409, "数据已变化，请重新预览删除交易对")
-                        self.subscriptions.deleting.add((payload.product, payload.symbol))
-                        marked_deleting = True
-                if payload.action == "trim":
-                    from engine.pipeline.pair_deletion import history_trim_plan
-                    with self.subscriptions.lock:
-                        self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
-                        access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True))
-                        plan = history_trim_plan(payload.symbol, payload.product, payload.policy.history_start,
-                                                 load_settings(), project=self.project)
-                        if plan["snapshot"] != payload.deletion_snapshot:
-                            raise HTTPException(409, "数据已变化，请重新预览配置删除范围")
-                        self.subscriptions.deleting.add((payload.product, payload.symbol))
-                        marked_deleting = True
-                if payload.action == "delete":
-                    if any(item["policy"]["symbol"] == payload.symbol
-                           and item["policy"]["product"] == payload.product
-                           and (item["policy"]["realtime_enabled"] or item["policy"]["history_enabled"])
-                           for item in self.subscriptions.items()):
-                        raise HTTPException(409, "请先暂停该交易对的实时接入和历史补齐，再删除历史数据")
-                    access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True))
-                    request, settings = self.request(payload)
-                    plan = deletion_plan(request, settings, delete_archives=payload.delete_archives)
-                    if plan["snapshot"] != payload.deletion_snapshot or not plan["file_count"]:
-                        raise HTTPException(409, "数据已变化或没有可删除文件，请重新预览删除范围。")
-                if payload.action not in {"delete", "delete_pair", "trim"}:
-                    access_lease = lease.enter_context(self._lease(payload.symbol, payload.product, access=True, shared=True))
-                identity = uuid4().hex
-                parameters = payload.model_dump(mode="json", exclude={"action"}, exclude_none=True)
-                if payload.action == "backfill":
-                    if resolved_history is None:
-                        from engine.pipeline.catalog import ParquetDataCatalog
-                        from engine.pipeline.pair_data import history_bounds
-                        settings = load_settings()
-                        catalog = ParquetDataCatalog(settings.catalog_dir) if settings.catalog_dir.is_dir() else None
-                        from engine.feed.pair_store import journal_inventory
-                        starts = [int(item["event_ranges_ns"][0][0])
-                                  for path in self.subscriptions.journal_paths(payload)
-                                  for item in journal_inventory(path, payload.symbol)
-                                  if item["level"] == payload.base_level and item["event_ranges_ns"]]
-                        first, last = history_bounds(parameters, catalog, datetime.now(UTC), retained_start_ns=min(starts, default=None))
-                        resolved_history = {"resolved_start": first.isoformat() if first else None, "resolved_end": last.isoformat()}
-                    parameters.update(resolved_history)
-                job = {"id": identity, "action": PREFIX + payload.action, "status": "running",
-                       "created_at": datetime.now(UTC).isoformat(), "finished_at": None,
-                       "parameters": parameters, "error": None, "result": None}
-                self.repository.save_job(job)
-                self.directory.mkdir(parents=True, exist_ok=True)
-                self.log_directory.mkdir(parents=True, exist_ok=True)
-                self.threads = [thread for thread in self.threads if thread.is_alive()]
-                command = ([sys.executable, "-m", "engine.pipeline.pair_data"] if payload.action == "backfill" else
-                           [sys.executable, "-m", "engine.pipeline.data_management", payload.action]) + [
-                    "--request", json.dumps(parameters), "--job-id", identity]
-                engine = getattr(self, "engine", None)
-                log_path = self.log_directory / f"{identity}.log"
-                if engine is not None and engine.remote:
-                    process = engine.spawn_worker(
-                        command, log_path, tenant_id=self.subscriptions.bound_tenant_id(),
-                        access=(payload.symbol, payload.product, True), log_mode="xb",
-                    )
-                else:
-                    from engine.supervisor import popen as start_worker
-                    with log_path.open("xb", buffering=0) as output:
-                        process = start_worker(
-                            command, cwd=self.project, stdin=subprocess.DEVNULL, stdout=output,
-                            stderr=subprocess.STDOUT, start_new_session=True,
-                            pass_fds=(job_lease.fileno(), access_lease.fileno()),
-                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                        )
-                    if engine is not None and payload.action == "backfill":
-                        engine.note_worker(command, tenant_id=self.subscriptions.bound_tenant_id())
-                self.processes[identity] = (process, threading.Event())
-                thread = threading.Thread(target=self._wait, args=(job, process, lease, access_lease), daemon=True)
-                self.threads.append(thread)
-                thread.start()
-                return self._public(job)
-            except Exception:
-                if marked_deleting:
-                    self.subscriptions.deleting.discard((payload.product, payload.symbol))
-                if process is not None:
-                    self._stop(process)
-                lease.close()
-                if "job" in locals():
-                    job.update(status="failed", finished_at=datetime.now(UTC).isoformat(),
-                               error="数据任务未能启动")
-                    self.repository.save_job(job)
-                raise
+    def start(self, payload):
+        if payload.action in {"delete_pair", "trim"}:
+            # Business configuration is paused before Engine takes exclusive
+            # deletion leases; Engine validates the authoritative snapshot.
+            self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
+        return self._required_engine().market_control(
+            "job/start", {"payload": payload.model_dump(mode="json", exclude_none=True)},
+        )
 
     def retry(self, identity):
-        if self.remote:
-            return self.engine.market_control("job/retry", {"id": identity})
-        previous = self.job(identity)
-        if previous["action"] != "backfill" or previous["status"] not in {"failed", "cancelled", "interrupted"}:
-            raise HTTPException(409, "仅可重试已失败、取消或中断的历史追加任务")
-        from .contracts import PairHistoryJob
-        fields = PairHistoryJob.model_fields
-        parameters = previous["parameters"]
-        payload = PairHistoryJob(**{key: value for key, value in parameters.items() if key in fields})
-        resolved = {key: parameters[key] for key in ("resolved_start", "resolved_end") if key in parameters}
-        return self.start(payload, resolved_history=resolved or None)
+        return self._required_engine().market_control("job/retry", {"id": identity})
 
     @staticmethod
     def _stop(process):
@@ -583,79 +357,10 @@ class DataService:
         except ProcessLookupError:
             pass
 
-    def _wait(self, job, process, lease, access_lease=None):
-        try:
-            try:
-                process.wait(timeout=6 * 60 * 60)
-                error = None
-            except subprocess.TimeoutExpired:
-                self._stop(process)
-                error = ("删除任务超过六小时限制，已终止；可能已删除部分文件，请重新预览。"
-                         if job["action"] in {PREFIX + "delete", PREFIX + "delete_pair", PREFIX + "trim"} else
-                         "任务超过六小时限制，已终止；已完成数据保留。")
-            result = self._result(job["id"])
-            with self.lock:
-                cancelled = self.processes[job["id"]][1].is_set()
-                status = ("cancelled" if cancelled else "succeeded"
-                          if process.returncode == 0 and result is not None and not error else "failed")
-                if status == "succeeded" and job["action"] == PREFIX + "delete_pair":
-                    try:
-                        self.subscriptions.remove(job["parameters"]["symbol"], job["parameters"]["product"])
-                    except (OSError, HTTPException):
-                        status = "failed"
-                        error = "行情文件已删除，但配置移除失败；请重新预览并重试删除交易对。"
-                if status == "succeeded" and job["action"] == PREFIX + "trim":
-                    from ..db.errors import StorageUnavailable
-                    from .contracts import DataPolicy
-                    try:
-                        with self.subscriptions.lock:
-                            self.subscriptions.deleting.discard((job["parameters"]["product"], job["parameters"]["symbol"]))
-                            access_lease.close()
-                            self.subscriptions._save(DataPolicy.model_validate(job["parameters"]["policy"]), allow_later_start=True)
-                    except (OSError, ValueError, HTTPException, StorageUnavailable):
-                        status, error = "failed", "历史已裁剪，但新配置保存失败；服务保持暂停，请重新检查并保存配置。"
-                job.update(status=status, finished_at=datetime.now(UTC).isoformat(), result=result,
-                           error=error or (("删除已取消，可能已删除部分文件；请查看日志并重新预览。"
-                                           if job["action"] in {PREFIX + "delete", PREFIX + "delete_pair", PREFIX + "trim"} else
-                                           "已取消；部分数据可能已完成，下次先校验。") if cancelled else
-                                           ("删除未完成，可能已删除部分文件；请查看日志并重新预览。"
-                                            if job["action"] in {PREFIX + "delete", PREFIX + "delete_pair", PREFIX + "trim"} else
-                                            "任务未完成，请查看日志与校验结果。") if status == "failed"
-                                           else None))
-                self.repository.save_job(job)
-        finally:
-            # Keep cross-process exclusion until the child has stopped and state is saved.
-            with self.lock:
-                self.processes.pop(job["id"], None)
-                if job["action"] in {PREFIX + "delete_pair", PREFIX + "trim"}:
-                    self.subscriptions.deleting.discard((job["parameters"]["product"], job["parameters"]["symbol"]))
-            lease.close()
-
     def cancel(self, identity):
-        if self.remote:
-            return self.engine.market_control("job/cancel", {"id": identity})
-        self.job(identity)
-        with self.lock:
-            entry = self.processes.get(identity)
-            if entry is None:
-                if self.job(identity)["status"] == "unknown":
-                    raise HTTPException(409, "执行状态未确认，不能从当前进程安全取消。")
-                return self.job(identity)
-            process, cancelled = entry
-            cancelled.set()
-            self._stop(process)
-        return self.job(identity)
+        return self._required_engine().market_control("job/cancel", {"id": identity})
 
     def close(self):
+        # Only Platform business subscriptions are closed here. Active Engine
+        # jobs and their durable recovery survive API restarts.
         self.subscriptions.close()
-        if self.remote:
-            return  # Engine workers must survive business API restart.
-        with self.lock:
-            self.closed = True
-            entries = list(self.processes.values())
-            for _, cancelled in entries:
-                cancelled.set()
-        for process, _ in entries:
-            self._stop(process)
-        for thread in self.threads:
-            thread.join(timeout=10)
