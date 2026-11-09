@@ -8,7 +8,7 @@
 期权持仓单独从初始基准和后续真实成交、行权推算，不写入分钟文件；
 操作同步复用现有账本及同步状态，重启保留基准。详见 [期权操作与持仓](../docs/OPERATIONS_API.md#期权操作与持仓推算2026-11-08)。
 账户创建/编辑不要求交易对。账户快照、手动交易和估值 LiveNode 由常驻
-[交易引擎](../engine/README.md) 执行；API 解密后按账户下发凭据，不把主密钥交给引擎。
+[独立交易引擎](https://github.com/saoxia/seealpha-engine) 执行；API 解密后按账户下发凭据，不把主密钥交给引擎。
 `/api/*` 给前端的形状保持不变。接口范围及限制见
 [Binance 原生 API 说明](../docs/BINANCE_NATIVE_API.md)。
 
@@ -20,18 +20,20 @@
 默认 `single` 模式不变；统一目录与多正式租户调整要求全新初始化业务数据库。
 **旧单 Engine 的订单/持仓/幂等状态不会自动搬迁。本轮仅支持全新部署，不能覆盖真实交易证据。**
 部署、镜像构建、独立数据目录及停机迁移要求见
-[每租户 Docker Engine 部署说明](../docs/TENANT_DOCKER_RUNTIME.md)。
+[每租户 Docker Engine 部署说明](../docs/TENANT_DOCKER_RUNTIME.md)，新仓库镜像构建与版本切换见 [独立 Engine 接入](../docs/EXTERNAL_ENGINE.md)。
 
 ## 启动
 
 在项目根目录安装锁定依赖，并启动仅本机可访问的开发服务：
 
 ```bash
+# 在单独的 seealpha-engine checkout 中启动 Engine，不使用此仓库的 engine/
+# 参见 docs/EXTERNAL_ENGINE.md，准备隔离状态目录与私有 Token
 uv sync --locked --group api
-.venv/bin/python -m engine
 COOKIE_SECURE=false \
+ENGINE_DEPLOYMENT=single \
 ENGINE_URL=http://127.0.0.1:8766 \
-ENGINE_TOKEN=seealpha-local-engine \
+ENGINE_TOKEN='<与独立Engine相同的私有开发令牌>' \
 ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```

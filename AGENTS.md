@@ -7,7 +7,7 @@
 后续功能归属和依赖方向先对照 [Engine / Platform 边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)：
 Engine 专注量化数据、回测、模拟及交易执行、风险与运行事实；Platform 专注用户/租户、
 策略开发与授权、工作流编排、运营和可视化。当前维持 Monorepo，目标是 Engine 可独立仓库，
-**不得把“将来拆仓”当作本轮或后续任务自动重构的授权**。跨界改动须明确获批并验证。
+**不得把“将来拆仓”当作自动重构的授权**。2026-11-10 用户已授权渐进拆分：独立 Engine 建好后让 Platform 经 HTTP/固定镜像使用它，旧 `engine/` 暂留供验证；删除旧代码及实盘迁移须单独验收，其他跨界改动仍须明确授权。
 
 ## Priority 1：架构冻结（Architecture Freeze）
 

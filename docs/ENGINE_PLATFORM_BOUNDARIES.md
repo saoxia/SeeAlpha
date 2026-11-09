@@ -8,7 +8,7 @@ SeeAlpha = **量化交易能力内核（Engine）** + **量化研发与运营平
 
 - **Engine 追求量化能力的上限**：提高行情与数据质量、研究和回测能力、组合风控、模拟与实盘执行、性能和可靠性。
 - **Platform 追求使用量化能力的效率**：降低策略开发、验证、发布、管理和运营的门槛，为人工用户与经授权的 AI 工作流提供统一入口。
-- **仓库策略**：目前继续使用单一 Monorepo 以提高联合开发和测试效率。Engine 的代码与运行边界以**未来可独立仓库、独立构建、独立发布**为目标；本阶段不拆仓。
+- **仓库策略（2026-11-10 更新）**：用户已授权渐进拆分；独立 Engine 仓库已建立，原 Monorepo 暂留旧实现和联合测试，Platform 开始接入外部 Engine 服务/固定镜像。此阶段不删除旧 `engine/`，不自动切换实盘。
 
 ## 职责归属
 
@@ -45,7 +45,7 @@ SeeAlpha = **量化交易能力内核（Engine）** + **量化研发与运营平
 
 2026-11-09 的第 8–14 项已消除生产 Platform 对 Engine 与 NautilusTrader 源码的直接导入，并验证隔离环境下的跨进程 HTTP 契约、租户权限与独立 Engine Docker 构建（[PR #38](https://github.com/saoxia/SeeAlpha/pull/38)）。**达到这一阶段的源码与构建隔离，不等于已拆为独立仓库，也不等于具备真实资金实盘或不可信代码安全沙箱能力**。
 
-尚待独立验收：真实账户与真实交易所链路、策略运行时可靠性、长期行情采集、状态卷备份恢复，以及多版本发布兼容矩阵。当前仍保留 Monorepo 与同机可选 Docker 模式；具体边界与历史变更见 [Engine 仓库边界](ENGINE_REPOSITORY_BOUNDARY.md)，存储及租户路由见 [每租户 Docker Engine](TENANT_DOCKER_RUNTIME.md)。
+尚待独立验收：真实账户与真实交易所链路、策略运行时可靠性、长期行情采集、状态卷备份恢复，以及多版本发布兼容矩阵。当前处于独立仓库迁移过渡期，仍保留 Monorepo 与同机可选 Docker 模式；新启动流程见 [跨仓库接入](EXTERNAL_ENGINE.md)。具体边界与历史变更见 [Engine 仓库边界](ENGINE_REPOSITORY_BOUNDARY.md)，存储及租户路由见 [每租户 Docker Engine](TENANT_DOCKER_RUNTIME.md)。
 
 ## 独立仓库就绪的验收标准
 

@@ -167,6 +167,11 @@ class DockerTenantManager:
                     container = self._inspect(name)
                 else:
                     self._validate_container(container, tenant_id, purpose)
+                    if container["Config"].get("Image") != self.image:
+                        raise EngineConflict(
+                            "现有租户 Engine 镜像与 ENGINE_DOCKER_IMAGE 不一致；"
+                            "拒绝复用。请先检查未决订单、备份状态卷并按升级流程重建容器。"
+                        )
                     expected_data = data
                     mounts = {item["Destination"]: Path(item["Source"]).resolve()
                               for item in container.get("Mounts", [])}
@@ -202,6 +207,8 @@ class DockerTenantManager:
             if container is None:
                 raise OSError("租户 Engine 未部署。")
             self._validate_container(container, tenant_id)
+            if container["Config"].get("Image") != self.image:
+                raise EngineConflict("当前 Engine 镜像与配置不符，拒绝连接旧版本容器。")
             purpose = container["Config"]["Labels"]["seealpha.purpose"]
             token = self._credentials(env_path, tenant_id, purpose, create=False)
             self._endpoints[tenant_id] = (self._address(container), token)

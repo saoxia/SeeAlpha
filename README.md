@@ -14,7 +14,7 @@ Engine 专注数据、回测、策略运行、风控和交易执行的正确性�
 Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、任务编排、
 可视化和业务运营，实际量化计算由 Engine 承担。
 
-**目前维持单仓库开发**，但以 Engine 可独立构建、运行、发布，未来可独立仓库为目标。
+**正在分阶段拆分仓库**：独立 `saoxia/seealpha-engine` 已建立。旧 `engine/` 暂时保留供历史测试和安全回滚；新的开发/部署入口使用独立 Engine 服务或其固定版本镜像，不再从原仓库构建。
 职责归属、依赖规则、剩余解耦项与验收条件见
 [Engine / Platform 产品与架构边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)；
 当前已完成 Platform 的源码导入隔离和 Engine 跨进程契约验收，但不意味着已完成实盘策略或真实账户验收。
@@ -74,6 +74,9 @@ Web 项目检查按同一范围依次运行 Ruff 和 pytest。
 
 ## 连续分钟行情层
 
+以下行情和历史管道 CLI 在独立 `seealpha-engine` 仓库中运行；此处保留旧代码说明供迁移期间核对，Platform 运行不应启动这些进程。
+
+
 新增独立的[统一行情层](engine/feed/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
 REST 补齐与 WebSocket 实时数据，包含连续检查点、重启回放、来源冲突检测和数据就绪控制。
 仅采集公开行情，尚未接入真实账户或自动启用现行策略。
@@ -84,11 +87,12 @@ REST 补齐与 WebSocket 实时数据，包含连续检查点、重启回放、�
 ```
 
 常驻交易引擎与业务 API 分开启动。引擎默认 `127.0.0.1:8766`，API 用 `ENGINE_URL` 连接。
-说明见 [引擎](engine/README.md) 与 [API](api/README.md)。
+新的启动方式见 [独立 Engine 接入](docs/EXTERNAL_ENGINE.md) 和 [API](api/README.md)。
 
 ```bash
-.venv/bin/python -m engine
-COOKIE_SECURE=false ENGINE_URL=http://127.0.0.1:8766 \
+# 先在独立 seealpha-engine 项目启动 Engine（参见 docs/EXTERNAL_ENGINE.md）
+COOKIE_SECURE=false ENGINE_DEPLOYMENT=single \
+  ENGINE_URL=http://127.0.0.1:8766 ENGINE_TOKEN='<私有开发令牌>' \
   .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
