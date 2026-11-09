@@ -17,8 +17,8 @@
 
 `ENGINE_DEPLOYMENT=docker` 时，API 根据 `tenant_id` 分发到各自的常驻 Engine 容器，
 并为每个租户使用独立 Token、SQLite、历史数据目录及 CPU/内存限制。
-默认 `single` 模式不变；无需 API 数据库迁移。
-**旧单 Engine 的订单/持仓/幂等状态不会自动搬迁，禁止在未迁移的生产环境直接切换。**
+默认 `single` 模式不变；统一目录与多正式租户调整要求全新初始化业务数据库。
+**旧单 Engine 的订单/持仓/幂等状态不会自动搬迁。本轮仅支持全新部署，不能覆盖真实交易证据。**
 部署、镜像构建、独立数据目录及停机迁移要求见
 [每租户 Docker Engine 部署说明](../docs/TENANT_DOCKER_RUNTIME.md)。
 
@@ -59,9 +59,9 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/auth/impersonate` | 管理员把当前会话切换为另一用户的视图 |
 | `POST /api/auth/impersonate/stop` | 管理员退出该视图，回到自己的会话 |
 | `GET /api/users` | 管理员列出用户及其正式租户。正在查看其他用户时不可用 |
-| `POST /api/users` | 管理员创建用户。创建时自动准备唯一正式租户 |
-| `GET /api/tenants` | 当前视图用户自己的租户。正式租户是默认租户 |
-| `POST /api/tenants` | 为当前视图用户新建开发租户。再创建正式租户会被拒绝 |
+| `POST /api/users` | 管理员创建用户。创建时自动准备一个初始正式租户 |
+| `GET /api/tenants` | 当前视图用户自己的正式和开发租户 |
+| `POST /api/tenants` | 新建开发租户；额外正式租户仅管理员可创建，按用途创建独立 Engine |
 | `POST /api/tenants/{id}/copy` | 把行情订阅复制成自己的新开发租户，不复制密钥或虚拟资金 |
 | `POST /api/tenants/{id}/share` | 把行情订阅分享成其他用户的新开发租户 |
 | `GET /api/management/state` | 检查快照、策略、任务和可访问报告，需要登录 |
