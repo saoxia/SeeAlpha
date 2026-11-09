@@ -170,6 +170,20 @@ def test_orm_refuses_unmigrated_database(tmp_path):
     assert not Path(tmp_path / "unused").exists()
 
 
+def test_deployed_api_cannot_fall_back_to_inprocess_engine(tmp_path, monkeypatch):
+    from api import config
+
+    monkeypatch.setenv("ENGINE_URL", "inprocess")
+    with pytest.raises(ValueError, match="HTTP"):
+        config.Settings.from_environment()
+    with pytest.raises(ValueError, match="不允许进程内 Engine"):
+        create_app(Settings(
+            tmp_path / "unused.db", database_url=f"sqlite:///{tmp_path / 'business.db'}",
+            require_database_url=True, engine_url="inprocess",
+        ))
+    assert not (tmp_path / "business.db").exists()
+
+
 def test_runtime_without_explicit_database_does_not_create_local_data(tmp_path, monkeypatch):
     from api import config
     from api.db.errors import StorageUnavailable
