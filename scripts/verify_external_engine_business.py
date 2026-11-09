@@ -50,6 +50,14 @@ def main():
     assert "engine" not in sys.modules
     assert "nautilus_trader" not in sys.modules
 
+    # Explicitly bypass host proxies: no disposable Engine bearer token may be
+    # forwarded by a machine-level HTTP(S) proxy, even on unusual NO_PROXY setups.
+    for proxy in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                  "http_proxy", "https_proxy", "all_proxy"):
+        os.environ.pop(proxy, None)
+    os.environ["NO_PROXY"] = "127.0.0.1,localhost"
+    os.environ["no_proxy"] = "127.0.0.1,localhost"
+
     client = EngineClient(root / "state", url=url, token=token)
     try:
         # This is an isolated container and its data/state are destroyed on exit.
