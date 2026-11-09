@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
@@ -75,16 +75,24 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 app.state.management = runtime.__enter__()
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
-            if app.state.engine.remote:
-                await asyncio.to_thread(app.state.market_data.reconcile_jobs)
+            async def settle_market_jobs():
+                if not app.state.engine.remote:
+                    return
+                try:
+                    await asyncio.to_thread(app.state.market_data.reconcile_jobs)
+                except (OSError, HTTPException, StorageUnavailable):
+                    logging.getLogger(__name__).warning(
+                        "行情任务的业务配置结算未完成，保留记录以便下次重试。",
+                    )
+
+            await settle_market_jobs()
             await asyncio.to_thread(app.state.market_data.subscriptions.restore)
             await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
             async def reconcile_configuration():
                 while True:
                     await asyncio.sleep(15)
-                    if app.state.engine.remote:
-                        await asyncio.to_thread(app.state.market_data.reconcile_jobs)
+                    await settle_market_jobs()
                     await asyncio.to_thread(app.state.market_data.subscriptions.restore)
                     await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
