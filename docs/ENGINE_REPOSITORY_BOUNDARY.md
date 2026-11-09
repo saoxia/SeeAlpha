@@ -5,9 +5,11 @@
 - 跨 HTTP 的 `EngineConflict`、`QueryError`、`AccountSnapshot` 提取到轻量
   `core/engine_contracts.py`，API 和 Engine 使用同一实现；旧 Engine 导入位置继续
   导出相同类型，避免改变异常捕获、序列化与现有测试行为。
-- `api/engine_client.py` 不再在模块导入时加载 Engine 交易运行时或 Binance Nautilus
-  连接器。常规 HTTP/Docker 部署只依赖 `core` 合同、`httpx`；历史单测所需
-  `inprocess` 实例保留显式懒加载入口。
+- `api/engine_client.py` 已删除进程内 `EngineRuntime` 构造、调用及兜底，
+  始终通过 `httpx` 调用 Engine 的 HTTP 契约；独立 Engine 未启动时不能回退为业务
+  进程内执行。业务 API 不再拥有 Engine Runtime 生命周期。
+  API 集成测试使用 Engine FastAPI 应用和 HTTPX 测试传输，验证相同的 HTTP 路由，
+  但此类测试不等同于两个真实独立进程的全链路验收。
 - Engine Docker 构建只复制 `engine/`、`core/`、
   `nautilus_support.py`、策略示例 `packages/` 与锁定依赖，不再复制
   `api/`、`web/`、迁移或业务后台源码。

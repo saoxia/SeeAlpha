@@ -49,7 +49,18 @@ def context(tmp_path, monkeypatch):
 
     app.state.exchanges.catalog = catalog
     app.state.market_data = DataService(database, project=tmp_path)
-    app.state.market_data.engine = app.state.engine
+
+    class LocalDataManagerWithHTTPEngine:
+        """Exercise the older local DataService behavior without local EngineClient execution."""
+        remote = False
+
+        def __init__(self, engine):
+            self.engine = engine
+
+        def __getattr__(self, name):
+            return getattr(self.engine, name)
+
+    app.state.market_data.engine = LocalDataManagerWithHTTPEngine(app.state.engine)
     with TestClient(app) as client:
         yield client, app, tmp_path
 

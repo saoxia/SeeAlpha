@@ -75,7 +75,7 @@ def test_idempotency_survives_service_restart_and_rejects_changed_payload(tradin
         first = client.post(route, json=body)
         previous = app.state.trading
         app.state.trading = ManualTrading(app.state.accounts, app.state.exchanges,
-                                         app.state.operations, previous.root)
+                                         app.state.operations, previous.root, engine=app.state.engine)
         assert client.post(route, json=body).json() == first.json()
         assert len(calls) == 1
         assert client.post(route, json={**body, 'quantity': '0.02'}).status_code == 409

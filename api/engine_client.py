@@ -1,6 +1,5 @@
 """Business-backend client for the resident engine. Secrets stay in the request body."""
 
-import asyncio
 import json
 import re
 from decimal import Decimal
@@ -37,28 +36,27 @@ class RemoteProcess:
 
 
 class EngineClient:
-    def __init__(self, root, url="inprocess", token="seealpha-local-engine", market_account_id="market-data",
-                 project=None, tenant_manager=None):
+    def __init__(
+        self, root, url="http://127.0.0.1:8766", token="seealpha-local-engine",
+        market_account_id="market-data", tenant_manager=None, *, sync_transport=None,
+        async_transport=None,
+    ):
         self.root = Path(root)
         self.url = url.rstrip("/")
         self.token = token
         self.market_account_id = str(market_account_id)
         self.tenant_manager = tenant_manager
         self._worker_tenants = {}
-        self.remote = tenant_manager is not None or self.url.startswith("http")
-        # Production uses only the HTTP contract. Retain an explicitly opted-in
-        # local runtime for existing test fixtures until those tests are migrated.
-        if self.remote:
-            self.runtime = None
-        else:
-            from engine.runtime import EngineRuntime
-
-            self.runtime = EngineRuntime(self.root, project)
+        if tenant_manager is None and not self.url.startswith(("http://", "https://")):
+            raise ValueError("EngineClient 仅支持 HTTP(S) Engine 服务。")
+        # API-level compatibility flag for the data manager's remaining local mode.
+        self.remote = True
+        self.sync_transport = sync_transport
+        self.async_transport = async_transport
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     def close(self):
-        if self.runtime is not None:
-            self.runtime.close()
+        """HTTP connections are scoped to each call; no Engine runtime is owned."""
 
     def _target(self, path, tenant_id=None):
         if self.tenant_manager is None:
@@ -76,7 +74,7 @@ class EngineClient:
     def _sync(self, method, path, timeout=60, *, tenant_id=None, **kwargs):
         url, headers = self._target(path, tenant_id)
         try:
-            with httpx.Client(timeout=timeout) as client:
+            with httpx.Client(timeout=timeout, transport=self.sync_transport) as client:
                 response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
@@ -89,7 +87,7 @@ class EngineClient:
     async def _async(self, method, path, **kwargs):
         url, headers = self._target(path)
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
+            async with httpx.AsyncClient(timeout=120, transport=self.async_transport) as client:
                 response = await client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
@@ -108,28 +106,6 @@ class EngineClient:
         return "1"
 
     async def market_catalog(self, environment="production", product="futures_um"):
-        if self.runtime is not None:
-            # Legacy local test runtime; deployed SeeAlpha never executes this branch.
-            from engine.connectors.binance import queries
-
-            if product == "options":
-                from engine.connectors.binance.options import markets
-
-                return await asyncio.to_thread(markets)
-            instruments = await queries.instruments(environment)
-            values = []
-            for item in instruments:
-                quote = str(item.quote_currency)
-                symbol = str(item.id.symbol).removesuffix("-PERP")
-                if (quote not in {"USDT", "USDC"} or str(item.settlement_currency) != quote
-                        or not symbol.endswith(quote)):
-                    continue
-                base = symbol[:-len(quote)]
-                values.append({
-                    "symbol": f"{base}/{quote}:{item.settlement_currency}", "market_type": "linear",
-                    "base": base, "quote": quote, "expiry": None,
-                })
-            return sorted(values, key=lambda item: item["symbol"])
         result = await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/catalog",
             json={"environment": environment, "product": product},
@@ -137,20 +113,12 @@ class EngineClient:
         return result["items"]
 
     async def market_tickers(self, environment):
-        if self.runtime is not None:
-            from engine.connectors.binance.manual import market_tickers
-
-            return await market_tickers(environment)
         return await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/tickers",
             json={"environment": environment},
         )
 
     async def asset_price(self, environment, currency):
-        if self.runtime is not None:
-            from engine.connectors.binance.assets import asset_price
-
-            return await asyncio.to_thread(asset_price, environment, currency)
         result = await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/asset-price",
             json={"environment": environment, "currency": currency},
@@ -158,10 +126,6 @@ class EngineClient:
         return {**result, "price": Decimal(result["price"])}
 
     async def asset_account(self, account, *, positions=False):
-        if self.runtime is not None:
-            from engine.connectors.binance.assets import asset_account
-
-            return await asyncio.to_thread(asset_account, account, **({"positions": True} if positions else {}))
         result = await self._async(
             "POST", f"/tenants/{account['tenant_id']}/venue/asset-account",
             json={
@@ -184,12 +148,10 @@ class EngineClient:
         """Call the configured market-data tenant's read-only Engine API."""
         from fastapi import HTTPException
 
-        if self.tenant_manager is None and not self.remote:
-            raise EngineConflict("测试用本地 Engine 尚未启用数据 HTTP 接口。")
         path = f"/tenants/{self._public_tenant()}/data/{operation}"
         url, headers = self._target(path)
         try:
-            with httpx.Client(timeout=120) as client:
+            with httpx.Client(timeout=120, transport=self.sync_transport) as client:
                 response = client.post(url + path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise HTTPException(503, "租户数据引擎不可用。") from exc
@@ -201,15 +163,13 @@ class EngineClient:
         return response.json()
 
     def market_control(self, operation, payload=None):
-        if not self.remote:
-            raise EngineConflict("测试用本地 Engine 没有启用 HTTP 行情控制。")
         return self.data_query("control/" + operation, payload or {})
 
     def market_export(self, identity):
         path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
         url, headers = self._target(path)
         try:
-            with (httpx.Client(timeout=None) as client,
+            with (httpx.Client(timeout=None, transport=self.sync_transport) as client,
                   client.stream("GET", url + path, headers=headers) as response):
                 if response.status_code >= 400:
                     raise QueryError("导出文件不可用。")
@@ -228,10 +188,6 @@ class EngineClient:
         }
 
     async def operation_history(self, account, *, lookback_minutes=1440):
-        if self.runtime is not None:
-            from engine.connectors.binance.operations import operation_history
-
-            return await operation_history(account, lookback_minutes=lookback_minutes)
         result = await self._async(
             "POST", f"/tenants/{account['tenant_id']}/venue/operation-history",
             json={**self._account_credentials(account), "lookback_minutes": lookback_minutes},
@@ -242,7 +198,7 @@ class EngineClient:
         path = f"/tenants/{account['tenant_id']}/venue/{route}"
         url, headers = self._target(path)
         try:
-            async with (httpx.AsyncClient(timeout=None) as client,
+            async with (httpx.AsyncClient(timeout=None, transport=self.async_transport) as client,
                         client.stream("POST", url + path, headers=headers, json=payload) as response):
                 if response.status_code >= 400:
                     raise QueryError("交易所历史查询失败。")
@@ -257,12 +213,6 @@ class EngineClient:
             raise OSError("交易引擎不可用") from exc
 
     async def income_history(self, account, start_ms, end_ms):
-        if self.runtime is not None:
-            from engine.connectors.binance.income import income_history
-
-            async for page in income_history(account, start_ms, end_ms):
-                yield page
-            return
         payload = {**self._account_credentials(account), "start_ms": start_ms, "end_ms": end_ms}
         async for page in self._query_lines(account, "income", payload):
             yield page
@@ -285,18 +235,12 @@ class EngineClient:
             self.tenant_manager.ensure(tenant_id, purpose, status)
             if status == "archived":
                 return {"tenant_id": str(tenant_id), "status": status}
-        if self.runtime is not None:
-            return self.runtime.ensure_tenant(tenant_id, purpose, status)
         return self._sync("PUT", f"/tenants/{tenant_id}", json={"purpose": purpose, "status": status})
 
     def export_tenant(self, tenant_id):
-        if self.runtime is not None:
-            return self.runtime.export_tenant(tenant_id)
         return self._sync("GET", f"/tenants/{tenant_id}/export")
 
     def drop_tenant(self, tenant_id, *, remove=False):
-        if self.runtime is not None:
-            return self.runtime.drop_tenant(tenant_id, remove=remove)
         result = self._sync("POST", f"/tenants/{tenant_id}/drop", params={"remove": remove})
         if self.tenant_manager is not None:
             self.tenant_manager.stop(tenant_id, remove=True, retire=remove)
@@ -305,27 +249,17 @@ class EngineClient:
     def import_tenant(self, tenant_id, purpose, payload):
         if self.tenant_manager is not None:
             self.tenant_manager.ensure(tenant_id, purpose)
-        if self.runtime is not None:
-            return self.runtime.import_tenant(tenant_id, purpose, payload)
         return self._sync("POST", f"/tenants/{tenant_id}/import", json={"purpose": purpose, "payload": payload})
 
     def runnable(self, tenant_id, action):
-        if self.runtime is not None:
-            return self.runtime.assert_runnable(tenant_id, action)
         return self._sync("POST", f"/tenants/{tenant_id}/runnable", json={"action": action})
 
     def receive_strategy(self, tenant_id, payload):
-        if self.runtime is not None:
-            return self.runtime.receive_strategy(tenant_id, payload)
         return self._sync("POST", f"/tenants/{tenant_id}/strategy-loads", json=payload)
 
     def run_backtest(
         self, tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
     ):
-        if self.runtime is not None:
-            return self.runtime.run_backtest(
-                tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
-            )
         return self._sync(
             "POST", self._account_path(tenant_id, account_id) + "/backtests",
             timeout=600,
@@ -339,12 +273,10 @@ class EngineClient:
         """Forward task HTTP statuses without masking a missing job as 502."""
         from fastapi import HTTPException
 
-        if self.runtime is not None:
-            raise EngineConflict("统一异步任务接口仅在独立 Engine 服务模式开放。")
         path = f"/tenants/{tenant_id}/jobs{suffix}"
         url, headers = self._target(path)
         try:
-            with httpx.Client(timeout=120) as client:
+            with httpx.Client(timeout=120, transport=self.sync_transport) as client:
                 response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as error:
             raise HTTPException(503, "租户 Engine 任务服务不可用。") from error
@@ -381,8 +313,6 @@ class EngineClient:
         return self._task_sync("POST", tenant_id, f"/{identity}/retry")
 
     def latest_backtest(self, tenant_id, account_id):
-        if self.runtime is not None:
-            return self.runtime.latest_backtest(tenant_id, account_id)
         try:
             return self._sync("GET", self._account_path(tenant_id, account_id) + "/backtests/latest")
         except QueryError as error:
@@ -393,17 +323,11 @@ class EngineClient:
     def register(self, account):
         creds = account["credentials"]
         tenant_id = account["tenant_id"]
-        if self.runtime is not None:
-            return self.runtime.register(
-                tenant_id, account["id"], account["environment"], creds["apiKey"], creds["secret"]
-            )
         return self._sync("POST", self._account_path(tenant_id, account["id"]) + "/connections", json={
             "environment": account["environment"], "api_key": creds["apiKey"], "api_secret": creds["secret"],
         })
 
     async def account_snapshot(self, account):
-        if self.runtime is not None:
-            return await self.runtime.account_snapshot(account)
         payload = await self._async(
             "POST", self._account_path(account["tenant_id"], account["id"]) + "/snapshots", json={
                 "environment": account["environment"],
@@ -414,8 +338,6 @@ class EngineClient:
         return AccountSnapshot(payload["balances"], payload["info"], payload["positions"], payload["observed_at"])
 
     async def manual_execute(self, account, symbol, command):
-        if self.runtime is not None:
-            return await self.runtime.manual_execute(account, symbol, command)
         return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/manual", json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
@@ -425,8 +347,6 @@ class EngineClient:
         })
 
     async def command(self, account, action, values, fingerprint, client_order_id):
-        if self.runtime is not None:
-            return await self.runtime.command(account, action, values, fingerprint, client_order_id)
         return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/orders", json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
@@ -438,8 +358,6 @@ class EngineClient:
         })
 
     def get_request(self, tenant_id, account_id, request_id):
-        if self.runtime is not None:
-            return self.runtime.store.get_request(tenant_id, account_id, request_id)
         try:
             return self._sync("GET", self._account_path(tenant_id, account_id) + f"/requests/{request_id}")
         except QueryError as error:
@@ -448,54 +366,38 @@ class EngineClient:
             raise
 
     def save_request(self, tenant_id, account_id, request_id, body):
-        if self.runtime is not None:
-            return self.runtime.save_request(tenant_id, account_id, request_id, body)
         return self._sync(
             "PUT", self._account_path(tenant_id, account_id) + f"/requests/{request_id}", json=body
         )
 
     def orders(self, tenant_id, account_id, environment):
-        if self.runtime is not None:
-            return self.runtime.store.orders(tenant_id, account_id, environment)
         return self._sync(
             "GET", self._account_path(tenant_id, account_id) + "/orders", params={"environment": environment}
         )["orders"]
 
     def gaps(self, tenant_id, account_id, scope=None):
-        if self.runtime is not None:
-            return self.runtime.store.gaps(tenant_id, account_id, scope)
         params = {} if scope is None else {"scope": scope}
         return self._sync("GET", self._account_path(tenant_id, account_id) + "/gaps", params=params)["gaps"]
 
     def note_gap(self, tenant_id, account_id, scope, gap_key, gap):
-        if self.runtime is not None:
-            return self.runtime.note_gap(tenant_id, account_id, scope, gap_key, gap)
         return self._sync("POST", self._account_path(tenant_id, account_id) + "/gaps", json={
             "scope": scope, "gap_key": gap_key, "gap": gap,
         })
 
     def note_worker(self, command, *, tenant_id, account_id=None):
         account_id = account_id or self.market_account_id
-        if self.runtime is not None:
-            return self.runtime.note_worker(tenant_id, account_id, command)
         return self._sync(
             "POST", self._account_path(tenant_id, account_id) + "/market/workers/note", json={"command": command}
         )
 
     def note_subscription(self, tenant_id, product, symbol, role, state, progress, account_id=None):
         account_id = account_id or self.market_account_id
-        if self.runtime is not None:
-            return self.runtime.note_subscription(
-                tenant_id, account_id, product, symbol, role, state, progress
-            )
         return self._sync("POST", self._account_path(tenant_id, account_id) + "/market/subscriptions", json={
             "product": product, "symbol": symbol, "role": role, "state": state, "progress": progress,
         })
 
     def subscriptions(self, *, tenant_id, account_id=None):
         account_id = account_id or self.market_account_id
-        if self.runtime is not None:
-            return self.runtime.store.subscriptions(tenant_id, account_id)
         return self._sync(
             "GET", self._account_path(tenant_id, account_id) + "/market/subscriptions"
         )["subscriptions"]
@@ -504,12 +406,6 @@ class EngineClient:
         self, command, log_path, *, tenant_id, access=None, hold_lease=False, log_mode="ab", account_id=None,
     ):
         account_id = account_id or self.market_account_id
-        if self.runtime is not None:
-            started = self.runtime.spawn_worker(
-                command, log_path, tenant_id=tenant_id, access=access, hold_lease=hold_lease, log_mode=log_mode,
-            )
-            process = self.runtime.workers[started["id"]]["process"]
-            return process
         if self.tenant_manager is not None:
             # API Python paths do not exist inside Docker; use the image interpreter.
             if command and Path(command[0]).name.startswith("python"):
@@ -529,12 +425,6 @@ class EngineClient:
         return self._sync("GET", f"/workers/{worker_id}", tenant_id=tenant_id)
 
     async def valuation_events(self, account):
-        if self.runtime is not None:
-            from engine.runtime import valuation_events
-
-            async for event in valuation_events(account):
-                yield event
-            return
         payload = {
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
@@ -542,7 +432,7 @@ class EngineClient:
         }
         path = self._account_path(account["tenant_id"], account["id"]) + "/valuation"
         url, headers = self._target(path)
-        async with httpx.AsyncClient(timeout=None) as client, client.stream(
+        async with httpx.AsyncClient(timeout=None, transport=self.async_transport) as client, client.stream(
             "POST",
             url + path,
             headers=headers,
@@ -558,15 +448,9 @@ class EngineClient:
                     yield event
 
 
-async def account_snapshot(account, engine=None):
-    if engine is not None and engine.remote:
-        return await engine.account_snapshot(account)
-    if engine is not None and engine.runtime is not None:
-        return await engine.runtime.account_snapshot(account)
-    # Legacy in-process/test helper; not used by a deployed API.
-    from engine.runtime import read_account_snapshot
-
-    return await read_account_snapshot(account)
+async def account_snapshot(account, engine):
+    """Read account information exclusively through the configured Engine API."""
+    return await engine.account_snapshot(account)
 
 
 class RemoteOptionsClient:

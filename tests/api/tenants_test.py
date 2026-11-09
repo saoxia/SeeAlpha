@@ -14,7 +14,6 @@ from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.db.models import ExchangeAccount, MarketDataPolicy
 from api.main import create_app
-from engine.runtime import EngineConflict
 from tests.api.auth_test import login
 
 
@@ -73,7 +72,7 @@ def _app_children(http, tenant_id):
     return http.app.state.tenants.repository.count_children(tenant_id)
 
 
-def test_development_rejects_keys_and_live_orders_and_keeps_capital_on_the_account(client):
+def test_development_rejects_keys_and_live_orders_and_keeps_capital_on_the_account(client, engine_http):
     http, app = client
     tenant = create_tenant(http, "development", "开发资金")
     rejected = http.post(f"/api/tenants/{tenant['id']}/accounts", json={
@@ -89,12 +88,16 @@ def test_development_rejects_keys_and_live_orders_and_keeps_capital_on_the_accou
     assert body["kind"] == "virtual"
     assert body["initial_capital"] == "1000.50" and body["quote_currency"] == "USDT"
     assert "api_key" not in body and "secret" not in body
-    runtime = app.state.engine.runtime
-    with pytest.raises(EngineConflict, match="不能向交易所下单"):
-        runtime.assert_runnable(tenant["id"], "live")
-    assert runtime.assert_runnable(tenant["id"], "backtest")["status"] == "runnable"
-    with pytest.raises(EngineConflict, match="不能向交易所下单"):
-        runtime.register(tenant["id"], body["id"], "production", "not-a-real-key", "not-a-real-secret")
+    denied = engine_http.post(f"/tenants/{tenant['id']}/runnable", json={"action": "live"})
+    assert denied.status_code == 409 and "不能向交易所下单" in denied.json()["detail"]
+    allowed = engine_http.post(f"/tenants/{tenant['id']}/runnable", json={"action": "backtest"})
+    assert allowed.status_code == 200 and allowed.json()["status"] == "runnable"
+    denied = engine_http.post(
+        f"/tenants/{tenant['id']}/accounts/{body['id']}/connections",
+        json={"environment": "production", "api_key": "not-a-real-key",
+              "api_secret": "not-a-real-secret"},
+    )
+    assert denied.status_code == 409 and "不能向交易所下单" in denied.json()["detail"]
 
 
 def test_production_account_uses_the_key_vault_without_putting_secrets_in_the_book(client):
@@ -146,7 +149,7 @@ def test_subscription_intent_is_scoped_by_tenant(client):
     assert first_symbols == {"ETHUSDT"} and second_symbols == {"BTCUSDT"}
 
 
-def test_archive_restore_and_delete_are_distinct(client):
+def test_archive_restore_and_delete_are_distinct(client, engine_http):
     http, app = client
     tenant = create_tenant(http, "development", "可归档")
     http.post(f"/api/tenants/{tenant['id']}/accounts", json={
@@ -156,8 +159,10 @@ def test_archive_restore_and_delete_are_distinct(client):
         "symbol": "ETHUSDT", "base_level": "tick", "realtime_enabled": False,
         "history_enabled": True, "history_mode": "start", "history_start": "2024-01-01T00:00:00Z",
     })
-    runtime = app.state.engine.runtime
-    runtime.note_gap(tenant["id"], "market-data", "ETHUSDT", "day", {"kind": "missing"})
+    gap_path = f"/tenants/{tenant['id']}/accounts/market-data/gaps"
+    assert engine_http.post(gap_path, json={
+        "scope": "ETHUSDT", "gap_key": "day", "gap": {"kind": "missing"},
+    }).status_code == 200
     archived = http.post(f"/api/tenants/{tenant['id']}/archive")
     assert archived.status_code == 200, archived.text
     assert archived.json()["status"] == "archived"
@@ -165,9 +170,9 @@ def test_archive_restore_and_delete_are_distinct(client):
     assert http.post(f"/api/tenants/{tenant['id']}/accounts", json={
         "account_name": "later", "initial_capital": "1", "quote_currency": "USDT",
     }).status_code == 409
-    with pytest.raises(EngineConflict, match="不能交易或回测"):
-        runtime.assert_runnable(tenant["id"], "backtest")
-    assert runtime.store.gaps(tenant["id"], "market-data") == []
+    denied = engine_http.post(f"/tenants/{tenant['id']}/runnable", json={"action": "backtest"})
+    assert denied.status_code == 409 and "不能交易或回测" in denied.json()["detail"]
+    assert engine_http.get(gap_path).json()["gaps"] == []
     path = app.state.tenants._archive_path(tenant["id"])
     assert path.is_file()
     with tarfile.open(path, "r:gz") as archive:
@@ -181,13 +186,13 @@ def test_archive_restore_and_delete_are_distinct(client):
     restored = http.post(f"/api/tenants/{tenant['id']}/restore")
     assert restored.status_code == 200, restored.text
     assert restored.json()["status"] == "active"
-    assert runtime.store.gaps(tenant["id"], "market-data")[0]["kind"] == "missing"
-    assert runtime.assert_runnable(tenant["id"], "backtest")["status"] == "runnable"
+    assert engine_http.get(gap_path).json()["gaps"][0]["kind"] == "missing"
+    allowed = engine_http.post(f"/tenants/{tenant['id']}/runnable", json={"action": "backtest"})
+    assert allowed.status_code == 200 and allowed.json()["status"] == "runnable"
     spare = create_tenant(http, "development", "直接删除")
     assert http.delete(f"/api/tenants/{spare['id']}").status_code == 204
     assert all(row["id"] != spare["id"] for row in http.get("/api/tenants").json())
     assert not app.state.tenants._archive_path(spare["id"]).exists()
-    assert runtime.tenant_row(spare["id"]) is None
     production = next(row for row in http.get("/api/tenants").json() if row["purpose"] == "production")
     assert http.delete(f"/api/tenants/{production['id']}").status_code == 409
     assert http.delete(f"/api/tenants/{tenant['id']}").status_code == 204

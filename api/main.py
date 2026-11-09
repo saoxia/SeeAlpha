@@ -53,7 +53,6 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         task = None
         olap_task = None
         configuration_task = None
-        monitor_task = None
         portfolio_task = None
         runtime = None
         try:
@@ -75,8 +74,6 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             app.state.operations.repository.initialize()
             app.state.olap.repository.initialize()
             async def settle_market_jobs():
-                if not app.state.engine.remote:
-                    return
                 try:
                     await asyncio.to_thread(app.state.market_data.reconcile_jobs)
                 except (OSError, HTTPException, StorageUnavailable):
@@ -95,17 +92,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                     await asyncio.to_thread(app.state.market_data.subscriptions.restore)
                     await app.state.market_data.subscriptions.sync_options(app.state.exchanges)
 
-            async def monitor_services():
-                while True:
-                    try:
-                        await asyncio.to_thread(app.state.market_data.monitor.sample)
-                    except OSError:
-                        logging.getLogger(__name__).warning("行情监控快照写入失败，将稍后重试。")
-                    await asyncio.sleep(5)
-
             configuration_task = asyncio.create_task(reconcile_configuration())
-            if not app.state.engine.remote:
-                monitor_task = asyncio.create_task(monitor_services())
             portfolio_task = asyncio.create_task(app.state.exchanges.portfolio_worker())
 
             async def refresh_olap():
@@ -123,7 +110,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             yield
         finally:
             await app.state.equity.close()
-            for background in (configuration_task, monitor_task, portfolio_task):
+            for background in (configuration_task, portfolio_task):
                 if background is not None:
                     background.cancel()
                     with suppress(asyncio.CancelledError):
