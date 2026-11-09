@@ -64,7 +64,7 @@ def _package(http, parameters=None, version="1"):
     raise AssertionError("additional versions use the version route")
 
 
-def test_catalog_grant_and_development_issue_round_trip(tmp_path):
+def test_catalog_grant_and_development_issue_round_trip(tmp_path, engine_http):
     app = _client(tmp_path)
     with TestClient(app) as http:
         login(http)
@@ -142,15 +142,18 @@ def test_catalog_grant_and_development_issue_round_trip(tmp_path):
         loads = http.get(f"/api/tenants/{development['id']}/strategy-loads").json()
         assert [row["id"] for row in loads] == [body["id"]]
         assert http.get(f"/api/tenants/{other_tenant['id']}/strategy-loads").json() == []
-        engine_rows = app.state.engine.runtime.store.strategy_loads(development["id"])
+        engine_rows = engine_http.get(f"/tenants/{development['id']}/strategy-loads").json()["loads"]
         assert len(engine_rows) == 1
         assert engine_rows[0]["grant_purpose"] == "development"
         assert engine_rows[0]["package_hash"] == version["package_hash"]
         assert "archive" not in engine_rows[0]
-        assert app.state.engine.runtime.store.strategy_loads(other_tenant["id"]) == []
-        preview = app.state.engine.runtime.preview_strategy(
-            development["id"], account.json()["id"], crossover_bars(),
+        assert engine_http.get(f"/tenants/{other_tenant['id']}/strategy-loads").json()["loads"] == []
+        preview_response = engine_http.post(
+            f"/tenants/{development['id']}/accounts/{account.json()['id']}/strategy-preview",
+            json={"bars": crossover_bars()},
         )
+        assert preview_response.status_code == 200, preview_response.text
+        preview = preview_response.json()
         assert [Decimal(row["quantity"]) for row in preview["holdings"]] == [Decimal(1), Decimal(0)]
         assert [row["side"] for row in preview["orders"]] == ["BUY", "SELL"]
         assert all(row["tags"] == ["portfolio-net-delta"] for row in preview["orders"])
@@ -158,7 +161,7 @@ def test_catalog_grant_and_development_issue_round_trip(tmp_path):
         assert set(preview["coordinator_ids"]).isdisjoint(preview["member_ids"])
 
 
-def test_production_load_needs_its_own_grant(tmp_path):
+def test_production_load_needs_its_own_grant(tmp_path, engine_http):
     app = _client(tmp_path)
     with TestClient(app) as http:
         login(http)
@@ -198,7 +201,9 @@ def test_production_load_needs_its_own_grant(tmp_path):
         assert issued.status_code == 201, issued.text
         assert issued.json()["purpose"] == "production"
         assert "unused" not in issued.text
-        rows = app.state.engine.runtime.store.strategy_loads(production["id"], str(account_id))
+        rows = engine_http.get(
+            f"/tenants/{production['id']}/strategy-loads", params={"account_id": str(account_id)},
+        ).json()["loads"]
         assert rows[0]["grant_purpose"] == "production"
         assert rows[0]["code_key"] == "ema_crossover"
         blob = b"".join(path.read_bytes() for path in app.state.engine.root.glob("book.sqlite*"))
