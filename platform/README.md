@@ -36,7 +36,7 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 ## Platform 独立 HTTP / Docker 路由单元测试
 
-`platform/tests/engine_http_routing_test.py` 已将原 `tests/api/tenant_docker_test.py` 中不需要真实 Engine 的关键消费者检查提取到独立 Platform 测试套件：HTTP v2、错误版本拒绝、Engine 不可用时失败关闭、租户 Token 隔离和旧镜像禁止复用。这些用例使用 HTTPX MockTransport 和临时目录，不依赖 NautilusTrader、原 `engine/` 或 Docker daemon。原测试保留，直到旧测试夹具完成跨进程迁移并集中验收。
+原 `tests/api/tenant_docker_test.py` 的 HTTP 客户端、租户路由、旧镜像拒绝、Docker 本地路径与租户文件归档等纯 Platform 测试，已经迁入 `platform/tests/tenant_docker_test.py`。旧 `platform/tests/engine_http_routing_test.py` 中独有的断连失败关闭测试也已合并，重复断言不再分散在两个文件。原测试中直接创建 Engine ASGI app 的固定租户 HTTP 隔离用例已迁至独立 `saoxia/seealpha-engine` 的 `tests/engine/tenant_http_isolation_test.py`。这一批迁移不需要在 Platform 测试环境中安装 NautilusTrader 或运行 Docker；仅改变测试归属，旧业务代码未修改。
 
 这不等于迁移了真实的行情、策略和回测集成测试；那些用例仍由单独的 Engine/跨仓库测试负责。
 

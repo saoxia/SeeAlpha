@@ -102,11 +102,13 @@ Engine 还校验 URL 里的租户 ID 和登记用途。不要在外部反向代�
 ## 测试
 
 ```bash
-uv run ruff check api/config.py api/main.py api/engine_client.py api/tenant_docker.py \
-  api/auth/users.py engine/config.py engine/app.py tests/api/tenant_docker_test.py
-uv run pytest -q tests/api/tenant_docker_test.py tests/api/tenants_test.py \
-  tests/api/backtest_test.py tests/api/user_tenants_test.py \
-  tests/engine/phase1_test.py tests/engine/backtest_test.py
+# Platform-owned checks (no Engine implementation dependency)
+platform/.venv/bin/python -m ruff check api/config.py api/main.py api/engine_client.py api/tenant_docker.py platform/tests/tenant_docker_test.py
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/tenant_docker_test.py
+# Legacy combined regressions (until their integration fixtures move to Engine/HTTP)
+uv run pytest -q tests/api/tenants_test.py tests/api/backtest_test.py \
+  tests/api/user_tenants_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py
+# Engine-owned fixed-tenant HTTP guard: seealpha-engine/tests/engine/tenant_http_isolation_test.py
 ```
 
 PR CI 还包含 Docker 镜像构建及租户身份绑定的 HTTP 冒烟检查。
