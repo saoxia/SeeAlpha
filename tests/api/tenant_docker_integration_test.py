@@ -29,7 +29,7 @@ def test_real_docker_isolates_tenant_ports_tokens_and_data(tmp_path):
     default_data = tmp_path / "existing-data"
     default_data.mkdir()
     (default_data / "marker").write_text("unchanged", encoding="utf-8")
-    manager.bind_primary_data(tenants[0], default_data, tmp_path / "jobs")
+    manager.bind_market_tenant(tenants[0])
     try:
         manager.ensure(tenants[0], "production")
         manager.ensure(tenants[1], "development")
@@ -58,13 +58,14 @@ def test_real_docker_isolates_tenant_ports_tokens_and_data(tmp_path):
             m["Destination"]: Path(m["Source"]).resolve()
             for m in manager._inspect(manager._name(tenants[1]))["Mounts"]
         }
-        assert mounts_a["/app/data"] == default_data.resolve()
+        assert mounts_a["/app/data"] == (root / tenants[0] / "data").resolve()
         assert mounts_b["/app/data"] == (root / tenants[1] / "data").resolve()
         assert mounts_a["/app/data"] != mounts_b["/app/data"]
-        assert mounts_a["/app/.local/state/api/data_jobs"] == (tmp_path / "jobs").resolve()
+        assert "/app/.local/state/api/data_jobs" not in mounts_a
+        assert default_data.resolve() not in mounts_a.values()
 
-        # The business-side HTTP client must route only to its configured primary
-        # tenant, with independent policies in another resident Engine.
+        # The business-side HTTP client targets the selected market-data tenant,
+        # without reusing another tenant's data or authorization.
         engine = EngineClient(tmp_path / "engine-client", tenant_manager=manager)
         result = engine.market_control("sync", {"policies": [
             {"symbol": "ETHUSDT", "realtime_enabled": False},
@@ -90,4 +91,5 @@ def test_real_docker_isolates_tenant_ports_tokens_and_data(tmp_path):
         for tenant_id in tenants:
             manager.stop(tenant_id, remove=True)
     assert (default_data / "marker").read_text() == "unchanged"
+    assert (root / tenants[0] / "data").is_dir()
     assert (root / tenants[1] / "data").is_dir()
