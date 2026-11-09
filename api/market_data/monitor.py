@@ -51,6 +51,9 @@ class ServiceMonitor:
         self.path = manager.project / ".local/state/api/data_services/status.json"
 
     def sample(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return self.read()
         now = int(time.time() * 1000)
         subscriptions = self.manager.subscriptions
         if subscriptions.lease is None:
@@ -69,6 +72,9 @@ class ServiceMonitor:
         return value
 
     def read(self):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            return engine.market_control("services")
         try:
             if self.path.stat().st_size > 4 * 1024 * 1024:
                 raise ValueError("Oversize monitor")

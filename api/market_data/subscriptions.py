@@ -450,6 +450,13 @@ class Subscriptions:
                          (p.symbol == symbol or group and p.pair in {symbol, "ALL"}))])
 
     def _public(self, policy):
+        engine = getattr(self.manager, "engine", None)
+        if engine is not None and engine.remote:
+            result = engine.market_control("subscriptions", {"group_options": False})["items"]
+            found = next((item for item in result
+                          if item["policy"]["product"] == policy.product
+                          and item["policy"]["symbol"] == policy.symbol), None)
+            return found or {"policy": policy.model_dump(mode="json")}
         if policy.product == "options" and "-" not in policy.symbol:
             return self._option_group(policy)
         state = {"state": "STOPPED", "data_ready": False, "reason": "not_started",

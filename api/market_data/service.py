@@ -41,6 +41,35 @@ class DataService:
         self.monitor = ServiceMonitor(self)
 
     @property
+    def remote(self):
+        return bool(getattr(self, "engine", None) is not None and self.engine.remote)
+
+    def reconcile_jobs(self):
+        """Apply Engine-terminal policy changes to the business database once."""
+        if not self.remote:
+            return
+        from .contracts import DataPolicy
+        for job in self.engine.market_control("jobs"):
+            if job["status"] != "succeeded" or job["action"] not in {"delete_pair", "trim"}:
+                continue
+            marker = self.directory / "settled" / f"{job['id']}.json"
+            if marker.exists():
+                continue
+            with self.lock:
+                if marker.exists():
+                    continue
+                parameters = job["parameters"]
+                if job["action"] == "delete_pair":
+                    self.subscriptions.remove(parameters["symbol"], parameters["product"])
+                else:
+                    policy = DataPolicy.model_validate(parameters["policy"])
+                    self.subscriptions._save(policy, allow_later_start=True)
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                temporary = marker.with_suffix(".tmp")
+                temporary.write_text(json.dumps({"job_id": job["id"], "applied": True}))
+                os.replace(temporary, marker)
+
+    @property
     def directory(self):
         return self.project / ".local/state/api/data_jobs"
 
@@ -49,6 +78,8 @@ class DataService:
         return self.project / "logs/api/data"
 
     def storage(self):
+        if self.remote:
+            return self.engine.market_control("storage")
         checked_at = datetime.now(UTC).isoformat()
         data = self.project / "data"
         if not data.is_dir():
@@ -86,6 +117,8 @@ class DataService:
         return request, settings
 
     def plan(self, payload):
+        if self.remote:
+            return self.engine.data_query("prepare-plan", payload.model_dump(mode="json"))
         self.require_storage()
         request, settings = self.request(payload)
         if request.market == "options":
@@ -102,6 +135,8 @@ class DataService:
                             "按完整 UTC 日归档处理；只补缺失，不强制重建。下载体积与耗时未知。")}
 
     def delete_plan(self, payload):
+        if self.remote:
+            return self.engine.market_control("delete-plan", payload.model_dump(mode="json"))
         self.require_storage(write=True)
         request, settings = self.request(payload)
         with self.lock:
@@ -134,6 +169,9 @@ class DataService:
         return target
 
     def pair_delete_plan(self, payload):
+        if self.remote:
+            self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
+            return self.engine.market_control("pair-delete-plan", payload.model_dump(mode="json"))
         from engine.pipeline.pair_deletion import pair_deletion_plan
         self.require_storage(write=True)
         with self.lock, self.subscriptions.lock:
@@ -143,6 +181,13 @@ class DataService:
 
     def configuration_plan(self, policy):
         """Resolve a desired start; later starts require an exclusive deletion plan."""
+        if self.remote:
+            proposal = self.engine.market_control(
+                "configuration-plan", {"policy": policy.model_dump(mode="json")},
+            )
+            if proposal["requires_confirmation"]:
+                self.subscriptions.pause_for_deletion(policy.symbol, policy.product)
+            return proposal
         from engine.pipeline.pair_deletion import history_trim_plan
         with self.lock, self.subscriptions.lock:
             self.subscriptions._claim()
@@ -200,6 +245,20 @@ class DataService:
 
     def save_configuration(self, policy, *, deletion_snapshot=None, confirmation=None):
         from .contracts import DataPolicy, PolicyTrimRequest
+        if self.remote:
+            with self.lock:
+                proposal = self.configuration_plan(policy)
+                prepared = DataPolicy.model_validate(proposal["policy"])
+                if proposal["requires_confirmation"]:
+                    if (deletion_snapshot != proposal["deletion"]["snapshot"]
+                            or confirmation != f"DELETE {prepared.symbol}"):
+                        raise HTTPException(409, "开始日期调晚须重新预览并确认删除。")
+                    job = self.start(PolicyTrimRequest(
+                        symbol=prepared.symbol, product=prepared.product, policy=prepared,
+                        deletion_snapshot=proposal["file_snapshot"], confirmation=confirmation,
+                    ))
+                    return {"policy": prepared.model_dump(mode="json"), "job": job}
+                return self.subscriptions._save(prepared, allow_later_start=True)
         with self.lock, self.subscriptions.lock:
             proposal = self.configuration_plan(policy)
             policy = DataPolicy.model_validate(proposal["policy"])
@@ -260,6 +319,11 @@ class DataService:
         return records
 
     def jobs(self, *, reconcile=True):
+        if self.remote:
+            result = self.engine.market_control("jobs")
+            if reconcile:
+                self.reconcile_jobs()
+            return result
         # Reconcile an orphan only after its inherited worker lease has been released.
         records = self.recover() if reconcile else self._records()
         result = []
@@ -280,6 +344,11 @@ class DataService:
         return value
 
     def job(self, identity):
+        if self.remote:
+            result = self.engine.market_control("job", {"id": identity})
+            if result["status"] == "succeeded":
+                self.reconcile_jobs()
+            return result
         if not re.fullmatch(r"[0-9a-f]{32}", identity):
             raise HTTPException(404, "数据任务不存在")
         with self.lock:
@@ -290,6 +359,8 @@ class DataService:
         return self._with_log(value)
 
     def task_snapshot(self, selected=""):
+        if self.remote:
+            return self.engine.market_control("snapshot", {"selected": selected})
         # Publishing is read-only; startup/start/status perform durable recovery.
         tasks = self.jobs(reconcile=False)
         detail = None
@@ -328,6 +399,12 @@ class DataService:
             return None
 
     def start(self, payload, *, resolved_history=None):
+        if self.remote:
+            if payload.action in {"delete_pair", "trim"}:
+                self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
+            return self.engine.market_control(
+                "job/start", {"payload": payload.model_dump(mode="json", exclude_none=True)},
+            )
         self.require_storage(write=True)
         if payload.action not in {"backfill", "delete_pair", "trim"}:
             selection, _settings = self.request(payload)
@@ -446,6 +523,8 @@ class DataService:
                 raise
 
     def retry(self, identity):
+        if self.remote:
+            return self.engine.market_control("job/retry", {"id": identity})
         previous = self.job(identity)
         if previous["action"] != "backfill" or previous["status"] not in {"failed", "cancelled", "interrupted"}:
             raise HTTPException(409, "仅可重试已失败、取消或中断的历史追加任务")
@@ -522,6 +601,8 @@ class DataService:
             lease.close()
 
     def cancel(self, identity):
+        if self.remote:
+            return self.engine.market_control("job/cancel", {"id": identity})
         self.job(identity)
         with self.lock:
             entry = self.processes.get(identity)
@@ -536,6 +617,8 @@ class DataService:
 
     def close(self):
         self.subscriptions.close()
+        if self.remote:
+            return  # Engine workers must survive business API restart.
         with self.lock:
             self.closed = True
             entries = list(self.processes.values())
