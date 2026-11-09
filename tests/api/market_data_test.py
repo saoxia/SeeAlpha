@@ -27,7 +27,7 @@ PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
 
 
 @pytest.fixture
-def context(tmp_path, monkeypatch):
+def context(tmp_path, monkeypatch, engine_http):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url
@@ -41,8 +41,27 @@ def context(tmp_path, monkeypatch):
     (tmp_path / "data").mkdir()
     settings = PipelineSettings("futures_um", "trades", ("ETHUSDT",), ("1m",),
                                 tmp_path / "data/raw", tmp_path / "data/catalog", tmp_path / "data/state")
-    for module in ("api.market_data.router", "api.market_data.service"):
+    # The Engine owns all data reads and history resolution; the API never
+    # imports a local Catalog or reads feed state files.
+    for module in ("engine.data_queries", "engine.data_manager.service",
+                   "engine.pipeline.config"):
         monkeypatch.setattr(f"{module}.load_settings", lambda: settings)
+    engine_manager = engine_http.app.state.market_data
+
+    class DummyWorker:
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            self.returncode = 0
+            return 0
+
+    monkeypatch.setattr(engine_manager.subscriptions, "_launch",
+                        lambda *_args, **_kwargs: DummyWorker())
+    monkeypatch.setattr(engine_manager, "_stop",
+                        lambda worker: setattr(worker, "returncode", 0))
     async def catalog(_environment):
         return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"}
                 for base in ("ETH", "XRP")] + [{"symbol": "ETH/USDC:USDC", "base": "ETH", "quote": "USDC", "market_type": "linear"}]
@@ -50,9 +69,9 @@ def context(tmp_path, monkeypatch):
     app.state.exchanges.catalog = catalog
     app.state.market_data = DataService(database, project=tmp_path)
 
-    class LocalDataManagerWithHTTPEngine:
-        """Exercise the older local DataService behavior without local EngineClient execution."""
-        remote = False
+    class CapturingEngineClient:
+        """Capture configuration sync while forwarding to the real Engine HTTP API."""
+        remote = True
 
         def __init__(self, engine):
             self.engine = engine
@@ -61,15 +80,12 @@ def context(tmp_path, monkeypatch):
         def market_control(self, operation, payload=None):
             if operation == "sync":
                 self.sync_calls.append(payload)
-                # Isolate legacy local-Catalog tests from live feed spawning.
-                # Engine process lifecycle is tested in tests/engine/.
-                return {"synced": len(payload["policies"]), "last_error": None}
             return self.engine.market_control(operation, payload)
 
         def __getattr__(self, name):
             return getattr(self.engine, name)
 
-    app.state.market_data.engine = LocalDataManagerWithHTTPEngine(app.state.engine)
+    app.state.market_data.engine = CapturingEngineClient(app.state.engine)
     with TestClient(app) as client:
         yield client, app, tmp_path
 
