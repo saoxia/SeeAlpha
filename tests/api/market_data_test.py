@@ -56,6 +56,15 @@ def context(tmp_path, monkeypatch):
 
         def __init__(self, engine):
             self.engine = engine
+            self.sync_calls = []
+
+        def market_control(self, operation, payload=None):
+            if operation == "sync":
+                self.sync_calls.append(payload)
+                # Isolate legacy local-Catalog tests from live feed spawning.
+                # Engine process lifecycle is tested in tests/engine/.
+                return {"synced": len(payload["policies"]), "last_error": None}
+            return self.engine.market_control(operation, payload)
 
         def __getattr__(self, name):
             return getattr(self.engine, name)
