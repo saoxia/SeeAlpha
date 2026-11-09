@@ -16,8 +16,8 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from starlette.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from core.market.instruments import INTERVALS, bar_window
 
