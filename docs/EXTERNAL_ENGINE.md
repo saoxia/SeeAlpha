@@ -140,3 +140,19 @@ platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
 - 历史组合 `pyproject.toml`/`uv.lock`、单元测试内导入的 `engine.*`、原 CI 对 Engine 的构建依赖仍留在当前仓库；不在本次切换中直接删除或改动 CI。
 - `core/engine_contracts.py` / `core/trading_contracts.py` 仍由两个仓库分别持有。正式升级前需对照接口版本和订单参数语义，做完整跨仓库集成测试。
 - 生产切换前必须独立完成状态卷备份/恢复、未知订单核查、回滚、租户隔离及版本兼容验收；不得让两个 Engine 同时管理同一个真实账户。
+
+## 长期复用 Engine：同步与连续异步回测
+
+`SEEALPHA_VERIFY_BACKTEST=1` 除了执行单次真实历史回测，还会在**同一个**
+测试 Engine 容器内提交两个带不同初始资金、不同虚拟账户的异步任务。
+通过既有 `/tenants/{id}/jobs` 队列提交，并检查：
+
+- 同一幂等键重试返回原任务 ID，不重复计算；不同任务拥有独立 ID
+- 两个任务分别完成，且结果文件、初始资金、订单与成交不会互相覆盖
+- 查询各自账户的 latest backtest，能得到各自结果；模拟结果不会写入实盘账本
+- 前后 Docker 容器内的 Engine 主进程 PID 相同，无需启动第二个容器
+
+本次只强化**验收脚本**，不引入新的 Docker 调度器。生产回测的 Engine
+已持有持久队列（默认容量 16、一个执行线程），每次 Nautilus 回测仍创建独立的
+`BacktestEngine` 上下文。**批量数百/数千个任务的生产调度、并行计算、强制超时与
+资源治理仍需后续独立设计**，不能将现有单线程队列解读为已支持大规模并发。

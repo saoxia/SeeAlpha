@@ -116,3 +116,13 @@ Engine 容器内生成合成 Parquet Catalog，隔离的 Platform `EngineClient`
 详情与安全限制见 [独立 Engine 跨仓库验收](../docs/EXTERNAL_ENGINE.md)。
 该检查**不是**独立 `platform/tests/` 的普通单元测试，需要显式设置开关并在隔离 Docker
 主机上执行；当前只提交代码，执行状态仍为“待集中验收”。
+
+## 长期容器复用与任务隔离
+
+跨仓库回测脚本现在额外验证两个异步任务在**同一个**独立 Engine Docker 中
+顺序完成，分别保留虚拟账户、初始资金与回测结果；任务重复提交遵守幂等性。
+脚本比较回测前后的容器 Engine PID，不允许通过反复重启容器使验收通过。
+
+普通回测复用已部署的 Engine；只有一次性集成验收才创建并清理 Docker。
+现有任务队列每 Engine 默认容量 16、一个 worker，不代表已具备并行分布式
+回测调度能力。见 [跨仓库验收说明](../docs/EXTERNAL_ENGINE.md)。
