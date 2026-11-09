@@ -2,7 +2,6 @@
 import base64
 import hmac
 import json
-from dataclasses import replace
 
 import pytest
 
