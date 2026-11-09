@@ -202,25 +202,6 @@ class ExchangeService:
                 return cached[1]
             values = await self.engine.market_catalog(env, product)
             self.catalog_cache[key] = (time.monotonic() + 300, values)
-                return values
-            if product != "futures_um":
-                raise ValueError("不支持的行情产品")
-            instruments = await queries.instruments(env)
-            values = []
-            for instrument in instruments:
-                quote = str(instrument.quote_currency)
-                symbol = str(instrument.id.symbol).removesuffix("-PERP")
-                if (quote not in {"USDT", "USDC"} or str(instrument.settlement_currency) != quote
-                        or not symbol.endswith(quote)):
-                    continue
-                # The native identifier retains Binance's exact contract name even
-                # when its base currency is missing or aliases a quantity prefix.
-                base = symbol[:-len(quote)]
-                values.append({"symbol": f"{base}/{quote}:{instrument.settlement_currency}",
-                               "market_type": "linear", "base": base, "quote": quote,
-                               "expiry": None})
-            values.sort(key=lambda item: item["symbol"])
-            self.catalog_cache[key] = (time.monotonic() + 300, values)
             return values
 
     async def asset_values(self, account_id, *, fresh=False):
