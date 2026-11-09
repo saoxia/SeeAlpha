@@ -6,7 +6,9 @@ import math
 import time
 
 from core.engine_contracts import QueryError
-from core.option_records import normalize_option_record
+
+from .options import sync_options
+from .repository import Operations
 
 DAY_MS = 86_400_000
 
@@ -23,9 +25,6 @@ async def operation_history(account, *, lookback_minutes=1440):
     from engine.connectors.binance.operations import operation_history as native_history
 
     return await native_history(account, lookback_minutes=lookback_minutes)
-
-from .options import sync_options
-from .repository import Operations
 
 logger = logging.getLogger(__name__)
 

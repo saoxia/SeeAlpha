@@ -11,8 +11,9 @@ import queue
 from decimal import Decimal, localcontext
 
 from nautilus_trader.model import AccountId
-from core.option_records import normalize_option_record
 from nautilus_trader.trading import Strategy
+
+from core.option_records import normalize_option_record
 
 
 def text(value):

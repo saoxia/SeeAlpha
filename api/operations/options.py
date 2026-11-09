@@ -9,8 +9,8 @@ from itertools import groupby
 
 from core.engine_contracts import QueryError
 from core.market.instruments import normalize_symbol
-from engine.connectors.binance import options
 from core.option_records import normalize_option_record
+from engine.connectors.binance import options
 from engine.connectors.binance.options_account import BinanceOptionsAccountClient
 
 DAY_MS = 86400000

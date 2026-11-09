@@ -4,8 +4,8 @@ No exchange credentials or connector objects are returned to the business API.
 Decimals are serialized as strings to preserve trading/asset precision.
 """
 import asyncio
-from decimal import Decimal
 import json
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request

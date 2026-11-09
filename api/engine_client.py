@@ -205,17 +205,17 @@ class EngineClient:
         path = f"/tenants/{account['tenant_id']}/venue/{route}"
         url, headers = self._target(path)
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream("POST", url + path, headers=headers, json=payload) as response:
-                    if response.status_code >= 400:
-                        raise QueryError("交易所历史查询失败。")
-                    async for line in response.aiter_lines():
-                        if not line:
-                            continue
-                        event = json.loads(line)
-                        if isinstance(event, dict) and "error" in event and len(event) == 1:
-                            raise QueryError(event["error"])
-                        yield event
+            async with (httpx.AsyncClient(timeout=None) as client,
+                        client.stream("POST", url + path, headers=headers, json=payload) as response):
+                if response.status_code >= 400:
+                    raise QueryError("交易所历史查询失败。")
+                async for line in response.aiter_lines():
+                    if not line:
+                        continue
+                    event = json.loads(line)
+                    if isinstance(event, dict) and "error" in event and len(event) == 1:
+                        raise QueryError(event["error"])
+                    yield event
         except httpx.HTTPError as exc:
             raise OSError("交易引擎不可用") from exc
 
