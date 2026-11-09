@@ -16,6 +16,16 @@ from api.main import create_app
 from api.operations.repository import Operations
 
 
+class FakeEngine:
+    """Exercise the Engine HTTP contract without native Binance fallback."""
+
+    async def income_history(self, _account, start_ms, end_ms):
+        yield {"start_ms": start_ms, "end_ms": end_ms, "records": []}
+
+    async def operation_history(self, _account, *, lookback_minutes=1440):
+        return []
+
+
 def event(**values):
     return {
         "event_id": "submit-1",
@@ -241,7 +251,6 @@ def test_sync_uses_native_reports_and_retains_previous_records(tmp_path, monkeyp
 
     from api.db.exchange_repository import exchange_repository
     from api.exchanges.accounts import Accounts
-    from api.operations import service as module
     from api.operations.service import OperationService
 
     db = Database(tmp_path / "api.db")
@@ -257,18 +266,19 @@ def test_sync_uses_native_reports_and_retains_previous_records(tmp_path, monkeyp
         market_symbols_json="[]",
     )
     monkeypatch.setattr(accounts, "private", lambda _: {"id": 1, "environment": "production"})
-    service = OperationService(db, accounts)
+    engine = FakeEngine()
+    service = OperationService(db, accounts, engine)
     service.repository.initialize()
     now = int(time.time() * 1000)
 
     async def reports(account, **options):
         return [event(timestamp=now, evidence="venue", strategy_id=None)]
 
-    monkeypatch.setattr(module, "operation_history", reports)
+    monkeypatch.setattr(engine, "operation_history", reports)
     async def incomes(*args):
         yield {"start_ms": args[1], "end_ms": args[2], "records": []}
 
-    monkeypatch.setattr(module, "income_history", incomes)
+    monkeypatch.setattr(engine, "income_history", incomes)
     result = asyncio.run(service.sync())
     assert result["records_added"] == 1 and result["sync"][0]["status"] == "partial"
     assert asyncio.run(service.sync())["records_added"] == 0
@@ -276,7 +286,7 @@ def test_sync_uses_native_reports_and_retains_previous_records(tmp_path, monkeyp
     async def failed(*args, **kwargs):
         raise RuntimeError("secret must not leak")
 
-    monkeypatch.setattr(module, "operation_history", failed)
+    monkeypatch.setattr(engine, "operation_history", failed)
     result = asyncio.run(service.sync())
     assert result["sync"][0]["status"] == "failed" and "secret" not in str(result)
     assert len(service.repository.list()["records"]) == 1
@@ -363,9 +373,8 @@ def test_native_project_event_sink_does_not_confuse_external_claims(ledger):
         ts_init=1_000_000_000,
     )
     order.events = lambda: [submitted, fill]
-    service = OperationService(ledger.database, None)
-    service.record_project_event(submitted, order, account)
-    service.record_project_event(fill, order, account)
+    ledger.ingest(normalize_event(submitted, order, account))
+    ledger.ingest(normalize_event(fill, order, account))
     assert {r["source"] for r in ledger.list()["records"]} == {"project"}
     inferred = m.OrderFilled(
         **(params | {"trade_id": m.TradeId("INFERRED-1"), "event_id": UUID4()})
@@ -439,14 +448,14 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
     import asyncio
     from types import SimpleNamespace
 
-    from api.operations import service as module
     from api.operations.service import OperationService
     from engine.connectors.binance.income import DAY_MS
 
     source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
     accounts = SimpleNamespace(private=lambda _: source,
                                repository=SimpleNamespace(list_exchange_accounts=lambda: [source]))
-    service = OperationService(ledger.database, accounts)
+    engine = FakeEngine()
+    service = OperationService(ledger.database, accounts, engine)
     starts = []
     first_stop = None
 
@@ -461,8 +470,8 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
     async def native_failed(*args, **kwargs):
         raise RuntimeError("private-native-error")
 
-    monkeypatch.setattr(module, "income_history", incomplete)
-    monkeypatch.setattr(module, "operation_history", native_failed)
+    monkeypatch.setattr(engine, "income_history", incomplete)
+    monkeypatch.setattr(engine, "operation_history", native_failed)
     result = asyncio.run(service.sync())
     state = result["sync"][0]
     assert result["records_added"] == 1 and state["status"] == "failed"
@@ -477,9 +486,10 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
                "records": [cash_event(timestamp=starts[0]),
                            cash_event(event_id="income-2", transaction_id="2", timestamp=first_stop + 1)]}
 
-    monkeypatch.setattr(module, "income_history", recovered)
+    monkeypatch.setattr(engine, "income_history", recovered)
     # A new service simulates API restart; recovery reads durable state, not memory.
-    service = OperationService(ledger.database, accounts)
+    engine = FakeEngine()
+    service = OperationService(ledger.database, accounts, engine)
     result = asyncio.run(service.sync(cashflows_only=True))
     cash = result["sync"][0]["cashflows"]
     assert starts[-1] <= first_stop + 1 and result["records_added"] == 1
@@ -493,7 +503,6 @@ def test_cancelled_income_pipeline_keeps_acknowledged_windows(ledger, monkeypatc
     import asyncio
     from types import SimpleNamespace
 
-    from api.operations import service as module
     from api.operations.service import OperationService
 
     source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
@@ -504,8 +513,9 @@ def test_cancelled_income_pipeline_keeps_acknowledged_windows(ledger, monkeypatc
         yield {"start_ms": first, "end_ms": first + 999, "records": []}
         raise asyncio.CancelledError
 
-    monkeypatch.setattr(module, "income_history", cancelled)
-    service = OperationService(ledger.database, accounts)
+    monkeypatch.setattr(engine, "income_history", cancelled)
+    engine = FakeEngine()
+    service = OperationService(ledger.database, accounts, engine)
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(service.sync(cashflows_only=True))
     cash = ledger.sync_state()[0]["cashflows"]
@@ -547,7 +557,6 @@ def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, 
     import asyncio
     from types import SimpleNamespace
 
-    from api.operations import service as module
     from api.operations.service import OperationService
     from engine.connectors.binance.income import DAY_MS
 
@@ -563,8 +572,8 @@ def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, 
         assert first >= now - 87 * DAY_MS
         yield {"start_ms": first, "end_ms": last, "records": []}
 
-    monkeypatch.setattr(module, "income_history", empty)
-    result = asyncio.run(OperationService(ledger.database, accounts).sync(cashflows_only=True))
+    monkeypatch.setattr(engine, "income_history", empty)
+    result = asyncio.run(OperationService(ledger.database, accounts, FakeEngine()).sync(cashflows_only=True))
     cash = result["sync"][0]["cashflows"]
     assert result["records_added"] == 0 and cash["requested_complete"]
     assert len(cash["coverage"]) == 2 and cash["coverage"][0] == old
