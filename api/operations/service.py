@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 class OperationService:
     def __init__(self, database, accounts, engine):
+        if engine is None:
+            raise ValueError("OperationService 需要独立 Engine HTTP 客户端")
         if database.backend == "orm":
             from .orm_repository import ORMOperations
 
