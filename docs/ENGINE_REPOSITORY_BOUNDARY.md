@@ -55,8 +55,16 @@
 
 ## 第十三批：Engine HTTP 契约版本策略
 
-- 当前支持的 Engine HTTP 主契约版本为 `1`，使用 `X-SeeAlpha-Engine-Contract-Version: 1` 请求/响应头，`GET /health` 的 `contract_version` 字段用于运维核查。
+- 当前支持的 Engine HTTP 主契约版本为 `2`，使用 `X-SeeAlpha-Engine-Contract-Version: 1` 请求/响应头，`GET /health` 的 `contract_version` 字段用于运维核查。
 - 生产 Platform 的所有 Engine HTTP 请求（同步、异步、数据控制、任务、导出、估值与流水流式读取）均携带版本头。所有成功响应必须带相同版本；没有版本头、版本不同或 Engine 返回 426 时立即失败，**不允许自动降级或回退到 Platform 本地执行**。
 - Engine 拒绝明确声明为不兼容版本的请求，响应 `426`，并在响应头返回其版本。为避免破坏尚未改造的内部运维客户端，Engine 暂时允许不带版本头的请求，但它们仍受原有令牌和租户鉴权；业务 Platform 不使用此兼容路径。
-- `1` 的请求/响应字段及既有 401/403/409/422/503 等语义不得在小版本中无通知地改变。增加不兼容字段或错误语义时，需发布新主契约版本并验证支持矩阵；旧 Platform 与新 Engine 混用必须明确验证或拒绝，而不是凭镜像标签推断兼容。
+- `2` 的请求/响应字段及既有 401/403/409/422/503 等语义不得在小版本中无通知地改变。增加不兼容字段或错误语义时，需发布新主契约版本并验证支持矩阵；旧 Platform 与新 Engine 混用必须明确验证或拒绝，而不是凭镜像标签推断兼容。
 - CI 测试覆盖有效版本、请求版本不匹配、响应版本缺失或不匹配，以及每租户 Engine 的独立 token 路由。此版本策略是服务契约约束，**并不等于实盘行为验收**。
+
+## 2026-11-09：人工交易命令归 Engine（HTTP 契约 v2）
+
+- 删除可直接发送交易命令的 `POST /tenants/{tenant_id}/accounts/{account_id}/manual`，账户交易状态改用只读意图的 `POST .../trading/state`；原生快照查询 Node 保留，但不可从该接口执行下单或撤单。
+- `POST .../orders` 仅接受经过共享请求模型校验的 `submit`/`cancel`。Engine 根据规范化订单参数计算幂等请求指纹，提交单的客户订单号由 UUID 派生，撤单指向已有客户订单号。请求预登记、账户级锁和未知结果不自动重发的行为保留。
+- Engine 独占交易执行事实：`POST .../requests/{request_id}/reconcile` 从交易所状态核实并持久化已观察到的订单；`POST .../requests/{request_id}/ledger-sync` 只确认 Platform 已摄入订单记录，不再接受业务端 PUT 覆盖整个请求记录。
+- Platform 继续负责用户授权、账户修订一致性、业务账本摄入和展示。v2 的 Engine 与 Platform 必须协调升级；旧 v1 HTTP 交易客户端不兼容。已有订单请求的 SQLite JSON 无需自动迁移，历史未知结果仍以实际交易所观察确认。
+- 本阶段不启动实盘交易；模拟/隔离环境的单元与集成测试不构成真实账户、真实交易所、生产灾难恢复验收。

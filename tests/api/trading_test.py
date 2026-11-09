@@ -181,6 +181,7 @@ def test_lookup_resolves_unknown_from_venue_without_resubmitting(trading, monkey
         monkeypatch.setattr(manual, 'execute', snapshot)
         result = client.get(f"/api/trading/accounts/1/requests/{body['request_id']}?environment=production")
         assert result.json()['status'] == 'completed'
+        assert app.state.trading.engine.get_request(1, 1, body['request_id'])['response']['status'] == 'completed'
         assert len(calls) == 1
 
 
@@ -209,6 +210,7 @@ def test_ledger_failure_keeps_venue_result_and_replays_only_ingestion(trading, m
         monkeypatch.setattr(app.state.operations.repository, 'ingest', ingested.append)
         assert client.post(route, json=body).json()['status'] == 'completed'
         assert ingested == [{'event_id': 'fixture'}]
+        assert app.state.trading.engine.get_request(1, 1, body['request_id'])['ledger_synced'] is True
         assert len(calls) == 1
 
 
