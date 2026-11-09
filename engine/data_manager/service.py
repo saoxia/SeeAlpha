@@ -335,6 +335,18 @@ class DataService:
             return None
 
     def start(self, payload, *, resolved_history=None, idempotency_key=None, request_hash=None):
+        if idempotency_key is not None:
+            if not request_hash:
+                raise ValueError("幂等提交必须提供请求摘要。")
+            # Replay must return the previously accepted durable handle even
+            # if storage is subsequently unavailable or request data changed.
+            with self.lock:
+                for prior in self._records():
+                    if prior.get("idempotency_key") != idempotency_key:
+                        continue
+                    if prior.get("request_hash") != request_hash:
+                        raise HTTPException(409, "同一幂等键已用于其他行情任务。")
+                    return self._public(prior)
         self.require_storage(write=True)
         if payload.action not in {"backfill", "delete_pair", "trim"}:
             selection, _settings = self.request(payload)
