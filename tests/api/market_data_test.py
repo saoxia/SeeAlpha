@@ -800,8 +800,6 @@ def test_duration_without_retained_data_uses_today_utc_midnight(context, monkeyp
 
 
 def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypatch):
-    from types import SimpleNamespace
-
     from api.market_data.contracts import DataPolicy
     from engine.feed.pair_store import PairStore
 
@@ -844,7 +842,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
         assert client.get('/api/data/chart?symbol=../ETHUSDT').status_code == 422
         assert client.get('/api/data/chart?symbol=XRPUSDT').json()['candles'] == []
     finally:
-        store.close()
+        assert not hasattr(subscriptions, 'processes')
 
 
 def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(context):
@@ -890,7 +888,6 @@ def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(cont
 def test_all_options_include_new_contracts_and_preserve_existing_configuration(context, monkeypatch):
     client, app, _root = context
     login(client)
-    monkeypatch.setattr(app.state.market_data.subscriptions, "_start", starts.append)
     first, second = "BTC-261225-85000-C", "ETH-270129-3000-P"
     markets = [{"symbol": first}]
 
@@ -960,7 +957,6 @@ def test_option_underlying_scope_manages_all_expiries_and_discovers_only_its_con
     client, app, _root = context
     login(client)
     manager = app.state.market_data
-    monkeypatch.setattr(manager.subscriptions, "_start", lambda policy: None)
     markets = [{"symbol": s} for s in ("BTC-261225-85000-C", "BTC-270129-90000-P", "ETH-261225-3000-C")]
 
     async def catalog(_env, product="options"):
@@ -995,7 +991,6 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
     symbols = ("BTC-261225-85000-C", "BTC-270129-90000-P")
     policies = [DataPolicy(product="options", symbol=s) for s in ("BTCUSDT", *symbols)]
     subscriptions._write(policies)
-    monkeypatch.setattr(app.state.market_data, "_stop", lambda process: None)
     now = int(time.time() * 1000)
     for p in policies[1:]:
         path = subscriptions.root(p) / "status.json"
@@ -1016,7 +1011,6 @@ def test_option_group_status_keeps_stale_and_failed_evidence_visible(context, mo
 def test_option_underlying_uses_catalogue_pair_instead_of_assuming_usdt(context, monkeypatch):
     client, app, _root = context
     login(client)
-    monkeypatch.setattr(app.state.market_data.subscriptions, "_start", lambda policy: None)
     symbol = "BTC-261225-85000-C"
     async def catalog(_env, product="options"):
         return [{"symbol": symbol, "underlying": "BTCUSDC"}]
