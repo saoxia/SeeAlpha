@@ -55,7 +55,7 @@
 
 ## 第十三批：Engine HTTP 契约版本策略
 
-- 当前支持的 Engine HTTP 主契约版本为 `2`，使用 `X-SeeAlpha-Engine-Contract-Version: 1` 请求/响应头，`GET /health` 的 `contract_version` 字段用于运维核查。
+- 当前支持的 Engine HTTP 主契约版本为 `2`，使用 `X-SeeAlpha-Engine-Contract-Version: 2` 请求/响应头，`GET /health` 的 `contract_version` 字段用于运维核查。
 - 生产 Platform 的所有 Engine HTTP 请求（同步、异步、数据控制、任务、导出、估值与流水流式读取）均携带版本头。所有成功响应必须带相同版本；没有版本头、版本不同或 Engine 返回 426 时立即失败，**不允许自动降级或回退到 Platform 本地执行**。
 - Engine 拒绝明确声明为不兼容版本的请求，响应 `426`，并在响应头返回其版本。为避免破坏尚未改造的内部运维客户端，Engine 暂时允许不带版本头的请求，但它们仍受原有令牌和租户鉴权；业务 Platform 不使用此兼容路径。
 - `2` 的请求/响应字段及既有 401/403/409/422/503 等语义不得在小版本中无通知地改变。增加不兼容字段或错误语义时，需发布新主契约版本并验证支持矩阵；旧 Platform 与新 Engine 混用必须明确验证或拒绝，而不是凭镜像标签推断兼容。
