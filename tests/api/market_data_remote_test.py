@@ -47,4 +47,5 @@ def test_business_data_reads_use_the_engine_http_contract():
     assert engine.calls[3][1]["limit"] == 100
     assert engine.calls[4][1] == {"symbol": "ETHUSDT", "interval": "1m", "base_level": "tick"}
     for _, body in engine.calls:
-        assert "path" not in body and "project" not in body
+        if body is not None:
+            assert "path" not in body and "project" not in body
