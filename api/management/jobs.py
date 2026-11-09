@@ -178,19 +178,17 @@ class JobManager:
         self._restore()
 
     def _restore(self):
-        legacy = []
-        for path in self.directory.glob("*.json"):
-            try:
-                job = json.loads(path.read_text(encoding="utf-8"))
-                if _stored_job(job, path.stem):
-                    legacy.append(job)
-            except (OSError, ValueError, TypeError):
-                continue
         if self.repository is not None:
-            self.repository.import_jobs(legacy)
             restored = self.repository.list_jobs()
         else:
-            restored = legacy
+            restored = []
+            for path in self.directory.glob("*.json"):
+                try:
+                    job = json.loads(path.read_text(encoding="utf-8"))
+                    if _stored_job(job, path.stem):
+                        restored.append(job)
+                except (OSError, ValueError, TypeError):
+                    continue
         for job in restored:
             identity = job.get("id")
             if not _stored_job(job, identity):
