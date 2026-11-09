@@ -93,9 +93,12 @@ class DataService:
                     policy = DataPolicy.model_validate(parameters["policy"])
                     self.subscriptions._save(policy, allow_later_start=True)
                 marker.parent.mkdir(parents=True, exist_ok=True)
-                temporary = marker.with_suffix(".tmp")
-                temporary.write_text(json.dumps({"job_id": job["id"], "applied": True}))
-                os.replace(temporary, marker)
+                temporary = marker.with_suffix(f".{uuid4().hex}.tmp")
+                try:
+                    temporary.write_text(json.dumps({"job_id": job["id"], "applied": True}))
+                    os.replace(temporary, marker)
+                finally:
+                    temporary.unlink(missing_ok=True)
 
     @property
     def directory(self):
