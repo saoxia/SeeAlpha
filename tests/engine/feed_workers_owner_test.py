@@ -51,7 +51,9 @@ def test_engine_only_starts_and_stops_futures_feed_and_history(tmp_path, monkeyp
     manager.subscriptions.restore()
     assert len(commands) == 3  # A policy refresh never duplicates active workers.
     disabled = policy.model_copy(update={"realtime_enabled": False, "history_enabled": False})
-    manager.subscriptions._write([disabled])
+    # Engine /sync loads the prior cached intent, saves new ORM-equivalent
+    # policy state, and then restores. Do not pre-replace the cache here.
+    manager.policy_repository.save([disabled], tenant_id="42")
     manager.subscriptions.restore()
     assert collection in stopped
     assert not manager.subscriptions.processes and not manager.subscriptions.auxiliary
