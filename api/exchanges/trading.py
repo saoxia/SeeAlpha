@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from core.engine_contracts import EngineConflict
-from core.trading_contracts import CancelOrderValues, SubmitOrderValues, TRADING_SYMBOL
+from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable
