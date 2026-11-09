@@ -161,7 +161,7 @@ class EngineClient:
         if self.runtime is not None:
             from engine.connectors.binance.assets import asset_account
 
-            return await asyncio.to_thread(asset_account, account, positions=positions)
+            return await asyncio.to_thread(asset_account, account, **({"positions": True} if positions else {}))
         result = await self._async(
             "POST", f"/tenants/{account['tenant_id']}/venue/asset-account",
             json={
