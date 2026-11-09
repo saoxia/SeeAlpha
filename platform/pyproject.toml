@@ -1,0 +1,37 @@
+[project]
+name = "seealpha-platform"
+version = "0.1.0"
+description = "SeeAlpha business API and Platform; Engine is an external HTTP service"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "alembic>=1.16,<2",
+    "argon2-cffi==25.1.0",
+    "cryptography==49.0.0",
+    "fastapi==0.141.1",
+    "httpx==0.28.1",
+    "psycopg[binary]>=3.2,<4",
+    "sqlalchemy>=2.0,<2.2",
+    "uvicorn==0.52.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+python_files = ["*_test.py"]
+pythonpath = [".."]
+cache_dir = "../.local/cache/pytest-platform"
+
+[tool.ruff]
+cache-dir = "../.local/cache/ruff-platform"
+line-length = 100
+target-version = "py313"
