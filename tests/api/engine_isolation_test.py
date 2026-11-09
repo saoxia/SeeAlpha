@@ -17,6 +17,16 @@ def test_business_api_never_imports_engine_or_nautilus_runtime():
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
                 names = [node.module] if node.module else []
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "__import__"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                # Catch literal dynamic imports without duplicating the ASGI isolation test.
+                names = [node.args[0].value]
             else:
                 continue
             for name in names:

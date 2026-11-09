@@ -177,8 +177,9 @@ ORM 启动前会检查 Alembic 版本；不会自动创建、覆盖或接管旧�
 `ENGINE_URL` 在部署环境必须为 HTTP(S) 地址，禁止进程内 Engine 回退；
 不配置时默认 `http://127.0.0.1:8766`。当前 `EngineClient` 在生产和测试中
 均只支持 HTTP 契约；API 集成测试使用注入的 HTTPX 测试传输连接真实 Engine ASGI 应用，
-而非在业务进程内创建 Engine Runtime。注意行情管理等其他 API 模块的剩余
-Engine 源码依赖不因此自动消除。
+而非在业务进程内创建 Engine Runtime。2026-11-09 的第 12–14 项已通过
+Platform 全模块导入隔离、Engine Docker 独立启动和跨进程 HTTP 契约验收；
+这不包括真实账户、真实下单和生产状态恢复验收。
 
 ## 行情数据管理
 

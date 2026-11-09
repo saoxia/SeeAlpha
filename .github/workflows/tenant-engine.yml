@@ -13,8 +13,6 @@ on:
       - "tests/api/market_data_test.py"
       - "tests/api/market_data_configuration_test.py"
       - "tests/api/market_data_engine_ownership_test.py"
-      - "tests/api/market_data_test.py"
-      - "tests/api/market_data_configuration_test.py"
       - "tests/api/conftest.py"
       - "tests/engine/data_queries_test.py"
       - "tests/api/market_data_remote_test.py"
