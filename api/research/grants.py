@@ -12,9 +12,9 @@ import hmac
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
-from typing import Callable
 
 AUDIENCE = "seealpha-engine-research"
 RESEARCH_VERSION = 1
@@ -127,13 +127,13 @@ class ResearchGrantIssuer:
                 raise ValueError
             if type(ttl_seconds) is not int or not 60 <= ttl_seconds <= 900:
                 raise ValueError
-        except (IndexError, ValueError) as exc:
+        except (IndexError, ValueError):
             raise ResearchGrantDenied("Invalid research grant scope") from None
 
         # Fail closed without authoritative dataset and issued-strategy checks.
         try:
             permitted = self.authorize_resources(tenant, tuple(ds), tuple(st))
-        except Exception:
+        except Exception:  # noqa: BLE001 - authorization policy must fail closed
             raise ResearchGrantDenied("Research resource authorization unavailable") from None
         if permitted is not True:
             raise ResearchGrantDenied("Research resources not authorized")
@@ -175,7 +175,7 @@ class ResearchGrantIssuer:
         }
         try:
             self.record_audit(receipt)
-        except Exception:
+        except Exception:  # noqa: BLE001 - never issue unaudited bearer on storage failures
             raise ResearchGrantDenied("Research grant audit unavailable") from None
         return ResearchGrant(
             token=token, task_id=task,
