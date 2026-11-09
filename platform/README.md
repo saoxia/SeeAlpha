@@ -126,3 +126,13 @@ Engine 容器内生成合成 Parquet Catalog，隔离的 Platform `EngineClient`
 普通回测复用已部署的 Engine；只有一次性集成验收才创建并清理 Docker。
 现有任务队列每 Engine 默认容量 16、一个 worker，不代表已具备并行分布式
 回测调度能力。见 [跨仓库验收说明](../docs/EXTERNAL_ENGINE.md)。
+
+## Platform 业务 API 回测联合测试的迁移
+
+原 `tests/api/backtest_test.py` 已由
+`scripts/verify_external_platform_backtest_api.py` 接替；原 27 条业务断言
+仍通过真实 API 路由执行。新脚本使用独立 `platform/.venv`、
+隔离的 `api/core/migrations` 源码和一次性多租户独立 Engine Docker，
+不会导入旧 `engine/` 或 `tests/fixtures/engine_catalog.py`。
+`SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh`
+只在集中验收时显式运行，默认 Platform 单元测试不会启动 Docker。

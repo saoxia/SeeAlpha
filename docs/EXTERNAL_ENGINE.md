@@ -156,3 +156,30 @@ platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
 已持有持久队列（默认容量 16、一个执行线程），每次 Nautilus 回测仍创建独立的
 `BacktestEngine` 上下文。**批量数百/数千个任务的生产调度、并行计算、强制超时与
 资源治理仍需后续独立设计**，不能将现有单线程队列解读为已支持大规模并发。
+
+## 真实业务 API 回测联合测试的跨仓库迁移
+
+原 `tests/api/backtest_test.py` 的 27 条业务断言已移至
+`scripts/verify_external_platform_backtest_api.py`，执行真实登录、正式/开发
+租户限制、注册与授权策略包、虚拟账户下发、历史行情订阅、回测、资金和
+订单/成交结果、跨账户隔离、最新回测以及归档后拒绝回测。
+
+集中验收使用：
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh
+```
+
+保留原有固定租户的只读 HTTP 200/401/403/426 握手容器，并另外启动
+**一次性、允许多个测试租户**的 Engine 容器，用于原测试的租户对照场景。
+两者都使用各自随机 Token、独立数据和状态卷、127.0.0.1 绑定；
+脚本退出自动清理。业务 API 只加载复制后的 `api/`、`core/`、
+`migrations/`、Alembic 配置和 EMA 示例文件，数据库为全新临时 SQLite。
+测试进程不继承宿主机数据库 URL、交易所密钥或其他生产配置；
+仅禁用 API 后台定时任务，**不 Mock API 路由、ORM、Engine HTTP
+或 Nautilus 回测**。
+
+这两个容器只用于一次集成验收，不代表正式回测每次新建 Docker。
+普通回测继续复用常驻 Engine。旧联合 pytest 不再包含原回测用例，
+因此在集中验收前，不得宣称原 API 回测链路迁移已通过。
