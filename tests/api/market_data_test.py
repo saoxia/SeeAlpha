@@ -581,6 +581,8 @@ def test_realtime_and_history_configuration_are_synced_as_intent(context, monkey
 
 
 def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(context, engine_http):
+    from api.market_data.contracts import DataPolicy
+
     client, app, _root = context
     login(client)
     app.state.market_data.subscriptions.save(
