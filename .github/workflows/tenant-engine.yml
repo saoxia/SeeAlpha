@@ -7,6 +7,7 @@ on:
       - "core/**"
       - "engine/**"
       - "tests/engine/data_manager_test.py"
+      - "tests/api/market_data_engine_ownership_test.py"
       - "tests/engine/data_queries_test.py"
       - "tests/api/market_data_remote_test.py"
       - "tests/engine/venue_http_test.py"
@@ -29,7 +30,7 @@ jobs:
           python-version: "3.14"
       - run: uv sync --locked
       - run: uv run ruff check api/main.py api/engine_client.py api/tenant_docker.py api/strategies/service.py api/exchanges/trading.py api/exchanges/router.py api/operations/service.py api/operations/options.py engine/runtime.py engine/connectors/binance/queries.py core/engine_contracts.py core/option_records.py engine/data_queries.py engine/public_queries.py api/market_data/router.py api/market_data/service.py api/market_data/subscriptions.py api/market_data/monitor.py engine/data_manager/service.py engine/data_manager/subscriptions.py engine/data_manager/routes.py engine/data_manager/repository.py engine/data_manager/monitor.py engine/data_manager/contracts.py engine/connectors/binance/operations.py api/exchanges/service.py api/equity/service.py tests/core/engine_contracts_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py tests/engine/data_manager_test.py
-      - run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/exchanges_test.py tests/api/equity_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/api/strategy_store_test.py tests/api/trading_test.py tests/api/operations_test.py tests/api/options_operations_test.py tests/api/market_data_test.py tests/api/market_data_configuration_test.py tests/api/market_data_remote_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py tests/engine/strategy_load_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py tests/engine/data_manager_test.py
+      - run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/tenant_docker_test.py tests/api/tenants_test.py tests/api/exchanges_test.py tests/api/equity_test.py tests/api/backtest_test.py tests/api/user_tenants_test.py tests/api/strategy_store_test.py tests/api/trading_test.py tests/api/operations_test.py tests/api/options_operations_test.py tests/api/market_data_test.py tests/api/market_data_configuration_test.py tests/api/market_data_remote_test.py tests/api/market_data_engine_ownership_test.py tests/engine/phase1_test.py tests/engine/backtest_test.py tests/engine/strategy_load_test.py tests/engine/venue_http_test.py tests/engine/data_queries_test.py tests/engine/data_manager_test.py
 
   docker:
     runs-on: ubuntu-latest
@@ -82,3 +83,24 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"symbols":["ETHUSDT"]}' \
             -X POST http://127.0.0.1:18766/tenants/42/data/datasets)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"policies":[{"symbol":"ETHUSDT","realtime_enabled":false}]}' \
+            -X POST http://127.0.0.1:18766/tenants/42/data/control/sync)" = 200
+          curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' -d '{}' \
+            http://127.0.0.1:18766/tenants/42/data/control/subscriptions | grep ETHUSDT
+          test "$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"policies":[]}' \
+            -X POST http://127.0.0.1:18766/tenants/99/data/control/sync)" = 403
+          docker restart seealpha-engine-ci
+          for i in $(seq 1 50); do
+            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token' http://127.0.0.1:18766/health; then break; fi
+            sleep 1
+          done
+          curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Content-Type: application/json' -d '{}' \
+            http://127.0.0.1:18766/tenants/42/data/control/subscriptions | grep ETHUSDT
