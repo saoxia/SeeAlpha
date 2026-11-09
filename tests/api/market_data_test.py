@@ -583,18 +583,23 @@ def test_realtime_and_history_configuration_are_synced_as_intent(context, monkey
 def test_delete_access_blocks_only_its_pair_and_realtime_reader_prevents_unlink(context, engine_http):
     client, app, _root = context
     login(client)
-    manager = app.state.market_data
-    payload = {"symbol": "ETHUSDT", "realtime_enabled": False}
-    with engine_http.app.state.market_data._lease("ETHUSDT", access=True):
-        assert client.post("/api/data/subscriptions", json=payload).status_code == 409
-        assert client.post("/api/data/subscriptions", json={**payload, "symbol": "XRPUSDT"}).status_code == 200
-    # A surviving collector's descriptor still protects data even when the stored
-    # policy says disabled, e.g. after a lost API owner.
-    with engine_http.app.state.market_data._lease("ETHUSDT", access=True, shared=True):
-        job = {**PARAMETERS, "action": "delete", "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"}
-        response = client.post("/api/data/jobs", json=job)
-        assert response.status_code == 409 and "采集" in response.text
-        assert client.post("/api/data/pairs/delete/plan", json={"symbol": "XRPUSDT"}).status_code == 200
+    app.state.market_data.subscriptions.save(
+        DataPolicy(symbol="ETHUSDT", realtime_enabled=False),
+    )
+    engine_manager = engine_http.app.state.market_data
+    with engine_manager._lease("ETHUSDT", access=True):
+        assert client.post(
+            "/api/data/pairs/delete/plan", json={"symbol": "ETHUSDT"},
+        ).status_code == 409
+        # A lock on ETHUSDT must never block work on unrelated pairs.
+        assert client.post(
+            "/api/data/pairs/delete/plan", json={"symbol": "XRPUSDT"},
+        ).status_code == 200
+    with engine_manager._lease("ETHUSDT", access=True, shared=True):
+        job = {**PARAMETERS, "action": "delete", "deletion_snapshot": "0" * 64,
+               "confirmation": "DELETE ETHUSDT"}
+        assert client.post("/api/data/jobs", json=job).status_code == 409
+    assert not hasattr(app.state.market_data, "_lease")
 
 
 def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context, engine_http):
@@ -607,7 +612,8 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
                              pass_fds=(job_lease.fileno(), access_lease.fileno()), start_new_session=True)
     job_lease.close()
     access_lease.close()
-    other = DataService(app.state.database, project=root)
+    from engine.data_manager.service import DataService as EngineDataService
+    other = EngineDataService("1", project=root, state_root=root / "state-other")
     try:
         with pytest.raises(HTTPException) as busy:
             other._lease("ETHUSDT")
@@ -624,18 +630,17 @@ def test_worker_inherits_both_pair_locks_after_parent_closes_descriptors(context
         pass
 
 
-def test_rejected_duplicate_pair_delete_preserves_the_running_delete_marker(context, engine_http):
+def test_rejected_duplicate_pair_delete_preserves_the_running_delete_marker(context):
     client, app, _root = context
     login(client)
     manager = app.state.market_data
     key = ("futures_um", "ETHUSDT")
     manager.subscriptions.deleting.add(key)
     try:
-        with engine_http.app.state.market_data._lease("ETHUSDT"):
-            response = client.post("/api/data/pairs/delete", json={"symbol": "ETHUSDT",
-                "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"})
-            assert response.status_code == 409
-            assert key in manager.subscriptions.deleting
+        response = client.post("/api/data/pairs/delete", json={"symbol": "ETHUSDT",
+            "deletion_snapshot": "0" * 64, "confirmation": "DELETE ETHUSDT"})
+        assert response.status_code == 409
+        assert key in manager.subscriptions.deleting
     finally:
         manager.subscriptions.deleting.discard(key)
 
@@ -824,8 +829,6 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
 
 
 def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(context, engine_http):
-    import fcntl
-
     from nautilus_trader.model import Bar, BarType, Price, Quantity
 
     from core.market.instruments import bar_type_for
@@ -854,9 +857,8 @@ def test_chart_catalog_window_preserves_open_time_precision_and_delete_lock(cont
     assert data['candles'][-1]['is_complete'] is None
     assert not data['live']
     # A view must obey the same deletion exclusion as other reads.
-    with engine_http.app.state.market_data._lease('ETHUSDT', access=True) as lease:
+    with engine_http.app.state.market_data._lease('ETHUSDT', access=True):
         assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 409
-        fcntl.flock(lease, fcntl.LOCK_UN)
     import shutil
     shutil.rmtree(root / 'data')
     assert client.get('/api/data/chart?symbol=ETHUSDT').status_code == 503
