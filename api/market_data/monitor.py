@@ -1,7 +1,6 @@
 """File-only service observations; observations never drive data recovery."""
 
 import json
-import time
 
 from fastapi import HTTPException
 
