@@ -55,8 +55,6 @@ class EngineClient:
         self._worker_tenants = {}
         if tenant_manager is None and not self.url.startswith(("http://", "https://")):
             raise ValueError("EngineClient 仅支持 HTTP(S) Engine 服务。")
-        # API-level compatibility flag for the data manager's remaining local mode.
-        self.remote = True
         self.sync_transport = sync_transport
         self.async_transport = async_transport
         self.headers = {
