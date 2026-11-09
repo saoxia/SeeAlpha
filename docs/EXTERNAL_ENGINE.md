@@ -56,6 +56,27 @@ export ENGINE_TENANT_ROOT=/absolute/path/to/disposable-test-tenants
 
 正式镜像建议引用不可变 digest；本地提交 SHA 标签只用于迁移开发与验收。生产部署不应使用 `:latest` 作为跨仓库版本保证。
 
+
+## 一键跨仓库容器验收（仅本机 Docker / 隔离环境）
+
+准备好私有仓库 Git 权限、Docker Desktop/本机 Unix Socket 与 Platform 虚拟环境（`uv sync --locked --group api`）后，运行：
+
+```bash
+./scripts/verify_external_engine.sh
+```
+
+该脚本按锁定 SHA **重新**从独立 Engine 仓库构建镜像；先比较两仓库的 `core/engine_contracts.py` 与 `core/trading_contracts.py`，若发生漂移直接拒绝构建。然后在临时目录中只复制 `api/` 和 `core/`，启动单独命名的测试 Engine 容器，挂载全新临时 `state/data/local/logs` 卷、生成临时私有 Token，随机绑定 **127.0.0.1** 本地端口。
+
+隔离进程将实际导入 Platform ASGI app 和 `EngineClient`，确保没有载入 `engine` 或 `nautilus_trader`，并向新 Engine 测试 HTTP 200、401、403、426 及 v2 契约响应。**只发送 GET 请求**；不会访问交易所、使用生产账户、创建租户、运行策略或写入生产数据。完成后自动删除这次生成的容器、临时令牌和临时数据卷；已有 `seealpha-engine-<tenant_id>` 不受影响。
+
+此脚本拒绝远程 TCP/SSH Docker context。默认来源是迁移候选提交，切换到其他候选时可传完整 40 位 SHA：
+
+```bash
+./scripts/verify_external_engine.sh <完整40位Engine提交SHA>
+```
+
+**验收边界**：通过它只说明新 Engine 能独立构建、启动，且去掉旧源码的 Platform 能通过 HTTP v2 握手。不能替代真实数据任务、历史回测、生产交易状态恢复、升级/回滚和真实账户验证。
+
 ## 不启动真实交易的验证
 
 原项目 `tests/api/engine_isolation_test.py` 已经将 `api/` 与 `core/` 复制到不含 `engine/` 的临时目录，独立导入 API：

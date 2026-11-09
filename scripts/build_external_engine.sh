@@ -29,6 +29,16 @@ if [[ "$actual" != "$engine_sha" ]]; then
   exit 1
 fi
 
+# A v2 change must be explicitly coordinated across both repositories.
+# Guard accidental contract drift before building or deploying a candidate.
+platform_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for contract in core/engine_contracts.py core/trading_contracts.py; do
+  if ! cmp -s "$platform_root/$contract" "$checkout_dir/repository/$contract"; then
+    echo "Engine/Platform contract mismatch: $contract; refusing to build" >&2
+    exit 1
+  fi
+done
+
 (
   cd "$checkout_dir/repository"
   docker build -f docker/engine.Dockerfile -t "$image" .
