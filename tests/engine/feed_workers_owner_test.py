@@ -2,6 +2,10 @@
 
 import json
 
+from fastapi.testclient import TestClient
+
+from engine.app import create_app
+from engine.config import EngineConfig
 from engine.data_manager.contracts import DataPolicy
 from engine.data_manager.service import DataService
 
@@ -111,3 +115,49 @@ def test_engine_options_use_two_shared_workers_and_durable_manifest(tmp_path, mo
     assert not manager.subscriptions.processes
     assert not manager.subscriptions.auxiliary
     manager.close()
+
+
+def test_engine_http_sync_starts_and_stops_workers_with_tenant_authorization(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    app = create_app(EngineConfig(
+        tmp_path / "state", "secret", project=tmp_path,
+        tenant_id="42", tenant_purpose="development",
+    ))
+    app.state.runtime.ensure_tenant("42", "development")
+    manager = app.state.market_data
+    started, stopped = [], []
+
+    def launch(command, _log_name, access=None):
+        worker = Worker()
+        started.append((command, access, worker))
+        return worker
+
+    def stop(worker):
+        stopped.append(worker)
+        worker.returncode = 0
+
+    monkeypatch.setattr(manager.subscriptions, "_launch", launch)
+    monkeypatch.setattr(manager, "_stop", stop)
+    headers = {"Authorization": "Bearer secret"}
+    path = "/tenants/42/data/control/sync"
+    enabled = {"policies": [{"symbol": "ETHUSDT", "base_level": "1m",
+                             "realtime_enabled": True, "history_enabled": False}]}
+    with TestClient(app) as client:
+        assert client.post(path, json=enabled).status_code == 401
+        assert client.post(
+            "/tenants/43/data/control/sync", json=enabled, headers=headers,
+        ).status_code == 403
+        first = client.post(path, json=enabled, headers=headers)
+        assert first.status_code == 200, first.text
+        assert len(started) == 2  # Feed collection plus bar calculation.
+        assert all(access == ("ETHUSDT", "futures_um", True) for _, access, _ in started)
+        again = client.post(path, json=enabled, headers=headers)
+        assert again.status_code == 200
+        assert len(started) == 2
+        disabled = {"policies": [{**enabled["policies"][0], "realtime_enabled": False}]}
+        result = client.post(path, json=disabled, headers=headers)
+        assert result.status_code == 200, result.text
+        assert len(stopped) == 2
+        assert not manager.subscriptions.processes
+        assert not manager.subscriptions.auxiliary
+    app.state.runtime.close()
