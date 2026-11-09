@@ -329,11 +329,12 @@ class DataService:
         return self._required_engine().market_control("snapshot", {"selected": selected})
 
     def start(self, payload):
+        engine = self._required_engine()
         if payload.action in {"delete_pair", "trim"}:
             # Business configuration is paused before Engine takes exclusive
             # deletion leases; Engine validates the authoritative snapshot.
             self.subscriptions.pause_for_deletion(payload.symbol, payload.product)
-        return self._required_engine().market_control(
+        return engine.market_control(
             "job/start", {"payload": payload.model_dump(mode="json", exclude_none=True)},
         )
 
