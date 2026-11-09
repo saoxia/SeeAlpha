@@ -1,10 +1,10 @@
-"""User ownership, one production tenant, copy/share, and impersonation."""
+"""User ownership, production instance creation, copy/share, and impersonation."""
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 
 from api.auth.security import hash_password
 from api.config import Settings
