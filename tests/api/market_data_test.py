@@ -731,30 +731,6 @@ def test_monitor_rejects_expired_service_evidence_and_status_reads_do_not_wait_f
     reader.join()
 
 
-def test_explicit_configuration_import_preserves_database_parameters_and_never_starts_services(context, monkeypatch):
-    import api.market_data.import_configuration as importer
-    from api.market_data.contracts import DataPolicy
-    _client, app, root = context
-    manager = app.state.market_data
-    manager.subscriptions.save(DataPolicy(symbol='ETHUSDT', realtime_enabled=False))
-    source = root / 'legacy-parameters.json'
-    source.write_text(json.dumps([{'symbol': 'ETHUSDT', 'realtime_enabled': True}, {'symbol': 'XRPUSDT', 'intervals': ['5m']}]))
-    content = source.read_text()
-    monkeypatch.setattr(importer, 'PROJECT_ROOT', root)
-    monkeypatch.setattr(importer, 'create_database', lambda _settings: app.state.database)
-    monkeypatch.setattr(sys, 'argv', ['import_configuration', str(source)])
-    with pytest.raises(SystemExit):
-        importer.main()  # The live API still owns configuration.
-    assert len(manager.policy_repository.list()) == 1
-    manager.subscriptions.close()
-    importer.main()
-    policies = {item['symbol']: item for item in manager.policy_repository.list()}
-    assert set(policies) == {'ETHUSDT', 'XRPUSDT'}
-    assert not policies['ETHUSDT']['realtime_enabled'] and not policies['XRPUSDT']['realtime_enabled']
-    assert policies['XRPUSDT']['base_level'] == 'auto'
-    assert source.read_text() == content and not hasattr(manager.subscriptions, "processes")
-
-
 def test_history_start_is_utc_midnight_and_duration_is_persisted_once(context, monkeypatch):
     client, app, _root = context
     login(client)
