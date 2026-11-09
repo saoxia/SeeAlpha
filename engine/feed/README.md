@@ -129,6 +129,8 @@ READY 仅代表本层的数据条件，**不代表账户对账、订单恢复或
 来源冲突持久化、消费方失败、时钟失效、限流退避、Catalog 桥接与 Nautilus 时间戳。
 实际网络联通和长时间运行验收须独立记录，离线测试通过不能代替网络验收。
 
+2026-11-09 第 16 项补充短时**确定性故障恢复回归**：在同一 SQLite WAL 数据卷上连续六次创建新 Feed 进程状态，核对检查点、REST 重叠回放、READY 门禁、历史回放不允许新增风险，以及每次恢复后首根真正实时闭合分钟线才具备风险许可。该测试仅使用临时目录和虚构行情，不访问交易所或账户。**连续 72 小时、真实断线/限流和具体生产策略预热仍标记为未验证**；若因时间/网络/环境跳过，不得改变门禁或宣称已完成阶段 16 的实网验收。
+
 接口参考（2026-09-28 核对）：
 [Binance USD-M REST 行情](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data#klinecandlestick-data)、
 [WebSocket K 线](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market#klinecandlestick-streams)。
