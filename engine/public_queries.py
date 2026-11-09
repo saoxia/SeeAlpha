@@ -3,10 +3,11 @@
 No exchange credentials or connector objects are returned to the business API.
 Decimals are serialized as strings to preserve trading/asset precision.
 """
+import asyncio
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.connectors.binance import assets, manual, queries
@@ -64,7 +65,7 @@ async def market_catalog(tenant_id: str, request: PublicRequest):
             raise ValueError("期权数据仅使用正式公开行情")
         from engine.connectors.binance.options import markets
 
-        return {"items": await __import__("asyncio").to_thread(markets)}
+        return {"items": await asyncio.to_thread(markets)}
     instruments = await queries.instruments(request.environment)
     rows = []
     for instrument in instruments:
@@ -89,13 +90,17 @@ async def tickers(tenant_id: str, request: PublicRequest):
 
 @router.post("/asset-price")
 async def price(tenant_id: str, request: PriceRequest):
-    return wire(await __import__("asyncio").to_thread(
+    return wire(await asyncio.to_thread(
         assets.asset_price, request.environment, request.currency,
     ))
 
 
 @router.post("/asset-account")
-async def account_assets(tenant_id: str, request: AccountRequest):
+async def account_assets(tenant_id: str, request: AccountRequest, http_request: Request):
+    # A research tenant must never become a tunnel for production credentials.
+    tenant = http_request.app.state.runtime.tenant_row(tenant_id)
+    if tenant is None or tenant["purpose"] != "production" or tenant["status"] != "active":
+        raise HTTPException(403, "仅正式活跃租户可读取真实账户资产。")
     return wire(await __import__("asyncio").to_thread(
         assets.asset_account, request.account(tenant_id), positions=request.positions,
     ))
