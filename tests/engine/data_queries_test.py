@@ -1,6 +1,4 @@
 """Resident Engine market-data query endpoints read only their tenant's volume."""
-from datetime import UTC, datetime
-
 from fastapi.testclient import TestClient
 
 from engine.app import create_app
