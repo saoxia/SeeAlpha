@@ -13,24 +13,11 @@ from .repository import Operations
 DAY_MS = 86_400_000
 
 
-async def income_history(account, start_ms, end_ms):
-    """Only used by old in-process test fixtures; production goes through Engine HTTP."""
-    from engine.connectors.binance.income import income_history as native_income_history
-
-    async for page in native_income_history(account, start_ms, end_ms):
-        yield page
-
-
-async def operation_history(account, *, lookback_minutes=1440):
-    from engine.connectors.binance.operations import operation_history as native_history
-
-    return await native_history(account, lookback_minutes=lookback_minutes)
-
 logger = logging.getLogger(__name__)
 
 
 class OperationService:
-    def __init__(self, database, accounts, engine=None):
+    def __init__(self, database, accounts, engine):
         if database.backend == "orm":
             from .orm_repository import ORMOperations
 
@@ -41,25 +28,12 @@ class OperationService:
         self.engine = engine
         self.lock = asyncio.Lock()
 
-    def record_project_event(self, event, order, account):
-        """Called by an execution worker with its bound account, never by a browser.
-
-        Live strategies should enqueue callbacks and persist them from their worker;
-        do not run database/network I/O on the native execution callback thread.
-        Backtests must not call this live-business sink.
-        """
-        from engine.connectors.binance.operations import normalize_event
-
-        record = normalize_event(event, order, account)
-        return self.repository.ingest(record) if record is not None else None
-
     async def _sync_income(self, account, start_ms, end_ms, state):
         cash = state["cashflows"]
         cash.update(status="syncing", requested_start_ms=start_ms, requested_end_ms=end_ms,
                     requested_complete=False)
         await asyncio.to_thread(self.repository.save_sync, **state)
-        source = (self.engine.income_history(account, start_ms, end_ms)
-                  if self.engine is not None and self.engine.remote else income_history(account, start_ms, end_ms))
+        source = self.engine.income_history(account, start_ms, end_ms)
         async for page in source:
             for record in page["records"]:
                 result = await asyncio.to_thread(self.repository.ingest, record)
@@ -151,7 +125,7 @@ class OperationService:
                     account = await asyncio.to_thread(self.accounts.private, row["id"])
                     option_scanned, option_added = await sync_options(
                         self.repository, account, state, start_ms, end_ms, cashflows_only=cashflows_only,
-                        engine=self.engine if self.engine is not None and self.engine.remote else None
+                        engine=self.engine
                     )
                     scanned += option_scanned
                     added += option_added
@@ -169,10 +143,8 @@ class OperationService:
                 try:
                     account = await asyncio.to_thread(self.accounts.private, row["id"])
                     minutes = max(1, math.ceil((now - start_ms) / 60_000))
-                    records = (
-                        await self.engine.operation_history(account, lookback_minutes=minutes)
-                        if self.engine is not None and self.engine.remote
-                        else await operation_history(account, lookback_minutes=minutes)
+                    records = await self.engine.operation_history(
+                        account, lookback_minutes=minutes,
                     )
                     for record in records:
                         if start_ms <= record["timestamp"] <= end_ms:
