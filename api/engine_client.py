@@ -254,6 +254,13 @@ class EngineClient:
     def runnable(self, tenant_id, action):
         return self._sync("POST", f"/tenants/{tenant_id}/runnable", json={"action": action})
 
+    def inspect_strategy(self, archive_b64, parameters, *, tenant_id=None):
+        target = self._public_tenant() if tenant_id is None else str(tenant_id)
+        return self._sync(
+            "POST", f"/tenants/{target}/strategy-packages/inspect", tenant_id=target,
+            timeout=45, json={"archive": archive_b64, "parameters": parameters},
+        )
+
     def receive_strategy(self, tenant_id, payload):
         return self._sync("POST", f"/tenants/{tenant_id}/strategy-loads", json=payload)
 
