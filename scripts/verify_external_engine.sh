@@ -6,7 +6,7 @@ umask 077
 # temporary volumes, and import Platform from an api/+core/ only source tree.
 # No real accounts, business database, exchange keys, orders or trading.
 platform_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-engine_sha="${1:-9e670a6d2d4c0cce0a23bad0f40a99593687ae0e}"
+engine_sha="${1:-b33769d432c17fff2b743c31c7efdd6bf3cb450d}"
 if [[ ! "$engine_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected complete 40-character Engine source SHA" >&2
   exit 2

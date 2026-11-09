@@ -12,7 +12,7 @@
 ./scripts/build_external_engine.sh
 ```
 
-脚本通过 Git 克隆独立 Engine 仓库，核对完整 SHA `9e670a6d2d4c0cce0a23bad0f40a99593687ae0e`，然后只使用新仓库的 Dockerfile、锁文件和源码构建 `seealpha-engine:9e670a6d2d4c`，**不会读取本仓库的 `engine/`、`pyproject.toml` 或 Dockerfile**。若要构建另一已审查的提交：
+脚本通过 Git 克隆独立 Engine 仓库，核对完整 SHA `b33769d432c17fff2b743c31c7efdd6bf3cb450d`，然后只使用新仓库的 Dockerfile、锁文件和源码构建 `seealpha-engine:b33769d432c1`，**不会读取本仓库的 `engine/`、`pyproject.toml` 或 Dockerfile**。若要构建另一已审查的提交：
 
 ```bash
 ./scripts/build_external_engine.sh <40位Engine提交SHA>
@@ -40,7 +40,7 @@ export ENGINE_TOKEN='<相同的随机私有开发令牌>'
 uv run python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-**不要同时启动**本仓库遗留的 `python -m engine`。当前 Platform 根目录锁文件仍含 NautilusTrader，这是待后续清理的开发依赖历史，不代表业务 API 会 import 或启动它。
+**不要同时启动**本仓库遗留的 `python -m engine`。Platform 已增加 [`platform/README.md`](../platform/README.md) 中的独立运行环境与锁文件；原仓库根目录锁文件仍用于旧联合测试，不代表业务 API 会 import 或启动 NautilusTrader。
 
 ## 模式 B：独立镜像（全新隔离测试租户）
 
@@ -48,7 +48,7 @@ uv run python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 ```bash
 export ENGINE_DEPLOYMENT=docker
-export ENGINE_DOCKER_IMAGE=seealpha-engine:9e670a6d2d4c
+export ENGINE_DOCKER_IMAGE=seealpha-engine:b33769d432c1
 export ENGINE_TENANT_ROOT=/absolute/path/to/disposable-test-tenants
 ```
 

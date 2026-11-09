@@ -48,6 +48,10 @@ v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_U
 
 本机 `data` 已链接到外置 APFS 卷 `ssd1`，具体位置和使用要求见 [数据存储说明](DATA_STORAGE.md)。
 
+## 独立 Platform Python 环境
+
+新业务端依赖已单独放在 [`platform/`](platform/README.md)，运行时不安装 NautilusTrader、NumPy、Pandas 或 PyArrow；旧根目录依赖暂供历史联合测试使用。可运行 `./scripts/check_platform_runtime.sh` 验证源码隔离与独立依赖环境。
+
 ## Web 管理端
 
 先启动 API，再启动 Next.js 前端，浏览器打开
