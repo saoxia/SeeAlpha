@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+import pytest
 from nautilus_trader.model import AggressorSide, Price, Quantity, TradeId, TradeTick
 
 from engine.pipeline.catalog import ParquetDataCatalog
