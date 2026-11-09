@@ -227,6 +227,7 @@ def test_real_data_manager_rejects_duplicate_key_before_second_process(tmp_path)
     manager.subscriptions = SimpleNamespace(_read=list)
     manager.recover = lambda: None
     manager.lock = threading.RLock()
+    manager.processes = {}
     manager.closed = False
     existing = {
         "id": "a" * 32, "action": "tick_data:validate", "status": "succeeded",
