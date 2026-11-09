@@ -4,7 +4,8 @@ umask 077
 
 # One-off integration test: build the pinned external Engine, start it with only
 # temporary volumes, and import Platform from an api/+core/ only source tree.
-# No real accounts, business database, exchange keys, orders or trading.
+# No real accounts, business database, exchange keys or live trading.
+# Optional backtest exercises only synthetic bars and virtual orders/fills.
 platform_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 engine_sha="${1:-b33769d432c17fff2b743c31c7efdd6bf3cb450d}"
 if [[ ! "$engine_sha" =~ ^[0-9a-f]{40}$ ]]; then
@@ -28,8 +29,9 @@ if [[ ! -x "$platform_python" ]]; then
   echo "Install the standalone Platform environment first: uv sync --project platform --locked" >&2
   exit 2
 fi
-if [[ "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" && "$platform_python" != "$platform_root/platform/.venv/bin/python" ]]; then
-  echo "Disposable business smoke requires the independent Platform runtime (platform/.venv)" >&2
+if [[ ( "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" || "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" ) \
+   && "$platform_python" != "$platform_root/platform/.venv/bin/python" ]]; then
+  echo "Writable Engine smokes require the independent Platform runtime (platform/.venv)" >&2
   exit 2
 fi
 
@@ -94,6 +96,18 @@ export ENGINE_SMOKE_TENANT_ID=987654321
 if [[ "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" ]]; then
   export SEEALPHA_SMOKE_DISPOSABLE=1
   "$platform_python" -I "$platform_root/scripts/verify_external_engine_business.py"
+fi
+
+# Real NautilusTrader historical execution. Seed only the *container's* temporary
+# bind mount; the host Python imports no Engine implementation or research tools.
+if [[ "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" ]]; then
+  test -f "$platform_root/packages/ema_crossover/seealpha-package.json"
+  mkdir -p "$sandbox/platform/packages"
+  cp -R "$platform_root/packages/ema_crossover" "$sandbox/platform/packages/"
+  export SEEALPHA_SMOKE_DISPOSABLE=1
+  docker exec -i -e SEEALPHA_SMOKE_DISPOSABLE=1 "$cid" python - \
+    < "$platform_root/scripts/seed_external_engine_backtest_catalog.py"
+  "$platform_python" -I "$platform_root/scripts/verify_external_engine_backtest.py"
 fi
 
 echo "PASS: pinned standalone Engine + isolated Platform HTTP v2 handshake"

@@ -88,6 +88,33 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 
 此模式强制使用独立 `platform/.venv`；脚本先按原流程构建独立 Engine、创建一次性容器、独立挂载状态卷和随机私有令牌，再通过去掉 `engine/` 源码的 Platform `EngineClient` 完成开发租户创建/幂等、回测权限读取、实盘交易门禁、空订单/成交/持仓记录及跨租户访问拒绝。执行结束自动清理。**仅临时测试容器发生状态写入，不会执行任何交易、下载行情或调用交易所。** 此增强测试没有在本轮开发环境运行，须在集中验收时执行。
 
+
+## 真实 Nautilus 历史回测的跨进程验收（可选）
+
+此模式不是简单的 HTTP Mock。它在全新临时 Docker Engine 的 `/app/data/catalog`
+生成一段 **19 根合成 ETHUSDT 1m K 线**（2024-01-01），只通过 Platform 的
+`EngineClient` HTTP v2 下发 EMA 示例策略，并执行真正的 NautilusTrader
+历史回测：
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_BACKTEST=1 ./scripts/verify_external_engine.sh
+```
+
+基础只读握手仍然先执行；只有设置 `SEEALPHA_VERIFY_BACKTEST=1` 才会进入这一阶段。
+脚本要求独立 `platform/.venv`，容器与所有卷由父脚本创建并在退出时销毁。
+Catalog 生成脚本通过 `docker exec -i` 在独立 Engine 容器内部运行；
+Platform 的 Python 环境**不安装、不导入 NautilusTrader 或旧 `engine/`**。
+
+该验收检查：策略包哈希与单租户下发、开发租户不得进行实盘、无策略及无订阅
+不能回测、初始资金和结束资金、目标持仓轧差、订单/成交数量与标记、
+最新回测记录、跨账户/跨租户隔离，以及模拟回测不写入真实交易订单账本。
+合成数据无需交易所账号或联网行情；不会提交真实订单。
+
+此项**尚未执行实机**，只能在下一次集中验收成功后记为通过；也不能替代
+实际市场数据采集、分布式策略部署、状态恢复、异常恢复和生产发布前的完整
+业务链路验收。
+
 ## 不启动真实交易的验证
 
 原项目 `tests/api/engine_isolation_test.py` 已经将 `api/` 与 `core/` 复制到不含 `engine/` 的临时目录，独立导入 API：
