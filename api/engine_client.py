@@ -180,6 +180,26 @@ class EngineClient:
         }
         return result
 
+    def data_query(self, operation, payload):
+        """Call read-only market-data API on the mounted primary Engine volume."""
+        from fastapi import HTTPException
+
+        if self.tenant_manager is None and not self.remote:
+            raise EngineConflict("测试用本地 Engine 尚未启用数据 HTTP 接口。")
+        path = f"/tenants/{self._public_tenant()}/data/{operation}"
+        url, headers = self._target(path)
+        try:
+            with httpx.Client(timeout=120) as client:
+                response = client.post(url + path, json=payload, headers=headers)
+        except httpx.HTTPError as exc:
+            raise HTTPException(503, "租户数据引擎不可用。") from exc
+        if response.status_code >= 400:
+            detail = response.json().get("detail", "数据查询失败。")
+            if response.status_code in {403, 404, 409, 422, 503}:
+                raise HTTPException(response.status_code, detail)
+            raise HTTPException(502, "Engine 数据查询失败。")
+        return response.json()
+
     def _account_credentials(self, account):
         return {
             "environment": account["environment"],

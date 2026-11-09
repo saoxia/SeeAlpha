@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from engine.config import EngineConfig
+from engine.data_queries import router as market_data_router
 from engine.public_queries import router as venue_router
 from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
@@ -127,6 +128,7 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
     app = FastAPI(title="SeeAlpha Engine", version="0.1.0", dependencies=[Depends(authorized)])
     app.state.runtime = runtime
     app.include_router(venue_router)
+    app.include_router(market_data_router)
 
     @app.middleware("http")
     async def tenant_boundary(request: Request, call_next):
