@@ -45,7 +45,8 @@ Engine 实现移动到 `core` 来掩盖耦合。** 需要真正的远程协议�
 也不直接执行 `engine.feed.managed`、`engine.pipeline.pair_data`，不管理期权共享进程，
 不会在业务 API 停止时关闭 Engine 工作进程。业务库配置变更后调用 Engine `sync`；
 业务 API 周期性恢复只重发 ORM 订阅意图。行情访问许可、进程恢复、期权批处理 manifest
-均由 Engine 负责。平台的 `subscriptions.lock` 只保护业务配置写入，不能当成采集进程锁。
+均由 Engine 负责。平台使用 `.local/run/api/market_policy_writer.lock` 保护业务配置写入；
+Engine 的采集进程继续使用独立的租户采集锁。即使两者运行在同一宿主机，也不共享锁名。
 
 建议下轮优先隔离交易所只读查询，再迁移操作记录，最后迁移数据管理链路；
 这些功能改造与未来独立仓库发布应分别验收。
