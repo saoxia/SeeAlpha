@@ -32,6 +32,26 @@ class FakeTenantManager:
         return "/app/logs/process.log"
 
 
+def test_engine_client_rejects_inprocess_and_uses_http_only(tmp_path):
+    with pytest.raises(ValueError, match="HTTP"):
+        EngineClient(tmp_path, url="inprocess")
+
+    requests = []
+
+    def reply(request):
+        requests.append((request.method, request.url.path))
+        return httpx.Response(200, json={"tenant_id": "7", "status": "active"})
+
+    client = EngineClient(
+        tmp_path, url="http://engine.test",
+        sync_transport=httpx.MockTransport(reply),
+    )
+    assert not hasattr(client, "runtime")
+    assert client.ensure_tenant(7, "development")["status"] == "active"
+    assert requests == [("PUT", "/tenants/7")]
+    client.close()
+
+
 def test_engine_container_rejects_other_tenant_and_purpose(tmp_path):
     config = EngineConfig(
         tmp_path / "state", token="secret", project=tmp_path,
