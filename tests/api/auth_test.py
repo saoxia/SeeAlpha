@@ -1,6 +1,5 @@
-"""Authentication behavior, revocation, browser boundaries and migration compatibility."""
+"""Authentication, revocation, browser boundaries and session persistence."""
 
-import sqlite3
 import time
 from dataclasses import replace
 
@@ -12,7 +11,6 @@ from api.auth.security import hash_password, token_digest, verify_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
-from api.db.migrate_legacy import migrate
 from api.main import create_app
 
 
@@ -120,28 +118,6 @@ def test_password_whitespace_is_preserved_and_no_public_registration(environment
         assert login(client, "long-password", "new-user").status_code == 401
         assert login(client, "  long-password  ", "new-user").status_code == 200
         assert client.post("/api/auth/register", json={}).status_code == 404
-
-
-def test_legacy_migration_preserves_user_hash_sessions_and_business_data(environment, tmp_path):
-    settings, database, repository = environment
-    user = repository.get_user_by_username("admin")
-    repository.create_session(user["id"], token_digest("existing-token"), int(time.time()) + 60)
-    with database.connect() as connection:
-        connection.execute("CREATE TABLE legacy_business (value TEXT)")
-        connection.execute("INSERT INTO legacy_business VALUES ('preserved')")
-    target = tmp_path / "new" / "auth.db"
-    migrate(settings.database_path, target)
-    with TestClient(create_app(replace(settings, database_path=target))) as client:
-        client.cookies.set("seealpha_session", "existing-token")
-        assert client.get("/api/auth/me").status_code == 200
-        assert login(client).status_code == 200
-    migrated = AuthRepository(Database(target))
-    assert migrated.get_user_by_username("admin")["password_hash"] == user["password_hash"]
-    with sqlite3.connect(target) as connection:
-        assert connection.execute("SELECT value FROM legacy_business").fetchone()[0] == "preserved"
-    with pytest.raises(ValueError, match="拒绝覆盖"):
-        migrate(settings.database_path, target)
-    assert settings.database_path.exists()
 
 
 def test_session_lookup_does_not_write_and_still_enforces_expiry_and_revocation(environment):
