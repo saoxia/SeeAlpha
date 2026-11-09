@@ -473,7 +473,14 @@ def test_market_catalog_uses_native_contract_names_and_caches(monkeypatch):
                                             ("BTCUSDC-PERP", "BTC", "USDC")]]
 
     monkeypatch.setattr(queries, "instruments", instruments)
-    service = ExchangeService(None)
+
+    from engine.public_queries import PublicRequest, market_catalog
+
+    async def catalogue(environment, product):
+        payload = PublicRequest(environment=environment, product=product)
+        return (await market_catalog("1", payload))["items"]
+
+    service = ExchangeService(None, engine=SimpleNamespace(market_catalog=catalogue))
 
     async def check():
         first = await service.catalog("production")
