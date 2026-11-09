@@ -10,8 +10,7 @@ from contextlib import aclosing, suppress
 
 from fastapi import HTTPException
 
-from engine.connectors.binance import assets, queries
-from engine.runtime import valuation_events
+from core.engine_contracts import QueryError
 
 from .repository import EquityRepository
 from .valuation import decimal, reconcile
@@ -110,8 +109,7 @@ class EquityService:
                 # Each stream obtains a fresh REST baseline. Mark restarts and
                 # credential changes rather than implying uninterrupted coverage.
                 await persist({"time": int(time.time() * 1000), "reason": "gap", "state": {}})
-                source = (self.engine.valuation_events(account)
-                          if self.engine is not None and self.engine.remote else valuation_events(account))
+                source = self.engine.valuation_events(account)
                 async with aclosing(source) as events:
                     async for event in events:
                         currencies = {currency for currency, amount in event["wallet"].items() if decimal(amount)}
@@ -122,9 +120,9 @@ class EquityService:
                                 old = fx.get(currency)
                                 if old is None or event["time"] - old["time"] >= 60_000:
                                     try:
-                                        quote = await asyncio.to_thread(assets.asset_price, environment, currency)
+                                        quote = await self.engine.asset_price(environment, currency)
                                         fx[currency] = {"price": str(quote["price"]), "time": quote["priced_at"] * 1000}
-                                    except queries.QueryError:
+                                    except QueryError:
                                         pass  # Old evidence keeps its original expiry; no zero fallback.
                         rates = {}
                         if foreign and "USDT" in fx:
@@ -142,7 +140,7 @@ class EquityService:
                         if time.monotonic() - last_check >= 300:
                             # An independent GET avoids opening/closing a shared private
                             # listenKey. Compare at the same saved marks and FX.
-                            snapshot = await asyncio.to_thread(assets.asset_account, account, positions=True)
+                            snapshot = await self.engine.asset_account(account, positions=True)
                             observed = {**evidence, "reason": "check",
                                         "state": account_state(snapshot, evidence["state"])}
                             check = reconcile(evidence, observed, breach)

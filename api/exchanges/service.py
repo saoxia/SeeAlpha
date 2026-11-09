@@ -12,8 +12,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from engine.connectors.binance import assets as asset_queries
-from engine.connectors.binance import queries
+from core.engine_contracts import QueryError
 
 from ..engine_client import account_snapshot
 from ..operations.options import position_view
@@ -42,7 +41,7 @@ def summary(info):
     if wallet is not None and pnl is not None:
         calculated = wallet + pnl
         if equity is not None and abs(equity - calculated) > Decimal("0.00000001"):
-            raise queries.QueryError("账户权益与钱包余额、浮盈亏不一致，拒绝发布。")
+            raise QueryError("账户权益与钱包余额、浮盈亏不一致，拒绝发布。")
         equity = calculated
     return {
         "currency": "USDT",
@@ -191,7 +190,7 @@ class ExchangeService:
                     "updated_at",
                 )
             ):
-                raise queries.QueryError("账户配置已变化，请重新查询。")
+                raise QueryError("账户配置已变化，请重新查询。")
             self.cache[account_id] = (time.monotonic() + 10, value, identity)
             return value
 
@@ -201,12 +200,8 @@ class ExchangeService:
             cached = self.catalog_cache.get(key)
             if cached and cached[0] > time.monotonic():
                 return cached[1]
-            if product == "options":
-                if env != "production":
-                    raise ValueError("期权数据仅使用正式公开行情")
-                from engine.connectors.binance.options import markets
-                values = await asyncio.to_thread(markets)
-                self.catalog_cache[key] = (time.monotonic() + 300, values)
+            values = await self.engine.market_catalog(env, product)
+            self.catalog_cache[key] = (time.monotonic() + 300, values)
                 return values
             if product != "futures_um":
                 raise ValueError("不支持的行情产品")
@@ -238,7 +233,7 @@ class ExchangeService:
                 self.asset_cache[account_id] = cached
             if fresh or cached["expires"] <= time.monotonic():
                 async with self.gate:
-                    cached["evidence"] = await asyncio.to_thread(asset_queries.asset_account, account)
+                    cached["evidence"] = await self.engine.asset_account(account)
                 cached["expires"] = time.monotonic() + 10
             evidence = cached["evidence"]
             # USD indices share the same denominator. Do not assume USDC/USD or USDT/USD = 1.
@@ -251,11 +246,11 @@ class ExchangeService:
                         or previous["expires"] <= time.monotonic()):
                     try:
                         async with self.gate:
-                            quote = await asyncio.to_thread(asset_queries.asset_price, account["environment"], currency)
+                            quote = await self.engine.asset_price(account["environment"], currency)
                         # The threshold is applied below after conversion to USDT.
                         previous = {**quote, "amount": amount, "fetched_at": time.monotonic(), "expires": time.monotonic() + 60,
                                     "error": None}
-                    except queries.QueryError as exc:
+                    except QueryError as exc:
                         previous = {**(previous or {}), "amount": amount,
                                     "expires": time.monotonic() + 60, "error": str(exc)}
                     cached["prices"][currency] = previous
@@ -282,7 +277,7 @@ class ExchangeService:
             current = await asyncio.to_thread(self.accounts.private, account_id)
             if identity != tuple(current[k] for k in ("environment", "credentials_encrypted", "updated_at")):
                 self.asset_cache.pop(account_id, None)
-                raise queries.QueryError("账户配置已变化，请重新查询。")
+                raise QueryError("账户配置已变化，请重新查询。")
             if evidence["multi_assets"] and valid_denominator:
                 result = summary({key: text(number(value) / denominator["price"])
                                   for key, value in evidence["totals"].items()})
@@ -329,7 +324,7 @@ class ExchangeService:
                                        "按资产指数估值，含小额资产；估值不用于保证金或交易风控。")
                 if any(item["stale"] or item["value_usdt"] is None for item in assets):
                     warnings["account"] += " 部分资产暂未估值，保留的旧价仅供参考。"
-            except queries.QueryError as exc:
+            except QueryError as exc:
                 account, assets = summary({}), []
                 errors["account"] = str(exc)
         if any(account[k] is None for k in ("total_equity", "wallet_balance", "unrealized_pnl")):
@@ -365,7 +360,7 @@ class ExchangeService:
                     values.append(value)
                     if value["valuation_source"] == "estimate" or any(a["stale"] for a in value["assets"]):
                         valuation_warnings.append(f"{account['account_name']}: {value['warnings']['account']}")
-            except queries.QueryError:
+            except QueryError:
                 errors.append(f"{account['account_name']}: Binance 查询失败。")
             except HTTPException as exc:
                 errors.append(f"{account['account_name']}: {exc.detail}")

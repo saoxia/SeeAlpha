@@ -1,8 +1,10 @@
 """Business-backend client for the resident engine. Secrets stay in the request body."""
 
+import asyncio
 import json
 import re
 from pathlib import Path
+from decimal import Decimal
 
 import httpx
 
@@ -96,6 +98,87 @@ class EngineClient:
         if response.status_code >= 400:
             raise QueryError(response.json().get("detail", "引擎请求失败。"))
         return response.json() if response.content else None
+
+    def _public_tenant(self):
+        if self.tenant_manager is not None:
+            tenant = self.tenant_manager.primary_tenant_id
+            if tenant is None:
+                raise EngineConflict("Engine 默认租户尚未初始化。")
+            return str(tenant)
+        return "1"
+
+    async def market_catalog(self, environment="production", product="futures_um"):
+        if self.runtime is not None:
+            # Legacy local test runtime; deployed SeeAlpha never executes this branch.
+            from engine.connectors.binance import queries
+
+            if product == "options":
+                from engine.connectors.binance.options import markets
+
+                return await asyncio.to_thread(markets)
+            instruments = await queries.instruments(environment)
+            values = []
+            for item in instruments:
+                quote = str(item.quote_currency)
+                symbol = str(item.id.symbol).removesuffix("-PERP")
+                if (quote not in {"USDT", "USDC"} or str(item.settlement_currency) != quote
+                        or not symbol.endswith(quote)):
+                    continue
+                base = symbol[:-len(quote)]
+                values.append({
+                    "symbol": f"{base}/{quote}:{item.settlement_currency}", "market_type": "linear",
+                    "base": base, "quote": quote, "expiry": None,
+                })
+            return sorted(values, key=lambda item: item["symbol"])
+        result = await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/catalog",
+            json={"environment": environment, "product": product},
+        )
+        return result["items"]
+
+    async def market_tickers(self, environment):
+        if self.runtime is not None:
+            from engine.connectors.binance.manual import market_tickers
+
+            return await market_tickers(environment)
+        return await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/tickers",
+            json={"environment": environment},
+        )
+
+    async def asset_price(self, environment, currency):
+        if self.runtime is not None:
+            from engine.connectors.binance.assets import asset_price
+
+            return await asyncio.to_thread(asset_price, environment, currency)
+        result = await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/asset-price",
+            json={"environment": environment, "currency": currency},
+        )
+        return {**result, "price": Decimal(result["price"])}
+
+    async def asset_account(self, account, *, positions=False):
+        if self.runtime is not None:
+            from engine.connectors.binance.assets import asset_account
+
+            return await asyncio.to_thread(asset_account, account, positions=positions)
+        result = await self._async(
+            "POST", f"/tenants/{account['tenant_id']}/venue/asset-account",
+            json={
+                "environment": account["environment"],
+                "api_key": account["credentials"]["apiKey"],
+                "api_secret": account["credentials"]["secret"],
+                "account_id": str(account["id"]),
+                "account_name": account.get("account_name", ""),
+                "exchange": account.get("exchange", "binance"),
+                "positions": positions,
+            },
+        )
+        result["assets"] = {
+            currency: {field: Decimal(value) for field, value in values.items()}
+            for currency, values in result["assets"].items()
+        }
+        return result
 
     def _account_path(self, tenant_id, account_id):
         return f"/tenants/{tenant_id}/accounts/{account_id}"
