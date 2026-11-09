@@ -108,9 +108,20 @@ if [[ "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" ]]; then
     cp "$platform_root/packages/ema_crossover/$source" "$sandbox/platform/packages/ema_crossover/$source"
   done
   export SEEALPHA_SMOKE_DISPOSABLE=1
+  engine_pid_before="$(docker inspect -f '{{.State.Pid}}' "$cid")"
+  if [[ ! "$engine_pid_before" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Expected a running, resident Engine process" >&2
+    exit 1
+  fi
   docker exec -i -e SEEALPHA_SMOKE_DISPOSABLE=1 "$cid" python - \
     < "$platform_root/scripts/seed_external_engine_backtest_catalog.py"
   "$platform_python" -I "$platform_root/scripts/verify_external_engine_backtest.py"
+  engine_pid_after="$(docker inspect -f '{{.State.Pid}}' "$cid")"
+  if [[ "$engine_pid_after" != "$engine_pid_before" ]]; then
+    echo "Engine container was restarted during repeated backtests" >&2
+    exit 1
+  fi
+  echo "PASS: same resident Engine process served synchronous and asynchronous backtests"
 fi
 
 echo "PASS: pinned standalone Engine + isolated Platform HTTP v2 handshake"
