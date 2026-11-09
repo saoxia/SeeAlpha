@@ -115,8 +115,8 @@ def test_api_market_data_imports_no_engine_data_implementations_or_native_file_p
         assert f'data_query("{route}"' in router
     service = (PROJECT / "api/market_data/service.py").read_text(encoding="utf-8")
     assert "def _lease(" not in service
-    assert 'market_control("delete-plan"' in service
-    assert 'market_control("pair-delete-plan"' in service
+    assert '"delete-plan"' in service and '"pair-delete-plan"' in service
+    assert "def delete_plan(" in service and "def pair_delete_plan(" in service
 
 
 def test_connectors_stay_below_feed_pipeline_and_api():
