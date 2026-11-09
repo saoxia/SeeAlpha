@@ -23,7 +23,7 @@ def engine_http(tmp_path, monkeypatch):
             project=tmp_path,
         )
     )
-    with TestClient(engine_app) as http:
+    with TestClient(engine_app, raise_server_exceptions=False) as http:
         http.headers["Authorization"] = "Bearer seealpha-local-engine"
 
         def forward(request):
@@ -37,7 +37,7 @@ def engine_http(tmp_path, monkeypatch):
             )
 
         sync_transport = httpx.MockTransport(forward)
-        async_transport = httpx.ASGITransport(app=engine_app)
+        async_transport = httpx.ASGITransport(app=engine_app, raise_app_exceptions=False)
 
         class HTTPOnlyTestEngineClient(EngineClient):
             def __init__(self, *args, **kwargs):
