@@ -64,7 +64,7 @@ def test_remote_completed_delete_is_applied_once_to_business_db(tmp_path):
     manager.reconcile_jobs()
     manager.reconcile_jobs()
     assert removed == [("ETHUSDT", "futures_um")]
-    assert (manager.directory / "settled" / f"{task['id']}.json").exists()
+    assert (tmp_path / ".local/state/api/market_settlements" / f"{task['id']}.json").exists()
 
 
 def test_platform_monitor_only_reads_engine_and_never_creates_state_files(tmp_path):
