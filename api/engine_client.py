@@ -3,8 +3,8 @@
 import asyncio
 import json
 import re
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
 
 import httpx
 
