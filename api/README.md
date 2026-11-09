@@ -38,8 +38,10 @@ ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
 
 `ENGINE_URL` 默认就是 `http://127.0.0.1:8766`。本地开发令牌只用于本机进程互认，
 不能当作交易所密钥。公开行情的订阅意图仍写在业务表 `market_data_policies`；
-引擎保存运行期订阅、进度和缺口，并启动单次离线数据任务
-（`engine.pipeline.data_management` 的准备、删除和裁剪）。业务库仍记录这些任务。
+引擎独占行情数据任务的执行、取消、日志、任务状态和中断恢复（含
+`engine.pipeline.data_management` 的准备、删除和裁剪）。业务 API 通过 Engine HTTP
+读取任务并保留业务授权；删除/裁剪成功后的业务配置调整以独立幂等结算标记记录，
+不再写入或恢复 API 本地任务记录。
 操作账本的只读同步和资产校准 REST 仍在 API 进程调用连接器。
 
 API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文件，
@@ -188,6 +190,10 @@ Engine 源码依赖不因此自动消除。
 现有逐日处理、任务锁、取消和六小时运行超时，预览仍限制为 15 分钟，删除仍需文件快照及明确确认。
 统一清单通过 all_levels 查询展示各级别历史区间，状态发布各品种实际采集进度并保留过期降级；按明确保存的实时配置启动固定 Feed 子进程。
 详见 [数据管理 API](../docs/DATA_MANAGEMENT_API.md)。
+
+任务文件与锁由各租户 Engine 保管。Platform 的 `.local/state/api/market_settlements/`
+仅保存已完成删除/历史裁剪对业务配置结算的幂等标记，**不是任务执行状态**。
+本次不迁移现有实验任务记录；旧 `.local/state/api/data_jobs/` 不会自动导入 Engine。
 
 数据任务进度：管理员使用 `WS /api/data/jobs/stream`，可附 `job_id` 获取详情日志；
 复用会话及来源校验，支持断线后获取当前快照，详见 [数据管理 API](../docs/DATA_MANAGEMENT_API.md#任务实时进度)。
