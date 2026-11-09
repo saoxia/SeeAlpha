@@ -25,7 +25,7 @@ def _client(tmp_path):
     app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
     app.state.database.initialize()
     auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
-    app.state.engine.runtime.project = tmp_path
+    # The test Engine HTTP service is configured with this isolated project root.
     return app
 
 
