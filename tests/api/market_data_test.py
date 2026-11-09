@@ -1229,7 +1229,7 @@ def test_chart_reads_retained_evidence_and_valid_forming_tail(context, monkeypat
         assert [r['time'] for r in data['candles']] == [(left - 60000) // 1000, left // 1000]
         assert not data['candles'][-1]['is_closed'] and not data['candles'][-1]['is_complete']
         # Expired observations cannot keep a forming candle alive.
-        monkeypatch.setattr('api.market_data.monitor.time.time', lambda: (now + 30000) / 1000)
+        monkeypatch.setattr('api.market_data.router.time.time', lambda: (now + 30000) / 1000)
         data = client.get('/api/data/chart?symbol=ETHUSDT&interval=1m').json()
         assert not data['live']
         assert len(data['candles']) == 1
