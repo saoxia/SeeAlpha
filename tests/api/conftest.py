@@ -1,0 +1,50 @@
+"""HTTP-only Engine fixture for business API integration tests.
+
+The Platform client never creates EngineRuntime or imports its implementation.
+Tests host the real Engine ASGI application behind HTTPX transports and may
+inspect only the Engine's exposed HTTP contract.
+"""
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
+import api.main as api_main
+from api.engine_client import EngineClient
+from engine.app import create_app as create_engine_app
+from engine.config import EngineConfig
+
+
+@pytest.fixture(autouse=True)
+def engine_http(tmp_path, monkeypatch):
+    engine_app = create_engine_app(
+        EngineConfig(
+            tmp_path / "engine", token="seealpha-local-engine",
+            project=tmp_path,
+        )
+    )
+    with TestClient(engine_app) as http:
+        http.headers["Authorization"] = "Bearer seealpha-local-engine"
+
+        def forward(request):
+            target = request.url.raw_path.decode("ascii")
+            result = http.request(
+                request.method, target, content=request.content,
+                headers=request.headers,
+            )
+            return httpx.Response(
+                result.status_code, headers=result.headers, content=result.content,
+            )
+
+        sync_transport = httpx.MockTransport(forward)
+        async_transport = httpx.ASGITransport(app=engine_app)
+
+        class HTTPOnlyTestEngineClient(EngineClient):
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("sync_transport", sync_transport)
+                kwargs.setdefault("async_transport", async_transport)
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(api_main, "EngineClient", HTTPOnlyTestEngineClient)
+        yield http
+    engine_app.state.runtime.close()
