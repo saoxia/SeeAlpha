@@ -86,9 +86,9 @@ class GatewayControlClient:
         try:
             result = json.loads(data)
             if not isinstance(result, dict):
-                raise ValueError
+                raise TypeError
             return result
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, TypeError, UnicodeDecodeError):
             raise GatewayRegistrationError("Invalid trusted research Gateway response") from None
 
     def register(self, grant: ResearchGrant, *, max_calls: int = 100) -> BridgeRegistration:
