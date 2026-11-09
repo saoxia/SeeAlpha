@@ -300,7 +300,7 @@ class TaskCoordinator:
                     )
                 except EngineConflict as error:
                     record.update(status="FAILED", progress="failed", error=error.message)
-                except Exception:
+                except Exception:  # noqa: BLE001 - untrusted strategy errors must be contained
                     _LOG.exception("Engine backtest task failed (id=%s)", identity)
                     record.update(status="FAILED", progress="failed",
                                   error="回测执行失败，请检查 Engine 日志。")
@@ -308,7 +308,7 @@ class TaskCoordinator:
                               retryable=record["status"] == "FAILED")
                 with self.lock:
                     self.journal.save(record)
-            except Exception:
+            except Exception:  # noqa: BLE001 - protect resident worker from task failures
                 _LOG.exception("Engine task state could not be persisted")
             finally:
                 self.pending.task_done()
