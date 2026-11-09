@@ -7,6 +7,13 @@ when SeeAlpha Engine moves into its own repository.
 
 from dataclasses import dataclass
 
+# Contract version is independent of the Engine release version.
+# Breaking path, identity, error or result changes increment MAJOR.
+ENGINE_PROTOCOL_MAJOR = 1
+ENGINE_PROTOCOL_MINOR = 0
+ENGINE_PROTOCOL_HEADER = "X-SeeAlpha-Engine-Protocol"
+ENGINE_PROTOCOL_VERSION = f"{ENGINE_PROTOCOL_MAJOR}.{ENGINE_PROTOCOL_MINOR}"
+
 
 class QueryError(RuntimeError):
     """A sanitized connector/Engine query error safe for an API caller."""
