@@ -7,7 +7,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from engine.data_manager.contracts import (
     DataDeletePlanRequest,
@@ -131,7 +131,10 @@ def start_job(tenant_id: str, body: JobPayload, request: Request):
         "delete_pair": PairDeleteRequest,
         "trim": PolicyTrimRequest,
     }.get(action, DataJobRequest)
-    payload = model.model_validate(body.payload)
+    try:
+        payload = model.model_validate(body.payload)
+    except ValidationError:
+        raise HTTPException(422, "行情任务参数无效。") from None
     return call(lambda: manager.start(payload))
 
 
