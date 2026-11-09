@@ -16,7 +16,6 @@ from core.engine_contracts import EngineConflict
 
 from ..auth.dependencies import AdminUser
 from ..db.errors import StorageConflict, StorageUnavailable
-from ..engine_client import EngineClient
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 SYMBOL = r"^[A-Z0-9]{2,30}(?:USDT|USDC)-PERP$"
@@ -143,10 +142,10 @@ def account_revision(account):
 
 
 class ManualTrading:
-    def __init__(self, accounts, exchanges, operations, root, engine=None):
+    def __init__(self, accounts, exchanges, operations, root, engine):
         self.accounts, self.exchanges, self.operations = accounts, exchanges, operations
         self.root = Path(root)
-        self.engine = engine or EngineClient(self.root)
+        self.engine = engine
         self.cache, self.locks = {}, {}
 
     async def snapshot(self, account_id, symbol):
