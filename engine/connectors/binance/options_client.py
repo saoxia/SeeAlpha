@@ -299,49 +299,61 @@ class BinanceOptionsDataClient(MarketDataClient):
         del self.streams[stream]
 
     async def _subscribe_trades(self, command):
-        item = self._instrument(command.instrument_id)
+        items = [self._instrument(instrument_id) for instrument_id in command.instrument_ids]
+        for item in items:
+            def parse(row, item=item):
+                return parsing.trade_event(item, row, ts_init=self.clock.timestamp_ns())[0]
 
-        def parse(row):
-            return parsing.trade_event(item, row, ts_init=self.clock.timestamp_ns())[0]
-
-        await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@optionTrade", parse)
+            await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@optionTrade", parse)
 
     async def _unsubscribe_trades(self, command):
-        await self._unsubscribe_stream(f"{str(self._instrument(command.instrument_id).raw_symbol).lower()}@optionTrade")
+        for instrument_id in command.instrument_ids:
+            item = self._instrument(instrument_id)
+            await self._unsubscribe_stream(f"{str(item.raw_symbol).lower()}@optionTrade")
 
     async def _subscribe_quotes(self, command):
-        item = self._instrument(command.instrument_id)
-        await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@bookTicker",
-                                     lambda row: parsing.quote(item, row, self.clock.timestamp_ns()))
+        items = [self._instrument(instrument_id) for instrument_id in command.instrument_ids]
+        for item in items:
+            await self._subscribe_stream(
+                f"{str(item.raw_symbol).lower()}@bookTicker",
+                lambda row, item=item: parsing.quote(item, row, self.clock.timestamp_ns()),
+            )
 
     async def _unsubscribe_quotes(self, command):
-        await self._unsubscribe_stream(f"{str(self._instrument(command.instrument_id).raw_symbol).lower()}@bookTicker")
+        for instrument_id in command.instrument_ids:
+            item = self._instrument(instrument_id)
+            await self._unsubscribe_stream(f"{str(item.raw_symbol).lower()}@bookTicker")
 
     async def _subscribe_book_depth(self, command):
-        item = self._instrument(command.instrument_id)
         levels = command.depth or 10
         if command.book_type != BookType.L2_MBP or levels not in {5, 10, 20}:
             raise ValueError("期权仅支持 L2 前 5/10/20 档完整快照")
-        await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@depth{levels}@100ms",
-                                     lambda row: parsing.depth(item, row, levels, self.clock.timestamp_ns()))
+        items = [self._instrument(instrument_id) for instrument_id in command.instrument_ids]
+        for item in items:
+            await self._subscribe_stream(
+                f"{str(item.raw_symbol).lower()}@depth{levels}@100ms",
+                lambda row, item=item: parsing.depth(item, row, levels, self.clock.timestamp_ns()),
+            )
 
     async def _unsubscribe_book_depth(self, command):
-        symbol = str(self._instrument(command.instrument_id).raw_symbol).lower()
-        for stream in list(self.streams):
-            if stream.startswith(symbol + "@depth"):
-                await self._unsubscribe_stream(stream)
+        for instrument_id in command.instrument_ids:
+            symbol = str(self._instrument(instrument_id).raw_symbol).lower()
+            for stream in list(self.streams):
+                if stream.startswith(symbol + "@depth"):
+                    await self._unsubscribe_stream(stream)
 
     async def _subscribe_bars(self, command):
-        item, period = self._bar_level(command.bar_type)
+        members = [self._bar_level(bar_type) for bar_type in command.bar_types]
+        for item, period in members:
+            def parse(row, item=item, period=period):
+                return parsing.bar_event(item, period, row, ts_init=self.clock.timestamp_ns())[0]
 
-        def parse(row):
-            return parsing.bar_event(item, period, row, ts_init=self.clock.timestamp_ns())[0]
-
-        await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}", parse, market=True)
+            await self._subscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}", parse, market=True)
 
     async def _unsubscribe_bars(self, command):
-        item, period = self._bar_level(command.bar_type)
-        await self._unsubscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}")
+        for bar_type in command.bar_types:
+            item, period = self._bar_level(bar_type)
+            await self._unsubscribe_stream(f"{str(item.raw_symbol).lower()}@kline_{period}")
 
 
 async def market_events(symbol, intervals, *, trades=False, depth=False):
