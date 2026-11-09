@@ -292,7 +292,10 @@ class EngineRuntime:
                 fds.append(lease.fileno())
             if access is not None:
                 symbol, product, shared = access
-                path = self.project / "data/.locks" / product / f"{symbol}.access.lock"
+                data = self.project / "data"
+                if not data.is_dir():
+                    raise EngineConflict("租户数据目录不可用，拒绝创建替代数据卷。")
+                path = data / ".locks" / product / f"{symbol}.access.lock"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 access_lease = path.open("a")
                 flag = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
