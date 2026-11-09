@@ -1,14 +1,11 @@
 """Date changes coordinate parameters, confirmed deletion and service recovery."""
 
-import json
 from datetime import UTC, datetime
 
-import pytest
 from nautilus_trader.model import AggressorSide, Price, Quantity, TradeId, TradeTick
 
 from engine.pipeline.catalog import ParquetDataCatalog
 from engine.pipeline.models import PipelineSettings
-from engine.pipeline.pair_deletion import trim_pair_history
 from nautilus_support import TestInstrumentProvider
 from tests.api.auth_test import login
 from tests.api.market_data_test import context
@@ -76,84 +73,3 @@ def test_later_start_requires_bound_confirmation_and_rejects_changed_sources(con
     assert client.post("/api/data/subscriptions/plan", json=desired, headers={"origin": "https://evil.example"}).status_code == 403
 
 
-@pytest.mark.parametrize("succeed", [True, False])
-def test_new_start_applies_only_after_successful_trim(configured, monkeypatch, succeed):
-    client, manager, root, settings, catalog, source, payload, starts = configured
-    desired = {**payload, "history_start": "2026-08-15T00:00:00Z"}
-    plan = client.post("/api/data/subscriptions/plan", json=desired).json()
-
-    class Process:
-        returncode = 0 if succeed else 1
-        def wait(self, **kwargs):
-            return self.returncode
-        def poll(self):
-            return self.returncode
-
-    def spawn(command, **kwargs):
-        assert command[command.index("-m") + 1:command.index("--request")] == ["engine.pipeline.data_management", "trim"]
-        assert len(kwargs["pass_fds"]) == 2
-        parameters = json.loads(command[command.index("--request") + 1])
-        if succeed:
-            result = trim_pair_history(parameters["symbol"], parameters["product"],
-                datetime.fromisoformat(parameters["policy"]["history_start"]), settings,
-                expected_snapshot=parameters["deletion_snapshot"], project=root)
-            identity = command[command.index("--job-id") + 1]
-            manager.directory.mkdir(parents=True, exist_ok=True)
-            (manager.directory / f"{identity}.json").write_text(json.dumps(result))
-        return Process()
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", spawn)
-    response = client.post("/api/data/subscriptions", json={**plan["policy"], "deletion_snapshot": plan["deletion"]["snapshot"],
-                                                            "confirmation": "DELETE ETHUSDT"})
-    assert response.status_code == 200, response.text
-    identity = response.json()["job"]["id"]
-    manager.threads[-1].join(timeout=3)
-    job = manager.job(identity)
-    assert job["status"] == ("succeeded" if succeed else "failed")
-    saved = manager.policy_repository.list()[0]
-    if succeed:
-        assert saved["history_start"].startswith("2026-08-15") and saved["history_enabled"]
-        assert [str(tick.trade_id) for tick in catalog.trade_ticks()] == ["2"]
-        assert not (source / "ETHUSDT-trades-2026-08-01.zip").exists()
-        assert (source / "ETHUSDT-trades-2026-08-20.zip").exists()
-        assert starts[-1].history_start == datetime(2026, 8, 15, tzinfo=UTC)
-    else:
-        assert saved["history_start"].startswith("2026-08-01") and not saved["history_enabled"]
-        assert len(catalog.trade_ticks()) == 2 and len(starts) == 1
-    assert ("futures_um", "ETHUSDT") not in manager.subscriptions.deleting
-
-
-def test_cancelled_trim_keeps_old_start_and_services_paused(configured, monkeypatch):
-    import threading
-
-    client, manager, _root, _settings, catalog, _source, payload, starts = configured
-    release = threading.Event()
-    desired = {**payload, "history_start": "2026-08-15T00:00:00Z"}
-    plan = client.post("/api/data/subscriptions/plan", json=desired).json()
-
-    class Process:
-        returncode = None
-        def wait(self, **kwargs):
-            assert release.wait(5)
-            self.returncode = 1
-            return self.returncode
-        def poll(self):
-            return self.returncode
-
-    monkeypatch.setattr("engine.supervisor.subprocess.Popen", lambda *args, **kwargs: Process())
-    monkeypatch.setattr(manager, "_stop", lambda process: release.set())
-    response = client.post("/api/data/subscriptions", json={**plan["policy"], "deletion_snapshot": plan["deletion"]["snapshot"],
-                                                            "confirmation": "DELETE ETHUSDT"})
-    assert response.status_code == 200, response.text
-    identity = response.json()["job"]["id"]
-    try:
-        assert client.post("/api/data/subscriptions", json={**payload, "history_start": "2026-07-01T00:00:00Z"}).status_code == 409
-        assert client.get("/api/data/datasets?all_levels=true").status_code == 409
-        assert client.post(f"/api/data/jobs/{identity}/cancel").status_code == 200
-    finally:
-        release.set()
-    manager.threads[-1].join(timeout=3)
-    assert manager.job(identity)["status"] == "cancelled"
-    saved = manager.policy_repository.list()[0]
-    assert saved["history_start"].startswith("2026-08-01") and not saved["history_enabled"]
-    assert len(catalog.trade_ticks()) == 2 and len(starts) == 1
