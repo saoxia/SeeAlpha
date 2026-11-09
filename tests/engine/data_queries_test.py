@@ -91,12 +91,12 @@ def test_api_and_engine_share_a_single_volume_access_lease(tmp_path):
     service = object.__new__(DataService)
     service.project = tmp_path
 
-    with service._lease("ETHUSDT", access=True):
-        with pytest.raises(HTTPException) as captured:
-            with read_lease(tmp_path, "ETHUSDT", "futures_um"):
-                pass
-        assert captured.value.status_code == 409
+    with (service._lease("ETHUSDT", access=True),
+          pytest.raises(HTTPException) as captured,
+          read_lease(tmp_path, "ETHUSDT", "futures_um")):
+        pass
+    assert captured.value.status_code == 409
 
-    with service._lease("ETHUSDT", access=True, shared=True):
-        with read_lease(tmp_path, "ETHUSDT", "futures_um"):
-            pass
+    with (service._lease("ETHUSDT", access=True, shared=True),
+          read_lease(tmp_path, "ETHUSDT", "futures_um")):
+        pass
