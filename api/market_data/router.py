@@ -198,11 +198,10 @@ def ticks(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depend
 
 @router.post("/delete/plan", response_model=DataDeletionPlan)
 def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
-    manager = service(request)
-    if getattr(manager, "engine", None) is not None and manager.engine.remote:
-        return manager.engine.data_query("delete-plan", payload.model_dump(mode="json"))
+    # Deletion preview and executor must share the same filesystem identity.
+    # Keep both on the API host until the destructive job migrates as one unit.
     try:
-        return manager.delete_plan(payload)
+        return service(request).delete_plan(payload)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
