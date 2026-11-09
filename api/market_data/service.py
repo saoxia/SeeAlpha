@@ -72,7 +72,7 @@ class DataService:
         for job in self.engine.market_control("jobs"):
             if job["status"] != "succeeded" or job["action"] not in {"delete_pair", "trim"}:
                 continue
-            marker = self.directory / "settled" / f"{job['id']}.json"
+            marker = self.project / ".local/state/api/market_settlements" / f"{job['id']}.json"
             if marker.exists():
                 continue
             with self.lock:
