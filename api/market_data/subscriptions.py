@@ -138,9 +138,9 @@ class Subscriptions:
                 self.last_error = None
 
     def save(self, policy):
-        # Shared access coexists with historical work; only deletion excludes it.
-        # Keep lock ordering consistent with delete: subscription state, then access.
-        with self.lock, self.manager._lease(policy.symbol, policy.product, access=True, shared=True):
+        # Engine /sync validates deletion exclusion while holding tenant
+        # volume access leases. Platform never opens Engine filesystem locks.
+        with self.lock:
             return self._save(policy)
 
     def resolve(self, policy, old=None):
