@@ -103,7 +103,10 @@ fi
 if [[ "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" ]]; then
   test -f "$platform_root/packages/ema_crossover/seealpha-package.json"
   mkdir -p "$sandbox/platform/packages"
-  cp -R "$platform_root/packages/ema_crossover" "$sandbox/platform/packages/"
+  mkdir -p "$sandbox/platform/packages/ema_crossover"
+  for source in seealpha-package.json strategy.py README.md; do
+    cp "$platform_root/packages/ema_crossover/$source" "$sandbox/platform/packages/ema_crossover/$source"
+  done
   export SEEALPHA_SMOKE_DISPOSABLE=1
   docker exec -i -e SEEALPHA_SMOKE_DISPOSABLE=1 "$cid" python - \
     < "$platform_root/scripts/seed_external_engine_backtest_catalog.py"
