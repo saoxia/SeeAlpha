@@ -31,6 +31,12 @@ on:
       - ".github/workflows/tenant-engine.yml"
   workflow_dispatch:
 
+# Cancel obsolete runs when a new commit is pushed to the same PR.
+# Keep manually dispatched runs independent from each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   python:
     runs-on: ubuntu-latest
