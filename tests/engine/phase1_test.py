@@ -89,8 +89,10 @@ def test_api_does_not_own_live_nodes_feed_processes_or_the_engine_book():
     assert "subprocess.Popen" not in subscriptions
     assert "engine.supervisor import popen" in subscriptions
     assert "subprocess.Popen" not in jobs
-    assert "engine.pipeline.pair_data" in jobs and "engine.pipeline.data_management" in jobs
-    assert "from engine.supervisor import popen as start_worker" in jobs
+    assert '"job/start"' in jobs and '"job/retry"' in jobs and '"job/cancel"' in jobs
+    assert "from engine.supervisor import popen as start_worker" not in jobs
+    assert "def recover(" not in jobs and "def _wait(" not in jobs
+    assert "self.processes" not in jobs and "self.threads" not in jobs
     config = (PROJECT / "api/config.py").read_text(encoding="utf-8")
     assert 'os.getenv("ENGINE_URL", "http://127.0.0.1:8766")' in config
 
