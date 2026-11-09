@@ -3,7 +3,11 @@
 import hmac
 import json
 import logging
+import os
+import subprocess
+import sys
 import threading
+from pathlib import Path
 from contextlib import aclosing
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -19,6 +23,12 @@ from engine.connectors.binance.queries import QueryError
 from engine.runtime import EngineConflict, EngineRuntime, valuation_events
 from engine.task_queue import TaskCoordinator
 from engine.task_routes import router as task_router
+
+
+class PackageInspectBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    archive: str = Field(min_length=1, max_length=400_000)
+    parameters: dict = Field(default_factory=dict)
 
 
 class Credentials(BaseModel):
@@ -349,6 +359,38 @@ def create_app(config: EngineConfig | None = None, runtime: EngineRuntime | None
             return runtime.stop_worker(worker_id)
         except EngineConflict as error:
             raise HTTPException(404, error.message) from None
+
+    @app.post("/tenants/{tenant_id}/strategy-packages/inspect")
+    def inspect_strategy(tenant_id: str, body: PackageInspectBody):
+        """Validate an archive in a short-lived, credential-free worker process."""
+        source_root = Path(__file__).resolve().parents[1]
+        request_body = body.model_dump_json().encode("utf-8")
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONIOENCODING": "utf-8",
+        }
+        try:
+            finished = subprocess.run(
+                [sys.executable, "-m", "engine.strategies.inspect"],
+                input=request_body, capture_output=True, timeout=20,
+                cwd=source_root, env=env, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise HTTPException(503, "策略包校验工作进程不可用。") from exc
+        if finished.returncode or len(finished.stdout) > 65536:
+            raise HTTPException(422, "策略包校验失败。")
+        try:
+            result = json.loads(finished.stdout)
+        except ValueError:
+            raise HTTPException(422, "策略包校验失败。") from None
+        if not isinstance(result, dict):
+            raise HTTPException(422, "策略包校验失败。")
+        if result.get("error"):
+            raise HTTPException(422, str(result["error"])[:300])
+        if not isinstance(result.get("metadata"), dict) or not isinstance(result.get("parameters"), dict):
+            raise HTTPException(422, "策略包校验结果无效。")
+        return result
 
     @app.post("/tenants/{tenant_id}/strategy-loads")
     def receive_strategy(tenant_id: str, body: StrategyLoadBody):
