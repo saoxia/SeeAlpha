@@ -17,7 +17,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import FileResponse
+from fastapi.responses import StreamingResponse
 
 from core.market.instruments import INTERVALS, bar_window
 
@@ -381,22 +381,11 @@ def download(request: Request, identity: str, _: AdminUser):
     value = manager.job(identity)
     if value["status"] != "succeeded" or value["action"] != "export":
         raise HTTPException(409, "该任务没有已完成的导出文件")
-    if manager.remote:
-        from fastapi.responses import StreamingResponse
-
-        return StreamingResponse(
-            manager.engine.market_export(identity),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="ticks-{identity}.csv"'},
-        )
-    manager.require_storage()
-    root = manager.project / "data/exports/ticks"
-    path = root / f"{identity}.csv"
-    if (root.is_symlink() or root.parent.is_symlink() or path.is_symlink()
-            or not path.is_file() or path.resolve().parent != root.resolve()):
-        raise HTTPException(404, "导出文件不可用")
-    return FileResponse(path, media_type="text/csv", filename=f"ticks-{identity}.csv")
-
+    return StreamingResponse(
+        manager._required_engine().market_export(identity),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="ticks-{identity}.csv"'},
+    )
 
 @router.get("/quality")
 def quality(request: Request, _: CurrentUser, payload: Annotated[DataRange, Depends(query_range)]):
