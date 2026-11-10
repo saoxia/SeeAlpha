@@ -24,6 +24,9 @@ PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
               "end": "2026-08-02T00:00:00Z", "intervals": ["1m"]}
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def context(tmp_path, monkeypatch, engine_http):
     url = f"sqlite:///{tmp_path / 'business.db'}"

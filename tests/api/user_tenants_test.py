@@ -14,6 +14,9 @@ from api.main import create_app
 from tests.api.auth_test import login
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def client(tmp_path):
     url = f"sqlite:///{tmp_path / 'business.db'}"

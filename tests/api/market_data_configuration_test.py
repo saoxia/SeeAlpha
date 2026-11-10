@@ -14,6 +14,9 @@ from tests.api.market_data_test import context
 __all__ = ["context"]
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def configured(context, monkeypatch):
     client, app, root = context

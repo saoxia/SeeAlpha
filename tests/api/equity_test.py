@@ -36,6 +36,9 @@ def evidence(stamp=NOW, wallet="100", mark="2010", quantity="0.01", entry="2000"
     }}
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def database(tmp_path):
     url = f"sqlite:///{tmp_path / 'equity.db'}"

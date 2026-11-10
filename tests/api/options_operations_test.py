@@ -33,6 +33,9 @@ def exercise(stamp, identity="2", quantity="1", side="LONG"):
             "quoteAsset": "USDT"}
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def source(monkeypatch):
     clock = [int(time.time() * 1000)]

@@ -44,6 +44,9 @@ def event(**values):
     } | values
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture(params=["legacy", "orm", "postgresql"])
 def ledger(tmp_path, request):
     if request.param in {"orm", "postgresql"}:

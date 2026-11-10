@@ -14,6 +14,9 @@ from api.db.database import Database
 from api.main import create_app
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def environment(tmp_path):
     settings = Settings(tmp_path / "auth.db", cookie_secure=False)

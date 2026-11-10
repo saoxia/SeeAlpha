@@ -24,6 +24,9 @@ from api.olap.repository import olap_repository
 from api.operations.orm_repository import ORMOperations
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture(params=["sqlite", "postgresql"])
 def orm(tmp_path, request):
     if request.param == "postgresql":
