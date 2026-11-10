@@ -20,7 +20,7 @@ def test_activation_without_available_data_uses_local_builds(tmp_path, shell, da
         [
             shell,
             "-c",
-            'source "$1" && printf "%s" "$CARGO_TARGET_DIR"',
+            'source "$1" && printf "%s\n%s\n%s" "$CARGO_HOME" "$UV_CACHE_DIR" "$XDG_CACHE_HOME"',
             "activate-test",
             str(activation),
         ],
@@ -28,7 +28,13 @@ def test_activation_without_available_data_uses_local_builds(tmp_path, shell, da
         text=True,
         check=True,
     )
-    assert result.stdout == str(tmp_path / "engine/pipeline/rust_converter/target")
+    # The Rust converter target now lives in the independent Engine checkout.
+    # Platform activation must keep its own tools and caches project-local.
+    assert result.stdout.splitlines() == [
+        str(tmp_path / ".local/cargo"),
+        str(tmp_path / ".local/cache/uv"),
+        str(tmp_path / ".local/cache"),
+    ]
     assert not data.exists()
     assert data.is_symlink() == dangling_link
     assert not (tmp_path / "unavailable").exists()
