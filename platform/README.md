@@ -193,3 +193,18 @@ API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http"
 非空行情操作或未预期 Engine 请求均会报错。这样不需要在 Platform 测试中安装 NautilusTrader、
 启动 Docker 或依赖旧 Engine ASGI fixture，也无需改动独立 Engine 仓库。
 真实跨进程业务行为仍由显式集成验收脚本负责。
+
+## Platform 资产净值（Equity）测试
+
+原 `tests/api/equity_test.py` 的 **11 项测试函数** 已完整迁至
+`platform/tests/equity_test.py`。估值、缺失行情证据、账户对账、
+幂等事件、重放失败回滚、K 线生成、所有权锁及本地资产采集状态校准
+均属于 SeeAlpha Platform 自有业务逻辑，不需要连接或修改 Engine。
+原用例中只有涉及实际 FastAPI 登录与账户创建的 HTTP 场景显式使用
+`platform_engine_bootstrap`；其余测试不实例化 Engine 客户端。
+
+迁移后的测试独立生成临时 SQLite 数据库并通过原有 Alembic 版本升级。
+原来借用 `tests.api.exchanges_test` 的 `signin/create` 小工具已替换
+为等价的本模块纯 HTTP 辅助函数，防止 Platform 测试重新导入含有
+Engine 本地实现的测试模块。真正交易所资产查询与委托执行仍必须通过
+现有 Engine HTTP 契约单独验证。
