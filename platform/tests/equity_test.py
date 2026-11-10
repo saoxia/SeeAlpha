@@ -4,6 +4,7 @@ import asyncio
 import copy
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -22,7 +23,7 @@ from api.equity.router import aligned_points, candles
 from api.equity.service import EquityService
 from api.equity.valuation import reconcile, value
 from api.main import create_app
-from pathlib import Path
+
 
 PROJECT = Path(__file__).resolve().parents[2]
 
@@ -42,7 +43,6 @@ def create(client, name="main"):
         "api_key": "fixture-key-1234",
         "secret": "fixture-secret-5678",
     })
-
 
 
 NOW = 1_800_000_000_000
