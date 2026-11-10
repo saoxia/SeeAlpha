@@ -82,3 +82,7 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 断言；本模块原先借用的账户登录/创建测试辅助函数已本地化。
 老联合套件不再承担这些 Platform 自有资产净值测试；
 运行完整覆盖时必须包含独立 `platform/tests`。
+
+旧管理任务动作 `backtest` 已从可提交任务列表移除；只读历史不受影响。
+`tests/web/jobs_test.py` 额外覆盖对旧历史记录的可读取性，而正式回测
+仍须使用独立 Engine 的显式跨进程验收脚本。

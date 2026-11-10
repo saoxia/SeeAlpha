@@ -70,7 +70,7 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/tenants/{id}/share` | 把行情订阅分享成其他用户的新开发租户 |
 | `GET /api/management/state` | 检查快照、策略、任务和可访问报告，需要登录 |
 | `GET /api/management/jobs/{id}` | 任务详情及日志尾部，需要登录 |
-| `POST /api/management/jobs` | 启动快速检查或完整检查，需要管理员。策略回测不再从这里启动。 |
+| `POST /api/management/jobs` | 仅启动快速检查或完整检查，需要管理员。已撤销旧回测动作，不再出现在任务目录，但历史回测记录仍可读取。 |
 | `POST /api/management/jobs/{id}/cancel` | 取消正在运行的任务，需要管理员 |
 | `GET /api/management/artifacts/{path}` | 下载已发布的报告或检查结果，需要登录 |
 | `POST /api/tenants/{id}/accounts/{id}/backtests` | 开发租户用虚拟账户回测已下发的策略包，需要管理员 |

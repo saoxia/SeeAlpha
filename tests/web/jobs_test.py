@@ -207,10 +207,30 @@ time.sleep(60)
     assert cancelled["returncode"] == -signal.SIGKILL
 
 
-def test_research_backtest_catalog_is_empty(manager):
+def test_retired_research_backtest_is_not_an_executable_job(manager):
     with pytest.raises(ValueError, match="不再启动已删除的策略"):
         manager.start("backtest", backtest_parameters())
     assert manager.list_jobs() == []
+
+
+def test_retired_backtest_history_remains_readable(tmp_path):
+    from api.management.jobs import JobReader
+
+    directory = tmp_path / ".local/state/web/jobs"
+    directory.mkdir(parents=True)
+    identity = "b" * 32
+    job = {
+        "id": identity, "action": "backtest", "label": "策略回测",
+        "status": "succeeded", "created_at": "2026-01-01T00:00:00+00:00",
+        "finished_at": "2026-01-01T00:01:00+00:00",
+        "returncode": 0, "parameters": {}, "report_urls": ["/artifacts/old/report.html"],
+        "error": None,
+    }
+    (directory / f"{identity}.json").write_text(json.dumps(job), encoding="utf-8")
+    reader = JobReader(tmp_path)
+    assert reader.list_jobs() == [job]
+    assert reader.get_job(identity)["report_urls"] == job["report_urls"]
+    assert not any(item["id"] == "backtest" for item in jobs_module.ACTIONS)
 
 
 def test_nonzero_exit_preserves_error_and_logs(manager):

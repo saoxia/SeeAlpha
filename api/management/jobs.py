@@ -1,4 +1,4 @@
-"""Allowlisted background checks and backtests for the authenticated API."""
+"""Allowlisted project checks and historic job records for authenticated API."""
 
 import argparse
 import copy
@@ -11,14 +11,14 @@ import sys
 import tempfile
 import threading
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
 from core.paths import PROJECT_ROOT as PROJECT
 
-from .artifacts import BACKTESTS, CHECKS, artifact_path
+from .artifacts import CHECKS, artifact_path
 from .storage import WebPaths
 
 CHECK_MODULE = "api.management.jobs"
@@ -27,24 +27,17 @@ STRATEGIES = []
 ACTIONS = [
     {"id": "check_quick", "label": "快速项目检查", "description": "核验冻结文件与代码规范。"},
     {"id": "check_full", "label": "完整项目检查", "description": "核验文件、代码规范及全量测试。"},
-    {
-        "id": "backtest",
-        "label": "策略回测",
-        "description": "研究目录不再启动已删除的策略。请在开发租户上对已下发的策略包运行历史回测。",
-    },
 ]
 _COMMANDS = {
     "check_quick": (CHECK_MODULE, "--quick"),
     "check_full": (CHECK_MODULE,),
 }
 _LABELS = {item["id"]: item["label"] for item in ACTIONS}
+# Read old backtest job history without advertising or executing the retired action.
+_READABLE_ACTIONS = {*_LABELS, "backtest"}
 _STATUSES = {"running", "succeeded", "failed", "cancelled", "interrupted", "skipped"}
-_DATE = re.compile(
-    r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?)?"
-)
 LOG_TAIL_BYTES = 64 * 1024
 CHECK_TIMEOUT = 30 * 60
-BACKTEST_TIMEOUT = 2 * 60 * 60
 STOP_GRACE = 2.0
 
 
@@ -66,7 +59,7 @@ def _stored_job(job, identity):
         and job.get("id") == identity
         and re.fullmatch(r"[0-9a-f]{32}", identity) is not None
         and job.get("status") in _STATUSES
-        and job.get("action") in _LABELS
+        and job.get("action") in _READABLE_ACTIONS
     )
 
 
@@ -86,40 +79,18 @@ def _now():
     return datetime.now(UTC).isoformat()
 
 
-def _date(value, name):
-    if not isinstance(value, str) or not _DATE.fullmatch(value):
-        raise ValueError(f"{name} 必须为 ISO 日期或时间")
-    try:
-        parsed = datetime.fromisoformat(value)
-        return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
-    except (ValueError, OverflowError) as exc:
-        raise ValueError(f"{name} 不是有效日期或时间") from exc
-
-
 def _build_command(python, action, parameters):
-    if not isinstance(action, str) or action not in _LABELS:
+    if action == "backtest":
+        raise ValueError(
+            "研究目录不再启动已删除的策略。请在开发租户上对已下发的策略包运行历史回测。"
+        )
+    if not isinstance(action, str) or action not in _COMMANDS:
         raise ValueError("未知任务类型")
     if not isinstance(parameters, dict):
         raise TypeError("parameters 必须为对象")
-    if action != "backtest":
-        if parameters:
-            raise ValueError("该任务不接受自定义参数")
-        return [python, "-m", *_COMMANDS[action]], {}, _LABELS[action], None
-    if set(parameters) - {"strategy", "start", "end", "interval"}:
-        raise ValueError("回测只接受 strategy、start、end、interval 参数")
-    strategy = parameters.get("strategy")
-    if not isinstance(strategy, str) or not strategy:
-        raise ValueError("请选择支持的策略")
-    start = _date(parameters.get("start"), "start")
-    end = _date(parameters.get("end"), "end")
-    if not start < end:
-        raise ValueError("开始时间必须早于结束时间；结束时间不包含在区间内")
-    if end - start > timedelta(days=366):
-        raise ValueError("单次回测区间不能超过 366 天")
-    interval = parameters.get("interval", "1m")
-    if not isinstance(interval, str) or interval not in {"1m", "5m"}:
-        raise ValueError("K 线周期只支持 1m 或 5m")
-    raise ValueError("研究目录不再启动已删除的策略。请在开发租户上对已下发的策略包运行历史回测。")
+    if parameters:
+        raise ValueError("该任务不接受自定义参数")
+    return [python, "-m", *_COMMANDS[action]], {}, _LABELS[action], None
 
 
 def _atomic_json(path, value):
@@ -309,7 +280,7 @@ class JobManager:
             action = self._jobs[identity]["action"]
         error = None
         try:
-            timeout = BACKTEST_TIMEOUT if action == "backtest" else CHECK_TIMEOUT
+            timeout = CHECK_TIMEOUT
             try:
                 process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
@@ -325,13 +296,6 @@ class JobManager:
             elif error or process.returncode != 0:
                 status = "failed"
                 error = error or f"任务退出码为 {process.returncode}，请查看日志"
-            elif action == "backtest" and not reports:
-                if "指定时间范围内没有已有 K 线，跳过本次回测" in log:
-                    status = "skipped"
-                    error = "指定区间没有可用的本地 K 线，本次未生成回测报告"
-                else:
-                    status = "failed"
-                    error = "进程结束但未发现本次完整回测报告，请查看日志"
             else:
                 status = "succeeded"
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
@@ -356,35 +320,9 @@ class JobManager:
                 self._active = None
                 self._process = None
 
-    def _url(self, path):
-        return "/artifacts/" + quote(path.relative_to(self.project).as_posix(), safe="/")
-
     def _reports(self, action, report_name, log):
         reports = []
-        if action == "backtest":
-            expected = (self.project / BACKTESTS / report_name).resolve()
-            # Only the report announced by this process is attributed to this job.
-            for line in log.splitlines():
-                marker = "中文交互报告："
-                if not line.startswith(marker):
-                    continue
-                path = Path(line[len(marker) :].strip())
-                path = (self.project / path).resolve() if not path.is_absolute() else path.resolve()
-                if (
-                    path.name == "report.html"
-                    and path.parent.parent == expected
-                    and path.is_file()
-                    and (path.parent / "summary.json").is_file()
-                ):
-                    relative = BACKTESTS / report_name / path.parent.name / "report.html"
-                    try:
-                        if artifact_path(self.project, relative) != path:
-                            continue
-                        artifact_path(self.project, relative.with_name("summary.json"))
-                    except (OSError, ValueError):
-                        continue
-                    reports.append(self._url(self.project / relative))
-        elif action in {"check_quick", "check_full"}:
+        if action in {"check_quick", "check_full"}:
             for line in log.splitlines():
                 match = re.fullmatch(r'\s*"artifact_directory":\s*(".*")\s*,?', line)
                 if match:
