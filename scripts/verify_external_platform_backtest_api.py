@@ -96,6 +96,13 @@ def _client(tmp_path):
     auth_repository(app.state.database).create_user(
         "admin", hash_password("test-password-123"),
     )
+    # Normal lifespan mirrors default production tenants to Engine. This
+    # isolated smoke suppresses background workers, so mirror them explicitly.
+    for tenant in app.state.tenants.repository.list_tenants():
+        if tenant["status"] == "active":
+            app.state.engine.ensure_tenant(
+                tenant["id"], tenant["purpose"], tenant["status"],
+            )
     app.router.lifespan_context = _isolated_http_only_lifespan
     return app
 
