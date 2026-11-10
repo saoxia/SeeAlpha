@@ -208,3 +208,12 @@ API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http"
 为等价的本模块纯 HTTP 辅助函数，防止 Platform 测试重新导入含有
 Engine 本地实现的测试模块。真正交易所资产查询与委托执行仍必须通过
 现有 Engine HTTP 契约单独验证。
+
+## 已停用的本地研究回测管理动作
+
+`/api/management/state.actions` 现在只列出仍实际可执行的项目检查动作；
+旧 `backtest` 管理任务不再出现在动作目录，也不能启动。历史管理任务中
+`backtest` 记录和旧报告仍可读取，不会删除业务状态、持久化文件或前端展示。
+真正的回测继续通过开发租户的 `/api/tenants/{id}/accounts/{id}/backtests`
+经独立 Engine HTTP 执行。这轮保留仍被 RESEARCH 页面使用的本地项目检查功能，
+后续有替代 CI 状态接口后再移除执行器。
