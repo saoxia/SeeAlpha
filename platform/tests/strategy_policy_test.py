@@ -106,7 +106,6 @@ def test_ungranted_production_strategy_cannot_reach_engine():
 
         def find_grant(self, version_id, purpose):
             assert (version_id, purpose) == (17, "production")
-            return None
 
     service.repository = Repository()
     with pytest.raises(HTTPException, match="正式授权") as rejected:
