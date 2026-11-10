@@ -89,6 +89,12 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 仍须使用独立 Engine 的显式跨进程验收脚本。
 
 
+旧联合的期权业务 API 测试现在自行构造确定性合约元数据和 K 线，不再导入
+已移入独立 Engine 仓库的 `tests.connectors` / `tests.pipeline` 测试模块；
+这仍是过渡期的进程内测试，后续应迁为独立 HTTP 验收。
+开发环境激活测试只验证 Platform 自有工具及缓存目录，不再要求旧 Rust
+converter 的 `CARGO_TARGET_DIR`。
+
 ## 独立 Engine 专属测试的归属
 
 原 `tests/connectors/`（13 文件）、`tests/feed/`（4 文件）和
