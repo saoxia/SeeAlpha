@@ -183,3 +183,22 @@ SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh
 这两个容器只用于一次集成验收，不代表正式回测每次新建 Docker。
 普通回测继续复用常驻 Engine。旧联合 pytest 不再包含原回测用例，
 因此在集中验收前，不得宣称原 API 回测链路迁移已通过。
+
+## Platform 策略包、授权与预览的真实跨进程验收
+
+原 `tests/api/strategy_store_test.py` 已转为
+`scripts/verify_external_platform_strategy_api.py`，不再在 Platform 测试
+进程内加载 Engine；真实 API 仍检查 ZIP 安全、包版本与参数、开发与正式授权、
+虚拟/正式账户归属、下发后的 Engine 租户记录、跨租户隔离以及目标持仓预览、
+订单轧差及 coordinator 标记。原本读取本地 `book.sqlite` 的断言被替换为
+检查独立 Engine 导出状态中不泄露测试用加密凭据。
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
+```
+
+若同时启用 `SEEALPHA_VERIFY_PLATFORM_BACKTEST=1`，两套 API 用例会复用
+相同的一次性**多租户 Engine 测试容器**；各用例使用独立 SQLite 业务库，
+策略测试会清理属于该临时容器的已知租户数据，避免影响回测用例。
+本流程不涉及真实交易所密钥或生产持仓，且尚未实机运行。

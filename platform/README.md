@@ -96,8 +96,9 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 历史联合回归现在从 `tests/fixtures/strategy_packages.py` 生成确定性的策略包 ZIP，
 它只使用 Python 标准库，**不导入 Engine、NautilusTrader 或 Engine 测试文件**。
 Engine 侧测试断言生成字节与实际 `archive_directory` 相同，避免替换素材时改变策略身份摘要。
-原 `tests/api/strategy_store_test.py` 继续进行真实策略加载和协调预览断言，
-但已不再从 `tests/engine/strategy_load_test.py` 导入生成素材。
+旧策略加载与协调预览断言现已迁至独立 HTTP 联调脚本
+`scripts/verify_external_platform_strategy_api.py`；只使用标准库策略素材，
+不再依赖 `tests/engine/strategy_load_test.py`。
 
 包含真实 Nautilus K 线对象与 Parquet Catalog 的构建器现归
 `tests/fixtures/engine_catalog.py`，仅供旧联合回归与 Engine 侧测试使用，
@@ -136,3 +137,30 @@ Engine 容器内生成合成 Parquet Catalog，隔离的 Platform `EngineClient`
 不会导入旧 `engine/` 或 `tests/fixtures/engine_catalog.py`。
 `SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh`
 只在集中验收时显式运行，默认 Platform 单元测试不会启动 Docker。
+
+## 真实 Platform 策略目录、授权及预览回归
+
+原 `tests/api/strategy_store_test.py` 的两个端到端场景已迁至
+`scripts/verify_external_platform_strategy_api.py`。它们保留策略 ZIP
+安全检查、重复包和参数验证、授权与下发、跨租户隔离、真实模拟策略预览、
+正式/开发租户的独立授权及账号归属等业务断言。
+
+集中验收时：
+
+```bash
+uv sync --project platform --locked
+SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
+```
+
+同时覆盖 Platform 策略与回测 API 可设置两个开关，复用**同一个**
+一次性多租户测试 Engine 容器：
+
+```bash
+SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 \
+  ./scripts/verify_external_engine.sh
+```
+
+两个策略用例使用不同临时业务数据库，复用常驻 Engine，执行完一例后
+删除仅属于一次性测试的 Engine 租户状态。原先无意义的本地 `book.sqlite`
+扫描改成实际检查 Engine 导出的租户状态中不包含模拟加密凭据。
+这些回归需要显式运行，不能算作普通 `pytest` 已覆盖；实机结果待集中验收。
