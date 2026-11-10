@@ -120,9 +120,12 @@ uv run pytest
 uv run ruff check .
 ```
 
-测试统一放在根目录的 `tests/`，按 `core/`、`web/`、`engine/` 及其子模块分组，
-文件名继续使用 `*_test.py`。测试按关键行为和出错影响组织，不要求每个 Python 文件
-都有对应的测试文件。
+测试正在分离：业务端无 Engine 依赖的回归位于 `platform/tests/`；
+迁移期的联合测试仍位于根目录 `tests/`。独立 Engine 仓库负责其
+`tests/connectors/`、`tests/feed/`、`tests/pipeline/`，本仓库已删除这
+30 个与独立 Engine 完全相同的测试副本。根目录 `uv run pytest`
+不会覆盖独立 Platform/Engine 两套完整测试及显式 HTTP 集成验收。
+测试按关键行为和影响组织，不要求每个 Python 文件都有对应测试文件。
 策略包的写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
 
 仅在需要时添加特定交易所的集成。密钥必须放在 `.env` 或其他已忽略的本地

@@ -10,11 +10,10 @@ Platform 纯业务端测试已经逐步迁至 [`platform/tests/`](../platform/te
 
 ```text
 tests/
-├── pipeline/                          # 下载、校验、转换和数据准备
-├── connectors/                        # 原生交易所适配器接入（实现位于 engine/connectors）
-├── feed/                              # 连续行情、补洞、回放与就绪（实现位于 engine/feed）
-├── engine/                            # 常驻引擎的事实、账户范围和 API 边界
-├── web/                               # 任务执行与 HTTP 访问边界
+├── api/                               # 迁移期仍需要旧 Engine 的联合 API 回归
+├── engine/                            # 尚待迁移的原有 Engine 联合测试
+├── fixtures/                          # 迁移期的通用测试素材
+├── web/                               # 管理任务执行与 HTTP 访问边界
 ├── core/                              # 公共基础能力与开发环境
 └── baselines/                         # 当前源码基线和授权更新清单
 ```
@@ -23,7 +22,6 @@ tests/
 
 ```bash
 uv run pytest
-uv run pytest tests/pipeline
 uv run pytest tests/engine/strategy_load_test.py
 # 独立 Engine 的真实策略 API 回归需要隔离 Docker 主机：
 SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
@@ -31,8 +29,11 @@ SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
 
 测试文件保持 `*_test.py` 命名；pytest 的 `importlib` 模式避免不同目录的同名文件冲突。
 
-`python -m pytest -q` 运行全量测试，包含 `source_baselines_test.py` 的历史来源核验；
-`python -m ruff check .` 独立检查代码规范。Web 管理端可顺序运行两者并保存报告。
+`python -m pytest -q` 只运行本仓库剩余的旧联合测试（包括历史来源核验），
+**并非完整跨仓库回归**；`./scripts/check_platform_runtime.sh` 负责独立 Platform，
+独立 Engine 仓库的 CI 负责纯 Engine 测试。`python -m ruff check .`
+仍检查本仓库源码。Web 管理端现有项目检查仅覆盖其所在运行环境；不能据此
+宣称跨仓库验收已通过。
 
 
 `tests/baselines/lint_baseline.json` 当前没有逐文件样式例外。仍在仓库里的已授权源码变更登记在 `tests/baselines/source_updates.json`。
@@ -86,3 +87,18 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 旧管理任务动作 `backtest` 已从可提交任务列表移除；只读历史不受影响。
 `tests/web/jobs_test.py` 额外覆盖对旧历史记录的可读取性，而正式回测
 仍须使用独立 Engine 的显式跨进程验收脚本。
+
+
+## 独立 Engine 专属测试的归属
+
+原 `tests/connectors/`（13 文件）、`tests/feed/`（4 文件）和
+`tests/pipeline/`（13 文件）已从本仓库删除。删除前以 Git blob SHA
+核对，这 **30 个测试文件与独立 `saoxia/seealpha-engine` 的同路径文件内容完全一致**。
+独立 Engine 仓库的 `.github/workflows/engine-ci.yml` 已在 PR、main push 上
+执行 `uv run pytest tests/engine tests/connectors tests/feed tests/pipeline tests/core`
+及 Rust converter 构建和单元测试。原仓库不再重复运行这三组纯 Engine 测试。
+
+仍在 `tests/engine/` 中、尚供旧 API 联合测试使用的用例和工具不会因为
+这次清理被删除；旧 Engine 源码、Docker 构建、根目录组合依赖也暂时保留，
+直到对应调用链解除并统一验收。**只执行 SeeAlpha 根目录 pytest 不等于
+完整跨仓库验收**；必须区分 Platform、Engine 及显式 HTTP 集成验收。
