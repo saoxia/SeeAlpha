@@ -16,6 +16,9 @@ from engine.connectors.binance.queries import QueryError
 from tests.api.exchanges_test import create, signin
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def trading(tmp_path, monkeypatch):
     settings = Settings(tmp_path / 'api.db', cookie_secure=False)

@@ -5,8 +5,9 @@ Engine internals or inject Catalog/data fixtures. Do not reuse this fixture in
 standalone Platform tests. The independent cross-process checks belong to
 platform/tests and scripts/verify_external_engine*.py.
 
-Engine imports are intentionally delayed until a legacy test runs, rather than
-being loaded while pytest collects Platform-related test modules.
+Engine imports are intentionally delayed until an explicitly marked legacy
+API regression actually needs this fixture. Pure API/ORM tests never instantiate
+an Engine, and standalone platform/tests never load this file.
 """
 
 import httpx
@@ -17,7 +18,7 @@ import api.main as api_main
 from api.engine_client import EngineClient
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def engine_http(tmp_path, monkeypatch):
     from engine.app import create_app as create_engine_app
     from engine.config import EngineConfig

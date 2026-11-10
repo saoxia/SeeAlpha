@@ -20,6 +20,9 @@ from tests.web.jobs_test import module
 from tests.web.storage_test import hold_lock, release_lock
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def api(tmp_path):
     settings = Settings(tmp_path / "auth.db", cookie_secure=False)

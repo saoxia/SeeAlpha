@@ -64,3 +64,9 @@ NautilusTrader Catalog 写入专属于 `tests/fixtures/engine_catalog.py`。
 HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 特殊变更：原来读取 Platform 本地 `book.sqlite` 的凭据断言改为检查
 独立 Engine 实际可导出的租户状态，不依赖 Engine 文件路径。
+
+旧 `tests/api/conftest.py` 中的进程内 Engine HTTP 夹具现仅由明确标记的
+联合模块按需启用，不再对整个 `tests/api/` 自动生效。
+研究 Gateway/Grant 和历史 cashflow Alembic 升级测试已迁入
+`platform/tests/` 并随 `./scripts/check_platform_runtime.sh` 集中运行；
+根目录 `uv run pytest` 不会再运行这些迁移后的用例。

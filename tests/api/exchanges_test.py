@@ -21,6 +21,9 @@ from engine.connectors.binance import queries
 from engine.connectors.binance.queries import account_snapshot as native_account_snapshot
 
 
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
 @pytest.fixture
 def application(tmp_path, monkeypatch):
     settings = Settings(tmp_path / "api.db", cookie_secure=False)

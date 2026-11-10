@@ -1,3 +1,5 @@
+import pytest
+
 from fastapi.testclient import TestClient
 
 from api.auth.security import hash_password
@@ -6,6 +8,9 @@ from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.main import create_app
 
+
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
 
 def test_olap_settings_and_monitor_persist_and_require_auth(tmp_path):
     settings = Settings(tmp_path / "auth.db", cookie_secure=False)

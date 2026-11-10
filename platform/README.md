@@ -164,3 +164,18 @@ SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 \
 删除仅属于一次性测试的 Engine 租户状态。原先无意义的本地 `book.sqlite`
 扫描改成实际检查 Engine 导出的租户状态中不包含模拟加密凭据。
 这些回归需要显式运行，不能算作普通 `pytest` 已覆盖；实机结果待集中验收。
+
+## 纯 Platform 研究权限与历史业务库迁移测试
+
+`research_gateway_test.py` 和 `research_grant_test.py` 现在直接属于
+`platform/tests/`：它们通过 HTTPX MockTransport、临时 SQLite
+和本地签名计算核对研究 Gateway 租约、令牌泄露防护、租户授权与拒绝门禁。
+`cashflow_migration_test.py` 也已迁入独立 Platform 环境，使用真正
+Alembic 历史版本逐级升级并检查旧账本证据和 CHECK 约束。
+这些用例全部不导入 Engine/NautilusTrader，也不启动 Docker。
+
+旧 `tests/api/conftest.py` 不再全局自动创建 Engine；需要它的传统
+API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http")`
+显式声明，避免纯数据库或静态隔离测试悄悄依赖 Engine。
+集中验收需分别执行根目录剩余旧联合测试和 `./scripts/check_platform_runtime.sh`，
+否则无法统计完整覆盖范围。
