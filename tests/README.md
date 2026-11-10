@@ -29,8 +29,11 @@ SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
 
 测试文件保持 `*_test.py` 命名；pytest 的 `importlib` 模式避免不同目录的同名文件冲突。
 
-`python -m pytest -q` 运行全量测试，包含 `source_baselines_test.py` 的历史来源核验；
-`python -m ruff check .` 独立检查代码规范。Web 管理端可顺序运行两者并保存报告。
+`python -m pytest -q` 只运行本仓库剩余的旧联合测试（包括历史来源核验），
+**并非完整跨仓库回归**；`./scripts/check_platform_runtime.sh` 负责独立 Platform，
+独立 Engine 仓库的 CI 负责纯 Engine 测试。`python -m ruff check .`
+仍检查本仓库源码。Web 管理端现有项目检查仅覆盖其所在运行环境；不能据此
+宣称跨仓库验收已通过。
 
 
 `tests/baselines/lint_baseline.json` 当前没有逐文件样式例外。仍在仓库里的已授权源码变更登记在 `tests/baselines/source_updates.json`。
