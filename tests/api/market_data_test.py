@@ -265,11 +265,39 @@ def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypat
     from engine.connectors.binance import options
     from engine.pipeline.catalog import ParquetDataCatalog
     from engine.pipeline.options_data import prepare
-    from tests.connectors.binance.options_queries_test import definition
-    from tests.pipeline.options_data_test import bars_request, fake_klines
+    from engine.pipeline.models import DataRequest
 
+    # This legacy API/Engine integration still needs a concrete options fixture,
+    # but must not import test modules owned by the independent Engine repository.
+    exchange_info = {
+        "serverTime": 1793145600000,
+        "optionContracts": [
+            {"underlying": "BTCUSDT", "baseAsset": "BTC", "quoteAsset": "USDT", "settleAsset": "USDT"}
+        ],
+        "optionSymbols": [{
+            "symbol": "BTC-261225-85000-C",
+            "expiryDate": 1798185600000,
+            "underlying": "BTCUSDT",
+            "side": "CALL",
+            "strikePrice": "85000.000",
+            "unit": 10,
+            "quoteAsset": "USDT",
+            "priceScale": 3,
+            "quantityScale": 2,
+            "minQty": "0.01",
+            "maxQty": "200",
+            "status": "TRADING",
+            "initialMargin": "0.15",
+            "maintenanceMargin": "0.075",
+            "filters": [
+                {"filterType": "PRICE_FILTER", "tickSize": "5.000"},
+                {"filterType": "LOT_SIZE", "stepSize": "0.01"},
+            ],
+        }],
+    }
+    monkeypatch.setattr(options, "get", lambda endpoint, **params: exchange_info)
     client, app, _root = context
-    metadata = definition(monkeypatch)
+    metadata = options.markets()[0]
     old_catalog = app.state.exchanges.catalog
 
     async def catalog(env, product="futures_um"):
@@ -288,11 +316,26 @@ def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypat
     assert client.post("/api/data/prepare/plan", json={**payload, "intervals": []}).status_code == 422
     assert client.post("/api/data/jobs", json={**payload, "action": "materialize"}).status_code == 422
     assert client.post("/api/data/jobs", json={**payload, "action": "export"}).status_code == 422
-    request, calls = bars_request(), []
+    start = datetime(2026, 8, 1, tzinfo=UTC)
+    request = DataRequest((metadata["symbol"],), start, start + timedelta(days=1),
+                          bar_intervals=("1m",), market="options")
+    calls = []
+    stamp = int(start.timestamp() * 1000)
+
+    def fake_klines(endpoint, **params):
+        assert endpoint == "klines"
+        calls.append(params)
+        if params["startTime"] > stamp:
+            return []
+        return [
+            [stamp, "3000.000", "3010.000", "2990.000", "3005.000", "0.03", stamp + 59999],
+            [stamp + 60000, "3005.000", "3010.000", "2990.000", "3005.000", "0.00", stamp + 119999],
+        ]
+
     settings = PipelineSettings("options", "trades", (metadata["symbol"],), ("1m",),
                                 _root / "data/raw", _root / "data/catalog", _root / "data/state")
     monkeypatch.setattr(options, "markets", lambda: [metadata])
-    fake_klines(monkeypatch, request, calls)
+    monkeypatch.setattr(options, "get", fake_klines)
     assert prepare(request, settings)["ready"]
     assert ParquetDataCatalog(settings.catalog_dir).instruments()
     rows = client.get("/api/data/datasets?all_levels=true").json()["items"]
