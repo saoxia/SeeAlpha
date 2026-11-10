@@ -264,8 +264,8 @@ def test_option_catalog_plans_payload_and_existing_data_reads(context, monkeypat
 
     from engine.connectors.binance import options
     from engine.pipeline.catalog import ParquetDataCatalog
-    from engine.pipeline.options_data import prepare
     from engine.pipeline.models import DataRequest
+    from engine.pipeline.options_data import prepare
 
     # This legacy API/Engine integration still needs a concrete options fixture,
     # but must not import test modules owned by the independent Engine repository.
