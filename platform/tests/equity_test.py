@@ -22,7 +22,28 @@ from api.equity.router import aligned_points, candles
 from api.equity.service import EquityService
 from api.equity.valuation import reconcile, value
 from api.main import create_app
-from tests.api.exchanges_test import create, signin
+from pathlib import Path
+
+PROJECT = Path(__file__).resolve().parents[2]
+
+
+def signin(client, username="admin"):
+    assert client.post(
+        "/api/auth/login",
+        json={"username": username, "password": "test-password-123"},
+    ).status_code == 200
+
+
+def create(client, name="main"):
+    return client.post("/api/system/exchange-accounts", json={
+        "exchange": "binance",
+        "environment": "production",
+        "account_name": name,
+        "api_key": "fixture-key-1234",
+        "secret": "fixture-secret-5678",
+    })
+
+
 
 NOW = 1_800_000_000_000
 
@@ -36,13 +57,11 @@ def evidence(stamp=NOW, wallet="100", mark="2010", quantity="0.01", entry="2000"
     }}
 
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
-
 @pytest.fixture
 def database(tmp_path):
     url = f"sqlite:///{tmp_path / 'equity.db'}"
-    config = Config("alembic.ini")
+    config = Config(str(PROJECT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT / "migrations"))
     config.attributes.update(database_url=url)
     command.upgrade(config, "head")
     db = ORMDatabase(url, tmp_path / "reference.db")
@@ -182,6 +201,7 @@ def test_owner_lock_recovery_and_restart(database, tmp_path):
     asyncio.run(scenario())
 
 
+@pytest.mark.usefixtures("platform_engine_bootstrap")
 def test_http_auth_real_candles_rebuild_and_environment_isolation(database, tmp_path):
     for username in ("admin", "viewer"):
         auth_repository(database).create_user(username, hash_password("test-password-123"))

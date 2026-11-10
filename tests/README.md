@@ -76,3 +76,9 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 覆盖真实 Platform 生命周期。其他联合测试原先引用鉴权测试文件中的
 `login` 函数，现在统一使用纯 HTTP 辅助函数
 `tests/fixtures/api_auth.py`，避免再次导入 Platform 测试文件。
+
+`tests/api/equity_test.py` 已整体迁入
+`platform/tests/equity_test.py`，保留全部估值、重放、锁与历史曲线
+断言；本模块原先借用的账户登录/创建测试辅助函数已本地化。
+老联合套件不再承担这些 Platform 自有资产净值测试；
+运行完整覆盖时必须包含独立 `platform/tests`。
