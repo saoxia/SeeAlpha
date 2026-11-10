@@ -12,14 +12,45 @@ from sqlalchemy.exc import IntegrityError
 
 from api.db.orm import ORMDatabase
 from api.operations.orm_repository import ORMOperations
-from tests.api.operations_test import cash_event, event
+def event(**values):
+    return {
+        "event_id": "submit-1",
+        "account_id": 1,
+        "account_name": "main",
+        "exchange": "binance",
+        "environment": "production",
+        "symbol": "ETHUSDT-PERP",
+        "event_type": "place",
+        "timestamp": 1000,
+        "evidence": "project",
+        "client_order_id": "client-1",
+        "strategy_id": "strategy-1",
+        "amount": "1",
+        "price": "2000",
+    } | values
+
+
+# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
+pytestmark = pytest.mark.usefixtures("engine_http")
+
+
+def cash_event(**values):
+    return {"event_id": "income-1", "account_id": 1, "account_name": "main",
+            "exchange": "binance", "environment": "production", "symbol": "",
+            "event_type": "cashflow", "timestamp": 1000, "evidence": "venue",
+            "amount": "-0.0000000123456789", "asset": "USDC", "income_type": "FUNDING_FEE",
+            "transaction_id": "9007199254740993", "info": "", "status": "confirmed", **values}
+
+
+PROJECT = Path(__file__).resolve().parents[2]
 
 OLD_EVENTS = "'place','amend','cancel','fill','reject','expire','correction'"
 
 
 def configured_database(tmp_path: Path):
     url = f"sqlite:///{tmp_path / 'ledger.db'}"
-    config = Config("alembic.ini")
+    config = Config(str(PROJECT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT / "migrations"))
     config.attributes["database_url"] = url
     command.upgrade(config, "83b07b30f140")
     return config, url
