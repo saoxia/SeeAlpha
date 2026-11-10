@@ -1,9 +1,8 @@
 """Engine-free business policy boundaries for strategy issuance and backtests."""
 
 import pytest
-from fastapi import HTTPException
-
 from api.strategies.service import StrategyStore
+from fastapi import HTTPException
 
 
 class FakeTenants:

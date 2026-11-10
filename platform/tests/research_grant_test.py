@@ -4,7 +4,6 @@ import hmac
 import json
 
 import pytest
-
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database

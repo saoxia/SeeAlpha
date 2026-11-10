@@ -3,10 +3,9 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from api.market_data import router as data_router
 from api.market_data.contracts import DataRange
+from fastapi import HTTPException
 
 
 class RemoteEngine:

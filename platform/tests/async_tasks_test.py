@@ -9,12 +9,11 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.main import create_app
+from fastapi.testclient import TestClient
 
 PROJECT = Path(__file__).resolve().parents[2]
 
