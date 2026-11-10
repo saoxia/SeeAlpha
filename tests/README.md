@@ -24,7 +24,9 @@ tests/
 ```bash
 uv run pytest
 uv run pytest tests/pipeline
-uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.py
+uv run pytest tests/engine/strategy_load_test.py
+# 独立 Engine 的真实策略 API 回归需要隔离 Docker 主机：
+SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
 ```
 
 测试文件保持 `*_test.py` 命名；pytest 的 `importlib` 模式避免不同目录的同名文件冲突。
@@ -48,10 +50,17 @@ uv run pytest tests/engine/strategy_load_test.py tests/api/strategy_store_test.p
 策略 ZIP 测试素材生成已独立到 `tests/fixtures/strategy_packages.py`（仅标准库）；
 NautilusTrader Catalog 写入专属于 `tests/fixtures/engine_catalog.py`。
 旧 API 策略和回测测试不再导入 `tests.engine.*` 测试用例模块。
-实际历史回测/策略下发仍由旧联合套件覆盖，待跨进程替代。
+真实策略目录/下发及历史回测已迁为显式跨进程验收脚本；其余旧联合测试继续保留。
 
 原 `tests/api/backtest_test.py` 的真实业务 API 回测断言已迁至
 `scripts/verify_external_platform_backtest_api.py`。集中验收须显式运行
 `SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 ./scripts/verify_external_engine.sh`，
 原联合 `pytest` 不再包含这一用例；它仍与
 `platform/tests/` 普通业务单元测试和独立 Engine 测试互补。
+
+原 `tests/api/strategy_store_test.py` 的两个场景现在位于
+`scripts/verify_external_platform_strategy_api.py`，保留原有真实策略包、
+授权、跨租户和协调预览断言。测试在隔离 Platform API 与独立 Engine
+HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
+特殊变更：原来读取 Platform 本地 `book.sqlite` 的凭据断言改为检查
+独立 Engine 实际可导出的租户状态，不依赖 Engine 文件路径。

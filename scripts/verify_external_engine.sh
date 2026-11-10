@@ -30,7 +30,8 @@ if [[ ! -x "$platform_python" ]]; then
   exit 2
 fi
 if [[ ( "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" || "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" \
-      || "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" ) \
+      || "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
+      || "${SEEALPHA_VERIFY_PLATFORM_STRATEGY:-0}" == "1" ) \
    && "$platform_python" != "$platform_root/platform/.venv/bin/python" ]]; then
   echo "Writable Engine smokes require the independent Platform runtime (platform/.venv)" >&2
   exit 2
@@ -132,8 +133,9 @@ fi
 # Real Platform business API regression: a fresh multi-tenant Engine is needed
 # to preserve the original test's production/development/other-tenant cases.
 # This is an *integration-test-only* second container, not per-backtest Docker.
-if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" ]]; then
-  mkdir -p "$sandbox"/{api-state,api-data,api-local,api-logs,business}
+if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
+   || "${SEEALPHA_VERIFY_PLATFORM_STRATEGY:-0}" == "1" ]]; then
+  mkdir -p "$sandbox"/{api-state,api-data,api-local,api-logs,business,strategy-business}
   cp -R "$platform_root/migrations" "$sandbox/platform/"
   cp "$platform_root/alembic.ini" "$sandbox/platform/alembic.ini"
   mkdir -p "$sandbox/platform/packages/ema_crossover"
@@ -173,22 +175,40 @@ EOF
     echo "Disposable API Engine was not running" >&2
     exit 1
   fi
-  docker exec -i -e SEEALPHA_SMOKE_DISPOSABLE=1 "$api_cid" python - \
-    < "$platform_root/scripts/seed_external_engine_backtest_catalog.py"
+  if [[ "${SEEALPHA_VERIFY_PLATFORM_STRATEGY:-0}" == "1" ]]; then
+    # Pure stdlib strategy package fixtures; no old tests/api or Engine sources.
+    mkdir -p "$sandbox/platform/tests/fixtures"
+    cp "$platform_root/tests/__init__.py" "$sandbox/platform/tests/__init__.py"
+    cp "$platform_root/tests/fixtures/__init__.py" \
+      "$sandbox/platform/tests/fixtures/__init__.py"
+    cp "$platform_root/tests/fixtures/strategy_packages.py" \
+      "$sandbox/platform/tests/fixtures/strategy_packages.py"
+    env -i PATH="$PATH" HOME="$sandbox" LANG="${LANG:-C.UTF-8}" \
+      PYTHONDONTWRITEBYTECODE=1 SEEALPHA_SMOKE_DISPOSABLE=1 \
+      SEEALPHA_ISOLATED_PLATFORM_ROOT="$sandbox/platform" \
+      SEEALPHA_API_TEST_STATE_DIR="$sandbox/strategy-business" \
+      ENGINE_URL="http://$api_binding" ENGINE_TOKEN="$api_token" \
+      "$platform_python" -I "$platform_root/scripts/verify_external_platform_strategy_api.py"
+  fi
 
-  # Hard environmental isolation: never read host DB URLs or trading secrets.
-  env -i PATH="$PATH" HOME="$sandbox" LANG="${LANG:-C.UTF-8}" \
-    PYTHONDONTWRITEBYTECODE=1 SEEALPHA_SMOKE_DISPOSABLE=1 \
-    SEEALPHA_ISOLATED_PLATFORM_ROOT="$sandbox/platform" \
-    SEEALPHA_API_TEST_STATE_DIR="$sandbox/business" \
-    ENGINE_URL="http://$api_binding" ENGINE_TOKEN="$api_token" \
-    "$platform_python" -I "$platform_root/scripts/verify_external_platform_backtest_api.py"
+  if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" ]]; then
+    # The same disposable Engine is reused, but its historical Catalog is
+    # generated only when the full backtest case is requested.
+    docker exec -i -e SEEALPHA_SMOKE_DISPOSABLE=1 "$api_cid" python - \
+      < "$platform_root/scripts/seed_external_engine_backtest_catalog.py"
+    env -i PATH="$PATH" HOME="$sandbox" LANG="${LANG:-C.UTF-8}" \
+      PYTHONDONTWRITEBYTECODE=1 SEEALPHA_SMOKE_DISPOSABLE=1 \
+      SEEALPHA_ISOLATED_PLATFORM_ROOT="$sandbox/platform" \
+      SEEALPHA_API_TEST_STATE_DIR="$sandbox/business" \
+      ENGINE_URL="http://$api_binding" ENGINE_TOKEN="$api_token" \
+      "$platform_python" -I "$platform_root/scripts/verify_external_platform_backtest_api.py"
+  fi
   api_pid_after="$(docker inspect -f '{{.State.Pid}}' "$api_cid")"
   if [[ "$api_pid_before" != "$api_pid_after" ]]; then
     echo "The Engine unexpectedly restarted during the migrated API backtest" >&2
     exit 1
   fi
-  echo "PASS: migrated API business backtest used one resident independent Engine"
+  echo "PASS: requested Platform business API strategy/backtest regressions used one resident independent Engine"
 fi
 
 echo "PASS: pinned standalone Engine + isolated Platform HTTP v2 handshake"
