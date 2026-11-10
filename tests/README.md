@@ -70,3 +70,9 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 研究 Gateway/Grant 和历史 cashflow Alembic 升级测试已迁入
 `platform/tests/` 并随 `./scripts/check_platform_runtime.sh` 集中运行；
 根目录 `uv run pytest` 不会再运行这些迁移后的用例。
+
+原 `tests/api/auth_test.py` 与 `tests/api/olap_test.py` 已迁入
+`platform/tests/`，通过仅实现租户注册的严格 HTTP MockTransport
+覆盖真实 Platform 生命周期。其他联合测试原先引用鉴权测试文件中的
+`login` 函数，现在统一使用纯 HTTP 辅助函数
+`tests/fixtures/api_auth.py`，避免再次导入 Platform 测试文件。
