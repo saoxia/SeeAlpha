@@ -18,7 +18,7 @@ from api.db.auth_repository import auth_repository
 from api.main import create_app
 from api.market_data.service import DataService
 from engine.pipeline.models import PipelineSettings
-from tests.api.auth_test import login
+from tests.fixtures.api_auth import login
 
 PARAMETERS = {"symbol": "ETHUSDT", "start": "2026-08-01T00:00:00Z",
               "end": "2026-08-02T00:00:00Z", "intervals": ["1m"]}

@@ -15,7 +15,7 @@ from api.main import create_app
 from api.management.jobs import CHECK_MODULE
 from api.management.service import snapshot
 from api.management.storage import WebPaths
-from tests.api.auth_test import login
+from tests.fixtures.api_auth import login
 from tests.web.jobs_test import module
 from tests.web.storage_test import hold_lock, release_lock
 

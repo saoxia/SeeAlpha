@@ -14,8 +14,8 @@ from api.db.database import Database
 from api.main import create_app
 
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
+# Run the actual Platform lifespan with an Engine-free HTTP bootstrap stub.
+pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
 @pytest.fixture
 def environment(tmp_path):

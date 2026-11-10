@@ -179,3 +179,17 @@ API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http"
 显式声明，避免纯数据库或静态隔离测试悄悄依赖 Engine。
 集中验收需分别执行根目录剩余旧联合测试和 `./scripts/check_platform_runtime.sh`，
 否则无法统计完整覆盖范围。
+
+## 鉴权与 OLAP API 测试归属
+
+`platform/tests/auth_test.py`、`platform/tests/olap_test.py` 已从旧 `tests/api`
+迁出，保留真实 FastAPI / TestClient 生命周期、登录会话、Cookie 安全、
+速率限制、密码重置、ClickHouse 设置加密与监控管理断言。
+
+仅测试环境下通过 `platform/tests/conftest.py` 的
+`platform_engine_bootstrap` 接管 EngineClient 的 HTTP 传输。
+它**只允许**启动阶段的租户注册、空行情任务列表读取和空订阅策略
+同步，且验证 HTTP 契约版本与本地测试 Token。任意策略下发、交易、
+非空行情操作或未预期 Engine 请求均会报错。这样不需要在 Platform 测试中安装 NautilusTrader、
+启动 Docker 或依赖旧 Engine ASGI fixture，也无需改动独立 Engine 仓库。
+真实跨进程业务行为仍由显式集成验收脚本负责。
