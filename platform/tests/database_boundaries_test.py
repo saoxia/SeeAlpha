@@ -13,13 +13,12 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
-
 from api.config import Settings
 from api.db.database import create_database
 from api.db.errors import StorageUnavailable
 from api.db.orm import ORMDatabase
 from api.main import create_app
+from sqlalchemy import create_engine, text
 
 
 def test_orm_refuses_unmigrated_database(tmp_path):
