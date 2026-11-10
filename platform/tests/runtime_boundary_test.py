@@ -95,3 +95,23 @@ def test_platform_tests_do_not_import_legacy_engine_or_test_helpers():
                 assert name.split(".", 1)[0] not in forbidden | {"tests"}, (
                     path.relative_to(PLATFORM_ROOT), name,
                 )
+
+
+def test_platform_tests_cannot_opt_into_legacy_engine_http_fixture():
+    """No standalone test may silently reattach to the old ASGI Engine test fixture."""
+    for path in sorted((PLATFORM_ROOT / "platform/tests").glob("*_test.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.arg):
+                assert node.arg != "engine_http", (path, node.lineno)
+            elif isinstance(node, ast.Name):
+                assert node.id != "engine_http", (path, node.lineno)
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "usefixtures"
+            ):
+                assert not any(
+                    isinstance(arg, ast.Constant) and arg.value == "engine_http"
+                    for arg in node.args
+                ), (path, node.lineno)
