@@ -12,6 +12,8 @@ from sqlalchemy.exc import IntegrityError
 
 from api.db.orm import ORMDatabase
 from api.operations.orm_repository import ORMOperations
+
+
 def event(**values):
     return {
         "event_id": "submit-1",
@@ -29,9 +31,6 @@ def event(**values):
         "price": "2000",
     } | values
 
-
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
 
 
 def cash_event(**values):
