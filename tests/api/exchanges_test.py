@@ -20,7 +20,6 @@ from engine.connectors.binance import assets as asset_queries
 from engine.connectors.binance import queries
 from engine.connectors.binance.queries import account_snapshot as native_account_snapshot
 
-
 # Legacy app-lifespan regressions opt in to the in-process Engine fixture.
 pytestmark = pytest.mark.usefixtures("engine_http")
 

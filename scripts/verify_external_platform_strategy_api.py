@@ -27,9 +27,12 @@ def run_cases(state, engine_http):
     # These standard-library fixtures are explicitly copied into the isolated
     # Platform test tree. Neither the legacy Engine nor its test suite is copied.
     import verify_external_platform_backtest_api as support
+
     from api.db.models import ExchangeAccount
     from tests.fixtures.strategy_packages import (
-        crossover_bars, ema_archive, hold_archive,
+        crossover_bars,
+        ema_archive,
+        hold_archive,
     )
 
     _client = support._client

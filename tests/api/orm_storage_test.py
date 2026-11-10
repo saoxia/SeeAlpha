@@ -20,7 +20,6 @@ from api.main import create_app
 from api.olap.repository import olap_repository
 from api.operations.orm_repository import ORMOperations
 
-
 # Legacy app-lifespan regressions opt in to the in-process Engine fixture.
 pytestmark = pytest.mark.usefixtures("engine_http")
 
