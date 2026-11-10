@@ -188,8 +188,8 @@ API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http"
 
 仅测试环境下通过 `platform/tests/conftest.py` 的
 `platform_engine_bootstrap` 接管 EngineClient 的 HTTP 传输。
-它**只允许**启动阶段的 `PUT /tenants/{id}` 注册请求，并验证 HTTP
-契约版本与本地测试 Token；任意策略、交易、行情或未预期请求均会
-报错。这样不需要在 Platform 测试中安装 NautilusTrader、
+它**只允许**启动阶段的租户注册、空行情任务列表读取和空订阅策略
+同步，且验证 HTTP 契约版本与本地测试 Token。任意策略下发、交易、
+非空行情操作或未预期 Engine 请求均会报错。这样不需要在 Platform 测试中安装 NautilusTrader、
 启动 Docker 或依赖旧 Engine ASGI fixture，也无需改动独立 Engine 仓库。
 真实跨进程业务行为仍由显式集成验收脚本负责。
