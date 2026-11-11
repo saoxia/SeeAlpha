@@ -101,9 +101,21 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked
+      - name: Checkout pinned standalone Engine for shared transport smoke
+        uses: actions/checkout@v4
+        with:
+          repository: saoxia/seealpha-engine
+          ref: ${{ env.ENGINE_SOURCE_SHA }}
+          path: _external_engine
+      - name: Refuse Engine/Platform contract drift
+        run: |
+          cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
+          cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
       - name: Full Python lint
         run: uv run ruff check .
       - name: Contract and isolation smoke tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
         run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/engine_isolation_test.py
 
   api_regression:

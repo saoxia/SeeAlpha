@@ -72,6 +72,11 @@ target-version = "py313"
 
 # 历史研究与回放快照保留原始字节；当前报告生成器、全部策略和测试仍检查。
 extend-exclude = [
-    ".local", ".venv", "data", "logs", "reports",
+    ".local", ".venv", "_external_engine", "data", "logs", "reports",
 ]
 
+
+# The native Engine implementation is supplied by a pinned external checkout
+# in compatibility CI, not by a tracked Platform `engine/` directory.
+[tool.ruff.lint.isort]
+known-first-party = ["api", "core", "engine", "nautilus_support", "tests"]
