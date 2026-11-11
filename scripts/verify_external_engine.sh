@@ -19,21 +19,10 @@ if [[ "$docker_host" != unix://* ]]; then
   echo "Smoke is restricted to local Unix-socket Docker context (actual: $docker_host)" >&2
   exit 2
 fi
-# Prefer the new Engine-free runtime; retain the previously accepted root-env
-# fallback for the read-only smoke during the gradual migration.
+# Phase 20: only the Engine-free Platform environment is supported.
 platform_python="$platform_root/platform/.venv/bin/python"
 if [[ ! -x "$platform_python" ]]; then
-  platform_python="$platform_root/.venv/bin/python"
-fi
-if [[ ! -x "$platform_python" ]]; then
   echo "Install the standalone Platform environment first: uv sync --project platform --locked" >&2
-  exit 2
-fi
-if [[ ( "${SEEALPHA_VERIFY_BUSINESS:-0}" == "1" || "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" \
-      || "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
-      || "${SEEALPHA_VERIFY_PLATFORM_STRATEGY:-0}" == "1" ) \
-   && "$platform_python" != "$platform_root/platform/.venv/bin/python" ]]; then
-  echo "Writable Engine smokes require the independent Platform runtime (platform/.venv)" >&2
   exit 2
 fi
 

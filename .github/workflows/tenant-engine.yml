@@ -271,7 +271,7 @@ jobs:
 
           isolated="$(mktemp -d)"
           cp -R api core "$isolated/"
-          SEEALPHA_PLATFORM_ROOT="$isolated" uv run python -I - <<'PY'
+          SEEALPHA_PLATFORM_ROOT="$isolated" platform/.venv/bin/python -I - <<'PY'
           import os
           import sys
           from pathlib import Path
