@@ -23,6 +23,12 @@ def fill(stamp, identity="1", side="BUY", quantity="1", price="100", symbol=SYMB
             "fee": "-0.010000001", "quoteAsset": "USDT"}
 
 
+def exercise(stamp, identity="2", quantity="1", side="LONG"):
+    return {"id": identity, "symbol": SYMBOL, "positionSide": side, "createDate": stamp,
+            "quantity": quantity, "amount": "0", "fee": "0", "exercisePrice": "85000",
+            "quoteAsset": "USDT"}
+
+
 @pytest.fixture
 def source(monkeypatch):
     clock = [int(time.time() * 1000)]
@@ -83,7 +89,6 @@ def ledger(tmp_path, request):
     if request.param in {"orm", "postgresql"}:
         from alembic import command
         from alembic.config import Config
-
         from api.db.orm import ORMDatabase
         from api.operations.orm_repository import ORMOperations
 

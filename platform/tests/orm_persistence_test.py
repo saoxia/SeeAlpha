@@ -21,7 +21,7 @@ from api.main import create_app
 from api.olap.repository import olap_repository
 from api.operations.orm_repository import ORMOperations
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event as sa_event, text
 
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
@@ -201,11 +201,10 @@ def test_orm_ledger_idempotence_and_merge(orm):
 def test_management_history_and_report_index_survive_restart_and_unmounted_data(orm, tmp_path):
     import json
 
-    from sqlalchemy import select
-
     from api.db.models import BacktestReport, ManagementJob
     from api.management.jobs import CHECK_MODULE, JobManager
     from api.management.service import ManagementService
+    from sqlalchemy import select
 
     db, _, _ = orm
     from api.db.management_repository import ManagementRepository
@@ -312,12 +311,12 @@ def test_orm_session_lookup_is_read_only_with_immediate_expiry_and_revocation(or
     statements = []
     def record(_conn, _cursor, statement, _parameters, _context, _executemany):
         statements.append(statement.lstrip().upper())
-    event.listen(db.engine, "before_cursor_execute", record)
+    sa_event.listen(db.engine, "before_cursor_execute", record)
     try:
         assert auth.get_user_for_session("valid-read-only")["id"] == user["id"]
         assert auth.get_user_for_session("expired-read-only") is None
     finally:
-        event.remove(db.engine, "before_cursor_execute", record)
+        sa_event.remove(db.engine, "before_cursor_execute", record)
     assert statements and all(statement.startswith("SELECT") for statement in statements)
     auth.delete_session("valid-read-only")
     assert auth.get_user_for_session("valid-read-only") is None

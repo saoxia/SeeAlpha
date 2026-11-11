@@ -58,7 +58,6 @@ def ledger(tmp_path, request):
     if request.param in {"orm", "postgresql"}:
         from alembic import command
         from alembic.config import Config
-
         from api.db.orm import ORMDatabase
         from api.operations.orm_repository import ORMOperations
 
