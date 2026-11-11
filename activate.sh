@@ -36,9 +36,10 @@ mkdir -p \
     "$UV_TOOL_DIR" \
     "$UV_TOOL_BIN_DIR"
 
-if [[ -f "$PROJECT_ROOT/.venv/bin/activate" ]]; then
+# Activate only the Platform runtime; never reactivate an obsolete root .venv.
+if [[ -f "$PROJECT_ROOT/platform/.venv/bin/activate" ]]; then
     # shellcheck disable=SC1091
-    source "$PROJECT_ROOT/.venv/bin/activate"
+    source "$PROJECT_ROOT/platform/.venv/bin/activate"
 fi
 
 unset PROJECT_ROOT

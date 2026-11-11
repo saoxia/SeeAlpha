@@ -1,6 +1,6 @@
 # Platform 独立 Python 运行环境
 
-当前根目录的 `pyproject.toml` 与 `uv.lock` 暂时保留，供旧 Monorepo 联合测试使用；新的 Platform Python 运行环境**单独管理于 `platform/`**。本目录不复制业务源码：实际服务继续使用同一仓库根目录的 `api/`、`core/` 和 `migrations/`，浏览器前端仍是 `web/`。
+Phase 20 已删除仓库根目录的 `pyproject.toml` 和 `uv.lock`；Platform 的 Python 依赖**唯一受控于本目录**。本目录不复制业务源码：实际服务继续使用同一仓库根目录的 `api/`、`core/` 和 `migrations/`，浏览器前端仍是 `web/`。
 
 独立环境的运行依赖只有业务 API 直接需要的 SQLAlchemy、Alembic、psycopg、FastAPI、Uvicorn、HTTPX、Argon2 与 cryptography；不安装 NautilusTrader、NumPy、Pandas、PyArrow、WebSockets、研究可视化库或交易引擎。开发环境额外安装 pytest、Ruff。完整版本通过本目录的 `uv.lock` 锁定。
 
@@ -27,12 +27,21 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 命令需从 **SeeAlpha 仓库根目录**运行，以便发现 `api/` 和 `core/`。必须使用真实但隔离的业务数据库配置，且不能与当前正在服务的业务实例重复运行定期任务或连接同一账户；这里仅提供部署说明，不要求执行。
 
-## 旧 Monorepo 迁移债务
+## Phase 20 已完成的根目录依赖切割
 
-- 现有 `tests/legacy_engine_integration/conftest.py` 会导入 `engine.app` 和 `engine.config`，不能直接在瘦身环境运行整个 `tests/api`；新独立测试在 `platform/tests/`，旧联合回归暂留根环境，直到改写为跨进程假服务/真实测试容器。
-- `tests/api/backtest_test.py` 还依赖 `tests/engine/` 的数据构建辅助。移除旧 Engine 源码前必须将该辅助变成独立测试夹具或跨仓库验收素材，而不是直接删除有效测试。
-- 原仓库 `docker/engine.Dockerfile`、根 `pyproject.toml`/`uv.lock` 仍为历史构建入口，当前统一对外构建流程应使用 `scripts/build_external_engine.sh`，勿依赖这些旧构建产物。
-- `engine/` 的 82 个源文件在这一过渡 PR 中不删除。行情、策略、回测、状态恢复的完整业务链路验收仍须单独完成。
+原 `engine/`（82 文件）、9 个重复 Engine 测试模块、
+`docker/engine.Dockerfile`、`nautilus_support.py`、
+根目录 `pyproject.toml`/`uv.lock` 和本地 Rust 工具链声明均已拆离。
+独立 Engine `saoxia/seealpha-engine` 持有实现与重型依赖。
+
+`tests/legacy_engine_integration/` 保留仍需 Engine 原生实现的联合兼容回归：
+CI 明确检出已审查的固定 Engine 提交，使用 Engine 自有锁文件配置
+临时测试 Python，再附加 Platform 锁定 API 依赖，绝不将 NautilusTrader
+安装到 `platform/.venv`。两端的 `core/` HTTP 和交易契约必须字节相同。
+普通回测继续复用常驻 Engine，兼容 CI/Docker 验收才使用一次性环境。
+
+原生事件映射、订单耐久性、行情 Catalog 和锁语义仍由独立 Engine
+及联合兼容测试覆盖。**通过测试不表示真实生产账户迁移或实盘验证完成。**
 
 ## 数据库与部署边界回归
 
@@ -67,14 +76,13 @@ NautilusTrader、真实订单或 Docker。
 
 旧 `tests/api/` 已不再持有需要进程内 Engine 的回归用例：
 仅保留无需 Engine 的轻量 API 隔离检查和显式 Docker 验证入口。
-真正访问旧 `engine/` / NautilusTrader 的 8 个历史联合测试模块及其
+真正访问独立 Engine 源码 / NautilusTrader 的 8 个历史联合测试模块及其
 `engine_http` 夹具集中放到
 `tests/legacy_engine_integration/`，仍由根目录 `pytest` 执行，
 并且**不在独立 Platform 依赖环境中运行**。
 
-这是一项测试归属与依赖隔离，不等于已将这些真实引擎行为全部改写为
-独立 Engine 的跨进程验收。Phase 20 必须为它们建立等价 HTTP/Engine
-覆盖、解决旧 Docker 和重型锁文件后，才能实际移除 `engine/` 源码。
+该目录仍是过渡期的**测试兼容层**，不等于全部改写为纯 HTTP 联调。
+旧 Docker 与根目录重型依赖已经移除；CI 从独立 Engine 检出执行兼容回归。
 CI 继续分别验证独立 Platform 和旧联合兼容套件。
 
 ## Phase 19C：独立业务回归扩展
@@ -140,9 +148,8 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 它不读取或保存交易所凭据，不发单，不下载行情、不跑策略和回测。
 不能把此基础业务边界验证当成完整业务链路验收。
 
-旧 `tests/legacy_engine_integration/conftest.py` 仍服务于依赖 Engine 实现与真实回测数据的联合回归；
-其 Engine 实现导入已下沉到夹具执行时，而不在测试收集阶段加载。
-旧联合测试完全改为跨进程前不能删除旧 `engine/`。
+旧 `tests/legacy_engine_integration/conftest.py` 仍服务于联合兼容回归；
+它仅在专用 CI 环境中从独立 Engine 检出加载，Platform 运行环境不加载此 fixture。
 
 ## 策略与异步回测的业务端测试
 

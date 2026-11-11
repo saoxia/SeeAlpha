@@ -5,6 +5,7 @@ Run with: platform/.venv/bin/python -m pytest -c platform/pyproject.toml platfor
 
 import ast
 import importlib.metadata
+import re
 import shutil
 import subprocess
 import sys
@@ -145,3 +146,29 @@ def test_platform_does_not_regain_engine_worker_or_venue_ownership():
     assert '"job/start"' in jobs and '"job/retry"' in jobs and '"job/cancel"' in jobs
     assert "def recover(" not in jobs and "def _wait(" not in jobs
     assert 'os.getenv("ENGINE_URL", "http://127.0.0.1:8766")' in config
+
+
+def test_platform_checkout_contains_no_engine_sources_or_root_heavy_lock():
+    """Phase 20 must not accidentally reintroduce the monorepo Engine runtime."""
+    for relative in (
+        "engine", "tests/engine", "docker/engine.Dockerfile",
+        "nautilus_support.py", "pyproject.toml", "uv.lock",
+        "rust-toolchain.toml",
+    ):
+        assert not (PLATFORM_ROOT / relative).exists(), relative
+
+
+def test_engine_pins_are_identical_for_ci_build_and_manual_smoke():
+    """Three entrypoints must use one reviewed immutable independent Engine SHA."""
+    paths = (
+        ".github/workflows/tenant-engine.yml",
+        "scripts/build_external_engine.sh",
+        "scripts/verify_external_engine.sh",
+    )
+    observed = {}
+    for relative in paths:
+        text = (PLATFORM_ROOT / relative).read_text(encoding="utf-8")
+        pinned = re.findall(r"\b[0-9a-f]{40}\b", text)
+        assert len(pinned) == 1, relative
+        observed[relative] = pinned[0]
+    assert len(set(observed.values())) == 1, observed

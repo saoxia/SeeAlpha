@@ -3,8 +3,8 @@
 SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密资产、期货、股票等市场，
 覆盖现货、永续合约、期权等交易产品，围绕数据准备、行情、策略研究、回测、风控与交易执行构建。
 
-本仓库使用 `nautilus-trader 2.0.0rc7` 候选版软件包作为底层引擎，
-并不是上游 NautilusTrader 源代码仓库的副本。SeeAlpha 是产品名称，NautilusTrader 是底层引擎名称。
+NautilusTrader 属于独立 [seealpha-engine](https://github.com/saoxia/seealpha-engine) 的运行依赖，
+本仓库的 Platform Python 环境不安装交易引擎。
 
 
 ## 产品定位与长期边界（2026-11-09）
@@ -14,7 +14,7 @@ Engine 专注数据、回测、策略运行、风控和交易执行的正确性�
 Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、任务编排、
 可视化和业务运营，实际量化计算由 Engine 承担。
 
-**正在分阶段拆分仓库**：独立 `saoxia/seealpha-engine` 已建立。旧 `engine/` 暂时保留供历史测试和安全回滚；新的开发/部署入口使用独立 Engine 服务或其固定版本镜像，不再从原仓库构建。
+**Phase 20 已提取 Engine 源码**：本仓库不再包含 `engine/`、旧 Engine Dockerfile 或根目录重型 Python 依赖。Engine 位于 [saoxia/seealpha-engine](https://github.com/saoxia/seealpha-engine)，Platform 仅以 HTTP v2 和固定版本镜像调用。原生测试由 Engine 仓库 CI 负责；历史联合 API 兼容测试在隔离 CI 环境中通过固定提交检出 Engine，不在 Platform 服务进程中运行。
 职责归属、依赖规则、剩余解耦项与验收条件见
 [Engine / Platform 产品与架构边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)；
 当前已完成 Platform 的源码导入隔离和 Engine 跨进程契约验收，但不意味着已完成实盘策略或真实账户验收。
@@ -50,7 +50,7 @@ v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_U
 
 ## 独立 Platform Python 环境
 
-新业务端依赖已单独放在 [`platform/`](platform/README.md)，运行时不安装 NautilusTrader、NumPy、Pandas 或 PyArrow；旧根目录依赖暂供历史联合测试使用。可运行 `./scripts/check_platform_runtime.sh` 验证源码隔离与独立依赖环境。
+Platform 的唯一业务 Python 依赖锁位于 [`platform/`](platform/README.md)，运行时不安装 NautilusTrader、NumPy、Pandas 或 PyArrow；根目录不再保留重型 Python 项目或 uv 锁。通过 `./scripts/check_platform_runtime.sh` 验证。Engine 独立仓库管理自己的 Python/Rust 锁文件。
 
 ## Web 管理端
 
@@ -67,69 +67,37 @@ v2 接口、数据格式和版本可用性限制见 [升级记录](docs/ENGINE_U
 
 旧的 BTC/ETH 研究策略和 2026-09 的几轮优化记录已随 `strategy_python/` 删除，不再作为可运行来源。旧机器的前向观察模块及专用运维工具已于 2026-10-27 移除。
 
-本机开发检查使用：
+Platform 日常检查使用：
 
 ```bash
-python -m pytest -q
+uv sync --project platform --locked
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
+platform/.venv/bin/ruff check .
 ```
 
-pytest 包含历史源码与授权更新核验；代码规范另用 `python -m ruff check .`。
+涉及独立 Engine 的兼容回归由 GitHub Actions 固定版本检出，使用独立 Engine 及 Platform 的两个锁文件，不需要在本机安装到业务 Python 环境。
 Web 项目检查按同一范围依次运行 Ruff 和 pytest。
 
-## 连续分钟行情层
+## Engine 与 Platform 的开发入口
 
-以下行情和历史管道 CLI 在独立 `seealpha-engine` 仓库中运行；此处保留旧代码说明供迁移期间核对，Platform 运行不应启动这些进程。
+常驻行情、策略和回测运行于独立 Engine 仓库，服务默认监听本地 8766。
+Engine 的 [Feed](https://github.com/saoxia/seealpha-engine/blob/main/engine/feed/README.md)、
+[历史数据管道](https://github.com/saoxia/seealpha-engine/blob/main/engine/pipeline/README.md)
+以及 Rust 转换器均只在独立仓库开发或编译。
 
-
-新增独立的[统一行情层](engine/feed/README.md)，以已闭合 1 分钟 OHLCV 衔接本地历史、
-REST 补齐与 WebSocket 实时数据，包含连续检查点、重启回放、来源冲突检测和数据就绪控制。
-仅采集公开行情，尚未接入真实账户或自动启用现行策略。
-
-```bash
-.venv/bin/python -m engine.feed.service serve
-.venv/bin/python -m engine.feed.service status
-```
-
-常驻交易引擎与业务 API 分开启动。引擎默认 `127.0.0.1:8766`，API 用 `ENGINE_URL` 连接。
-新的启动方式见 [独立 Engine 接入](docs/EXTERNAL_ENGINE.md) 和 [API](api/README.md)。
+在 SeeAlpha Platform 仓库启动业务 API：
 
 ```bash
-# 先在独立 seealpha-engine 项目启动 Engine（参见 docs/EXTERNAL_ENGINE.md）
-COOKIE_SECURE=false ENGINE_DEPLOYMENT=single \
-  ENGINE_URL=http://127.0.0.1:8766 ENGINE_TOKEN='<私有开发令牌>' \
-  .venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+uv sync --project platform --locked --no-default-groups
+export ENGINE_DEPLOYMENT=single
+export ENGINE_URL=http://127.0.0.1:8766
+export ENGINE_TOKEN='<独立 Engine 的私有令牌>'
+export DATABASE_URL='<隔离且已迁移的业务数据库连接串>'
+platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
-## 进入项目环境
-
-```bash
-source ./activate.sh
-```
-
-激活脚本会把 Python、虚拟环境、下载的依赖、缓存、工具和临时文件都保存在
-本项目目录内。
-
-## 常用命令
-
-以下同步环境命令用于安装或明确需要重建环境时；日常检查使用上面的本地环境入口。
-
-```bash
-uv sync --locked
-uv run python -c "import nautilus_trader; print(nautilus_trader.__version__)"
-uv run pytest
-uv run ruff check .
-```
-
-测试正在分离：业务端无 Engine 依赖的回归位于 `platform/tests/`；
-迁移期的联合测试仍位于根目录 `tests/`。独立 Engine 仓库负责其
-`tests/connectors/`、`tests/feed/`、`tests/pipeline/`，本仓库已删除这
-30 个与独立 Engine 完全相同的测试副本。根目录 `uv run pytest`
-不会覆盖独立 Platform/Engine 两套完整测试及显式 HTTP 集成验收。
-测试按关键行为和影响组织，不要求每个 Python 文件都有对应测试文件。
-策略包的写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
-
-仅在需要时添加特定交易所的集成。密钥必须放在 `.env` 或其他已忽略的本地
-文件中，禁止提交真实交易密钥。
+已有 Engine Docker 容器应长驻复用；普通回测不创建新的容器。部署与可选隔离
+验收见 [外部 Engine 说明](docs/EXTERNAL_ENGINE.md)。
 
 ## 策略包
 
@@ -137,58 +105,26 @@ uv run ruff check .
 引擎不保存策略名字清单。示例是双均线：金叉公布满额多头，死叉公布空仓。
 写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
 
-## 同步 Binance 公开归档
+## 行情归档、转换与回测
 
-默认数据集配置为 Binance USD-M 永续 `BTC-USDT`、`ETH-USDT`、`SOL-USDT` 的逐笔 `trades`。
-批量准备命令会从同一份 trades 生成 Nautilus `TradeTick` 以及 1s、1m、5m、15m Bar：
-
-```bash
-.venv/bin/python -m engine.pipeline.prepare_data \
-  --start 2026-08-01 \
-  --end 2026-08-02
-```
-
-[`engine/pipeline/sync_binance_file.py`](engine/pipeline/sync_binance_file.py) 用于将
-`data.binance.vision` 上指定的单个公开数据归档同步到项目。既可以传完整 URL，
-也可以传以 `data/` 开头的站内路径：
-
-```bash
-.venv/bin/python -m engine.pipeline.sync_binance_file \
-  data/futures/um/daily/trades/ETHUSDT/ETHUSDT-trades-2026-08-01.zip
-```
-
-数据默认写入 `data/raw/binance/` 并保留远端目录结构。脚本会下载配套的
-`.CHECKSUM`、执行 SHA-256 校验、使用临时文件原子替换，并在网络中断后尝试
-断点续传。重复执行时，已经通过校验的文件会被跳过。
-
-可通过 `--output-dir` 指定其他数据根目录；只有在远端确实没有校验文件且能
-接受完整性风险时，才应使用 `--skip-checksum`。查看全部参数：
-
-```bash
-.venv/bin/python -m engine.pipeline.sync_binance_file --help
-```
-
-批量同步、Nautilus 转换、统一 `prepare_data()` 入口和目录内所有文件的职责，
-详见 [`engine/pipeline/README.md`](engine/pipeline/README.md)。
-
-回测完成后打开结果目录中的 `report.html` 查看中文交互报告，无需联网。
-报告包含常规统计、参数、账户/成交/持仓明细，以及做多、做空、合计三条累计净收益曲线。
-曲线按完整持仓平仓时间计入含结算币种手续费的已实现收益；分批退出延后至全部平仓时计入，
-未平仓持仓与浮盈亏不计入。支持悬停、图例开关、缩放、拖动、自选日期和“全部 / 近 6 个月”。
-“近 6 个月”相对回测结束时间计算，筛选保留原始累计值，指标卡统计完整回测区间。
-
-2026-10-27: [Native capability adoption and validation](docs/NATIVE_CAPABILITY_ADOPTION.md).
+公开归档下载、NautilusTradeTick/Bar 转换、Catalog 入库、连续行情进程以及
+回测执行全部归独立 [seealpha-engine](https://github.com/saoxia/seealpha-engine)。
+命令需在该仓库的独立运行环境执行，不能在 SeeAlpha Platform 根目录使用
+`python -m engine...`。可参考
+[Pipeline 手册](https://github.com/saoxia/seealpha-engine/blob/main/engine/pipeline/README.md)。
+Platform 的研究任务仅经受控 HTTP 调用 Engine。
 
 ## 数据模块分工
 
-| 目录 | 职责 |
+| 组件 | 责任 |
 |---|---|
-| [`engine/pipeline/`](engine/pipeline/README.md) | 历史归档下载、转换、校验、特征与 Catalog 入库 |
-| [`engine/`](engine/README.md) | 常驻交易引擎、连接器、连续行情与历史工作进程 |
-| [`connectors/`](connectors/README.md) | 交易所原生适配器配置、桥接与必要扩展 |
-| [`core/`](core/README.md) | 公共行情类型、命名规则和项目路径 |
+| [seealpha-engine](https://github.com/saoxia/seealpha-engine) | Binance 连接器、行情 Feed、Pipeline、NautilusTrader 回测与订单执行 |
+| `core/` | 两仓库同步的 HTTP 与交易契约、公共市场定义 |
+| `api/` | 租户、账户、策略授权、业务操作账本、研究任务和 Engine HTTP 客户端 |
+| `web/` | Next.js 前端 |
+| `platform/` | 精简 Python 依赖锁、无 Engine 的 Platform 回归 |
 
-连接器与公共定义不依赖行情服务和离线管道；行情服务仅在历史 Catalog 桥接处使用管道存储接口。
+独立 Engine 版本由跨仓库验收显式固定，不再通过 Platform 仓库目录决定。
 
 ## 工程边界
 
@@ -200,7 +136,7 @@ uv run ruff check .
 - `api/`：鉴权、账户、操作记录、行情管理，以及检查、回测、报告和任务日志。
 - `web/`：独立 Next.js 前端，通过同源 `/api` 访问上述接口。
 - `tests/`：自动化行为测试、源码基线及历史研究来源校验。
-- 配置继续位于所属模块，依赖与工具链由根目录声明文件管理。
+- 配置继续位于所属模块，Platform Python 依赖由 `platform/pyproject.toml` 与 `platform/uv.lock` 管理；独立 Engine 自行锁定其研究和 Rust 工具链。
 
 不设置独立的 conf、cli、runtime、checks、benchmarks 或 scripts 目录。
 前端与 API 的环境和构建步骤见 [开发环境说明](DEV_ENVIRONMENT.md)。

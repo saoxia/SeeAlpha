@@ -8,7 +8,7 @@ SeeAlpha = **量化交易能力内核（Engine）** + **量化研发与运营平
 
 - **Engine 追求量化能力的上限**：提高行情与数据质量、研究和回测能力、组合风控、模拟与实盘执行、性能和可靠性。
 - **Platform 追求使用量化能力的效率**：降低策略开发、验证、发布、管理和运营的门槛，为人工用户与经授权的 AI 工作流提供统一入口。
-- **仓库策略（2026-11-10 更新）**：用户已授权渐进拆分；独立 Engine 仓库已建立，原 Monorepo 暂留旧实现和联合测试，Platform 开始接入外部 Engine 服务/固定镜像。此阶段不删除旧 `engine/`，不自动切换实盘。
+- **仓库策略（2026-11-10 更新）**：独立 Engine 仓库已建立；Phase 20 删除了 Platform 仓库内重复的 `engine/` 源码、旧 Dockerfile 和根目录重型 Python 依赖。Platform 通过 HTTP v2/固定镜像访问 Engine，历史联合测试在 CI 里从独立仓库检出。**不自动切换实盘**。
 
 ## 职责归属
 
@@ -41,7 +41,7 @@ SeeAlpha = **量化交易能力内核（Engine）** + **量化研发与运营平
 
 ## 当前状态（不是完成宣告）
 
-截至 2026-11-09，仓库已有 `engine/`、`api/`、`web/`、`core/` 和策略 `packages/`；Engine 有单独启动入口和独立 Docker 镜像，且支持按租户管理 Engine 容器。当前 Docker 模式为可选，同宿主机部署，不包含跨服务器调度或不可信策略安全沙箱。
+历史上（2026-11-09）Monorepo 包含 `engine/`，现已迁至独立仓库；当前 Platform 仓库保留 `api/`、`web/`、`core/` 和策略 `packages/`；Engine 有单独启动入口和独立 Docker 镜像，且支持按租户管理 Engine 容器。当前 Docker 模式为可选，同宿主机部署，不包含跨服务器调度或不可信策略安全沙箱。
 
 2026-11-09 的第 8–14 项已消除生产 Platform 对 Engine 与 NautilusTrader 源码的直接导入，并验证隔离环境下的跨进程 HTTP 契约、租户权限与独立 Engine Docker 构建（[PR #38](https://github.com/saoxia/SeeAlpha/pull/38)）。**达到这一阶段的源码与构建隔离，不等于已拆为独立仓库，也不等于具备真实资金实盘或不可信代码安全沙箱能力**。
 

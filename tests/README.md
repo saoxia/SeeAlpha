@@ -1,43 +1,34 @@
-# 项目测试
+# 项目测试（Phase 20）
 
-独立 Engine 的 HTTP v2 真实联调已移至 [`platform/tests/external_engine_contract_test.py`](../platform/tests/external_engine_contract_test.py)，不再被本目录旧进程内 Engine fixture 自动包装。现有联合回归仍用旧实现直到涉及行情、策略和回测的用例完成跨进程迁移。
-
-原 `tests/api/orm_storage_test.py` 中 7 项不需要 Engine 的数据库部署边界回归
-现由 `platform/tests/database_boundaries_test.py` 独立运行；旧联合测试保留仍
-需要联合环境的 ORM 行为，不重复执行已迁移的 7 项。
-
-Platform 纯业务端测试已经逐步迁至 [`platform/tests/`](../platform/tests/)；
-旧 `tests/` 暂保留需要 Engine 实现的联合用例。根目录 `uv run pytest`
-**不会**自动覆盖 Platform 专用环境下的测试，见 [`platform/README.md`](../platform/README.md)。
-
-测试集中存放，按业务模块分组，不要求与每个实现文件一一对应。
+业务端日常测试在 [`platform/tests/`](../platform/tests/) 内，不再依赖
+NautilusTrader、旧 `engine/` 目录或根目录重型 Python 环境。
+`tests/legacy_engine_integration/` 则为过渡期联合兼容测试；
+GitHub Actions 从固定的独立 Engine 提交加载 Engine，实现等价兼容覆盖。
+原生 Engine 自己的回归由 [seealpha-engine](https://github.com/saoxia/seealpha-engine) CI 负责。
 
 ```text
 tests/
-├── api/                               # 迁移期仍需要旧 Engine 的联合 API 回归
-├── engine/                            # 尚待迁移的原有 Engine 联合测试
-├── fixtures/                          # 迁移期的通用测试素材
-├── web/                               # 管理任务执行与 HTTP 访问边界
-├── core/                              # 公共基础能力与开发环境
-└── baselines/                         # 当前源码基线和授权更新清单
+├── api/                         # 轻量隔离和显式 Docker 集成入口
+├── core/                        # 共用 Engine/Platform 合约兼容验证（CI）
+├── legacy_engine_integration/   # 通过独立 Engine 检出的过渡联合回归
+├── fixtures/                    # 独立测试素材
+└── web/                         # 项目检查、日志、文件和锁
 ```
-
-在项目根目录运行：
 
 ```bash
-uv run pytest
-uv run pytest tests/engine/strategy_load_test.py
-# 独立 Engine 的真实策略 API 回归需要隔离 Docker 主机：
-SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh
+# 普通 Platform 回归（无需本机 Engine）
+uv sync --project platform --locked
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
+platform/.venv/bin/ruff check .
+
+# 真实跨进程验收：仅隔离本机 Docker，默认不交易
+./scripts/verify_external_engine.sh
 ```
 
-测试文件保持 `*_test.py` 命名；pytest 的 `importlib` 模式避免不同目录的同名文件冲突。
-
-`python -m pytest -q` 只运行本仓库剩余的旧联合测试（包括历史来源核验），
-**并非完整跨仓库回归**；`./scripts/check_platform_runtime.sh` 负责独立 Platform，
-独立 Engine 仓库的 CI 负责纯 Engine 测试。`python -m ruff check .`
-仍检查本仓库源码。Web 管理端现有项目检查仅覆盖其所在运行环境；不能据此
-宣称跨仓库验收已通过。
+全量兼容回归另由 GitHub Actions 检出固定 Engine 并安装其独立锁文件。
+根目录 `pytest.ini` 和 `ruff.toml` 仅保存测试、代码风格设置。
+不要在 Platform 业务运行环境安装研究依赖，也不要将本仓库的测试
+当作独立 Engine 原生测试的替代。
 
 
 `tests/baselines/lint_baseline.json` 当前没有逐文件样式例外。仍在仓库里的已授权源码变更登记在 `tests/baselines/source_updates.json`。
@@ -121,7 +112,7 @@ converter 的 `CARGO_TARGET_DIR`。
 
 完整 Phase 19 测试归属已切开，但 `legacy_engine_integration`
 的跨进程替代验收是 Phase 20 删除旧 Engine 之前的硬性前提。
-此时旧 `engine/` 及根目录 Python 依赖暂不删除。
+旧 `engine/`、其本地 Dockerfile 和根目录重型依赖现已移除。
 
 ## Phase 19C：业务与 Engine 原生测试分离
 
@@ -146,7 +137,6 @@ converter 的 `CARGO_TARGET_DIR`。
 执行 `uv run pytest tests/engine tests/connectors tests/feed tests/pipeline tests/core`
 及 Rust converter 构建和单元测试。原仓库不再重复运行这三组纯 Engine 测试。
 
-仍在 `tests/engine/` 中、尚供旧 API 联合测试使用的用例和工具不会因为
-这次清理被删除；旧 Engine 源码、Docker 构建、根目录组合依赖也暂时保留，
-直到对应调用链解除并统一验收。**只执行 SeeAlpha 根目录 pytest 不等于
+独立 Engine 原生测试现在完全由独立仓库维护；本仓库的联合兼容回归通过 CI
+的固定 Engine 检出运行，不能仅凭 HTTP 单元 Mock 宣称交易行为已验证。**只执行 SeeAlpha 根目录 pytest 不等于
 完整跨仓库验收**；必须区分 Platform、Engine 及显式 HTTP 集成验收。
