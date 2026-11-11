@@ -10,10 +10,10 @@ on:
       - "tests/engine/data_manager_test.py"
       - "tests/engine/feed_workers_owner_test.py"
       - "tests/engine/data_jobs_owner_test.py"
-      - "tests/api/market_data_test.py"
-      - "tests/api/market_data_configuration_test.py"
-      - "tests/api/market_data_engine_ownership_test.py"
-      - "tests/api/conftest.py"
+      - "tests/legacy_engine_integration/market_data_test.py"
+      - "tests/legacy_engine_integration/market_data_configuration_test.py"
+      - "tests/legacy_engine_integration/market_data_engine_ownership_test.py"
+      - "tests/legacy_engine_integration/conftest.py"
       - "tests/engine/data_queries_test.py"
       - "tests/api/market_data_remote_test.py"
       - "tests/engine/venue_http_test.py"
@@ -24,6 +24,7 @@ on:
       - "tests/api/tenant_docker_test.py"
       - "tests/api/orm_storage_test.py"
       - "platform/**"
+      - "tests/legacy_engine_integration/**"
       - "tests/api/auth_test.py"
       - "tests/api/management_test.py"
       - "tests/web/storage_test.py"
@@ -120,7 +121,7 @@ jobs:
           python-version: "3.14"
       - run: uv sync --locked
       - name: API and Web backend regression
-        run: uv run pytest -q tests/api tests/web
+        run: uv run pytest -q tests/api tests/legacy_engine_integration tests/web
 
   platform_regression:
     needs: scope
