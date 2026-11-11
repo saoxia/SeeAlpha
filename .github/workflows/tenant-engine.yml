@@ -16,7 +16,9 @@ on:
       - "tests/legacy_engine_integration/conftest.py"
       - "tests/api/market_data_remote_test.py"
       - "docker/**"
-      - ".dockerignore"
+      - "pytest.ini"
+      - "ruff.toml"
+      - "scripts/**"
       - "tests/api/engine_isolation_test.py"
       - "tests/api/tenant_docker_test.py"
       - "tests/api/orm_storage_test.py"
@@ -70,7 +72,7 @@ jobs:
           python=false
           while IFS= read -r path; do
             case "$path" in
-              api/*|core/*|platform/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
+              api/*|core/*|platform/*|tests/*|migrations/*|packages/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*)
                 python=true ;;
             esac
             case "$path" in
@@ -82,7 +84,7 @@ jobs:
                 docker=true ;;
             esac
             case "$path" in
-              core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|nautilus_support.py|pyproject.toml|uv.lock|.github/workflows/tenant-engine.yml)
+              core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*|.github/workflows/tenant-engine.yml)
                 full=true ;;
               api/exchanges/*|api/operations/*|api/strategies/*|api/equity/*|api/market_data/*|api/db/*|api/auth/*|api/tenants/*|api/engine_client.py|api/tenant_docker.py|api/config.py|api/main.py)
                 full=true ;;
@@ -100,7 +102,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.14"
-      - run: uv sync --locked
+      - run: uv sync --project platform --locked
       - name: Checkout pinned standalone Engine for shared transport smoke
         uses: actions/checkout@v4
         with:
@@ -112,11 +114,11 @@ jobs:
           cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
           cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
       - name: Full Python lint
-        run: uv run ruff check .
+        run: platform/.venv/bin/ruff check .
       - name: Contract and isolation smoke tests
         env:
           PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
-        run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/engine_isolation_test.py
+        run: platform/.venv/bin/python -m pytest -q tests/api/engine_isolation_test.py
 
   api_regression:
     needs: scope
@@ -128,17 +130,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.14"
-      - run: uv sync --locked
-      - name: Checkout pinned independent Engine for legacy API compatibility
-        uses: actions/checkout@v4
-        with:
-          repository: saoxia/seealpha-engine
-          ref: ${{ env.ENGINE_SOURCE_SHA }}
-          path: _external_engine
+      - run: uv sync --project platform --locked
       - name: API and Web backend regression
-        env:
-          PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
-        run: uv run pytest -q tests/api tests/legacy_engine_integration tests/web
+        run: platform/.venv/bin/python -m pytest -q tests/api tests/web
 
   platform_regression:
     needs: scope
@@ -203,9 +197,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.14"
-      - run: uv sync --locked
+      - run: uv sync --project platform --locked
       - name: Docker manager integration
-        run: SEEALPHA_TEST_DOCKER=1 uv run pytest -q tests/api/tenant_docker_integration_test.py
+        run: SEEALPHA_TEST_DOCKER=1 platform/.venv/bin/python -m pytest -q tests/api/tenant_docker_integration_test.py
       - name: Container tenant-bound HTTP smoke
         run: |
           mkdir -p /tmp/seealpha-ci/{state,data,run,logs}
@@ -325,7 +319,7 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: uv sync --locked
+      - run: uv sync --project platform --locked
       - run: sudo apt-get update -qq && sudo apt-get install -y zsh
       - name: Checkout pinned standalone Engine source
         uses: actions/checkout@v4
@@ -337,6 +331,13 @@ jobs:
         run: |
           cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
           cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
+      - name: Build locked Engine-only compatibility Python environment
+        run: |
+          uv sync --project _external_engine --locked
+          uv export --project platform --locked --no-default-groups --no-emit-project --no-hashes \
+            --output-file "$RUNNER_TEMP/platform-runtime-requirements.txt"
+          uv pip install --python _external_engine/.venv/bin/python \
+            -r "$RUNNER_TEMP/platform-runtime-requirements.txt"
       - name: Build Rust converter from standalone Engine source
         run: cargo build --locked --release --manifest-path _external_engine/engine/pipeline/rust_converter/Cargo.toml
       - name: Rust converter unit tests (standalone)
@@ -345,8 +346,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
         run: |
-          python -c 'from pathlib import Path; assert not Path("engine").exists(); import engine; assert str(Path(engine.__file__).resolve()).startswith(str(Path("_external_engine").resolve()))'
-          uv run pytest -q
+          _external_engine/.venv/bin/python -c 'from pathlib import Path; assert not Path("engine").exists(); import engine; assert str(Path(engine.__file__).resolve()).startswith(str(Path("_external_engine").resolve()))'
+          _external_engine/.venv/bin/python -m pytest -q
       - name: Frontend dependencies
         working-directory: web
         run: npm ci
