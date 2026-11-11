@@ -47,7 +47,7 @@ main > .data-management-page { flex: 1; min-height: 0; }
 .appearance-settings .appearance-note { margin-top: 24px; }
 
 /* Liquid glass across the application. Financial colors stay unchanged. */
-html[data-interface-theme="glass"] {
+html:is([data-interface-theme="glass"], :has(.login-page)) {
   --glass-ink: #1c2d49;
   --glass-muted: #4b5d77;
   --glass-surface: #f5f8ff;
@@ -206,8 +206,8 @@ html[data-interface-theme="glass"] .impersonation-banner { font-family: -apple-s
 
 /* Application surfaces share one palette; numeric and chart surfaces remain solid. */
 .equity-chart { --chart-background: #f8f8f6; --chart-text: #777a80; --chart-font: "Courier New", monospace; --chart-border: #c9cbce; }
-html[data-interface-theme="glass"] body { background: radial-gradient(ellipse at 5% 8%, #d9e7fa, transparent 55%), radial-gradient(ellipse at 90% 25%, #e6e2f7, transparent 55%), #edf3fa; }
-html[data-interface-theme="glass"] :is(.workspace, .ticker, .chart-status, .settings-page, .research-page, .monitor-modal, .login-page, .auth-loading) { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--glass-ink); }
+html:is([data-interface-theme="glass"], :has(.login-page)) body { background: radial-gradient(ellipse at 5% 8%, #d9e7fa, transparent 55%), radial-gradient(ellipse at 90% 25%, #e6e2f7, transparent 55%), #edf3fa; }
+html[data-interface-theme="glass"] :is(.workspace, .ticker, .chart-status, .settings-page, .research-page, .monitor-modal, .auth-loading) { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--glass-ink); }
 html[data-interface-theme="glass"] .research-log { font-family: "Courier New", monospace; color: #d9ddd8; }
 html[data-interface-theme="glass"] .ticker { height: 58px; margin: 16px 24px 0; border: 1px solid #fff; border-radius: 18px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
 html[data-interface-theme="glass"] .ticker > .venue-tabs { padding: 4px; border: 0; background: transparent; }
@@ -311,26 +311,23 @@ html[data-interface-theme="glass"] .clickhouse-monitor-rules b { font-size: 13px
 html[data-interface-theme="glass"] .clickhouse-utc-note { border-radius: 10px; background: #edf2fa; color: #445b7a; font-size: 12px; }
 html[data-interface-theme="glass"] .monitor-logs-error { border-radius: 12px; font-size: 12px; }
 
-/* Login and loading share the selected material without changing authentication. */
-.login-page { position: relative; }
-.login-appearance { position: absolute; z-index: 2; top: 24px; right: 28px; }
-html[data-interface-theme="glass"] .login-page { min-height: 100dvh; padding: 28px; gap: 24px; background: transparent; }
-html[data-interface-theme="glass"] .login-intro { min-height: 0; border: 1px solid #fff; border-radius: 28px; background: linear-gradient(150deg, #e0ebfc99, #e9e6fa99 60%, #deeeed99); box-shadow: var(--glass-shadow); color: var(--glass-ink); }
-html[data-interface-theme="glass"] .login-intro h1 { font-family: inherit; font-weight: 650; font-size: clamp(38px, 4vw, 62px); line-height: 1.2; letter-spacing: -1px; }
-html[data-interface-theme="glass"] .login-intro :is(.login-kicker, .login-description, small) { color: var(--glass-muted); }
-html[data-interface-theme="glass"] .login-brand.inverse { color: var(--glass-ink); }
-html[data-interface-theme="glass"] .login-panel { padding: 68px 32px 32px; background: transparent; }
-html[data-interface-theme="glass"] .login-form { padding: 32px; border: 1px solid #fff; border-radius: 24px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
-html[data-interface-theme="glass"] .login-form-heading h2 { font-family: inherit; font-size: 28px; }
-html[data-interface-theme="glass"] .login-form-heading p { color: var(--glass-muted); font-size: 12px; }
-html[data-interface-theme="glass"] .login-form input { height: 46px; border: 1px solid #c4d2e6; border-radius: 12px; background: #fff; font-family: inherit; font-size: 14px; color: var(--glass-ink); }
-html[data-interface-theme="glass"] .login-form label > span { color: var(--glass-ink); font-size: 12px; }
-html[data-interface-theme="glass"] .login-form > button { border: 1px solid var(--glass-accent); border-radius: 12px; background: var(--glass-accent); color: #fff; font-size: 13px; }
-html[data-interface-theme="glass"] .login-message { font-size: 12px; }
+/* The login screen uses liquid glass independently of the workspace preference. */
+.login-page { min-height: 100dvh; padding: 28px; gap: 24px; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--glass-ink); }
+.login-intro { min-height: 0; border: 1px solid #fff; border-radius: 28px; background: linear-gradient(150deg, #e0ebfc99, #e9e6fa99 60%, #deeeed99); box-shadow: var(--glass-shadow); color: var(--glass-ink); }
+.login-intro h1 { font-family: inherit; font-weight: 650; font-size: clamp(38px, 4vw, 62px); line-height: 1.2; letter-spacing: -1px; }
+.login-intro :is(.login-kicker, .login-description, small) { color: var(--glass-muted); }
+.login-brand.inverse { color: var(--glass-ink); }
+.login-panel { padding: 68px 32px 32px; background: transparent; }
+.login-form { padding: 32px; border: 1px solid #fff; border-radius: 24px; background: var(--glass-surface); box-shadow: var(--glass-shadow); }
+.login-form-heading h2 { font-family: inherit; font-size: 28px; }
+.login-form input { height: 46px; border: 1px solid #c4d2e6; border-radius: 12px; background: #fff; font-family: inherit; font-size: 14px; color: var(--glass-ink); }
+.login-form label > span { color: var(--glass-ink); font-size: 12px; }
+.login-form > button { border: 1px solid var(--glass-accent); border-radius: 12px; background: var(--glass-accent); color: #fff; font-size: 13px; }
+.login-message { font-size: 12px; }
 html[data-interface-theme="glass"] .auth-loading { background: transparent; }
 
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: blur(22px) saturate(135%); backdrop-filter: blur(22px) saturate(135%); }
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor), .login-form { -webkit-backdrop-filter: blur(22px) saturate(135%); backdrop-filter: blur(22px) saturate(135%); }
 }
 @media (max-width: 1000px) {
   html[data-interface-theme="glass"] .workspace { grid-template-columns: 1fr; height: auto; overflow: visible; }
@@ -354,22 +351,21 @@ html[data-interface-theme="glass"] .auth-loading { background: transparent; }
   html[data-interface-theme="glass"] .settings-card { min-height: 0; padding: 20px 16px; }
   html[data-interface-theme="glass"] .clickhouse-monitor { padding: 18px; }
   html[data-interface-theme="glass"] .monitor-list-head-actions { flex-wrap: wrap; }
-  html[data-interface-theme="glass"] .login-page { padding: 14px; gap: 14px; }
-  html[data-interface-theme="glass"] .login-intro { padding: 90px 28px 28px; }
-  html[data-interface-theme="glass"] .login-panel { padding: 10px 0 14px; }
-  html[data-interface-theme="glass"] .login-form { padding: 24px; }
-  .login-appearance { top: 26px; right: 28px; }
+  .login-page { padding: 14px; gap: 14px; }
+  .login-intro { display: none; }
+  .login-panel { min-height: calc(100dvh - 28px); padding: 10px 0 14px; }
+  .login-form { padding: 24px; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-surface); }
-  html[data-interface-theme="glass"] .login-intro { background: #e8effa; }
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor), .login-form { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-surface); }
+  .login-intro { background: #e8effa; }
 }
 @media (forced-colors: active) {
-  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor, .login-form) { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  html[data-interface-theme="glass"] :is(.user-menu-panel, .ticker, .workspace > aside, .settings-sidebar, .clickhouse-monitor), .login-form { -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
 }
 
-html[data-interface-theme="glass"] .login-intro:before { border-color: #ffffffb0; border-radius: 20px; }
-html[data-interface-theme="glass"] .login-form input:focus { border-color: var(--glass-accent); box-shadow: inset 0 0 0 1px var(--glass-accent); }
+.login-intro:before { border-color: #ffffffb0; border-radius: 20px; }
+.login-form input:focus { border-color: var(--glass-accent); box-shadow: inset 0 0 0 1px var(--glass-accent); }
 html[data-interface-theme="glass"] .data-filter-bar :is(input, select) { font-size: 12px; }
 html[data-interface-theme="glass"] .data-filter-bar label > span { font-size: 11px; }
 html[data-interface-theme="glass"] :is(.data-filter-bar button, .operation-backfill-bar button, .data-load-more) { height: 40px; border: 1px solid var(--glass-accent); border-radius: 11px; background: var(--glass-accent); color: #fff; font-size: 12px; }

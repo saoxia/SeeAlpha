@@ -1,10 +1,10 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { readTheme, setTheme, subscribeTheme } from "@/app/features/appearance/theme";
+import { defaultTheme, readTheme, setTheme, subscribeTheme } from "@/app/features/appearance/theme";
 
 export function ThemeSwitch() {
-  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "classic");
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => defaultTheme);
 
   return <div className="interface-switch" role="group" aria-label="界面版本">
     <button type="button" aria-pressed={theme === "classic"} onClick={() => setTheme("classic")}>

@@ -3,7 +3,6 @@
 import { FormEvent, useState } from "react";
 import { sessionFromAuth, type AuthSession } from "../../features/identity/model";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
-import { ThemeSwitch } from "../appearance/theme-switch";
 
 type LoginPageProps = {
   onAuthenticated: (session: AuthSession) => void;
@@ -53,7 +52,6 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
 
   return (
     <main className="login-page">
-      <div className="login-appearance"><ThemeSwitch /></div>
       <section className="login-intro" aria-label="SeeAlpha 产品介绍">
         <SeeAlphaLogo className="login-brand" inverse />
         <p className="login-kicker">AI-NATIVE TRADING INTELLIGENCE</p>
@@ -67,9 +65,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       <section className="login-panel">
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="login-form-heading">
-            <span>01 / ACCESS</span>
             <h2>登录 SeeAlpha</h2>
-            <p>使用管理员提供的账户进入交易系统。</p>
           </div>
 
           <label>
