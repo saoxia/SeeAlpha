@@ -21,7 +21,8 @@ from api.main import create_app
 from api.olap.repository import olap_repository
 from api.operations.orm_repository import ORMOperations
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event as sa_event, text
+from sqlalchemy import create_engine, text
+from sqlalchemy import event as sa_event
 
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
