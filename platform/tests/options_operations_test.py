@@ -1,21 +1,17 @@
-"""Options baseline/replay, durable evidence, recovery and existing API composition."""
+"""Options basis/replay and recovery use fake client evidence, never Engine sources."""
 
 import asyncio
+import os
 import time
+import uuid
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-
+from api.db.database import Database
 from api.operations import options as module
-from api.operations.options import account_identity, position_view, replay_positions, sync_options
-from engine.connectors.binance.operations import normalize_option_record
-from engine.connectors.binance.queries import QueryError
-from tests.api import exchanges_test, operations_test
-from tests.api.exchanges_test import collect, create, signin
-
-application = exchanges_test.application
-ledger = operations_test.ledger
+from api.operations.options import position_view, sync_options
+from api.operations.repository import Operations
+from core.engine_contracts import QueryError
 
 SYMBOL = "BTC-261225-85000-C"
 OTHER = "ETH-261225-2500-P"
@@ -32,9 +28,6 @@ def exercise(stamp, identity="2", quantity="1", side="LONG"):
             "quantity": quantity, "amount": "0", "fee": "0", "exercisePrice": "85000",
             "quoteAsset": "USDT"}
 
-
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
 
 @pytest.fixture
 def source(monkeypatch):
@@ -89,6 +82,45 @@ def source(monkeypatch):
 
 def state_for(account):
     return {"account_id": account["id"], "environment": account["environment"], "status": "partial", "complete": False}
+
+
+@pytest.fixture(params=["legacy", "orm", "postgresql"])
+def ledger(tmp_path, request):
+    if request.param in {"orm", "postgresql"}:
+        from alembic import command
+        from alembic.config import Config
+        from api.db.orm import ORMDatabase
+        from api.operations.orm_repository import ORMOperations
+
+        if request.param == "postgresql":
+            url = os.environ.get("TEST_POSTGRES_URL")
+            if not url:
+                pytest.skip("TEST_POSTGRES_URL 未设置")
+            schema = "test_" + uuid.uuid4().hex
+        else:
+            url = f"sqlite:///{tmp_path / 'orm.db'}"
+            schema = None
+        config = Config("alembic.ini")
+        config.attributes.update(database_url=url, database_schema=schema)
+        command.upgrade(config, "head")
+        db = ORMDatabase(url, tmp_path / "orm.db", schema=schema)
+        db.initialize()
+        yield ORMOperations(db)
+        db.close()
+        if schema:
+            from sqlalchemy import create_engine, text
+
+            engine = create_engine(url.replace("postgresql://", "postgresql+psycopg://", 1))
+            with engine.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+            engine.dispose()
+        return
+    db = Database(tmp_path / "api.db")
+    db.initialize()
+    repository = Operations(db)
+    repository.initialize()
+    yield repository
+    db.close()
 
 
 def test_initial_basis_then_only_ledger_replay_including_late_fills_and_restart(ledger, source):
@@ -188,47 +220,6 @@ def test_retention_gap_and_changed_credentials_do_not_rebase_automatically(ledge
     with pytest.raises(QueryError, match="保留期"):
         asyncio.run(sync_options(ledger, account, state, clock[0] - 1, clock[0], engine=account["_test_engine"]))
     assert data["position_calls"] == 1
-
-
-def test_replay_partial_close_reversal_and_exercise_conflict():
-    baseline = {"at_ms": 100, "rows": [{"symbol": SYMBOL, "quantity": "2", "entryPrice": "100"}]}
-    account = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
-    records = [normalize_option_record(fill(101, "1", "SELL", "1", "150"), account, "fill"),
-               normalize_option_record(fill(102, "2", "SELL", "2", "160"), account, "fill")]
-    result = replay_positions(baseline, records, [], 102)[0]
-    assert result["contracts"] == "1" and result["side"] == "short" and result["entry_price"] == "160"
-    assert replay_positions(baseline, records, [exercise(103, side="SHORT")], 103) == []
-    with pytest.raises(ValueError, match="行权数量"):
-        replay_positions(baseline, records, [exercise(103, side="LONG")], 103)
-    tied = [normalize_option_record(fill(101, "3", "BUY"), account, "fill"),
-            normalize_option_record(fill(101, "4", "SELL", "0.5"), account, "fill")]
-    assert replay_positions(baseline, tied, [], 101)[0]["entry_price"] is None
-
-
-def test_home_reads_projection_without_putting_options_in_minute_files(application):
-    app, _, _ = application
-    with TestClient(app) as client:
-        signin(client)
-        account_id = create(client).json()["id"]
-        account = app.state.accounts.row(account_id)
-        repository = app.state.operations.repository
-        repository.save_sync(account_id=account_id, environment="production", status="partial", complete=False,
-                             options={"identity": account_identity(account), "baseline": {"at_ms": 1, "rows": []},
-                                      "status": "partial", "last_success_at": int(time.time() * 1000),
-                                      "message": "期权持仓由初始基准与操作推算。",
-                                      "positions": [{"id": "options:example", "symbol": SYMBOL, "side": "long",
-                                                     "contracts": "0.25", "entry_price": "100"}]})
-        url = f"/api/exchange-accounts/{account_id}/portfolio"
-        # Even when futures balances have not yet been collected, options remain visible.
-        assert client.get(url).json()["positions"][0]["symbol"] == SYMBOL
-        assert client.get("/api/exchange-accounts/portfolio").json()["positions"][0]["symbol"] == SYMBOL
-        collect(client, account_id)
-        assert len(client.get(url).json()["positions"]) == 2
-        assert len(client.get(f"/api/exchange-accounts/{account_id}/positions").json()) == 2
-        path = app.state.exchanges.portfolio_root / f"{account_id}.json"
-        assert SYMBOL not in path.read_text()
-        page = client.get("/api/operations").json()
-        assert any("期权持仓" in warning for warning in page["warnings"])
 
 
 def test_cashflow_only_sync_does_not_acquire_or_replace_a_position_baseline(ledger, source):

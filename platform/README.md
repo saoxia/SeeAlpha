@@ -29,7 +29,7 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 ## 旧 Monorepo 迁移债务
 
-- 现有 `tests/api/conftest.py` 会导入 `engine.app` 和 `engine.config`，不能直接在瘦身环境运行整个 `tests/api`；新独立测试在 `platform/tests/`，旧联合回归暂留根环境，直到改写为跨进程假服务/真实测试容器。
+- 现有 `tests/legacy_engine_integration/conftest.py` 会导入 `engine.app` 和 `engine.config`，不能直接在瘦身环境运行整个 `tests/api`；新独立测试在 `platform/tests/`，旧联合回归暂留根环境，直到改写为跨进程假服务/真实测试容器。
 - `tests/api/backtest_test.py` 还依赖 `tests/engine/` 的数据构建辅助。移除旧 Engine 源码前必须将该辅助变成独立测试夹具或跨仓库验收素材，而不是直接删除有效测试。
 - 原仓库 `docker/engine.Dockerfile`、根 `pyproject.toml`/`uv.lock` 仍为历史构建入口，当前统一对外构建流程应使用 `scripts/build_external_engine.sh`，勿依赖这些旧构建产物。
 - `engine/` 的 82 个源文件在这一过渡 PR 中不删除。行情、策略、回测、状态恢复的完整业务链路验收仍须单独完成。
@@ -63,6 +63,43 @@ NautilusTrader、真实订单或 Docker。
 原 Engine Native 执行、订单幂等保留、跨进程锁与未知订单恢复测试
 仍在联合回归中，后续应由独立 Engine 或跨进程 HTTP 验收接替。
 
+## Phase 19：测试归属完成后的过渡验收
+
+旧 `tests/api/` 已不再持有需要进程内 Engine 的回归用例：
+仅保留无需 Engine 的轻量 API 隔离检查和显式 Docker 验证入口。
+真正访问旧 `engine/` / NautilusTrader 的 8 个历史联合测试模块及其
+`engine_http` 夹具集中放到
+`tests/legacy_engine_integration/`，仍由根目录 `pytest` 执行，
+并且**不在独立 Platform 依赖环境中运行**。
+
+这是一项测试归属与依赖隔离，不等于已将这些真实引擎行为全部改写为
+独立 Engine 的跨进程验收。Phase 20 必须为它们建立等价 HTTP/Engine
+覆盖、解决旧 Docker 和重型锁文件后，才能实际移除 `engine/` 源码。
+CI 继续分别验证独立 Platform 和旧联合兼容套件。
+
+## Phase 19C：独立业务回归扩展
+
+本阶段又将 52 个独立测试函数从旧 `tests/api/` 收归 `platform/tests/`，
+具体归属如下：
+
+- `operations_ledger_test.py`：17 个账本、资金费流水、同步游标、部分失败和
+  HTTP 权限边界测试；仅原生 Nautilus 订单事件转换仍由旧联合测试持有。
+- `orm_persistence_test.py`：8 个 ORM 账户、日志任务、会话、数据库连接池和
+  API 重启回归；原 `tests/api/orm_storage_test.py` 不再需要旧 Engine。
+- `user_tenants_test.py`：5 个用户租户所有权、复制、分享与代入管理测试；
+  Engine 的租户导出/导入、进度通知使用本测试专用桩，不模拟实盘状态。
+- `tenant_templates_test.py`：1 个模板与空租户业务结构测试。
+- `options_operations_test.py`：10 个期权基准、重放、历史补录、
+  中断恢复和期权账本回归；数据来自确定性伪造历史客户端，未安装 NautilusTrader。
+- `management_api_test.py`：11 个项目检查任务、权限、历史报告、
+  路径穿越防护、锁及多进程恢复回归，外部锁由本机测试子进程持有。
+
+独立 Platform 测试只依赖仓库的 `api/core/migrations`，
+并使用可审计的本地 Engine HTTP 启动桩。真实引擎交易执行、行情 Catalog、
+Nautilus 订单映射及跨租户数据快照仍需独立 Engine 或显式 HTTP
+验收，不能以本批绿色结果代替。普通业务回测复用现有租户 Engine；
+单元测试不建立 Docker。
+
 ## Platform 独立 HTTP / Docker 路由单元测试
 
 原 `tests/api/tenant_docker_test.py` 的 HTTP 客户端、租户路由、旧镜像拒绝、Docker 本地路径与租户文件归档等纯 Platform 测试，已经迁入 `platform/tests/tenant_docker_test.py`。旧 `platform/tests/engine_http_routing_test.py` 中独有的断连失败关闭测试也已合并，重复断言不再分散在两个文件。原测试中直接创建 Engine ASGI app 的固定租户 HTTP 隔离用例已迁至独立 `saoxia/seealpha-engine` 的 `tests/engine/tenant_http_isolation_test.py`。这一批迁移不需要在 Platform 测试环境中安装 NautilusTrader 或运行 Docker；仅改变测试归属，旧业务代码未修改。
@@ -86,7 +123,7 @@ NautilusTrader、真实订单或 Docker。
 
 原 `tests/api/external_engine_contract_test.py` 已迁移至
 `platform/tests/external_engine_contract_test.py`：它仅通过独立 HTTP 服务访问 Engine，
-不再触发旧 `tests/api/conftest.py` 的自动进程内 Engine fixture。
+不再触发旧 `tests/legacy_engine_integration/conftest.py` 的自动进程内 Engine fixture。
 正常执行 Platform 测试时，该网络验证因开关关闭而跳过。
 
 在**隔离 Docker 主机**上，`./scripts/verify_external_engine.sh` 优先使用
@@ -103,7 +140,7 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 它不读取或保存交易所凭据，不发单，不下载行情、不跑策略和回测。
 不能把此基础业务边界验证当成完整业务链路验收。
 
-旧 `tests/api/conftest.py` 仍服务于依赖 Engine 实现与真实回测数据的联合回归；
+旧 `tests/legacy_engine_integration/conftest.py` 仍服务于依赖 Engine 实现与真实回测数据的联合回归；
 其 Engine 实现导入已下沉到夹具执行时，而不在测试收集阶段加载。
 旧联合测试完全改为跨进程前不能删除旧 `engine/`。
 
@@ -113,7 +150,7 @@ SEEALPHA_VERIFY_BUSINESS=1 ./scripts/verify_external_engine.sh
 原测试需要的业务数据库和管理员会话在专用临时 SQLite 中初始化；只测试路由鉴权、
 任务提交、结果获取、取消和重试，因此故意关闭后台启动与 Engine 生命周期，
 并对任何意外的 Engine HTTP 调用直接报错。不依赖根目录的 `tests/api/backtest_test.py`
-和旧 `tests/api/conftest.py`。
+和旧 `tests/legacy_engine_integration/conftest.py`。
 
 `platform/tests/strategy_policy_test.py` 包含迁移的策略模块源码边界检查，以及
 开发租户回测权限、账户所有权、资金/参数转发、异步幂等键透传、正式租户未授权
@@ -203,7 +240,7 @@ SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 SEEALPHA_VERIFY_PLATFORM_BACKTEST=1 \
 Alembic 历史版本逐级升级并检查旧账本证据和 CHECK 约束。
 这些用例全部不导入 Engine/NautilusTrader，也不启动 Docker。
 
-旧 `tests/api/conftest.py` 不再全局自动创建 Engine；需要它的传统
+旧 `tests/legacy_engine_integration/conftest.py` 不再全局自动创建 Engine；需要它的传统
 API 联合测试模块通过 `pytestmark = pytest.mark.usefixtures("engine_http")`
 显式声明，避免纯数据库或静态隔离测试悄悄依赖 Engine。
 集中验收需分别执行根目录剩余旧联合测试和 `./scripts/check_platform_runtime.sh`，

@@ -1,4 +1,8 @@
-"""Ledger identity, evidence preservation, cursor ties, and authenticated API boundaries."""
+"""Engine-free operation ledger, cashflow and Platform API regression suite.
+
+Order/receipt evidence is synthetic. Engine interaction is a strict local stub,
+and no native connector, Nautilus package, Docker or real exchange is required.
+"""
 
 import os
 import time
@@ -6,14 +10,19 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.main import create_app
 from api.operations.repository import Operations
+from fastapi.testclient import TestClient
+
+# Keep the ingestion-window constant without importing the Binance-native client.
+DAY_MS = 86_400_000
+
+# Actual API startup needs tenant registration and empty market restore only.
+pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
 
 class FakeEngine:
@@ -44,15 +53,11 @@ def event(**values):
     } | values
 
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
-
 @pytest.fixture(params=["legacy", "orm", "postgresql"])
 def ledger(tmp_path, request):
     if request.param in {"orm", "postgresql"}:
         from alembic import command
         from alembic.config import Config
-
         from api.db.orm import ORMDatabase
         from api.operations.orm_repository import ORMOperations
 
@@ -85,6 +90,14 @@ def ledger(tmp_path, request):
     repository.initialize()
     yield repository
     db.close()
+
+
+def cash_event(**values):
+    return {"event_id": "income-1", "account_id": 1, "account_name": "main",
+            "exchange": "binance", "environment": "production", "symbol": "",
+            "event_type": "cashflow", "timestamp": 1000, "evidence": "venue",
+            "amount": "-0.0000000123456789", "asset": "USDC", "income_type": "FUNDING_FEE",
+            "transaction_id": "9007199254740993", "info": "", "status": "confirmed", **values}
 
 
 def test_project_venue_union_and_late_attribution(ledger):
@@ -315,78 +328,6 @@ def test_late_identifier_bridge_merges_duplicate_order_and_preserves_links(ledge
     assert len(ledger.detail(second["operation_id"])["observations"]) == 3
 
 
-def test_native_project_event_sink_does_not_confuse_external_claims(ledger):
-    from types import SimpleNamespace
-
-    from nautilus_trader import model as m
-    from nautilus_trader.core import UUID4
-
-    from engine.connectors.binance.operations import cached_order_observations, normalize_event
-
-    account = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
-    trader = m.TraderId("TEST-001")
-    strategy = m.StrategyId("STRATEGY-001")
-    instrument = m.InstrumentId.from_str("ETHUSDT-PERP.BINANCE")
-    client = m.ClientOrderId("project-order")
-    params = {
-        "trader_id": trader,
-        "strategy_id": strategy,
-        "instrument_id": instrument,
-        "client_order_id": client,
-        "venue_order_id": m.VenueOrderId("42"),
-        "account_id": m.AccountId("BINANCE-1"),
-        "trade_id": m.TradeId("99"),
-        "order_side": m.OrderSide.BUY,
-        "order_type": m.OrderType.LIMIT,
-        "last_qty": m.Quantity.from_str("0.010"),
-        "last_px": m.Price.from_str("2000.00"),
-        "currency": m.Currency.from_str("USDT"),
-        "liquidity_side": m.LiquiditySide.TAKER,
-        "event_id": UUID4(),
-        "ts_event": 2_000_000_000,
-        "ts_init": 2_000_000_000,
-        "reconciliation": True,
-        "commission": m.Money(0.01, m.Currency.from_str("USDT")),
-    }
-    fill = m.OrderFilled(**params)
-    order = SimpleNamespace(
-        strategy_id=strategy,
-        tags=[],
-        instrument_id=instrument,
-        client_order_id=client,
-        venue_order_id=m.VenueOrderId("42"),
-        side=m.OrderSide.BUY,
-        order_type=m.OrderType.LIMIT,
-        quantity=m.Quantity.from_str("0.010"),
-        price=m.Price.from_str("2000.00"),
-        events=lambda: [fill],
-    )
-    # Strategy ownership acquired through claims is not project submission evidence.
-    external = normalize_event(fill, order, account)
-    assert external["evidence"] == "venue" and external["strategy_id"] is None
-    submitted = m.OrderSubmitted(
-        trader_id=trader,
-        strategy_id=strategy,
-        instrument_id=instrument,
-        client_order_id=client,
-        account_id=m.AccountId("BINANCE-1"),
-        event_id=UUID4(),
-        ts_event=1_000_000_000,
-        ts_init=1_000_000_000,
-    )
-    order.events = lambda: [submitted, fill]
-    ledger.ingest(normalize_event(submitted, order, account))
-    ledger.ingest(normalize_event(fill, order, account))
-    assert {r["source"] for r in ledger.list()["records"]} == {"project"}
-    inferred = m.OrderFilled(
-        **(params | {"trade_id": m.TradeId("INFERRED-1"), "event_id": UUID4()})
-    )
-    correction = normalize_event(inferred, order, account)
-    assert correction["event_type"] == "correction" and correction["strategy_id"] is None
-    order.tags = ["RECONCILIATION"]
-    assert cached_order_observations(order, account) == []
-
-
 def test_distinct_venue_order_ids_are_not_merged_by_reused_client_id(ledger):
     for venue_id in ("42", "43"):
         ledger.ingest(
@@ -396,14 +337,6 @@ def test_distinct_venue_order_ids_are_not_merged_by_reused_client_id(ledger):
         )
     records = ledger.list()["records"]
     assert len(records) == 2 and {r["order_id"] for r in records} == {"42", "43"}
-
-
-def cash_event(**values):
-    return {"event_id": "income-1", "account_id": 1, "account_name": "main",
-            "exchange": "binance", "environment": "production", "symbol": "",
-            "event_type": "cashflow", "timestamp": 1000, "evidence": "venue",
-            "amount": "-0.0000000123456789", "asset": "USDC", "income_type": "FUNDING_FEE",
-            "transaction_id": "9007199254740993", "info": "", "status": "confirmed", **values}
 
 
 def test_cashflows_keep_sign_currency_identity_and_never_merge_into_orders(ledger):
@@ -451,7 +384,6 @@ def test_income_pipeline_recovers_checkpoints_and_is_independent_of_native_failu
     from types import SimpleNamespace
 
     from api.operations.service import OperationService
-    from engine.connectors.binance.income import DAY_MS
 
     source = {"id": 1, "account_name": "main", "exchange": "binance", "environment": "production"}
     accounts = SimpleNamespace(private=lambda _: source,
@@ -559,7 +491,6 @@ def test_expired_income_checkpoint_does_not_certify_the_missing_history(ledger, 
     from types import SimpleNamespace
 
     from api.operations.service import OperationService
-    from engine.connectors.binance.income import DAY_MS
 
     now = int(time.time() * 1000)
     old = [now - 150 * DAY_MS, now - 101 * DAY_MS]

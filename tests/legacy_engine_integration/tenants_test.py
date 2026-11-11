@@ -48,28 +48,6 @@ def create_tenant(client, purpose, name):
     return response.json()
 
 
-def test_templates_are_empty_and_tenants_start_empty(client):
-    http, _app = client
-    rows = http.get("/api/tenants/templates").json()
-    assert {row["purpose"] for row in rows} == {"production", "development"}
-    for row in rows:
-        assert set(row) == {"id", "purpose", "name", "description", "created_at"}
-        assert row["description"] is None
-    created = http.post("/api/tenants/templates", json={
-        "purpose": "development", "name": "另一开发模板", "description": "仅说明",
-    })
-    assert created.status_code == 201, created.text
-    assert set(created.json()) == {"id", "purpose", "name", "description", "created_at"}
-    for purpose, name in (("production", "正式甲"), ("development", "开发甲")):
-        tenant = create_tenant(http, purpose, name)
-        assert tenant["purpose"] == purpose and tenant["status"] == "active"
-        assert tenant["description"] is None
-        assert http.get(f"/api/tenants/{tenant['id']}/accounts").json() == []
-        assert http.get(f"/api/tenants/{tenant['id']}/subscriptions").json() == []
-        children = _app_children(http, tenant["id"])
-        assert children == {"virtual_accounts": 0, "exchange_accounts": 0, "policies": 0}
-
-
 def _app_children(http, tenant_id):
     return http.app.state.tenants.repository.count_children(tenant_id)
 

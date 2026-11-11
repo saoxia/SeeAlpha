@@ -1,29 +1,42 @@
-"""User ownership, production instance creation, copy/share, and impersonation."""
+"""User ownership, production tenant creation, sharing and impersonation.
+
+Real Platform database and HTTP auth; only tenant Engine persistence is stubbed.
+The Engine-free suite never imports in-process Engine or trades.
+"""
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import select
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.db.models import ExchangeAccount, Tenant, User, VirtualAccount
 from api.main import create_app
-from tests.fixtures.api_auth import login
+from fastapi.testclient import TestClient
+from sqlalchemy import select
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
+
+def login(client, username="admin"):
+    response = client.post("/api/auth/login", json={
+        "username": username, "password": "test-password-123",
+    })
+    assert response.status_code == 200, response.text
+
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch, platform_engine_bootstrap):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url
     command.upgrade(config, "head")
     app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
     app.state.database.initialize()
+    # Business tenant ownership is under test; Engine export/import and
+    # subscription persistence are tested in cross-process integration.
+    monkeypatch.setattr(app.state.engine, "note_subscription", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.state.engine, "export_tenant", lambda tenant_id: {"tables": {}})
+    monkeypatch.setattr(app.state.engine, "drop_tenant", lambda tenant_id, *, remove=False: None)
+    monkeypatch.setattr(app.state.engine, "import_tenant", lambda tenant_id, purpose, payload: None)
     auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
     with TestClient(app) as test_client:
         login(test_client)

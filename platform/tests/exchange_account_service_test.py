@@ -1,4 +1,8 @@
-"""API compatibility and credential isolation using deterministic connector snapshots."""
+"""Engine-independent account configuration, snapshot and valuation regressions.
+
+Actual business auth, credentials and portfolio persistence are exercised.
+Only the signed Engine operations are replaced by strict deterministic responses.
+"""
 
 import asyncio
 import json
@@ -8,22 +12,18 @@ from functools import partial
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
+from api.engine_client import EngineClient
 from api.main import create_app
-from engine.connectors.binance import assets as asset_queries
-from engine.connectors.binance import queries
-from engine.connectors.binance.queries import account_snapshot as native_account_snapshot
+from core.engine_contracts import AccountSnapshot, QueryError
+from fastapi.testclient import TestClient
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
 
 @pytest.fixture
-def application(tmp_path, monkeypatch):
+def application(tmp_path, monkeypatch, platform_engine_bootstrap):
     settings = Settings(tmp_path / "api.db", cookie_secure=False)
     database = Database(settings.database_path)
     database.initialize()
@@ -34,7 +34,7 @@ def application(tmp_path, monkeypatch):
 
     async def snapshot(account):
         calls.append(account)
-        return queries.AccountSnapshot(
+        return AccountSnapshot(
             {"USDT": "100"},
             {
                 "total_wallet_balance": "100",
@@ -54,8 +54,9 @@ def application(tmp_path, monkeypatch):
             1785542400,
         )
 
-    monkeypatch.setattr(queries, "account_snapshot", snapshot)
-    return create_app(settings), database, calls
+    app = create_app(settings)
+    monkeypatch.setattr(app.state.engine, "account_snapshot", snapshot)
+    return app, database, calls
 
 
 def signin(client, username="admin"):
@@ -87,6 +88,44 @@ def create(client, name="main"):
 def collect(client, account_id):
     """Run one background collection without bypassing the existing price cache."""
     client.portal.call(partial(client.app.state.exchanges.persist_portfolio, account_id))
+
+
+@pytest.fixture
+def mixed_assets(application, monkeypatch):
+    app, _, _ = application
+    original = app.state.engine.account_snapshot
+    clock = [100.0]
+    monkeypatch.setattr("api.exchanges.service.time", SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 1785542400 + int(clock[0])))
+
+    async def snapshot(account):
+        result = await original(account)
+        result.balances["BNB"] = "0.001"
+        return result
+
+    monkeypatch.setattr(app.state.engine, "account_snapshot", snapshot)
+    evidence = {
+        "multi_assets": False, "observed_at": 1785542400,
+        "totals": {"total_wallet_balance": "101", "total_margin_balance": "106",
+                   "total_unrealized_profit": "5", "total_maint_margin": "1"},
+        "assets": {
+            "USDT": {"walletBalance": Decimal(100), "unrealizedProfit": Decimal(5), "maintMargin": Decimal(1)},
+            "BNB": {"walletBalance": Decimal("0.001"), "unrealizedProfit": Decimal(0), "maintMargin": Decimal(0)},
+        },
+    }
+    async def asset_account(_account, **_kwargs):
+        return evidence
+
+    monkeypatch.setattr(app.state.engine, "asset_account", asset_account)
+    prices, price_calls = {"USDT": Decimal(1), "BNB": Decimal(1000)}, []
+
+    async def price(env, currency):
+        price_calls.append((env, currency))
+        if prices[currency] is None:
+            raise QueryError("资产指数价格读取失败或已过期。")
+        return {"price": prices[currency], "priced_at": 1785542400}
+
+    monkeypatch.setattr(app.state.engine, "asset_price", price)
+    return app, evidence, prices, price_calls, clock
 
 
 def test_configuration_encryption_auth_and_native_cache(application):
@@ -148,30 +187,6 @@ def test_keep_credentials_and_reject_incomplete_or_unsupported_changes(applicati
         assert client.get("/api/system/exchange-markets?market_type=option").status_code == 422
 
 
-def test_testing_historical_identical_credentials_returns_actionable_error(application, monkeypatch):
-    app, database, _ = application
-    monkeypatch.setattr(queries, "account_snapshot", native_account_snapshot)
-    with TestClient(app) as client:
-        signin(client)
-        account = create(client).json()
-        encrypted = app.state.accounts.cipher().encrypt(json.dumps({
-            "version": 1, "apiKey": "private-identical-value", "secret": "private-identical-value",
-        }).encode()).decode()
-        with database.connect() as connection:
-            connection.execute(
-                "UPDATE exchange_accounts SET credentials_encrypted = ? WHERE id = ?",
-                (encrypted, account["id"]),
-            )
-        response = client.post(f"/api/system/exchange-accounts/{account['id']}/test")
-        assert response.status_code == 502
-        assert "API Key 与 Secret Key 相同" in response.json()["detail"]
-        assert "请编辑账户" in response.json()["detail"]
-        assert "private-identical-value" not in response.text
-        row = app.state.accounts.row(account["id"])
-        assert row["last_test_status"] == "failed"
-        assert row["credentials_encrypted"] == encrypted
-
-
 def test_historical_symbols_are_preserved_but_do_not_configure_queries(application):
     app, database, calls = application
     with TestClient(app) as client:
@@ -213,9 +228,9 @@ def test_connector_errors_and_validation_never_return_secrets(application, monke
     app, _, _ = application
 
     async def failure(account):
-        raise queries.QueryError("Binance 账户查询失败。")
+        raise QueryError("Binance 账户查询失败。")
 
-    monkeypatch.setattr(queries, "account_snapshot", failure)
+    monkeypatch.setattr(app.state.engine, "account_snapshot", failure)
     with TestClient(app) as client:
         signin(client)
         account = create(client).json()
@@ -258,41 +273,6 @@ def test_legacy_encrypted_credentials_require_original_key(application):
         signin(client)
         assert client.get("/api/system/exchange-accounts").status_code == 503
         assert not key_path.exists()
-
-
-@pytest.fixture
-def mixed_assets(application, monkeypatch):
-    app, _, _ = application
-    original = queries.account_snapshot
-    clock = [100.0]
-    monkeypatch.setattr("api.exchanges.service.time", SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 1785542400 + int(clock[0])))
-
-    async def snapshot(account):
-        result = await original(account)
-        result.balances["BNB"] = "0.001"
-        return result
-
-    monkeypatch.setattr(queries, "account_snapshot", snapshot)
-    evidence = {
-        "multi_assets": False, "observed_at": 1785542400,
-        "totals": {"total_wallet_balance": "101", "total_margin_balance": "106",
-                   "total_unrealized_profit": "5", "total_maint_margin": "1"},
-        "assets": {
-            "USDT": {"walletBalance": Decimal(100), "unrealizedProfit": Decimal(5), "maintMargin": Decimal(1)},
-            "BNB": {"walletBalance": Decimal("0.001"), "unrealizedProfit": Decimal(0), "maintMargin": Decimal(0)},
-        },
-    }
-    monkeypatch.setattr(asset_queries, "asset_account", lambda _, **_kwargs: evidence)
-    prices, price_calls = {"USDT": Decimal(1), "BNB": Decimal(1000)}, []
-
-    def price(env, currency):
-        price_calls.append((env, currency))
-        if prices[currency] is None:
-            raise queries.QueryError("资产指数价格读取失败或已过期。")
-        return {"price": prices[currency], "priced_at": 1785542400}
-
-    monkeypatch.setattr(asset_queries, "asset_price", price)
-    return app, evidence, prices, price_calls, clock
 
 
 def test_dust_is_included_and_cached_with_balance_change_and_manual_refresh(mixed_assets):
@@ -395,43 +375,6 @@ def test_dust_expiry_does_not_slide_and_negative_assets_are_preserved(mixed_asse
         assert Decimal(result["account"]["total_equity"]) == 103
 
 
-def test_market_catalog_uses_native_contract_names_and_caches(monkeypatch):
-    import asyncio
-    from types import SimpleNamespace
-
-    from api.exchanges.service import ExchangeService
-
-    calls = []
-
-    async def instruments(env):
-        calls.append(env)
-        return [SimpleNamespace(id=SimpleNamespace(symbol=symbol), base_currency=base,
-                                quote_currency=quote, settlement_currency=quote)
-                for symbol, base, quote in [("XAUUSDT-PERP", None, "USDT"),
-                                            ("1000SHIBUSDT-PERP", "SHIB", "USDT"),
-                                            ("BTCUSDC-PERP", "BTC", "USDC")]]
-
-    monkeypatch.setattr(queries, "instruments", instruments)
-
-    from engine.public_queries import PublicRequest, market_catalog
-
-    async def catalogue(environment, product):
-        payload = PublicRequest(environment=environment, product=product)
-        return (await market_catalog("1", payload))["items"]
-
-    service = ExchangeService(None, engine=SimpleNamespace(market_catalog=catalogue))
-
-    async def check():
-        first = await service.catalog("production")
-        assert await service.catalog("production") == first
-        return first
-
-    items = asyncio.run(check())
-    assert [(item["symbol"], item["base"]) for item in items] == [
-        ("1000SHIB/USDT:USDT", "1000SHIB"), ("BTC/USDC:USDC", "BTC"), ("XAU/USDT:USDT", "XAU")]
-    assert calls == ["production"]
-
-
 def test_portfolio_reads_only_persisted_data_and_survives_restart(application, monkeypatch):
     app, _, calls = application
     with TestClient(app) as client:
@@ -453,10 +396,10 @@ def test_portfolio_reads_only_persisted_data_and_survives_restart(application, m
         assert "fixture-key" not in content and "fixture-secret" not in content
         assert path.stat().st_mode & 0o077 == 0
 
-    async def unavailable(_):
-        raise queries.QueryError("Binance 账户查询失败。")
+    async def unavailable(_engine, _account):
+        raise QueryError("Binance 账户查询失败。")
 
-    monkeypatch.setattr(queries, "account_snapshot", unavailable)
+    monkeypatch.setattr(EngineClient, "account_snapshot", unavailable)
     with TestClient(create_app(app.state.settings)) as client:
         signin(client)
         assert client.get(url).json() == result
@@ -525,7 +468,7 @@ def test_portfolio_worker_runs_each_minute_and_isolates_account_failures(applica
     async def persist(account_id):
         attempted.append(account_id)
         if account_id == 1:
-            raise queries.QueryError("账户读取失败。")
+            raise QueryError("账户读取失败。")
 
     async def sleep(seconds):
         intervals.append(seconds)

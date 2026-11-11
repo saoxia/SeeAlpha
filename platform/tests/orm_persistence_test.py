@@ -1,4 +1,8 @@
-"""Behavioral contracts for the portable business database."""
+"""Portable ORM persistence, session, management and restart regression suite.
+
+Exercises SQLite and optionally an isolated TEST_POSTGRES_URL. API lifespan
+uses only a strict local Engine bootstrap stub; no native trading dependencies.
+"""
 
 import os
 import time
@@ -7,9 +11,6 @@ import uuid
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, text
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
@@ -19,9 +20,12 @@ from api.db.orm import ORMDatabase
 from api.main import create_app
 from api.olap.repository import olap_repository
 from api.operations.orm_repository import ORMOperations
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy import event as sa_event
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
+pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
+
 
 @pytest.fixture(params=["sqlite", "postgresql"])
 def orm(tmp_path, request):
@@ -45,6 +49,45 @@ def orm(tmp_path, request):
         with engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         engine.dispose()
+
+
+def event(**values):
+    return {
+        "event_id": "submit-1",
+        "account_id": 1,
+        "account_name": "main",
+        "exchange": "binance",
+        "environment": "production",
+        "symbol": "ETHUSDT-PERP",
+        "event_type": "place",
+        "timestamp": 1000,
+        "evidence": "project",
+        "client_order_id": "client-1",
+        "strategy_id": "strategy-1",
+        "amount": "1",
+        "price": "2000",
+    } | values
+
+
+def module(project, name, source):
+    """Create a local-only check module, without importing legacy Web tests."""
+    pieces = name.split(".")
+    root = project
+    for piece in pieces[:-1]:
+        root /= piece
+        root.mkdir(exist_ok=True)
+        (root / "__init__.py").touch()
+    (root / (pieces[-1] + ".py")).write_text(source, encoding="utf-8")
+
+
+def finished(manager, identity):
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        job = manager.get_job(identity)
+        if job["status"] != "running":
+            return job
+        time.sleep(0.02)
+    pytest.fail("Child job did not finish")
 
 
 def test_orm_auth_accounts_and_olap_persist(orm):
@@ -136,8 +179,6 @@ def test_orm_api_restart_preserves_state(orm, tmp_path):
 
 
 def test_orm_ledger_idempotence_and_merge(orm):
-    from tests.api.operations_test import event
-
     db, _, _ = orm
     repo = ORMOperations(db)
     first = repo.ingest(event())
@@ -161,12 +202,10 @@ def test_orm_ledger_idempotence_and_merge(orm):
 def test_management_history_and_report_index_survive_restart_and_unmounted_data(orm, tmp_path):
     import json
 
-    from sqlalchemy import select
-
     from api.db.models import BacktestReport, ManagementJob
     from api.management.jobs import CHECK_MODULE, JobManager
     from api.management.service import ManagementService
-    from tests.web.jobs_test import finished, module
+    from sqlalchemy import select
 
     db, _, _ = orm
     from api.db.management_repository import ManagementRepository
@@ -273,12 +312,12 @@ def test_orm_session_lookup_is_read_only_with_immediate_expiry_and_revocation(or
     statements = []
     def record(_conn, _cursor, statement, _parameters, _context, _executemany):
         statements.append(statement.lstrip().upper())
-    event.listen(db.engine, "before_cursor_execute", record)
+    sa_event.listen(db.engine, "before_cursor_execute", record)
     try:
         assert auth.get_user_for_session("valid-read-only")["id"] == user["id"]
         assert auth.get_user_for_session("expired-read-only") is None
     finally:
-        event.remove(db.engine, "before_cursor_execute", record)
+        sa_event.remove(db.engine, "before_cursor_execute", record)
     assert statements and all(statement.startswith("SELECT") for statement in statements)
     auth.delete_session("valid-read-only")
     assert auth.get_user_for_session("valid-read-only") is None
@@ -307,5 +346,3 @@ def test_pool_replaces_closed_idle_connection_without_losing_sessions(orm):
     # Simulate the server closing an idle socket after it was returned to the pool.
     raw.close()
     assert auth.get_user_for_session("reconnect-session")["id"] == user["id"]
-
-

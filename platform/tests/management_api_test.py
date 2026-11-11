@@ -1,12 +1,16 @@
-"""Authenticated research jobs, published artifacts and request boundaries."""
+"""Engine-free management API regression suite: jobs, auth and artifacts.
+
+Background check subprocesses use temporary project directories and locks.
+Engine bootstrap requests are strictly mocked by platform_engine_bootstrap.
+"""
 
 import json
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
@@ -15,12 +19,80 @@ from api.main import create_app
 from api.management.jobs import CHECK_MODULE
 from api.management.service import snapshot
 from api.management.storage import WebPaths
-from tests.fixtures.api_auth import login
-from tests.web.jobs_test import module
-from tests.web.storage_test import hold_lock, release_lock
+from fastapi.testclient import TestClient
 
-# Legacy app-lifespan regressions opt in to the in-process Engine fixture.
-pytestmark = pytest.mark.usefixtures("engine_http")
+pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
+
+
+def login(client, password="test-password-123", username="admin"):
+    return client.post(
+        "/api/auth/login",
+        json={"username": username, "password": password},
+    )
+
+
+def module(project, name, source):
+    pieces = name.split(".")
+    root = project
+    for piece in pieces[:-1]:
+        root /= piece
+        root.mkdir(exist_ok=True)
+        (root / "__init__.py").touch()
+    (root / (pieces[-1] + ".py")).write_text(source, encoding="utf-8")
+
+
+_LOCK_HOLDER = """
+import fcntl
+import sys
+import time
+from pathlib import Path
+
+path, ready = Path(sys.argv[1]), Path(sys.argv[2])
+handle = path.open("a")
+fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+ready.write_text("held")
+while True:
+    time.sleep(3600)
+"""
+
+
+def hold_lock(path):
+    """Hold a current runtime lock from another process."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ready = path.with_name(path.name + ".ready")
+    ready.unlink(missing_ok=True)
+    process = subprocess.Popen(
+        [sys.executable, "-c", _LOCK_HOLDER, str(path), str(ready)],
+        stderr=subprocess.PIPE,
+    )
+    process.ready_path = ready
+    deadline = time.monotonic() + 5
+    while not ready.exists():
+        if process.poll() is not None:
+            detail = process.stderr.read().decode() if process.stderr is not None else ""
+            raise AssertionError(f"lock holder exited {process.returncode}: {detail}")
+        if time.monotonic() > deadline:
+            process.kill()
+            process.wait(timeout=5)
+            raise AssertionError("lock holder did not acquire the lock")
+        time.sleep(0.02)
+    return process
+
+
+def release_lock(process):
+    if process.poll() is None:
+        process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+    if process.stderr is not None:
+        process.stderr.close()
+    ready = getattr(process, "ready_path", None)
+    if ready is not None:
+        ready.unlink(missing_ok=True)
+
 
 @pytest.fixture
 def api(tmp_path):
