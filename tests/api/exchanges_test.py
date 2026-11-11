@@ -1,9 +1,7 @@
 """API compatibility and credential isolation using deterministic connector snapshots."""
 
-import asyncio
 import json
 from functools import partial
-from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
