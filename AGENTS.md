@@ -6,8 +6,7 @@
 
 后续功能归属和依赖方向先对照 [Engine / Platform 边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)：
 Engine 专注量化数据、回测、模拟及交易执行、风险与运行事实；Platform 专注用户/租户、
-策略开发与授权、工作流编排、运营和可视化。当前维持 Monorepo，目标是 Engine 可独立仓库，
-**不得把“将来拆仓”当作自动重构的授权**。2026-11-10 用户已授权渐进拆分：独立 Engine 建好后让 Platform 经 HTTP/固定镜像使用它，旧 `engine/` 暂留供验证；删除旧代码及实盘迁移须单独验收，其他跨界改动仍须明确授权。
+策略开发与授权、工作流编排、运营和可视化。Phase 20 已按用户授权把原 `engine/` 源码、镜像构建和重型依赖从 Platform 仓库切走；本仓库仅保留 API/Web/Core 以及隔离的旧联合兼容测试，Engine 自身由独立仓库维护。**不允许据此自动执行实盘切换、复制真实账户状态或修改 Engine 代码**，其他跨界改动仍须明确授权。
 
 ## Priority 1：架构冻结（Architecture Freeze）
 
@@ -43,7 +42,7 @@ Engine 专注量化数据、回测、模拟及交易执行、风险与运行事�
 
 ## 实施边界
 
-- `core` 不依赖上层业务；`engine/connectors` 不依赖 `engine/feed`、`engine/pipeline`、`api` 或 `web`。连续行情在 `engine/feed`，数据管道在 `engine/pipeline`。策略内部单向依赖、双管理端及存储边界以架构说明为准。2026-11-08 用户授权把交易引擎和完整数据管道放进 `engine/`，不包含移动 `web/`。同日授权删除 `strategy_python/`，策略改为可下发的包。
+- `core` 不依赖上层业务。独立 `seealpha-engine` 的连接器、Feed、Pipeline、回测和执行源码只存在 Engine 仓库；Platform 只能通过 Engine v2 HTTP 契约访问。策略内部单向依赖、双管理端及存储边界以架构说明为准。2026-11-08 用户授权把交易引擎和完整数据管道放进 `engine/`，不包含移动 `web/`。同日授权删除 `strategy_python/`，策略改为可下发的包。
 - 优先复用已接入的 NautilusTrader 公共能力；不得复制引擎、访问上游私有接口或擅自替换依赖。新增市场、账户或执行能力属于单独评审事项，不能假设已经可用。
 - 保留交易安全、异常恢复、数据一致性和必要测试：不得弱化风险预算、精度校验、订单生命周期、预热与闭合周期规则、行情就绪门禁、断线恢复、原子写入、事务或幂等保护。不得把回放当实时信号，把样例或回测结果当真实账户数据。
 - 保留鉴权、请求来源检查和凭据加密；密钥及私有数据库连接不得写入源码、日志或前端。不得擅自执行实盘交易、数据重建、数据库迁移或删除运行数据。
@@ -66,9 +65,9 @@ Engine 专注量化数据、回测、模拟及交易执行、风险与运行事�
 
 ## 使用现有检查机制
 
-- Python：在项目根目录用 `.venv/bin/python -m ruff check <受影响的文件或目录>`，并运行 `.venv/bin/python -m pytest <相关 tests 路径> -q`；测试集中放在 `tests/`，文件名保持 `*_test.py`。
+- Python：在项目根目录使用 `uv sync --project platform --locked`；运行 `platform/.venv/bin/ruff check .` 和 `platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests`。不能依赖已移除的根目录 `.venv`；原生 Engine 测试由独立仓库承担，联合兼容测试由 CI 的固定 Engine 检出环境承担。
 - 涉及策略包加载或目标持仓：Engine 内部验证由独立仓库 `tests/engine/strategy_load_test.py` 负责；Platform 业务权限测试运行 `platform/tests/strategy_policy_test.py`，跨进程加载/预览则在隔离 Docker 主机显式运行 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1 ./scripts/verify_external_engine.sh`。涉及冻结源码与研究来源：运行 `tests/source_baselines_test.py`，必要时连同 `tests/source_baselines_validation_test.py`。
-- 跨模块公共行为、风险/执行、数据契约或持久化改动：扩大到生产者和消费者的相关测试；影响广泛时运行 `.venv/bin/python -m ruff check .` 与 `.venv/bin/python -m pytest -q`。不得用单个局部测试替代受影响链路验证。
+- 跨模块公共行为、风险/执行、数据契约或持久化改动：扩大到生产者和消费者的相关测试；影响广泛时运行 Platform 独立测试、Ruff 与专用跨仓库 CI 验证；不得通过本仓库根目录 Python 误运行 Engine 原生环境。不得用单个局部测试替代受影响链路验证。
 - 前端：在 `web/` 运行 `npm run lint`、`npm run test:frontend`；影响类型、路由或构建时再运行 `npm run build`。API 契约变动须核对 `web/scripts/generate_api_types.py` 及生成类型与调用方是否同步，核心接口变更仍受架构冻结约束。
 - Rust 转换逻辑属于独立 `saoxia/seealpha-engine`；其 CI 已执行 Rust converter 构建、`cargo test` 与 `tests/pipeline/`。本仓库不再重复存放对应 Python 测试。需要改变数据转换行为时，应先核对 Engine 仓库的归属与验证，不在 Platform 中复制实现。
 - 纯文档修改：检查内容与现状、相对链接、命令来源及 diff；涉及架构或冻结约定时运行现有架构/来源测试。不为文字修改添加业务测试、检查脚本、自动钩子或新工具。

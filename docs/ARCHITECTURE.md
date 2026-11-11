@@ -1,3 +1,8 @@
+> **Phase 20 当前部署边界（2026-11-12）**：本仓库已不再存放 `engine/` 或根目录
+> 重型 Python/Rust 锁。以下历史模块路径引用均指独立
+> [saoxia/seealpha-engine](https://github.com/saoxia/seealpha-engine)。
+> Platform 业务代码只通过 `EngineClient` 访问外部 Engine，不代表已批准实盘迁移。
+
 
 ## 2026-11-09：每租户 Docker Engine（可选部署）
 
@@ -73,7 +78,7 @@ Tick 同时持久化。沿既有期权批量 connector → Feed → history 桥 
 
 ## 技术栈与能力范围
 
-SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。根目录 `pyproject.toml`、`uv.lock` 管理 Python 及依赖，当前引擎固定为 `nautilus-trader==2.0.0rc8`；项目不是引擎源码仓库。
+SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。Platform 的 `platform/pyproject.toml` 和 `platform/uv.lock` 管理轻量业务依赖，独立 Engine 仓库自行管理 `nautilus-trader==2.0.0rc8` 与 Rust 工具链；项目不是引擎源码仓库。
 
 Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换，保留 Python 回退。`strategy_rust/` 当前只有说明文件，不能视为已有可运行 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
 

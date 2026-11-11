@@ -29,13 +29,13 @@
 ```bash
 # 在单独的 seealpha-engine checkout 中启动 Engine，不使用此仓库的 engine/
 # 参见 docs/EXTERNAL_ENGINE.md，准备隔离状态目录与私有 Token
-uv sync --locked --group api
+uv sync --project platform --locked --no-default-groups
 COOKIE_SECURE=false \
 ENGINE_DEPLOYMENT=single \
 ENGINE_URL=http://127.0.0.1:8766 \
 ENGINE_TOKEN='<与独立Engine相同的私有开发令牌>' \
 ALLOWED_ORIGINS=http://127.0.0.1:3000,http://localhost:3000 \
-.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
 `ENGINE_URL` 默认就是 `http://127.0.0.1:8766`。本地开发令牌只用于本机进程互认，
@@ -123,8 +123,8 @@ Nautilus Python 接入限制与执行运行时接入方式见
 使用本地交互命令，密码不通过命令行参数传递：
 
 ```bash
-.venv/bin/python -m api.auth.manage create-user admin
-.venv/bin/python -m api.auth.manage reset-password admin
+platform/.venv/bin/python -m api.auth.manage create-user admin
+platform/.venv/bin/python -m api.auth.manage reset-password admin
 ```
 
 新建、重置密码要求 12–256 个字符；迁移保留原密码哈希，不改变已有账户的密码。
@@ -146,7 +146,7 @@ Nautilus Python 接入限制与执行运行时接入方式见
 ## 验证
 
 ```bash
-.venv/bin/python -m pytest tests/api -q
+platform/.venv/bin/python -m pytest tests/api -q
 ```
 
 测试使用临时数据库，覆盖会话持久化、过期与撤销、失败限流、请求来源、Cookie 属性、
@@ -168,7 +168,7 @@ PostgreSQL 默认 schema 为 `seealpha`，可用 `DATABASE_SCHEMA` 调整。
 **当前版本仅支持全新空的业务数据库/schema 初始化**。先配置连接信息，再执行：
 
 ```bash
-.venv/bin/alembic upgrade head
+platform/.venv/bin/alembic upgrade head
 ```
 
 ORM 启动前会检查 Alembic 版本；不会自动创建、覆盖或接管旧业务表。
@@ -340,5 +340,5 @@ LIVE 使用真实权益 K 线并支持单账户一键重算；缺价和断线保
 ## Engine 仓库解耦进度
 
 Engine HTTP DTO、异常合同与容器构建边界已提取，但行情、操作记录与部分交易所
-查询仍直接依赖 `engine/` 源码。**当前不能移走 `engine/` 或认定 API 已完全脱离 Engine。**
+查询经 `api/engine_client.py` 的 HTTP v2 调用固定版本独立 Engine；业务运行时不导入 `engine/`。实盘交易与状态迁移仍需单独验收。
 剩余依赖和验收条件见 [Engine 独立仓库边界](../docs/ENGINE_REPOSITORY_BOUNDARY.md)。

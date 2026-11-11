@@ -1,3 +1,6 @@
+> 历史升级记录（2026 年 10 月）：下文的根目录 Engine 路径、锁和版本
+> 在 Phase 20 后属于独立 `saoxia/seealpha-engine`，不要在 Platform 根目录执行旧命令。
+
 # NautilusTrader v2 本机升级记录
 
 日期：2026-10-26。默认开发环境 `.venv` 已切换到 **nautilus-trader 2.0.0rc7**，锁定于根目录 `uv.lock`；系统 Python 未改动。

@@ -17,7 +17,7 @@ USDT 估值及价格时间；低于 5 USDT 的资产折叠展示，仍计入估�
 
 ## 前端启动
 
-需要 Node.js >= 22.13.0 和 npm。先按 [引擎](../engine/README.md) 与 [API](../api/README.md) 说明启动常驻引擎和 API，再运行：
+需要 Node.js >= 22.13.0 和 npm。先按 [独立 Engine](../docs/EXTERNAL_ENGINE.md) 与 [API](../api/README.md) 说明启动常驻引擎和 API，再运行：
 
 ```bash
 cd web
@@ -36,7 +36,7 @@ npm run dev
 COOKIE_SECURE=false \
 ALLOWED_HOSTS="localhost,127.0.0.1,${LAN_IP}" \
 ALLOWED_ORIGINS="http://127.0.0.1:3000,http://localhost:3000,http://${LAN_IP}:3000" \
-.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
 
 再在 `web/` 构建并以生产模式监听局域网：
@@ -127,7 +127,7 @@ API 启动时尝试持有 `.local/run/web/server.lock`。拿到锁的进程执�
 旧管理端的独立口令文件若被一并迁走，只作为私有文件保留，不再用于登录。
 
 ```bash
-.venv/bin/python -m pytest tests/web tests/api/management_test.py -q
+platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/management_api_test.py
 ```
 
 ## 项目操作记录

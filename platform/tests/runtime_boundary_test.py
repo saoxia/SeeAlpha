@@ -168,7 +168,7 @@ def test_engine_pins_are_identical_for_ci_build_and_manual_smoke():
     observed = {}
     for relative in paths:
         text = (PLATFORM_ROOT / relative).read_text(encoding="utf-8")
-        pinned = re.findall(r"\\b[0-9a-f]{40}\\b", text)
+        pinned = re.findall(r"\b[0-9a-f]{40}\b", text)
         assert len(pinned) == 1, relative
         observed[relative] = pinned[0]
     assert len(set(observed.values())) == 1, observed

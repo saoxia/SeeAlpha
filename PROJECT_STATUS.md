@@ -1,3 +1,7 @@
+> 历史状态快照：Phase 20 已将 `engine/`、根目录重型依赖和 Dockerfile 迁出。
+> 文内原 `engine/*` 路径现在位于独立 `saoxia/seealpha-engine`；
+> 运行与测试以 [Platform 说明](platform/README.md) 和当前 GitHub CI 为准。
+
 # SeeAlpha 项目状态与待办
 
 产品定位（2026-10-27）：基于 NautilusTrader 的多资产量化交易系统，面向加密资产、
