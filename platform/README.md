@@ -47,6 +47,22 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 `platform_regression`，使用 `platform/uv.lock` 和 `platform/tests/`。
 旧根目录 pytest 只覆盖尚未迁移的联合测试，不能代替此独立套件。
 
+## 账户与手动交易的 Platform 边界回归
+
+`platform/tests/exchange_trading_boundaries_test.py` 从旧 `tests/api/exchanges_test.py`
+和 `tests/api/trading_test.py` 迁入 6 组无需 Engine 实现的原有测试：
+API Key/Secret 相同的拒绝与脱敏、无原始证据时净值不造假、
+权益 K 线不伪造样本、委托参数与账户环境前置校验、交易市场选择器鉴权和
+完整市场列表。另补充了交易路由对未登录、只读用户、非法 Origin 以及
+账户版本过期的拒绝断言。
+
+测试运行真实 Platform API、临时业务数据库及会话鉴权，通过严格
+`platform_engine_bootstrap` 隔离启动期 Engine HTTP 请求，并将任何
+意外的订单提交视为测试失败；没有本地 Engine ASGI、旧 Binance Connector、
+NautilusTrader、真实订单或 Docker。
+原 Engine Native 执行、订单幂等保留、跨进程锁与未知订单恢复测试
+仍在联合回归中，后续应由独立 Engine 或跨进程 HTTP 验收接替。
+
 ## Platform 独立 HTTP / Docker 路由单元测试
 
 原 `tests/api/tenant_docker_test.py` 的 HTTP 客户端、租户路由、旧镜像拒绝、Docker 本地路径与租户文件归档等纯 Platform 测试，已经迁入 `platform/tests/tenant_docker_test.py`。旧 `platform/tests/engine_http_routing_test.py` 中独有的断连失败关闭测试也已合并，重复断言不再分散在两个文件。原测试中直接创建 Engine ASGI app 的固定租户 HTTP 隔离用例已迁至独立 `saoxia/seealpha-engine` 的 `tests/engine/tenant_http_isolation_test.py`。这一批迁移不需要在 Platform 测试环境中安装 NautilusTrader 或运行 Docker；仅改变测试归属，旧业务代码未修改。

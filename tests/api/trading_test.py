@@ -86,30 +86,6 @@ def test_idempotency_survives_service_restart_and_rejects_changed_payload(tradin
         assert lookup.json()['status'] == 'completed'
 
 
-@pytest.mark.parametrize('changes', [
-    {'quantity': 'NaN'}, {'quantity': '0'}, {'quantity': '-1'}, {'price': None},
-    {'price': '0'}, {'symbol': '../BTC'}, {'order_type': 'market', 'price': '2000'},
-    {'post_only': True, 'time_in_force': 'IOC'}, {'reduce_only': True, 'position_side': 'LONG'},
-])
-def test_invalid_orders_never_reach_connector(trading, changes):
-    app, calls = trading
-    with TestClient(app) as client:
-        signin(client)
-        create(client)
-        assert client.post('/api/trading/accounts/1/orders', json=payload(**changes)).status_code == 422
-        assert calls == []
-
-
-def test_environment_mismatch_and_missing_account_fail_before_send(trading):
-    app, calls = trading
-    with TestClient(app) as client:
-        signin(client)
-        create(client)
-        assert client.post('/api/trading/accounts/1/orders', json=payload(environment='sandbox')).status_code == 409
-        assert client.post('/api/trading/accounts/99/orders', json=payload()).status_code == 404
-        assert not calls
-
-
 def test_unknown_result_is_reserved_and_never_automatically_resent(trading, monkeypatch):
     app, calls = trading
     async def fail(account, symbol, command):
@@ -247,37 +223,6 @@ def test_state_has_bound_account_revision_and_omits_internal_execution_evidence(
         assert response.json()['instrument']['size_increment'] == '0.001'
         assert 'records' not in response.json() and 'result' not in response.json()
         assert calls[0][2] == {'action': 'snapshot'}
-
-
-def test_market_picker_permissions_full_catalog_and_environment(trading, monkeypatch):
-    app, commands = trading
-    calls = []
-
-    async def catalog(env):
-        calls.append(env)
-        return [{"base": f"TEST{i}", "quote": "USDT"} for i in range(205)] + [{"base": "ETH", "quote": "USDC"}]
-
-    async def tickers(env):
-        calls.append(env)
-        return {"checked_at": 123, "rows": {"ETHUSDC": {"last_price": "2225.33", "change_percent": "-6.76", "quote_volume": "3700000000", "funding_rate": "-0.0000252"}}}
-
-    monkeypatch.setattr(app.state.exchanges, "catalog", catalog)
-    monkeypatch.setattr(manual, "market_tickers", tickers)
-    with TestClient(app) as client:
-        assert client.get("/api/trading/markets").status_code == 401
-        signin(client, "viewer")
-        assert client.get("/api/trading/markets").status_code == 403
-        signin(client)
-        response = client.get("/api/trading/markets?environment=sandbox")
-        assert response.status_code == 200
-        result = response.json()
-        assert result["environment"] == "sandbox" and calls == ["sandbox", "sandbox"]
-        assert len(result["markets"]) == 206
-        assert result["markets"][0]["last_price"] is None
-        assert result["markets"][-1]["symbol"] == "ETHUSDC-PERP"
-        assert result["markets"][-1]["funding_rate"] == "-0.0000252"
-        assert client.get("/api/trading/markets?environment=invalid").status_code == 422
-        assert not commands
 
 
 def test_snapshot_exposes_current_symbol_leverage(trading):
