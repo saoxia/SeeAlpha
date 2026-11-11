@@ -3,7 +3,6 @@ import json
 
 import httpx
 import pytest
-
 from api.research.gateway_client import (
     GATEWAY_HEADER,
     GatewayControlClient,

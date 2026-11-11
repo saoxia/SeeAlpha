@@ -34,6 +34,19 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 - 原仓库 `docker/engine.Dockerfile`、根 `pyproject.toml`/`uv.lock` 仍为历史构建入口，当前统一对外构建流程应使用 `scripts/build_external_engine.sh`，勿依赖这些旧构建产物。
 - `engine/` 的 82 个源文件在这一过渡 PR 中不删除。行情、策略、回测、状态恢复的完整业务链路验收仍须单独完成。
 
+## 数据库与部署边界回归
+
+`platform/tests/database_boundaries_test.py` 持有从旧 `tests/api/orm_storage_test.py`
+迁出的 7 项无需 Engine 的数据库与部署边界测试：拒绝未迁移数据库、
+禁止进程内 Engine 回退、缺少显式数据库配置、拒绝混入旧业务表、
+数据库连接文件权限和 PostgreSQL 握手超时的凭据脱敏。
+需要 PostgreSQL 的用例仍依赖隔离的 `TEST_POSTGRES_URL`，未配置时明确跳过。
+这些用例只使用 Platform 依赖，不启动 Docker 或独立 Engine。
+
+`.github/workflows/tenant-engine.yml` 对 Python/Platform 变更运行单独
+`platform_regression`，使用 `platform/uv.lock` 和 `platform/tests/`。
+旧根目录 pytest 只覆盖尚未迁移的联合测试，不能代替此独立套件。
+
 ## Platform 独立 HTTP / Docker 路由单元测试
 
 原 `tests/api/tenant_docker_test.py` 的 HTTP 客户端、租户路由、旧镜像拒绝、Docker 本地路径与租户文件归档等纯 Platform 测试，已经迁入 `platform/tests/tenant_docker_test.py`。旧 `platform/tests/engine_http_routing_test.py` 中独有的断连失败关闭测试也已合并，重复断言不再分散在两个文件。原测试中直接创建 Engine ASGI app 的固定租户 HTTP 隔离用例已迁至独立 `saoxia/seealpha-engine` 的 `tests/engine/tenant_http_isolation_test.py`。这一批迁移不需要在 Platform 测试环境中安装 NautilusTrader 或运行 Docker；仅改变测试归属，旧业务代码未修改。

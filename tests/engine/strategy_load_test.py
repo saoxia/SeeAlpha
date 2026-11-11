@@ -27,9 +27,10 @@ from engine.strategies.package import (
 from engine.strategies.target_netting import MemberTarget, execution_delta
 from engine.strategies.targets import TargetHolding, signed_quantity
 from tests.fixtures.strategy_packages import (
-    CLOSES,
     crossover_bars,
     ema_archive,
+)
+from tests.fixtures.strategy_packages import (
     hold_archive as _package_archive,
 )
 

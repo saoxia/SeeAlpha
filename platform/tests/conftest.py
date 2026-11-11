@@ -10,10 +10,9 @@ imports Engine, or forwards a request to a network endpoint.
 import json
 import re
 
+import api.main as api_main
 import httpx
 import pytest
-
-import api.main as api_main
 from api.engine_client import EngineClient
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
 

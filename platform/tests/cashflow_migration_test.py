@@ -7,11 +7,10 @@ from alembic import command
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations as MigrationOperations
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import IntegrityError
-
 from api.db.orm import ORMDatabase
 from api.operations.orm_repository import ORMOperations
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 
 
 def event(**values):

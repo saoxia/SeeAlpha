@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 import httpx
 import pytest
-
 from api.engine_client import EngineClient
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
 

@@ -10,9 +10,6 @@ from types import SimpleNamespace
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
-from sqlalchemy import func, select
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
@@ -23,7 +20,8 @@ from api.equity.router import aligned_points, candles
 from api.equity.service import EquityService
 from api.equity.valuation import reconcile, value
 from api.main import create_app
-
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 PROJECT = Path(__file__).resolve().parents[2]
 

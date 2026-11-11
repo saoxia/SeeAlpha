@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+
 def main():
     if os.environ.get("SEEALPHA_SMOKE_DISPOSABLE") != "1":
         raise SystemExit("Refusing to create Catalog outside a marked disposable container")
@@ -25,6 +26,7 @@ def main():
     catalog_root.mkdir(mode=0o700, exist_ok=True)
 
     from nautilus_trader.model import Bar, BarType
+
     from core.market.instruments import bar_type_for
     from engine.pipeline.catalog import ParquetDataCatalog
     from nautilus_support import TestInstrumentProvider

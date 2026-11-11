@@ -16,8 +16,8 @@ import zipfile
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import urlsplit
 from time import monotonic, sleep
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi.testclient import TestClient
@@ -77,6 +77,7 @@ async def _isolated_http_only_lifespan(_app):
 def _client(tmp_path):
     from alembic import command
     from alembic.config import Config
+
     from api.auth.security import hash_password
     from api.config import Settings
     from api.db.auth_repository import auth_repository

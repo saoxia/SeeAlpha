@@ -1,13 +1,10 @@
 import pytest
-
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.main import create_app
-
+from fastapi.testclient import TestClient
 
 # Run the actual Platform lifespan with an Engine-free HTTP bootstrap stub.
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")

@@ -19,7 +19,6 @@ from tests.fixtures.api_auth import login
 from tests.web.jobs_test import module
 from tests.web.storage_test import hold_lock, release_lock
 
-
 # Legacy app-lifespan regressions opt in to the in-process Engine fixture.
 pytestmark = pytest.mark.usefixtures("engine_http")
 

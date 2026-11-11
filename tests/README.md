@@ -2,6 +2,10 @@
 
 独立 Engine 的 HTTP v2 真实联调已移至 [`platform/tests/external_engine_contract_test.py`](../platform/tests/external_engine_contract_test.py)，不再被本目录旧进程内 Engine fixture 自动包装。现有联合回归仍用旧实现直到涉及行情、策略和回测的用例完成跨进程迁移。
 
+原 `tests/api/orm_storage_test.py` 中 7 项不需要 Engine 的数据库部署边界回归
+现由 `platform/tests/database_boundaries_test.py` 独立运行；旧联合测试保留仍
+需要联合环境的 ORM 行为，不重复执行已迁移的 7 项。
+
 Platform 纯业务端测试已经逐步迁至 [`platform/tests/`](../platform/tests/)；
 旧 `tests/` 暂保留需要 Engine 实现的联合用例。根目录 `uv run pytest`
 **不会**自动覆盖 Platform 专用环境下的测试，见 [`platform/README.md`](../platform/README.md)。
@@ -88,6 +92,12 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 `tests/web/jobs_test.py` 额外覆盖对旧历史记录的可读取性，而正式回测
 仍须使用独立 Engine 的显式跨进程验收脚本。
 
+
+旧联合的期权业务 API 测试现在自行构造确定性合约元数据和 K 线，不再导入
+已移入独立 Engine 仓库的 `tests.connectors` / `tests.pipeline` 测试模块；
+这仍是过渡期的进程内测试，后续应迁为独立 HTTP 验收。
+开发环境激活测试只验证 Platform 自有工具及缓存目录，不再要求旧 Rust
+converter 的 `CARGO_TARGET_DIR`。
 
 ## 独立 Engine 专属测试的归属
 

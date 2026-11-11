@@ -16,7 +16,6 @@ from api.db.models import ExchangeAccount, MarketDataPolicy
 from api.main import create_app
 from tests.fixtures.api_auth import login
 
-
 # Legacy app-lifespan regressions opt in to the in-process Engine fixture.
 pytestmark = pytest.mark.usefixtures("engine_http")
 

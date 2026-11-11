@@ -23,6 +23,7 @@ on:
       - "tests/api/engine_isolation_test.py"
       - "tests/api/tenant_docker_test.py"
       - "tests/api/orm_storage_test.py"
+      - "platform/**"
       - "tests/api/auth_test.py"
       - "tests/api/management_test.py"
       - "tests/web/storage_test.py"
@@ -71,7 +72,7 @@ jobs:
           python=false
           while IFS= read -r path; do
             case "$path" in
-              api/*|core/*|engine/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
+              api/*|core/*|engine/*|platform/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
                 python=true ;;
             esac
             case "$path" in
@@ -120,6 +121,20 @@ jobs:
       - run: uv sync --locked
       - name: API and Web backend regression
         run: uv run pytest -q tests/api tests/web
+
+  platform_regression:
+    needs: scope
+    if: ${{ needs.scope.outputs.python == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --project platform --locked
+      - name: Standalone Platform regressions (without Engine/Nautilus)
+        run: platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
 
   frontend:
     needs: scope
