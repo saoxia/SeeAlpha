@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 
 from api.operations.options import account_identity, replay_positions
 from engine.connectors.binance.operations import normalize_option_record
-from tests.api import exchanges_test
-from tests.api.exchanges_test import collect, create, signin
+from tests.legacy_engine_integration import exchanges_test
+from tests.legacy_engine_integration.exchanges_test import collect, create, signin
 
 application = exchanges_test.application
 

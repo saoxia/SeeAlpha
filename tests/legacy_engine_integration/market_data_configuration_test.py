@@ -8,7 +8,7 @@ from nautilus_trader.model import AggressorSide, Price, Quantity, TradeId, Trade
 from engine.pipeline.catalog import ParquetDataCatalog
 from engine.pipeline.models import PipelineSettings
 from nautilus_support import TestInstrumentProvider
-from tests.api.market_data_test import context
+from tests.legacy_engine_integration.market_data_test import context
 from tests.fixtures.api_auth import login
 
 __all__ = ["context"]

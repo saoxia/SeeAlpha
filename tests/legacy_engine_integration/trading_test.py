@@ -13,7 +13,7 @@ from api.exchanges.trading import ManualTrading
 from api.main import create_app
 from engine.connectors.binance import manual
 from engine.connectors.binance.queries import QueryError
-from tests.api.exchanges_test import create, signin
+from tests.legacy_engine_integration.exchanges_test import create, signin
 
 # Legacy app-lifespan regressions opt in to the in-process Engine fixture.
 pytestmark = pytest.mark.usefixtures("engine_http")
