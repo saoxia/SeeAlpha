@@ -115,3 +115,33 @@ def test_platform_tests_cannot_opt_into_legacy_engine_http_fixture():
                     isinstance(arg, ast.Constant) and arg.value == "engine_http"
                     for arg in node.args
                 ), (path, node.lineno)
+
+
+def test_platform_does_not_regain_engine_worker_or_venue_ownership():
+    """Keep the Platform-only half of the former Engine phase1 boundary test."""
+    root = PLATFORM_ROOT / "api"
+    offenders = []
+    for path in root.rglob("*.py"):
+        content = path.read_text(encoding="utf-8")
+        if "LiveNode" in content or "account_node(" in content:
+            offenders.append(path.relative_to(PLATFORM_ROOT).as_posix())
+        if path.name != "engine_client.py" and "book.sqlite" in content:
+            offenders.append(path.relative_to(PLATFORM_ROOT).as_posix())
+    assert offenders == []
+
+    trading = (root / "exchanges/trading.py").read_text(encoding="utf-8")
+    service = (root / "exchanges/service.py").read_text(encoding="utf-8")
+    equity = (root / "equity/service.py").read_text(encoding="utf-8")
+    subscriptions = (root / "market_data/subscriptions.py").read_text(encoding="utf-8")
+    jobs = (root / "market_data/service.py").read_text(encoding="utf-8")
+    config = (root / "config.py").read_text(encoding="utf-8")
+    assert "manual.execute" not in trading
+    assert "queries.account_snapshot" not in service
+    assert "engine.connectors.binance.valuation" not in equity
+    assert "self.engine.valuation_events(account)" in equity
+    assert "subprocess.Popen" not in subscriptions and "self.processes" not in subscriptions
+    assert 'market_control("sync"' in subscriptions
+    assert "subprocess.Popen" not in jobs and "self.processes" not in jobs
+    assert '"job/start"' in jobs and '"job/retry"' in jobs and '"job/cancel"' in jobs
+    assert "def recover(" not in jobs and "def _wait(" not in jobs
+    assert 'os.getenv("ENGINE_URL", "http://127.0.0.1:8766")' in config

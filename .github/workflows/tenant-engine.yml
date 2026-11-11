@@ -1,23 +1,20 @@
-name: Tenant Docker Engine
+name: Platform + external Engine compatibility
+
+# Same immutable independent Engine revision as scripts/build_external_engine.sh.
+# Upgrade this pin only with explicit cross-repo contract and regression review.
+env:
+  ENGINE_SOURCE_SHA: b33769d432c17fff2b743c31c7efdd6bf3cb450d
 
 on:
   pull_request:
     paths:
       - "api/**"
       - "core/**"
-      - "engine/**"
-      - "tests/engine/task_queue_test.py"
-      - "tests/engine/data_manager_test.py"
-      - "tests/engine/feed_workers_owner_test.py"
-      - "tests/engine/data_jobs_owner_test.py"
       - "tests/legacy_engine_integration/market_data_test.py"
       - "tests/legacy_engine_integration/market_data_configuration_test.py"
       - "tests/legacy_engine_integration/market_data_engine_ownership_test.py"
       - "tests/legacy_engine_integration/conftest.py"
-      - "tests/engine/data_queries_test.py"
       - "tests/api/market_data_remote_test.py"
-      - "tests/engine/venue_http_test.py"
-      - "nautilus_support.py"
       - "docker/**"
       - ".dockerignore"
       - "tests/api/engine_isolation_test.py"
@@ -73,7 +70,7 @@ jobs:
           python=false
           while IFS= read -r path; do
             case "$path" in
-              api/*|core/*|engine/*|platform/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
+              api/*|core/*|platform/*|tests/*|migrations/*|packages/*|nautilus_support.py|pyproject.toml|uv.lock)
                 python=true ;;
             esac
             case "$path" in
@@ -81,11 +78,11 @@ jobs:
                 frontend=true ;;
             esac
             case "$path" in
-              engine/*|core/*|docker/*|.dockerignore|api/engine_client.py|api/tenant_docker.py|.github/workflows/tenant-engine.yml)
+              core/*|docker/*|.dockerignore|api/engine_client.py|api/tenant_docker.py|.github/workflows/tenant-engine.yml)
                 docker=true ;;
             esac
             case "$path" in
-              engine/*|core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|nautilus_support.py|pyproject.toml|uv.lock|.github/workflows/tenant-engine.yml)
+              core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|nautilus_support.py|pyproject.toml|uv.lock|.github/workflows/tenant-engine.yml)
                 full=true ;;
               api/exchanges/*|api/operations/*|api/strategies/*|api/equity/*|api/market_data/*|api/db/*|api/auth/*|api/tenants/*|api/engine_client.py|api/tenant_docker.py|api/config.py|api/main.py)
                 full=true ;;
@@ -104,9 +101,21 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked
+      - name: Checkout pinned standalone Engine for shared transport smoke
+        uses: actions/checkout@v4
+        with:
+          repository: saoxia/seealpha-engine
+          ref: ${{ env.ENGINE_SOURCE_SHA }}
+          path: _external_engine
+      - name: Refuse Engine/Platform contract drift
+        run: |
+          cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
+          cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
       - name: Full Python lint
         run: uv run ruff check .
       - name: Contract and isolation smoke tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
         run: uv run pytest -q tests/core/engine_contracts_test.py tests/api/engine_isolation_test.py
 
   api_regression:
@@ -120,7 +129,15 @@ jobs:
         with:
           python-version: "3.14"
       - run: uv sync --locked
+      - name: Checkout pinned independent Engine for legacy API compatibility
+        uses: actions/checkout@v4
+        with:
+          repository: saoxia/seealpha-engine
+          ref: ${{ env.ENGINE_SOURCE_SHA }}
+          path: _external_engine
       - name: API and Web backend regression
+        env:
+          PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
         run: uv run pytest -q tests/api tests/legacy_engine_integration tests/web
 
   platform_regression:
@@ -169,7 +186,18 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -f docker/engine.Dockerfile -t seealpha-engine:ci .
+      - name: Checkout pinned standalone Engine source
+        uses: actions/checkout@v4
+        with:
+          repository: saoxia/seealpha-engine
+          ref: ${{ env.ENGINE_SOURCE_SHA }}
+          path: _external_engine
+      - name: Refuse Engine/Platform v2 contract drift
+        run: |
+          cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
+          cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
+      - name: Build independently owned Engine image
+        run: docker build -f _external_engine/docker/engine.Dockerfile -t seealpha-engine:ci _external_engine
       - name: Engine image excludes Platform source
         run: docker run --rm --entrypoint sh seealpha-engine:ci -c 'test ! -e /app/api && test ! -e /app/web && test ! -e /app/migrations'
       - uses: astral-sh/setup-uv@v6
@@ -299,12 +327,26 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: uv sync --locked
       - run: sudo apt-get update -qq && sudo apt-get install -y zsh
-      - name: Build Rust converter for full data-pipeline tests
-        run: cargo build --locked --release --manifest-path engine/pipeline/rust_converter/Cargo.toml
-      - name: Rust converter unit tests
-        run: cargo test --locked --release --manifest-path engine/pipeline/rust_converter/Cargo.toml
-      - name: Full Python regression suite
-        run: uv run pytest -q
+      - name: Checkout pinned standalone Engine source
+        uses: actions/checkout@v4
+        with:
+          repository: saoxia/seealpha-engine
+          ref: ${{ env.ENGINE_SOURCE_SHA }}
+          path: _external_engine
+      - name: Refuse Engine/Platform v2 contract drift
+        run: |
+          cmp core/engine_contracts.py _external_engine/core/engine_contracts.py
+          cmp core/trading_contracts.py _external_engine/core/trading_contracts.py
+      - name: Build Rust converter from standalone Engine source
+        run: cargo build --locked --release --manifest-path _external_engine/engine/pipeline/rust_converter/Cargo.toml
+      - name: Rust converter unit tests (standalone)
+        run: cargo test --locked --release --manifest-path _external_engine/engine/pipeline/rust_converter/Cargo.toml
+      - name: Full Python compatibility regression (Engine imported only from separate checkout)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/_external_engine:${{ github.workspace }}
+        run: |
+          python -c 'from pathlib import Path; assert not Path("engine").exists(); import engine; assert str(Path(engine.__file__).resolve()).startswith(str(Path("_external_engine").resolve()))'
+          uv run pytest -q
       - name: Frontend dependencies
         working-directory: web
         run: npm ci
