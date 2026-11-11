@@ -108,6 +108,20 @@ converter 的 `CARGO_TARGET_DIR`。
 旧联合目录继续测试原生下单、请求幂等、未知状态核对、账本恢复与锁；
 未建立外部 Engine 等价验收前不删除这些测试。
 
+## Phase 19C：业务与 Engine 原生测试分离
+
+已迁入 `platform/tests/` 的包括：17 个账本/资金费与操作同步用例、
+8 个 ORM 持久化用例、5 个用户租户用例、1 个空模板用例、
+10 个期权账本用例和 11 个管理 API 用例。
+`tests/api/orm_storage_test.py`、`tests/api/user_tenants_test.py`
+和 `tests/api/management_test.py` 已由独立业务回归替代，不再保留重复测试。
+
+仍保留的联合测试必须具备真实 Engine 的功能依赖：原生订单事件转换、
+期权标准化、行情文件与 Catalog 操作、撮合委托持久化/恢复、
+交易所资产原生读写、归档时 Engine 状态转移。
+这些需要跨进程 HTTP 验收或 Engine 仓库等价覆盖后才允许清除旧 Engine 源码。
+不要将其误认为独立 Platform 运行时的依赖。
+
 ## 独立 Engine 专属测试的归属
 
 原 `tests/connectors/`（13 文件）、`tests/feed/`（4 文件）和

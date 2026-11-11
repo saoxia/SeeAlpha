@@ -63,6 +63,29 @@ NautilusTrader、真实订单或 Docker。
 原 Engine Native 执行、订单幂等保留、跨进程锁与未知订单恢复测试
 仍在联合回归中，后续应由独立 Engine 或跨进程 HTTP 验收接替。
 
+## Phase 19C：独立业务回归扩展
+
+本阶段又将 52 个独立测试函数从旧 `tests/api/` 收归 `platform/tests/`，
+具体归属如下：
+
+- `operations_ledger_test.py`：17 个账本、资金费流水、同步游标、部分失败和
+  HTTP 权限边界测试；仅原生 Nautilus 订单事件转换仍由旧联合测试持有。
+- `orm_persistence_test.py`：8 个 ORM 账户、日志任务、会话、数据库连接池和
+  API 重启回归；原 `tests/api/orm_storage_test.py` 不再需要旧 Engine。
+- `user_tenants_test.py`：5 个用户租户所有权、复制、分享与代入管理测试；
+  Engine 的租户导出/导入、进度通知使用本测试专用桩，不模拟实盘状态。
+- `tenant_templates_test.py`：1 个模板与空租户业务结构测试。
+- `options_operations_test.py`：10 个期权基准、重放、历史补录、
+  中断恢复和期权账本回归；数据来自确定性伪造历史客户端，未安装 NautilusTrader。
+- `management_api_test.py`：11 个项目检查任务、权限、历史报告、
+  路径穿越防护、锁及多进程恢复回归，外部锁由本机测试子进程持有。
+
+独立 Platform 测试只依赖仓库的 `api/core/migrations`，
+并使用可审计的本地 Engine HTTP 启动桩。真实引擎交易执行、行情 Catalog、
+Nautilus 订单映射及跨租户数据快照仍需独立 Engine 或显式 HTTP
+验收，不能以本批绿色结果代替。普通业务回测复用现有租户 Engine；
+单元测试不建立 Docker。
+
 ## Platform 独立 HTTP / Docker 路由单元测试
 
 原 `tests/api/tenant_docker_test.py` 的 HTTP 客户端、租户路由、旧镜像拒绝、Docker 本地路径与租户文件归档等纯 Platform 测试，已经迁入 `platform/tests/tenant_docker_test.py`。旧 `platform/tests/engine_http_routing_test.py` 中独有的断连失败关闭测试也已合并，重复断言不再分散在两个文件。原测试中直接创建 Engine ASGI app 的固定租户 HTTP 隔离用例已迁至独立 `saoxia/seealpha-engine` 的 `tests/engine/tenant_http_isolation_test.py`。这一批迁移不需要在 Platform 测试环境中安装 NautilusTrader 或运行 Docker；仅改变测试归属，旧业务代码未修改。
