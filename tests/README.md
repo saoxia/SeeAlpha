@@ -99,6 +99,15 @@ HTTP 上运行，使用 `SEEALPHA_VERIFY_PLATFORM_STRATEGY=1` 显式开启。
 开发环境激活测试只验证 Platform 自有工具及缓存目录，不再要求旧 Rust
 converter 的 `CARGO_TARGET_DIR`。
 
+## Phase 19B：账户与交易 API 的测试归属
+
+账户凭据校验、权益恒等式、无证据净值 K 线，以及交易参数、
+账户环境、鉴权、市场选择器的纯业务回归，现由
+`platform/tests/exchange_trading_boundaries_test.py` 验证。
+测试只使用业务 API 与严格隔离的 Engine 启动桩，异常订单提交会立即失败。
+旧联合目录继续测试原生下单、请求幂等、未知状态核对、账本恢复与锁；
+未建立外部 Engine 等价验收前不删除这些测试。
+
 ## 独立 Engine 专属测试的归属
 
 原 `tests/connectors/`（13 文件）、`tests/feed/`（4 文件）和

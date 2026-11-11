@@ -14,7 +14,6 @@ from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
-from api.exchanges.service import summary
 from api.main import create_app
 from engine.connectors.binance import assets as asset_queries
 from engine.connectors.binance import queries
@@ -149,31 +148,6 @@ def test_keep_credentials_and_reject_incomplete_or_unsupported_changes(applicati
         assert client.get("/api/system/exchange-markets?market_type=option").status_code == 422
 
 
-def test_identical_credentials_are_rejected_without_changing_saved_account(application):
-    app, _, _ = application
-    with TestClient(app) as client:
-        signin(client)
-        body = {
-            "exchange": "binance", "account_name": "bad-pair", "environment": "production",
-            "api_key": "  private-identical-value ", "secret": "private-identical-value",
-        }
-        response = client.post("/api/system/exchange-accounts", json=body)
-        assert response.status_code == 422
-        assert "不能相同" in response.json()["detail"]
-        assert "private-identical-value" not in response.text
-        assert client.get("/api/system/exchange-accounts").json() == []
-
-        account = create(client).json()
-        original = dict(app.state.accounts.row(account["id"]))
-        response = client.put(f"/api/system/exchange-accounts/{account['id']}", json=body)
-        assert response.status_code == 422
-        assert "private-identical-value" not in response.text
-        assert dict(app.state.accounts.row(account["id"])) == original
-        assert app.state.accounts.private(account["id"])["credentials"] == {
-            "version": 1, "apiKey": "fixture-key-1234", "secret": "fixture-secret-5678",
-        }
-
-
 def test_testing_historical_identical_credentials_returns_actionable_error(application, monkeypatch):
     app, database, _ = application
     monkeypatch.setattr(queries, "account_snapshot", native_account_snapshot)
@@ -269,24 +243,6 @@ def test_single_flight_for_concurrent_requests(application):
     asyncio.run(scenario())
 
 
-def test_equity_invariant_missing_values_and_no_fabricated_zeros():
-    result = summary({"total_wallet_balance": "100", "total_unrealized_profit": "5"})
-    assert result["total_equity"] == "105"
-    assert result["maintenance_margin"] is None and result["effective_leverage"] is None
-    assert summary({})["total_equity"] is None
-    with pytest.raises(queries.QueryError):
-        summary(
-            {
-                "total_wallet_balance": "100",
-                "total_unrealized_profit": "5",
-                "total_margin_balance": "100",
-            }
-        )
-    assert Decimal(result["total_equity"]) == Decimal(result["wallet_balance"]) + Decimal(
-        result["unrealized_pnl"]
-    )
-
-
 def test_legacy_encrypted_credentials_require_original_key(application):
     app, database, _ = application
     with TestClient(app) as client:
@@ -302,25 +258,6 @@ def test_legacy_encrypted_credentials_require_original_key(application):
         signin(client)
         assert client.get("/api/system/exchange-accounts").status_code == 503
         assert not key_path.exists()
-
-
-def test_equity_candles_require_persistent_evidence(application):
-    app, _, _ = application
-    with TestClient(app) as client:
-        path = "/api/exchange-accounts/equity-candles"
-        assert client.get(path).status_code == 401
-        signin(client)
-        account_id = create(client).json()["id"]
-        for interval, seconds in [("5m", 300), ("15m", 900), ("1h", 3600), ("4h", 14400), ("1d", 86400)]:
-            result = client.get(path, params={"interval": interval, "limit": 3}).json()
-            assert result["is_sample"] is False
-            assert result["interval_seconds"] == seconds
-            assert result["candles"] == [] and result["status"] == "unavailable"
-        result = client.get(f"/api/exchange-accounts/{account_id}/equity-candles").json()
-        assert result["account_id"] == account_id and result["is_sample"] is False
-        assert client.get("/api/exchange-accounts/999999/equity-candles").status_code == 404
-        assert client.get(path, params={"interval": "2m"}).status_code == 422
-        assert client.get(path, params={"limit": 501}).status_code == 422
 
 
 @pytest.fixture
