@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
       { source: "/api/users/:path*", destination: `${apiUrl}/api/users/:path*` },
       { source: "/api/tenants", destination: `${apiUrl}/api/tenants` },
       { source: "/api/tenants/:path*", destination: `${apiUrl}/api/tenants/:path*` },
+      { source: "/api/strategy-packages", destination: `${apiUrl}/api/strategy-packages` },
+      { source: "/api/strategy-packages/:path+", destination: `${apiUrl}/api/strategy-packages/:path+` },
       { source: "/api/trading/:path*", destination: `${apiUrl}/api/trading/:path*` },
       { source: "/api/management/:path*", destination: `${apiUrl}/api/management/:path*` },
       { source: "/api/health", destination: `${apiUrl}/api/health` },

@@ -58,6 +58,7 @@ API 仍仅监听本机，通过前端同源代理访问；`COOKIE_SECURE=false` 
 `output: "standalone"` 仍然保留。Next.js 16.4 执行 `next start` 时会提示独立产物改用
 `node .next/standalone/server.js`；仓库脚本继续使用 `next start`，页面和 `/api` 代理由该进程提供。
 生产构建会把 `SEEALPHA_API_URL` 写入转发规则，改地址后需要重新执行 `npm run build`。
+策略包登记、版本和授权通过同源 `/api/strategy-packages` 代理到业务 API，沿用管理员会话与请求来源校验。
 
 浏览器只通过同源 `/api` 交互，前端不直接访问项目 Python 模块、数据库或本地业务文件。
 服务端代理配置：
