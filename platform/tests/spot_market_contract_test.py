@@ -1,4 +1,4 @@
-"""Spot public market reads route through Engine without enabling spot orders."""
+"""Spot public data and explicit trading intents have isolated platform boundaries."""
 
 import asyncio
 from types import SimpleNamespace
@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from api.engine_client import EngineClient
 from api.exchanges import router as exchanges_router
+from api.exchanges.trading import SpotCancelRequest, SpotOrderRequest
 from fastapi import HTTPException
 
 
@@ -105,3 +106,52 @@ def test_engine_client_spot_requests_do_not_include_credentials_or_trading():
         assert method == "POST"
         assert payload["environment"] == "production"
         assert "api_key" not in payload and "api_secret" not in payload
+
+
+def test_spot_orders_reject_perpetual_fields_before_execution():
+    from pydantic import ValidationError
+
+    order = {
+        "account_revision": "a" * 64,
+        "request_id": "123e4567-e89b-42d3-a456-426614174000",
+        "symbol": "ETHUSDT",
+        "environment": "sandbox",
+        "side": "buy",
+        "order_type": "limit",
+        "quantity": "1.000",
+        "price": "2000",
+    }
+    assert SpotOrderRequest.model_validate(order).symbol == "ETHUSDT"
+    for extra in ({"reduce_only": True}, {"position_side": "SHORT"},
+                  {"symbol": "ETHUSDT-PERP"}, {"quantity": "-1"}):
+        with pytest.raises(ValidationError):
+            SpotOrderRequest.model_validate({**order, **extra})
+    with pytest.raises(ValidationError):
+        SpotOrderRequest.model_validate({**order, "post_only": True, "time_in_force": "IOC"})
+    with pytest.raises(ValidationError):
+        SpotCancelRequest.model_validate({
+            "account_revision": "a" * 64, "request_id": order["request_id"],
+            "symbol": "ETHUSDT", "environment": "sandbox",
+            "client_order_id": "../../etc/passwd",
+        })
+
+
+def test_spot_client_routes_orders_to_distinct_engine_path():
+    client = EngineClient.__new__(EngineClient)
+    captured = []
+
+    async def fake_async(method, path, **kwargs):
+        captured.append((method, path, kwargs["json"]))
+        return {"status": "unknown"}
+
+    client._async = fake_async
+    account = {
+        "tenant_id": "7", "id": 19, "environment": "sandbox",
+        "credentials": {"apiKey": "fake", "secret": "fake"},
+    }
+    values = {"symbol": "BTCUSDT", "environment": "sandbox", "request_id": "fake"}
+    asyncio.run(client.command(account, "submit", values))
+    asyncio.run(client.trading_state(account, "BTCUSDT"))
+    assert captured[0][1].endswith("/spot/orders")
+    assert captured[1][1].endswith("/spot/trading/state")
+    assert captured[0][2]["values"]["symbol"] == "BTCUSDT"
