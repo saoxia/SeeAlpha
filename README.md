@@ -1,5 +1,7 @@
 # SeeAlpha
 
+<img src="web/app/icon.svg" alt="SeeAlpha 标识" width="56" />
+
 **让量化交易研究与管理更容易上手。**
 
 SeeAlpha 是一个面向量化交易的研究与管理平台，将行情数据、策略、回测和运行管理整合到 Web 界面中。底层交易能力基于 [NautilusTrader](https://nautilustrader.io/)，由独立的 [SeeAlpha Engine](https://github.com/saoxia/seealpha-engine) 承担。
@@ -53,6 +55,20 @@ Windows 安装器会检查并引导配置 WSL2 Ubuntu；Git、uv、Node.js/npm �
 SeeAlpha 由两个部分组成：本仓库负责 **Platform（Web + API）**，独立的 [seealpha-engine](https://github.com/saoxia/seealpha-engine) 负责行情、回测、策略运行及交易执行。
 
 > **使用提示：** 当前快捷安装面向本机研究和开发，不代表生产环境或实盘交易已通过验收。安装不会自动开启实盘交易。Windows WSL2 的完整安装流程仍待真实机器端到端验证。
+
+## 从哪里开始
+
+安装并登录后，可以按自己的目标选择入口：
+
+| 你想做什么 | 对应入口 |
+| --- | --- |
+| 查看行情和账户概览 | **LIVE**（账户数据需要先配置账户） |
+| 查看 K 线和交易界面 | **TRADE**（真实下单尚未验收） |
+| 准备和管理行情数据 | **DATA** |
+| 查看研究工作台与任务 | **AI Harness**（实验性功能，需另行启用） |
+| 管理租户与运行环境 | 右上角用户菜单中的 **租户**；管理员还可进入 **管理后台** |
+
+例如，你可以从 **DATA 准备数据**开始，参考[双均线策略示例](strategy/ema_crossover/README.md)了解策略包，再通过已配置的 Engine 开展研究与回测。相关能力的可用性取决于数据、服务及权限配置。
 
 ## 进一步阅读
 
