@@ -37,7 +37,7 @@ def _require_harness_owner(request: Request, context: CurrentContext) -> None:
     settings = request.app.state.settings
     if context.impersonating:
         raise HTTPException(403, "禁止通过管理员代入执行其他用户的研究任务。")
-    if settings.harness_deployment == "per_user" and settings.harness_enabled:
+    if settings.harness_deployment == "per_user":
         return
     owner = settings.harness_owner_username or settings.admin_username
     if context.actor.username.casefold() != owner.casefold():
