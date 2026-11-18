@@ -21,3 +21,8 @@ jobs:
       - name: Check Windows help without installing WSL
         shell: pwsh
         run: ./seealpha.ps1 help
+      - name: Verify compatibility with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          ./tests/windows_wsl_test.ps1
+          ./seealpha.ps1 help
