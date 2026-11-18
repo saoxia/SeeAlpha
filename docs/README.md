@@ -1,5 +1,7 @@
 # 技术说明
 
+- [Harness 接入说明](HARNESS_INTEGRATION.md)：独立常驻 Harness 的 Platform 鉴权代理、RESEARCH 界面与当前开发阶段安全限制。
+
 - [Binance 原生 API](BINANCE_NATIVE_API.md)：已迁移路由、connector 边界、账户凭据与查询限制。
 
 - [引擎升级与接口适配](ENGINE_UPGRADE.md)：升级当日版本、接口差异和兼容约定。
