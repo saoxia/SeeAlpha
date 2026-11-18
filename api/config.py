@@ -26,6 +26,7 @@ class Settings:
     engine_token: str = field(default="seealpha-local-engine", repr=False)
     engine_market_account_id: str = "market-data"
     engine_deployment: str = "single"
+    node_config_file: Path | None = None
     engine_docker_image: str = "seealpha-engine:latest"
     engine_tenant_root: Path | None = None
     engine_production_cpus: str = "2"
@@ -87,6 +88,8 @@ class Settings:
             engine_token=os.getenv("ENGINE_TOKEN", "seealpha-local-engine"),
             engine_market_account_id=os.getenv("ENGINE_MARKET_ACCOUNT_ID", "market-data"),
             engine_deployment=os.getenv("ENGINE_DEPLOYMENT", "single"),
+            node_config_file=(Path(os.environ["NODE_CONFIG_FILE"])
+                              if os.getenv("NODE_CONFIG_FILE") else None),
             engine_docker_image=os.getenv("ENGINE_DOCKER_IMAGE", "seealpha-engine:latest"),
             engine_tenant_root=Path(os.getenv("ENGINE_TENANT_ROOT", str(PROJECT / ".local/tenants"))),
             engine_production_cpus=os.getenv("ENGINE_PRODUCTION_CPUS", "2"),

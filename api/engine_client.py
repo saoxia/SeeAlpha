@@ -1,5 +1,6 @@
 """Business-backend client for the resident engine. Secrets stay in the request body."""
 
+import asyncio
 import json
 import re
 from decimal import Decimal
@@ -104,12 +105,25 @@ class EngineClient:
         if response.status_code < 400 and observed is None:
             raise QueryError("Engine HTTP 响应未声明契约版本，拒绝继续执行。")
 
-    def _sync(self, method, path, timeout=60, *, tenant_id=None, **kwargs):
+    def _send_sync(self, method, path, *, timeout=60, tenant_id=None, **kwargs):
         url, headers = self._target(path, tenant_id)
+        if url.startswith("node://"):
+            match = re.match(r"^/tenants/([1-9][0-9]*)(?:/|$)", path)
+            owner = str(tenant_id) if tenant_id is not None else (match.group(1) if match else None)
+            if owner is None:
+                raise EngineConflict("远程 Engine 请求必须明确租户。")
+            return self.tenant_manager.relay(
+                owner, method, path, headers, timeout=timeout, **kwargs,
+            )
+        with httpx.Client(timeout=timeout, transport=self.sync_transport) as client:
+            return client.request(method, url + path, headers=headers, **kwargs)
+
+    def _sync(self, method, path, timeout=60, *, tenant_id=None, **kwargs):
         try:
-            with httpx.Client(timeout=timeout, transport=self.sync_transport) as client:
-                response = client.request(method, url + path, headers=headers, **kwargs)
-        except httpx.HTTPError as exc:
+            response = self._send_sync(
+                method, path, timeout=timeout, tenant_id=tenant_id, **kwargs,
+            )
+        except (httpx.HTTPError, OSError) as exc:
             raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
@@ -121,9 +135,14 @@ class EngineClient:
     async def _async(self, method, path, **kwargs):
         url, headers = self._target(path)
         try:
-            async with httpx.AsyncClient(timeout=120, transport=self.async_transport) as client:
-                response = await client.request(method, url + path, headers=headers, **kwargs)
-        except httpx.HTTPError as exc:
+            if url.startswith("node://"):
+                response = await asyncio.to_thread(
+                    self._send_sync, method, path, timeout=120, **kwargs,
+                )
+            else:
+                async with httpx.AsyncClient(timeout=120, transport=self.async_transport) as client:
+                    response = await client.request(method, url + path, headers=headers, **kwargs)
+        except (httpx.HTTPError, OSError) as exc:
             raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
@@ -184,11 +203,9 @@ class EngineClient:
         from fastapi import HTTPException
 
         path = f"/tenants/{self._public_tenant()}/data/{operation}"
-        url, headers = self._target(path)
         try:
-            with httpx.Client(timeout=120, transport=self.sync_transport) as client:
-                response = client.post(url + path, json=payload, headers=headers)
-        except httpx.HTTPError as exc:
+            response = self._send_sync("POST", path, timeout=120, json=payload)
+        except (httpx.HTTPError, OSError) as exc:
             raise HTTPException(503, "租户数据引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code >= 400:
@@ -204,6 +221,8 @@ class EngineClient:
     def market_export(self, identity):
         path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
         url, headers = self._target(path)
+        if url.startswith("node://"):
+            raise EngineUnavailable("远程开发节点尚不支持流式文件导出。")
         try:
             with (httpx.Client(timeout=None, transport=self.sync_transport) as client,
                   client.stream("GET", url + path, headers=headers) as response):
@@ -234,6 +253,8 @@ class EngineClient:
     async def _query_lines(self, account, route, payload):
         path = f"/tenants/{account['tenant_id']}/venue/{route}"
         url, headers = self._target(path)
+        if url.startswith("node://"):
+            raise EngineUnavailable("远程开发节点尚不支持流式交易流水读取。")
         try:
             async with (httpx.AsyncClient(timeout=None, transport=self.async_transport) as client,
                         client.stream("POST", url + path, headers=headers, json=payload) as response):
@@ -322,11 +343,9 @@ class EngineClient:
         from fastapi import HTTPException
 
         path = f"/tenants/{tenant_id}/jobs{suffix}"
-        url, headers = self._target(path)
         try:
-            with httpx.Client(timeout=120, transport=self.sync_transport) as client:
-                response = client.request(method, url + path, headers=headers, **kwargs)
-        except httpx.HTTPError as error:
+            response = self._send_sync(method, path, timeout=120, **kwargs)
+        except (httpx.HTTPError, OSError) as error:
             raise HTTPException(503, "租户 Engine 任务服务不可用。") from error
         self._verify_contract(response)
         if response.status_code >= 400:
