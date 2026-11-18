@@ -105,6 +105,17 @@ class EngineClient:
         if response.status_code < 400 and observed is None:
             raise QueryError("Engine HTTP 响应未声明契约版本，拒绝继续执行。")
 
+    @staticmethod
+    def _error_detail(response, fallback):
+        # Some Engine/proxy errors return plain text rather than a JSON detail.
+        try:
+            payload = response.json()
+        except ValueError:
+            return fallback
+        if isinstance(payload, dict) and isinstance(payload.get("detail"), str):
+            return payload["detail"] or fallback
+        return fallback
+
     def _send_sync(self, method, path, *, timeout=60, tenant_id=None, **kwargs):
         url, headers = self._target(path, tenant_id)
         if url.startswith("node://"):
@@ -127,9 +138,9 @@ class EngineClient:
             raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
-            raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
+            raise EngineConflict(self._error_detail(response, "引擎拒绝了该操作。"))
         if response.status_code >= 400:
-            raise QueryError(response.json().get("detail", "引擎请求失败。"))
+            raise QueryError(self._error_detail(response, "引擎请求失败。"))
         return response.json() if response.content else None
 
     async def _async(self, method, path, **kwargs):
@@ -146,9 +157,9 @@ class EngineClient:
             raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
-            raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
+            raise EngineConflict(self._error_detail(response, "引擎拒绝了该操作。"))
         if response.status_code >= 400:
-            raise QueryError(response.json().get("detail", "引擎请求失败。"))
+            raise QueryError(self._error_detail(response, "引擎请求失败。"))
         return response.json() if response.content else None
 
     def _public_tenant(self):
