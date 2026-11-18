@@ -45,8 +45,11 @@ def context(tmp_path, monkeypatch, engine_http):
     # The Engine ASGI application owns all market-file settings and reads.
     for module in ("engine.data_queries", "engine.data_manager.service"):
         monkeypatch.setattr(f"{module}.load_settings", lambda: settings)
-    async def catalog(_environment):
-        return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"}
+    async def catalog(_environment, product="futures_um"):
+        if product == "spot":
+            return [{"symbol": "ETH/USDT", "base": "ETH", "quote": "USDT", "market_type": "spot"},
+                    {"symbol": "ETH/USDC", "base": "ETH", "quote": "USDC", "market_type": "spot"}]
+        return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"
                 for base in ("ETH", "XRP")] + [{"symbol": "ETH/USDC:USDC", "base": "ETH", "quote": "USDC", "market_type": "linear"}]
 
     app.state.exchanges.catalog = catalog
@@ -252,7 +255,9 @@ def test_usdc_market_plans_and_unsupported_products_are_explicit(context):
     response = client.get("/api/data/markets?product=futures_um")
     assert response.status_code == 200
     assert any(item["symbol"] == "ETHUSDC" for item in response.json())
-    assert client.get("/api/data/markets?product=spot").status_code == 422
+    spot = client.get("/api/data/markets?product=spot")
+    assert spot.status_code == 200
+    assert all(item["product"] == "spot" for item in spot.json())
     payload = {**PARAMETERS, "symbol": "ETH-USDC"}
     result = client.post("/api/data/prepare/plan", json=payload)
     assert result.status_code == 200, result.text
