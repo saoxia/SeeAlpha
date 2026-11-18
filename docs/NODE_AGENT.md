@@ -10,12 +10,12 @@ Agent 与 Platform 共用 **saoxia/SeeAlpha** 源码，不创建第三个仓库�
 - 容器镜像必须在节点本地允许列表内；资源、绑定卷、端口及 Docker 操作受约束。
 - 支持通用工作负载的 ensure / stop / status / request 操作。新增业务容器无需修改 Agent。
 - `ENGINE_DEPLOYMENT=distributed` 时，未绑定的租户仍使用现有**本机** Docker 管理器。
-- **远端只接受 development 租户；默认行情租户、正式租户必须留在本地。**
+- **远端可部署 development 和 production 租户，包括默认行情租户**；仅使用管理员显式指定的节点绑定，未绑定租户仍在本地。
 - 租户到节点的绑定是管理员维护的静态配置；切换绑定并不迁移状态、数据或账户。
 - 初版使用单 Platform API 进程的内存命令队列。**不支持多个 API Worker、水平扩容、跨 API 重启的命令恢复。** 超时操作执行结果不确定，禁止盲目重试实盘指令。
-- Engine 的普通 JSON HTTP v2 API 通过出站节点连接转发；**流式导出、流式交易流水和本地文件日志路径不支持远程转发**。请求响应最大 12 MiB。开发租户应使用异步回测接口。
+- Engine 的普通 JSON HTTP v2 API 通过出站节点连接转发；**流式导出、流式交易流水和本地文件日志路径仍不支持远程转发**，包括远程正式租户。请求响应最大 12 MiB。开发租户应使用异步回测接口。
 - 不提供无审核策略执行沙箱，不支持实盘自动切换、容灾接管、跨节点数据迁移或容器镜像热更新。
-- Agent 所在服务器对本地 Docker 具有高权限；仅应运行可信镜像并保护节点凭据。配置 TLS、隔离部署用户和专用 Docker 主机。
+- Agent 所在服务器对本地 Docker 具有高权限；仅应运行可信镜像并保护节点凭据。配置 TLS、隔离部署用户和专用 Docker 主机。正式租户远程运行并不代表实盘链路、流式交易流水、恢复能力已经验收。
 
 ## 启动（同一个仓库，不同角色）
 
@@ -37,7 +37,7 @@ platform/.venv/bin/python -m api.node --role all --host 127.0.0.1 --port 8000
 `ENGINE_DEPLOYMENT` 时启用原有本地 Docker 模式。原有
 `uvicorn api.main:app` 启动方式继续有效。
 
-## Platform 配置（仅部署新开发租户）
+## Platform 配置（部署开发或正式租户）
 
 在主服务器保存私有节点注册与租户绑定文件，例如
 `/srv/seealpha/private/nodes.json`：
@@ -68,7 +68,7 @@ platform/.venv/bin/python -m api.node --role platform
 请仅在一个 Platform API Worker 中运行分布式控制功能。配置文件在 Platform
 启动时加载；修改分配后必须重新启动单个 Platform API 进程。**不要把已有本地
 Engine 的租户 ID 直接指向远端节点**：它会创建一份新的状态卷，必须先人工备份、
-确认归属和执行受控迁移。暂不自动搬迁生产账户。
+确认归属和执行受控迁移。**尤其不要将正在交易的正式租户直接改绑远端**；暂不自动搬迁生产账户，改绑也不会自动恢复未完成订单与持仓状态。
 
 管理端登录后可以查询 `GET /api/nodes` 获取在线节点和显式绑定（不返回令牌）。
 
@@ -92,6 +92,8 @@ platform/.venv/bin/python -m api.node --role agent
 私有 NODE_TOKEN 应通过受限的环境文件或服务管理器提供，不要写入 shell 历史或
 公开日志。平台 URL 必须是证书有效的 HTTPS；仅 localhost / 127.0.0.1
 测试可使用 HTTP。Agent 会周期性轮询、上报在线状态，远端没有监听端口。
+
+Platform 对远程 production / development 租户分别使用 `ENGINE_PRODUCTION_CPUS`、`ENGINE_PRODUCTION_MEMORY` 与 `ENGINE_DEVELOPMENT_CPUS`、`ENGINE_DEVELOPMENT_MEMORY`；这些配置还必须落在远端 Node 的资源上限内。
 
 Node Agent 只接受固定镜像集合、指定的 CPU/内存上限和
 `NODE_MAX_CONTAINERS` 容器数量。宿主机卷只能在 `NODE_ROOT` 内创建，
