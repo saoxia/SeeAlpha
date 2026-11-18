@@ -28,14 +28,13 @@ export type HarnessArtifact = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const result = await fetch(path, {
     credentials: "same-origin",
     cache: "no-store",
     ...init,
-    headers: {
-      ...(init?.body ? {"Content-Type": "application/json"} : {}),
-      ...init?.headers,
-    },
+    headers,
   });
   if (!result.ok) {
     const payload: unknown = await result.json().catch(() => null);
