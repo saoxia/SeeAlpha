@@ -39,6 +39,12 @@ class Settings:
     harness_token: str = field(default="", repr=False)
     # One explicit ordinary user per resident Harness; never fall back to admin.
     harness_owner_username: str = ""
+    # Opt in to dedicated Docker workspaces; legacy single-user mode is unchanged.
+    harness_deployment: str = "single"
+    harness_docker_image: str = ""
+    harness_root: Path | None = None
+    harness_cpus: str = "2"
+    harness_memory: str = "4g"
 
     @classmethod
     def from_environment(cls):
@@ -100,4 +106,11 @@ class Settings:
             harness_url=os.getenv("HARNESS_URL", ""),
             harness_token=os.getenv("HARNESS_API_TOKEN", ""),
             harness_owner_username=os.getenv("HARNESS_OWNER_USERNAME", "").strip(),
+            harness_deployment=os.getenv("HARNESS_DEPLOYMENT", "single"),
+            harness_docker_image=os.getenv("HARNESS_DOCKER_IMAGE", ""),
+            harness_root=Path(os.getenv(
+                "HARNESS_ROOT", str(PROJECT / ".local/harness-users"),
+            )),
+            harness_cpus=os.getenv("HARNESS_CPUS", "2"),
+            harness_memory=os.getenv("HARNESS_MEMORY", "4g"),
         )
