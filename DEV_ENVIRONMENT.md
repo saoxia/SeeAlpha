@@ -1,5 +1,7 @@
 # SeeAlpha macOS / Linux 开发环境（Phase 20）
 
+需要首次运行完整本机环境时，可使用 [本机隔离安装器](docs/INSTALLATION.md)：`./seealpha install`、`./seealpha start`、`./seealpha status`、`./seealpha stop`。该入口仅适用于空数据库的本机开发，以下保留手工 Platform / Engine 开发与验收步骤，不用于生产升级。
+
 本仓库只负责 Platform。Engine 的 Python/NautilusTrader/Rust 运行环境在
 [saoxia/seealpha-engine](https://github.com/saoxia/seealpha-engine)，
 不再使用 SeeAlpha 根目录的 `pyproject.toml`、`uv.lock`、
