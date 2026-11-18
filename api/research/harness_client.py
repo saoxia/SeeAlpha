@@ -138,3 +138,24 @@ class HarnessClient:
             safe.append({key: item.get(key) for key in
                          ("artifact_id", "filename", "kind", "size", "sha256", "review_status")})
         return safe
+
+    def download_artifact(self, task_id: str, artifact_id: str) -> bytes:
+        path = (f"/v1/tasks/{validate_task_id(task_id)}/artifacts/"
+                f"{validate_artifact_id(artifact_id)}")
+        try:
+            with self.client.stream("GET", path) as response:
+                if (response.is_redirect or
+                        response.headers.get(HARNESS_HEADER) != HARNESS_VERSION):
+                    raise HarnessUnavailable("Harness artifact contract mismatch")
+                if response.status_code == 404:
+                    raise HarnessRejected(404)
+                if response.status_code != 200:
+                    raise HarnessUnavailable("Harness artifact unavailable")
+                data = bytearray()
+                for block in response.iter_bytes():
+                    if len(data) + len(block) > 16 * 1024 * 1024:
+                        raise HarnessUnavailable("Harness artifact exceeds transfer limit")
+                    data.extend(block)
+                return bytes(data)
+        except (httpx.RequestError, httpx.TimeoutException):
+            raise HarnessUnavailable("Harness artifact transfer failed") from None
