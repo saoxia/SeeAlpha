@@ -122,11 +122,12 @@ export function UserAdminPage({ currentUsername, onSession }: UserAdminPageProps
               </label>
               <label className="field">
                 <span>密码</span>
-                <input name="password" type="password" required minLength={12} maxLength={256} autoComplete="new-password" />
+                <input name="password" type="password" required minLength={8} maxLength={256} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,256}" title="密码须为 8–256 位，且包含英文字母和数字。" autoComplete="new-password" />
+                <small>至少 8 位，包含英文字母和数字；特殊字符可选。</small>
               </label>
               <label className="field">
                 <span>确认密码</span>
-                <input name="confirm" type="password" required minLength={12} maxLength={256} autoComplete="new-password" />
+                <input name="confirm" type="password" required minLength={8} maxLength={256} autoComplete="new-password" />
               </label>
               <div className="field">
                 <span>创建</span>
