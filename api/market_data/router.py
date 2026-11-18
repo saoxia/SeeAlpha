@@ -93,7 +93,8 @@ async def require_download_market(request, payload):
                                       and (item.get("underlying") or option_pair(item["symbol"])) == symbol for item in items):
             raise HTTPException(422, "该合约不在 Binance 当前期权目录中。")
         return
-    items = await request.app.state.exchanges.catalog("production", product=payload.product)
+    items = (await request.app.state.exchanges.catalog("production", product="spot")
+             if payload.product == "spot" else await request.app.state.exchanges.catalog("production"))
     quotes = {"USDT", "USDC", "FDUSD"} if payload.product == "spot" else {"USDT", "USDC"}
     if not any(f"{item['base']}{item['quote']}" == symbol and item["quote"] in quotes for item in items):
         raise HTTPException(422, "该交易对不在 Binance 当前可交易的对应产品目录中。")
