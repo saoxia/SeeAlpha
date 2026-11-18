@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "demo_option_hedged_bollinger",
+  "title": "演示｜期权双向保护的布林带均值回归",
+  "version": "1",
+  "entry_point": "strategy:DemoOptionHedgedBollinger",
+  "description": "布林带永续多空信号，做多看跌和看涨期权作为双向保护；目前仅供研究，尚不可在单品种 Engine 执行。",
+  "parameters": {
+    "symbol": "ETHUSDT",
+    "put_symbol": "",
+    "call_symbol": "",
+    "period": 20,
+    "deviation": "2",
+    "allocation": "0.1",
+    "risk_limit": "0.1",
+    "option_contracts": "0.1",
+    "max_total_premium": "30",
+    "min_dte_seconds": 86400,
+    "max_age_seconds": 180
+  }
+}
