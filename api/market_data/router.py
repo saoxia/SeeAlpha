@@ -170,8 +170,8 @@ def local_chart(request: Request, _: CurrentUser,
     policy = next((p for p in manager.subscriptions._read()
                    if p.symbol == symbol and p.product == product), None)
     return data_engine(manager).data_query("chart", {
-        "symbol": symbol, "interval": interval, "product": product,
-        "base_level": policy.base_level if policy is not None else None,
+        "symbol": symbol, "interval": interval,
+        **({"product": "spot"} if product == "spot" else {}), "base_level": policy.base_level if policy is not None else None,
     })
 
 
