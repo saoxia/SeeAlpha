@@ -19,6 +19,7 @@ export function MarketPicker({symbol, environment, product = "futures_um", disab
   const [sort,setSort]=useState<MarketSort>("quote_volume");
   const [descending,setDescending]=useState(true);
   const [snapshot,setSnapshot]=useState<Markets|null>(null);
+  const [snapshotProduct,setSnapshotProduct]=useState<"futures_um"|"spot">("futures_um");
   const [error,setError]=useState("");
   const [loading,setLoading]=useState(false);
   const [now,setNow]=useState(0);
@@ -34,7 +35,7 @@ export function MarketPicker({symbol, environment, product = "futures_um", disab
     const controller=new AbortController();let stopped=false;let timer:number;
     async function load(){
       setLoading(true);
-      try{const result=await tradingRequest<Markets>(`/api/trading/markets?environment=${environment}&product=${product}`,{signal:controller.signal});if(!stopped){setSnapshot(result);setError("");}}
+      try{const result=await tradingRequest<Markets>(`/api/trading/markets?environment=${environment}&product=${product}`,{signal:controller.signal});if(!stopped){setSnapshot(result);setSnapshotProduct(product);setError("");}}
       catch(e){if(!stopped)setError(e instanceof Error?e.message:"行情列表读取失败。");}
       finally{if(!stopped){setLoading(false);timer=window.setTimeout(load,15000);}}
     }
@@ -49,7 +50,7 @@ export function MarketPicker({symbol, environment, product = "futures_um", disab
   function show(){setHost(trigger.current!.closest(".trade-page")??document.body);const rect=trigger.current!.getBoundingClientRect();setPosition({top:Math.min(rect.bottom+12,Math.max(12,window.innerHeight-360)),left:Math.max(12,Math.min(rect.left,window.innerWidth-772))});setNow(Date.now());setOpen(!open);}
   function favorite(value:string){const next=favorites.includes(value)?favorites.filter(v=>v!==value):[...favorites,value];setFavorites(next);try{localStorage.setItem(favoritesKey,JSON.stringify(next));}catch{/* Browsing remains usable without storage. */}}
   function order(key:MarketSort){if(key===sort)setDescending(!descending);else{setSort(key);setDescending(key!=="symbol");}}
-  const data=snapshot?.environment===environment?snapshot:null;
+  const data=snapshot?.environment===environment && snapshotProduct===product ? snapshot : null;
   const rows=selectMarkets(data?.markets??[],query,quote,favorites,onlyFavorites,sort,descending);
   const current=symbol.replace(/-PERP$/,"");
   const stale=Boolean(data&&(now-data.checked_at>=60000||now<data.checked_at));
