@@ -166,10 +166,10 @@ class EngineClient:
         )
         return result["items"]
 
-    async def market_tickers(self, environment):
+    async def market_tickers(self, environment, product="futures_um"):
         return await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/tickers",
-            json={"environment": environment},
+            json={"environment": environment, "product": product},
         )
 
     async def spot_candles(self, symbol, interval, start_ms, end_ms, *, limit=1000):
