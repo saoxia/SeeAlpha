@@ -2,6 +2,7 @@
 
 import threading
 
+import api.main as api_main
 import httpx
 import pytest
 from alembic import command
@@ -12,8 +13,6 @@ from api.db.auth_repository import auth_repository
 from api.main import create_app
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
 from fastapi.testclient import TestClient
-
-import api.main as api_main
 
 
 @pytest.fixture
