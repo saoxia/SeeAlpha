@@ -58,7 +58,7 @@ test("market-level liquidation estimates must include current source, market and
   assert.notStrictEqual(verified?.levels,value.levels);
   assert.equal(verifiedLiquidationEstimates(value,"ETHUSDT-PERP",now),null);
   assert.equal(verifiedLiquidationEstimates({...value,time:now-61000},value.symbol,now),null);
-  assert.equal(verifiedLiquidationEstimates({...value,levels:[{price:0,notional:1,side:"short"}]},value.symbol,now),null);
+  assert.equal(verifiedLiquidationEstimates({...value,levels:[{price:0,notional:1,side:"short" as const}]},value.symbol,now),null);
   assert.equal(verifiedLiquidationEstimates(null,value.symbol,now),null);
 });
 
