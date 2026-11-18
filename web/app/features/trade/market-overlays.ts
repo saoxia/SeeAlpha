@@ -64,7 +64,7 @@ export function appendDepthSnapshot(
   maximum=180,minSpacingMs=1000,
 ):DepthSnapshot[] {
   const time=observation?.depth_time;
-  if(!Number.isSafeInteger(time)||time===null||time===undefined||time<=0)return [...previous];
+  if(!observation||time===null||time===undefined||!Number.isSafeInteger(time)||time<=0)return [...previous];
   if(previous.length&&time-previous[previous.length-1].time<minSpacingMs)return [...previous];
   const levels:DepthLevel[]=[];
   for(const [side,entries] of [["bid",observation.bids],["ask",observation.asks]] as const){
