@@ -343,6 +343,7 @@ class EngineClient:
 
     def run_backtest(
         self, tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
+        product="futures_um",
     ):
         return self._sync(
             "POST", self._account_path(tenant_id, account_id) + "/backtests",
@@ -350,6 +351,7 @@ class EngineClient:
             json={
                 "start": start, "end": end, "interval": interval,
                 "starting_balance": str(starting_balance), "quote_currency": quote_currency,
+                "product": product,
             },
         )
 
