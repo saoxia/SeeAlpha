@@ -72,7 +72,7 @@ class HarnessClient:
                     raise HarnessUnavailable("Harness is unavailable or refused authentication")
                 body = bytearray()
                 for block in response.iter_bytes():
-                    if len(body) + len(block) > 125_000:
+                    if len(body) + len(block) > 512_000:
                         raise HarnessUnavailable("Harness response too large")
                     body.extend(block)
         except (httpx.TimeoutException, httpx.RequestError):
@@ -111,6 +111,56 @@ class HarnessClient:
             "prompt": prompt, "queue_if_busy": queue_if_busy,
         }))
 
+    def recent_tasks(self, *, limit: int = 50) -> list[dict]:
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Invalid history limit")
+        result = self._request("GET", f"/v1/tasks?limit={limit}")
+        tasks = result.get("tasks")
+        if not isinstance(tasks, list) or len(tasks) > limit:
+            raise HarnessUnavailable("Harness history response invalid")
+        # Only allow task metadata to be returned, even if the upstream
+        # regresses and begins including saved user prompts.
+        return [{key: self.public_task(item).get(key) for key in (
+            "id", "status", "turn", "created_at", "updated_at", "error",
+        )} for item in tasks]
+
+    def timeline(self, task_id: str, *, after: int = 0) -> dict:
+        if type(after) is not int or not 0 <= after <= 2_000_000_000:
+            raise ValueError("Invalid event cursor")
+        result = self._request(
+            "GET", f"/v1/tasks/{validate_task_id(task_id)}/timeline?after={after}",
+        )
+        events = result.get("events")
+        cursor = result.get("next_cursor")
+        if (not isinstance(events, list) or len(events) > 200 or
+                type(cursor) is not int or cursor < after or
+                type(result.get("has_more")) is not bool):
+            raise HarnessUnavailable("Harness timeline response invalid")
+        safe = []
+        for event in events:
+            if (not isinstance(event, dict) or
+                    type(event.get("sequence")) is not int or
+                    event["sequence"] <= after or event["sequence"] > cursor or
+                    event.get("type") not in {"progress", "terminal", "artifact_ready"}):
+                raise HarnessUnavailable("Harness timeline event invalid")
+            # Pass only bounded, non-secret display metadata, not raw SDK
+            # output, arguments, tool parameters or environment details.
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                raise HarnessUnavailable("Harness timeline payload invalid")
+            safe.append({
+                "sequence": event["sequence"], "type": event["type"],
+                "timestamp": event.get("timestamp"),
+                "stage": payload.get("stage") if isinstance(payload.get("stage"), str) else None,
+                "notifications": (payload.get("notifications")
+                                  if type(payload.get("notifications")) is int else None),
+                "status": (payload.get("status")
+                           if payload.get("status") in {
+                               "completed", "failed", "cancelled", "interrupted",
+                           } else None),
+            })
+        return {"events": safe, "next_cursor": cursor, "has_more": result["has_more"]}
+
     def get(self, task_id: str) -> dict:
         return self.public_task(self._request("GET", f"/v1/tasks/{validate_task_id(task_id)}"))
 
@@ -138,6 +188,23 @@ class HarnessClient:
             safe.append({key: item.get(key) for key in
                          ("artifact_id", "filename", "kind", "size", "sha256", "review_status")})
         return safe
+
+    def import_artifact(self, task_id: str, source_file: str) -> dict:
+        # A user may explicitly register one completed task's exports/ item.
+        # Harness enforces safe filename, workspace ownership and file type.
+        if (not isinstance(source_file, str) or
+                not re.fullmatch(r"exports/[A-Za-z0-9][A-Za-z0-9._-]{0,120}", source_file)
+                or ".." in source_file):
+            raise ValueError("Invalid export filename")
+        result = self._request(
+            "POST", f"/v1/tasks/{validate_task_id(task_id)}/artifacts/import",
+            payload={"source_file": source_file},
+        )
+        if not isinstance(result.get("artifact_id"), str):
+            raise HarnessUnavailable("Harness artifact import response invalid")
+        validate_artifact_id(result["artifact_id"])
+        return {key: result.get(key) for key in
+                ("artifact_id", "filename", "kind", "size", "sha256")}
 
     def download_artifact(self, task_id: str, artifact_id: str) -> bytes:
         path = (f"/v1/tasks/{validate_task_id(task_id)}/artifacts/"
