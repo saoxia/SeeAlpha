@@ -250,6 +250,6 @@ export function HarnessWorkspace() {
         </section>}
       </div>
     </div>
-    <p className="research-note">当前为管理员单用户开发模式，Agent 的自由 Shell 并非多租户强隔离。不能输入真实交易密钥、生产敏感数据；Engine Research 工具和策略自动发布仍未接通。任务由 Harness 持久保存，所有成果需经过人工审查。</p>
+    <p className="research-note">AI Harness 属于用户研究工作台。当前后端仍为单用户开发运行时，尚未开放普通用户执行研究任务；需要完成任务归属、租户访问控制及 Agent 运行环境隔离后才可启用。不要输入真实交易密钥或生产敏感数据；研究成果需要人工审查。</p>
   </div>;
 }

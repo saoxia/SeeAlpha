@@ -5,6 +5,7 @@ import { DataManagementPage } from "./data-management/data-management-page";
 import { TradePage } from "./trade/trade-page";
 import { LiveDashboard } from "./live/live-dashboard";
 import { Navigation } from "./navigation";
+import { ResearchPage } from "./research/research-page";
 import { SettingsPage } from "./settings/settings-page";
 import { ImpersonationBanner } from "./identity/impersonation-banner";
 import { TenantPage } from "./identity/tenant-page";
@@ -54,6 +55,7 @@ export function TradingSystemApp({ session, onSession, onLogout }: TradingSystem
       {activeView === "live" && <LiveDashboard />}
       {activeView === "trade" && <TradePage />}
       {activeView === "data" && <DataManagementPage scope="user" />}
+      {activeView === "research" && <ResearchPage />}
       {activeView === "settings" && <SettingsPage />}
       {activeView === "tenants" && <TenantPage />}
     </main>

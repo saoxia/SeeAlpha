@@ -5,19 +5,19 @@ import Link from "next/link";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
 import { ThemeSwitch } from "../appearance/theme-switch";
 import { UserAdminPage } from "../identity/user-admin-page";
-import { ResearchPage } from "../research/research-page";
+import { ProjectChecksPage } from "../research/project-checks-page";
 import { DataManagementPage } from "../data-management/data-management-page";
 import { OlapConnectionSettings } from "../settings/olap-connection-settings";
 import type { AuthSession } from "../../features/identity/model";
 
-type AdminSection = "overview" | "users" | "data" | "olap" | "research";
+type AdminSection = "overview" | "users" | "data" | "olap" | "checks";
 
 const sections: Array<{ id: AdminSection; label: string }> = [
   { id: "overview", label: "管理概览" },
   { id: "users", label: "用户管理" },
   { id: "data", label: "数据运维" },
   { id: "olap", label: "平台设置" },
-  { id: "research", label: "AI Harness" },
+  { id: "checks", label: "项目检查" },
 ];
 
 export function AdminConsole({
@@ -98,10 +98,10 @@ export function AdminConsole({
               <small>配置和测试 OLAP 数据库连接</small>
               <b aria-hidden="true">→</b>
             </button>
-            <button type="button" onClick={() => setSection("research")}>
+            <button type="button" onClick={() => setSection("checks")}>
               <span>04 / OPERATIONS</span>
-              <strong>AI Harness</strong>
-              <small>研究任务、项目检查与运行记录</small>
+              <strong>项目检查</strong>
+              <small>平台检查、运维任务及检查日志</small>
               <b aria-hidden="true">→</b>
             </button>
           </div>
@@ -112,7 +112,7 @@ export function AdminConsole({
       )}
       {section === "data" && <DataManagementPage scope="admin" />}
       {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
-      {section === "research" && <ResearchPage harnessAccess />}
+      {section === "checks" && <ProjectChecksPage />}
     </main>
   );
 }

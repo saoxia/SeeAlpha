@@ -10,6 +10,7 @@ const navigationItems: Array<{ id: AppView; label: string }> = [
   { id: "live", label: "LIVE" },
   { id: "trade", label: "TRADE" },
   { id: "data", label: "DATA" },
+  { id: "research", label: "AI Harness" },
   { id: "settings", label: "SETTINGS" },
 ];
 
