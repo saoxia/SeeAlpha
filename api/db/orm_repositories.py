@@ -29,8 +29,9 @@ _ACCOUNT = (
 
 
 class ORMAuthRepository:
-    def __init__(self, database):
+    def __init__(self, database, admin_username="admin"):
         self.database = database
+        self.admin_username = admin_username
 
     def create_user(self, username, password_hash):
         now = int(time.time())
@@ -39,7 +40,8 @@ class ORMAuthRepository:
             session.add(user)
             session.flush()
             created = {"id": user.id, "username": username, "created_at": now}
-        provision_user_tenant(self.database, created)
+        if username.casefold() != self.admin_username.casefold():
+            provision_user_tenant(self.database, created)
         return created
 
     def get_user_by_id(self, user_id):

@@ -324,8 +324,8 @@ class ExchangeService:
             },
         }
 
-    async def overview(self, *, fresh=False):
-        accounts = await asyncio.to_thread(self.accounts.navigation)
+    async def overview(self, *, fresh=False, owner_id=None):
+        accounts = await asyncio.to_thread(self.accounts.navigation, owner_id)
         values = []
         errors, assets, valuation_warnings, positions, position_warnings = [], [], [], [], []
         for account in accounts:

@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import StreamingResponse
 
-from ..auth.dependencies import AdminUser, CurrentUser
+from ..auth.dependencies import AdminUser, CurrentUser, actor_is_admin
 from .models import EventType, Source, SyncRequest
 
 router = APIRouter(prefix="/operations", tags=["operations"])
@@ -71,11 +71,16 @@ def list_operations(
     limit: int = Query(50, ge=1, le=500),
 ):
     repo = request.app.state.operations.repository
-    result = repo.list(cursor=decode_cursor(cursor), limit=limit, **query)
+    allowed = None if actor_is_admin(request, _.username) else request.app.state.accounts.owned_ids(_.id)
+    if allowed is not None and query["account_id"] is not None and query["account_id"] not in allowed:
+        raise HTTPException(404, "账户不存在。")
+    scoped = {**query, **({"account_ids": allowed} if allowed is not None else {})}
+    result = repo.list(cursor=decode_cursor(cursor), limit=limit, **scoped)
     result["next_cursor"] = (
         encode_cursor(result["records"][-1]) if result["has_more"] and result["records"] else None
     )
-    result["sync"] = repo.sync_state(query["account_id"])
+    result["sync"] = [state for state in repo.sync_state(query["account_id"])
+                      if allowed is None or state["account_id"] in allowed]
     result["warnings"] = [
         "操作记录为项目与交易所证据的去重并集；未匹配记录归为外部，不自动认定为手工。"
     ]
@@ -102,6 +107,10 @@ async def sync_operations(request: Request, payload: SyncRequest, _: AdminUser):
 @router.get("/export")
 def export_operations(request: Request, _: CurrentUser, query: Annotated[dict, Depends(filters)]):
     repo = request.app.state.operations.repository
+    allowed = None if actor_is_admin(request, _.username) else request.app.state.accounts.owned_ids(_.id)
+    if allowed is not None and query["account_id"] is not None and query["account_id"] not in allowed:
+        raise HTTPException(404, "账户不存在。")
+    scoped = {**query, **({"account_ids": allowed} if allowed is not None else {})}
     fields = [
         "id",
         "account_id",
@@ -137,7 +146,7 @@ def export_operations(request: Request, _: CurrentUser, query: Annotated[dict, D
         buffer.truncate(0)
         cursor = None
         while True:
-            page = repo.list(cursor=cursor, limit=500, **query)
+            page = repo.list(cursor=cursor, limit=500, **scoped)
             for row in page["records"]:
                 writer.writerow(
                     {
@@ -168,5 +177,8 @@ def export_operations(request: Request, _: CurrentUser, query: Annotated[dict, D
 def operation_detail(request: Request, operation_id: uuid.UUID, _: CurrentUser):
     result = request.app.state.operations.repository.detail(str(operation_id))
     if result is None:
+        raise HTTPException(404, "操作记录不存在。")
+    if (not actor_is_admin(request, _.username)
+            and result["operation"]["account_id"] not in request.app.state.accounts.owned_ids(_.id)):
         raise HTTPException(404, "操作记录不存在。")
     return result

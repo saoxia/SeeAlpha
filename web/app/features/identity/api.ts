@@ -1,17 +1,12 @@
 import {
   errorDetail,
-  impersonatePath,
-  sessionFromAuth,
-  stopImpersonationPath,
   tenantActionPath,
   tenantsPath,
   usersPath,
 } from "./model";
-import type { AuthPayload, AuthSession, ManagedUser, TenantRecord } from "./model";
+import type { ManagedUser, TenantRecord, LegacyTenant } from "./model";
 
 export {
-  impersonatePath,
-  stopImpersonationPath,
   tenantActionPath,
   tenantsPath,
   usersPath,
@@ -74,21 +69,13 @@ export function createUser(body: { username: string; password: string }) {
   return request<ManagedUser>(usersPath(), { method: "POST", body: JSON.stringify(body) });
 }
 
-export async function impersonateUser(username: string) {
-  const payload = await request<AuthPayload>(impersonatePath(), {
-    method: "POST",
-    body: JSON.stringify({ username }),
-  });
-  const session = sessionFromAuth(payload);
-  if (!session) throw new Error("无法进入该用户的视图。");
-  return session;
+export function fetchLegacyTenants() {
+  return request<LegacyTenant[]>("/api/users/legacy-tenants");
 }
 
-export async function stopImpersonation(): Promise<AuthSession> {
-  const payload = await request<AuthPayload>(stopImpersonationPath(), {
-    method: "POST",
-  });
-  const session = sessionFromAuth(payload);
-  if (!session) throw new Error("无法返回自己的视图。");
-  return session;
+export function transferLegacyTenant(tenantId: number, targetUsername: string) {
+  return request<{ id: number; name: string; owner_id: number; target_username: string }>(
+    `/api/users/legacy-tenants/${tenantId}/transfer`,
+    { method: "POST", body: JSON.stringify({ target_username: targetUsername, confirm: true }) },
+  );
 }

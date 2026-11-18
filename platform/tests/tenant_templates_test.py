@@ -28,6 +28,7 @@ def client(tmp_path):
     app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
     app.state.database.initialize()
     auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
+    auth_repository(app.state.database).create_user("viewer", hash_password("test-password-123"))
     with TestClient(app) as test_client:
         login(test_client)
         yield test_client, app
@@ -59,6 +60,8 @@ def test_templates_are_empty_and_tenants_start_empty(client):
     })
     assert created.status_code == 201, created.text
     assert set(created.json()) == {"id", "purpose", "name", "description", "created_at"}
+    response = http.post("/api/auth/login", json={"username": "viewer", "password": "test-password-123"})
+    assert response.status_code == 200
     for purpose, name in (("production", "正式甲"), ("development", "开发甲")):
         tenant = create_tenant(http, purpose, name)
         assert tenant["purpose"] == purpose and tenant["status"] == "active"

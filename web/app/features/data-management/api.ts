@@ -56,6 +56,7 @@ export type OperationBackfillResult = {
 
 export const dataManagementApi = {
   accounts: (signal?: AbortSignal) => getJson<ExchangeAccount[]>("/api/exchange-accounts", "无法读取账户列表。", signal),
+  adminAccounts: (signal?: AbortSignal) => getJson<ExchangeAccount[]>("/api/admin/exchange-accounts", "无法读取管理账户列表。", signal),
   operations: (
     filters: DataFilters,
     extra: Record<string, string>,

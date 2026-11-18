@@ -40,7 +40,7 @@ def environment(tmp_path, monkeypatch, platform_engine_bootstrap):
     return app, database, dispatched
 
 
-def signin(client, username="admin"):
+def signin(client, username="viewer"):
     response = client.post("/api/auth/login", json={
         "username": username, "password": "test-password-123",
     })
@@ -169,7 +169,7 @@ def test_trade_permissions_origin_and_stale_revision_fail_before_dispatch(enviro
     with TestClient(app) as client:
         endpoint = "/api/trading/accounts/1/orders"
         assert client.post(endpoint, json=order_payload()).status_code == 401
-        signin(client, "viewer")
+        signin(client, "admin")
         assert client.post(endpoint, json=order_payload()).status_code == 403
         signin(client)
         create_account(client)
@@ -209,7 +209,7 @@ def test_market_picker_permissions_full_catalog_and_environment(environment, mon
     monkeypatch.setattr(app.state.engine, "market_tickers", tickers)
     with TestClient(app) as client:
         assert client.get("/api/trading/markets").status_code == 401
-        signin(client, "viewer")
+        signin(client, "admin")
         assert client.get("/api/trading/markets").status_code == 403
         signin(client)
         response = client.get("/api/trading/markets?environment=sandbox")

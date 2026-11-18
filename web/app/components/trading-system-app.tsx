@@ -7,7 +7,6 @@ import { LiveDashboard } from "./live/live-dashboard";
 import { Navigation } from "./navigation";
 import { ResearchPage } from "./research/research-page";
 import { SettingsPage } from "./settings/settings-page";
-import { ImpersonationBanner } from "./identity/impersonation-banner";
 import { TenantPage } from "./identity/tenant-page";
 import type { AppView } from "./types";
 import { fetchTenants } from "../features/identity/api";
@@ -15,11 +14,10 @@ import { productionTenant, type AuthSession } from "../features/identity/model";
 
 type TradingSystemAppProps = {
   session: AuthSession;
-  onSession: (session: AuthSession) => void;
   onLogout: () => Promise<void>;
 };
 
-export function TradingSystemApp({ session, onSession, onLogout }: TradingSystemAppProps) {
+export function TradingSystemApp({ session, onLogout }: TradingSystemAppProps) {
   const [activeView, setActiveView] = useState<AppView>("live");
   const [productionName, setProductionName] = useState("");
 
@@ -36,20 +34,15 @@ export function TradingSystemApp({ session, onSession, onLogout }: TradingSystem
     };
     void load();
     return () => controller.abort();
-  }, [session.user.id, session.impersonating]);
+  }, [session.user.id]);
 
   return (
     <main>
-      {session.impersonating && (
-        <ImpersonationBanner username={session.user.username} onSession={onSession} />
-      )}
       <Navigation
         activeView={activeView}
         onNavigate={setActiveView}
         username={session.user.username}
         onLogout={onLogout}
-        isAdmin={session.isAdmin}
-        impersonating={session.impersonating}
         productionTenantName={productionName}
       />
       {activeView === "live" && <LiveDashboard />}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import type { AppView } from "./types";
 import { SeeAlphaLogo } from "./brand/seealpha-logo";
 import { ThemeSwitch } from "./appearance/theme-switch";
@@ -19,8 +18,6 @@ type NavigationProps = {
   onNavigate: (view: AppView) => void;
   username: string;
   onLogout: () => Promise<void>;
-  isAdmin: boolean;
-  impersonating: boolean;
   productionTenantName: string;
 };
 
@@ -29,8 +26,6 @@ export function Navigation({
   onNavigate,
   username,
   onLogout,
-  isAdmin,
-  impersonating,
   productionTenantName,
 }: NavigationProps) {
   const menuRef = useRef<HTMLDetailsElement>(null);
@@ -106,7 +101,7 @@ export function Navigation({
           <div className="user-menu-panel">
             <div className="user-menu-heading">
               <b>{username}</b>
-              <span>{impersonating ? "正在查看的用户" : "当前登录账户"}</span>
+              <span>当前登录账户</span>
               {productionTenantName ? <span>正式租户 · {productionTenantName}</span> : null}
             </div>
             <button type="button" className="user-menu-link" onClick={() => {
@@ -115,11 +110,7 @@ export function Navigation({
             }}>
               租户
             </button>
-            {isAdmin && !impersonating && (
-              <Link href="/admin" className="user-menu-link" onClick={() => menuRef.current?.removeAttribute("open")}>
-                管理后台
-              </Link>
-            )}
+
             <section className="user-menu-appearance" aria-label="主题切换">
               <ThemeSwitch />
             </section>
