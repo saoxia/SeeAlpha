@@ -84,7 +84,7 @@ class ManualStateResponse(BaseModel):
 class ManualMarketSummary(BaseModel):
     symbol: str
     base: str
-    quote: Literal["USDT", "USDC"]
+    quote: Literal["USDT", "USDC", "FDUSD"]
     last_price: str | None
     change_percent: str | None
     quote_volume: str | None
@@ -201,15 +201,21 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
 
 @router.get("/markets", response_model=ManualMarketsResponse)
 async def market_list(request: Request, _: AdminUser,
-                      environment: Literal["production", "sandbox"] = "production"):
-    catalog, snapshot = await asyncio.gather(request.app.state.exchanges.catalog(environment),
-                                             request.app.state.engine.market_tickers(environment))
+                      environment: Literal["production", "sandbox"] = "production",
+                      product: Literal["futures_um", "spot"] = "futures_um"):
+    if product == "spot" and environment != "production":
+        raise HTTPException(422, "现货公开行情仅支持正式环境")
+    catalog, snapshot = await asyncio.gather(
+        request.app.state.exchanges.catalog(environment, product=product),
+        request.app.state.engine.market_tickers(environment, product),
+    )
     rows = []
     for item in catalog:
-        if item["quote"] not in {"USDT", "USDC"}:
+        if item["quote"] not in {"USDT", "USDC", "FDUSD"}:
             continue
         raw_symbol = item["base"] + item["quote"]
-        rows.append({"symbol": raw_symbol + "-PERP", "base": item["base"], "quote": item["quote"],
+        rows.append({"symbol": raw_symbol + ("-PERP" if product == "futures_um" else ""),
+                     "base": item["base"], "quote": item["quote"],
                      **snapshot["rows"].get(raw_symbol, {"last_price": None, "change_percent": None,
                                                        "quote_volume": None, "funding_rate": None})})
     return {"checked_at": snapshot["checked_at"], "environment": environment, "markets": rows}
