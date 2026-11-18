@@ -178,7 +178,7 @@ def operation_detail(request: Request, operation_id: uuid.UUID, _: CurrentUser):
     result = request.app.state.operations.repository.detail(str(operation_id))
     if result is None:
         raise HTTPException(404, "操作记录不存在。")
-    if not actor_is_admin(request, _.username):
-        if result["operation"]["account_id"] not in request.app.state.accounts.owned_ids(_.id):
-            raise HTTPException(404, "操作记录不存在。")
+    if (not actor_is_admin(request, _.username)
+            and result["operation"]["account_id"] not in request.app.state.accounts.owned_ids(_.id)):
+        raise HTTPException(404, "操作记录不存在。")
     return result

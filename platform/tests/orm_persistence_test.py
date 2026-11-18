@@ -136,6 +136,7 @@ def test_orm_auth_accounts_and_olap_persist(orm):
 def test_orm_api_restart_preserves_state(orm, tmp_path):
     db, url, schema = orm
     auth_repository(db).create_user("admin", hash_password("test-password-123"))
+    auth_repository(db).create_user("viewer", hash_password("test-password-123"))
     settings = Settings(
         tmp_path / "reference.db",
         database_url=url,
@@ -145,11 +146,11 @@ def test_orm_api_restart_preserves_state(orm, tmp_path):
     with TestClient(create_app(settings)) as client:
         assert (
             client.post(
-                "/api/auth/login", json={"username": "admin", "password": "test-password-123"}
+                "/api/auth/login", json={"username": "viewer", "password": "test-password-123"}
             ).status_code
             == 200
         )
-        assert client.get("/api/auth/me").json()["user"]["username"] == "admin"
+        assert client.get("/api/auth/me").json()["user"]["username"] == "viewer"
         response = client.post("/api/system/exchange-accounts", json={
             "exchange": "binance", "account_name": "No watchlist", "environment": "production",
             "api_key": "fixture-key", "secret": "fixture-secret",

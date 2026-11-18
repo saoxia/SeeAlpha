@@ -59,7 +59,7 @@ def application(tmp_path, monkeypatch, platform_engine_bootstrap):
     return app, database, calls
 
 
-def signin(client, username="admin"):
+def signin(client, username="viewer"):
     assert (
         client.post(
             "/api/auth/login",
@@ -132,7 +132,7 @@ def test_configuration_encryption_auth_and_native_cache(application):
     app, database, calls = application
     with TestClient(app) as client:
         assert client.get("/api/exchange-accounts").status_code == 401
-        signin(client, "viewer")
+        signin(client, "admin")
         assert create(client).status_code == 403
         signin(client)
         response = create(client)

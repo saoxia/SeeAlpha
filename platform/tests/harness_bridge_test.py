@@ -164,7 +164,7 @@ def test_no_impersonated_admin_agent_execution(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("Harness must not be contacted during impersonation")
     monkeypatch.setattr(harness_router,"HarnessClient",forbidden)
-    with TestClient(create_app(setup(tmp_path))) as client:
+    with TestClient(create_app(setup(tmp_path, owner="viewer"))) as client:
         login(client)
         cookie = client.cookies.get("seealpha_session")
         repository = client.app.state.repository
@@ -240,6 +240,6 @@ def test_harness_requires_explicit_non_admin_owner(tmp_path):
         assert client.get("/api/harness/status").status_code == 503
         login(client, "viewer")
         assert client.get("/api/harness/status").status_code == 503
-    with TestClient(create_app(setup(tmp_path, owner="admin"))) as client:
+    with TestClient(create_app(setup(tmp_path / "admin-owner", owner="admin"))) as client:
         login(client, "admin")
         assert client.get("/api/harness/status").status_code == 503

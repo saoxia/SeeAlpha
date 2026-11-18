@@ -28,9 +28,9 @@ def app_without_engine(tmp_path, monkeypatch):
     return app
 
 
-def _login(client):
+def _login(client, username="admin"):
     response = client.post("/api/auth/login", json={
-        "username": "admin", "password": "test-password-123",
+        "username": username, "password": "test-password-123",
     })
     assert response.status_code == 200, response.text
 
@@ -68,9 +68,8 @@ def test_blocked_tenant_registration_does_not_block_startup_or_account_managemen
                 "username": "alice", "password": "test-password-123",
             })
             assert created_user.status_code == 201, created_user.text
-            assert {user["username"] for user in client.get("/api/users").json()} == {
-                "admin", "alice",
-            }
+            assert {user["username"] for user in client.get("/api/users").json()} == {"alice"}
+            _login(client, "alice")
 
             created_tenant = client.post("/api/tenants", json={"name": "offline-dev"})
             assert created_tenant.status_code == 201, created_tenant.text
@@ -127,6 +126,11 @@ def test_background_retries_and_registers_new_tenants_after_recovery(app_without
         assert failed.wait(timeout=2), "initial Engine registration must be attempted"
         assert client.get("/api/health").status_code == 200
         _login(client)
+        created_user = client.post("/api/users", json={
+            "username": "alice", "password": "test-password-123",
+        })
+        assert created_user.status_code == 201, created_user.text
+        _login(client, "alice")
         created = client.post("/api/tenants", json={"name": "created-during-outage"})
         assert created.status_code == 201, created.text
         online.set()

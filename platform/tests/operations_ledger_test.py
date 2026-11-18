@@ -468,6 +468,12 @@ def test_cashflow_api_list_export_and_sync_authorization(tmp_path, monkeypatch):
         app.state.operations.repository.ingest(cash_event(info="=private-note"))
         assert client.get("/api/operations?event_type=cashflow").status_code == 401
         client.post("/api/auth/login", json={"username": "viewer", "password": "test-password-123"})
+        owned = client.post("/api/system/exchange-accounts", json={
+            "exchange": "binance", "environment": "production", "account_name": "ledger",
+            "api_key": "fixture-key", "secret": "fixture-secret",
+        })
+        assert owned.status_code == 201, owned.text
+        assert owned.json()["id"] == cash_event()["account_id"]
         record = client.get("/api/operations?event_type=cashflow").json()["records"][0]
         assert record["asset"] == "USDC" and record["transaction_id"] == "9007199254740993"
         assert record["price"] is None and record["order_id"] is None

@@ -7,6 +7,7 @@ from api.db.auth_repository import auth_repository
 from api.db.database import Database
 from api.main import create_app
 from api.tenants.repository import TenantRepository
+from fastapi.testclient import TestClient
 
 
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
@@ -63,7 +64,6 @@ def test_new_ordinary_users_get_separate_tenants_and_cannot_read_each_other(envi
     assert mine.status_code == 200
     production = [row for row in mine.json() if row["purpose"] == "production"]
     assert len(production) == 1
-    assert production[0]["system_key"] is None if "system_key" in production[0] else True
     created = http.post("/api/system/exchange-accounts", json={
         "exchange": "binance", "environment": "sandbox",
         "account_name": "alice-only", "api_key": "alice-key", "secret": "alice-secret",

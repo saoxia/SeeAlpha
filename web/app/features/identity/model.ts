@@ -11,7 +11,7 @@ export type AuthSession = {
 };
 
 export function canAccessAdminConsole(session: AuthSession): boolean {
-  return session.isAdmin;
+  return session.isAdmin && !session.impersonating;
 }
 
 export function sessionHomePath(session: AuthSession): "/admin" | "/app" {

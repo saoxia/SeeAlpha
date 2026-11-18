@@ -26,7 +26,7 @@ from sqlalchemy import func, select
 PROJECT = Path(__file__).resolve().parents[2]
 
 
-def signin(client, username="admin"):
+def signin(client, username="viewer"):
     assert client.post(
         "/api/auth/login",
         json={"username": username, "password": "test-password-123"},
@@ -220,13 +220,14 @@ def test_http_auth_real_candles_rebuild_and_environment_isolation(database, tmp_
         assert client.get("/api/exchange-accounts/999/equity-candles").status_code == 404
         signin(client, "viewer")
         assert client.post(path + "/equity-rebuilds", json={}).status_code == 403
-        signin(client)
+        signin(client, "admin")
         assert client.post(path + "/equity-rebuilds", json={}, headers={"Origin": "https://evil.invalid"}).status_code == 403
         assert client.post(path + "/equity-rebuilds", json={"start_ms": now, "end_ms": now - 1}).status_code == 422
         assert client.post(path + "/equity-rebuilds", json={}).status_code == 409
         # Own the same production path without starting collectors in this fixture.
         app.state.equity.owner = (tmp_path / "fake-owner").open("w")
         job = client.post(path + "/equity-rebuilds", json={}).json()
+        signin(client, "viewer")
         for _ in range(50):
             completed = client.get(path + f"/equity-rebuilds/{job['id']}").json()
             if completed["status"] not in {"queued", "running"}:
