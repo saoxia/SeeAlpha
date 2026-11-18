@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { HarnessWorkspace } from "./harness-workspace";
 import {
   cancelResearchJob,
   fetchResearchJob,
@@ -9,43 +10,44 @@ import {
   type ResearchJob,
   type ResearchState,
 } from "../../features/research/api";
-import { HarnessWorkspace } from "./harness-workspace";
 import {
   artifactHref,
   checkHeadline,
   hasRunningJob,
-  reportMatches,
   statusLabel,
 } from "../../features/research/model";
 
-type Section = "overview" | "checks" | "backtest" | "reports" | "jobs" | "harness";
-
-const sections: Array<{ id: Section; number: string; label: string; description: string }> = [
-  { id: "overview", number: "01", label: "总览", description: "检查与最近任务" },
-  { id: "checks", number: "02", label: "项目检查", description: "规范与测试" },
-  { id: "backtest", number: "03", label: "策略回测", description: "开发租户已下发包" },
-  { id: "reports", number: "04", label: "报告", description: "已生成结果" },
-  { id: "jobs", number: "05", label: "任务记录", description: "日志与取消" },
-
-];
-
 export function ResearchPage({ harnessAccess = false }: { harnessAccess?: boolean }) {
-  const [section, setSection] = useState<Section>("overview");
+  const [checksOpen, setChecksOpen] = useState(false);
+
+  return (
+    <section className="settings-page research-page" id="research" aria-label="AI Harness">
+      <div className="settings-card">
+        <h1>AI Harness</h1>
+        {harnessAccess ? <HarnessWorkspace /> : <p>AI 研究工作台仅供管理员在本人会话中使用。</p>}
+        <details className="research-project-tools" onToggle={(event) => setChecksOpen(event.currentTarget.open)}>
+          <summary>项目检查与任务记录</summary>
+          {checksOpen && <ProjectChecks />}
+        </details>
+      </div>
+    </section>
+  );
+}
+
+function ProjectChecks() {
   const [state, setState] = useState<ResearchState | null>(null);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ResearchJob | null>(null);
-  const [query, setQuery] = useState("");
-
   const refresh = useCallback(async () => {
     try {
       const next = await fetchResearchState();
       setState(next);
       setLoadError("");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "无法读取研究状态。");
+      setLoadError(error instanceof Error ? error.message : "无法读取检查状态。");
     }
   }, []);
 
@@ -58,7 +60,7 @@ export function ResearchPage({ harnessAccess = false }: { harnessAccess?: boolea
         setState(next);
         setLoadError("");
       } catch (error) {
-        if (active) setLoadError(error instanceof Error ? error.message : "无法读取研究状态。");
+        if (active) setLoadError(error instanceof Error ? error.message : "无法读取检查状态。");
       }
     };
     void load();
@@ -88,14 +90,13 @@ export function ResearchPage({ harnessAccess = false }: { harnessAccess?: boolea
     };
   }, [selectedId]);
 
-  async function submit(action: string, parameters: Record<string, string> = {}) {
+  async function submit(action: string) {
     setSubmitting(true);
     setNotice(null);
     try {
-      const job = await startResearchJob(action, parameters);
+      const job = await startResearchJob(action);
       setSelectedId(job.id);
       setSelected(job);
-      setSection("jobs");
       setNotice({ tone: "success", text: `已开始：${job.label || statusLabel(job.status)}` });
       await refresh();
     } catch (error) {
@@ -123,192 +124,52 @@ export function ResearchPage({ harnessAccess = false }: { harnessAccess?: boolea
 
   const running = hasRunningJob(state?.jobs ?? []);
   const checks = state ? checkHeadline(state.checks) : null;
-  const reports = (state?.reports ?? []).filter((item) => reportMatches(item, query));
+  const actions = state?.actions ?? [];
+  const detail = selected?.id === selectedId ? selected : null;
+
   return (
-    <section className="settings-page research-page" id="research">
-      <div className="settings-layout">
-        <aside className="settings-sidebar" aria-label="研究目录">
-          <div className="settings-sidebar-head">
-            <span>RESEARCH</span>
-            <b>研究与任务</b>
+    <>
+      {loadError && <p role="alert" className="settings-feedback error">{loadError}</p>}
+      {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`settings-feedback ${notice.tone}`}>{notice.text}</p>}
+      <section aria-label="项目检查">
+        <h2>项目检查</h2>
+        {checks && <p><strong>{checks.title}</strong> · {checks.detail}</p>}
+        {!state && !loadError && <p role="status">正在读取检查状态…</p>}
+        <div className="settings-head-actions">
+          {actions.map((action) => (
+            <button key={action.id} type="button" className="primary" title={action.description}
+              disabled={submitting || running} onClick={() => void submit(action.id)}>
+              {action.label}
+            </button>
+          ))}
+        </div>
+        {running && <p role="status">已有任务运行，结束后可启动下一次检查。</p>}
+      </section>
+      <section aria-label="任务记录">
+        <h2>任务记录</h2>
+        <div className="research-jobs">
+          {state && <JobList jobs={state.jobs} selectedId={selectedId} onSelect={setSelectedId} />}
+          <div>
+            <div className="research-log-head">
+              <b>{detail?.label || "任务日志"}</b>
+              <span>{detail ? statusLabel(detail.status) : selectedId ? "读取中…" : "尚未选择任务"}</span>
+              {detail?.status === "running" && (
+                <button type="button" disabled={submitting} onClick={() => void cancel()}>停止任务</button>
+              )}
+            </div>
+            {detail?.error && <p role="status" className="settings-feedback error">{detail.error}</p>}
+            <pre className="research-log" aria-label="任务输出日志">{detail?.log || (selectedId ? (detail ? "暂无输出。" : "正在读取日志…") : "选择任务查看日志。")}</pre>
+            {detail?.log_truncated && <p className="research-note">日志只显示末尾部分。</p>}
+            <div className="research-links">
+              {(detail?.report_urls ?? []).map((url) => {
+                const href = artifactHref(url);
+                return href ? <a key={url} href={href} target="_blank" rel="noreferrer">打开本次报告</a> : null;
+              })}
+            </div>
           </div>
-          <nav>
-            {[...sections, ...(harnessAccess ? [{id:"harness" as const,number:"06",label:"AI Harness",description:"独立 AI 研究任务"}] : [])].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={section === item.id ? "active" : ""}
-                aria-current={section === item.id ? "page" : undefined}
-                onClick={() => setSection(item.id)}
-              >
-                <span>{item.number}</span>
-                <div>
-                  <b>{item.label}</b>
-                  <small>{item.description}</small>
-                </div>
-                <i aria-hidden="true">→</i>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        <main className="settings-content">
-          <div className="settings-card">
-            {loadError && <p role="alert" className="settings-feedback error">{loadError}</p>}
-            {notice && <p role={notice.tone === "error" ? "alert" : "status"} className={`settings-feedback ${notice.tone}`}>{notice.text}</p>}
-
-            {section === "overview" && (
-              <>
-                <div className="settings-card-head">
-                  <span>01</span>
-                  <div>
-                    <h2>运行总览</h2>
-                    <p>项目检查和最近任务。过期检查不能视为当前正常。历史回测不在这个目录启动。</p>
-                  </div>
-                  <i>WORKSPACE</i>
-                </div>
-                <div className="research-metrics">
-                  <article>
-                    <small>项目检查</small>
-                    <b>{checks?.title ?? "正在读取…"}</b>
-                    <span>{checks?.detail}</span>
-                  </article>
-                  <article>
-                    <small>任务</small>
-                    <b>{running ? "有任务运行" : "空闲"}</b>
-                    <span>同一时间只运行一个检查。</span>
-                  </article>
-                  <article>
-                    <small>报告</small>
-                    <b>{state?.report_count ?? "—"}</b>
-                    <span>仅列出当前可访问的报告文件。</span>
-                  </article>
-                </div>
-                <div className="settings-head-actions research-actions">
-                  {(state?.actions ?? []).filter((item) => item.id !== "backtest").map((item) => (
-                    <button key={item.id} type="button" className="primary" disabled={submitting || running || !state} onClick={() => void submit(item.id)}>
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-                <JobList jobs={state?.jobs.slice(0, 6) ?? []} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSection("jobs"); }} />
-              </>
-            )}
-
-            {section === "checks" && (
-              <>
-                <div className="settings-card-head">
-                  <span>02</span>
-                  <div>
-                    <h2>项目检查</h2>
-                    <p>快速检查核验冻结来源与代码规范，完整检查额外运行全量测试。检查最多 30 分钟。</p>
-                  </div>
-                  <i>CHECKS</i>
-                </div>
-                <div className="research-actions-list">
-                  {(state?.actions ?? []).filter((item) => item.id !== "backtest").map((item) => (
-                    <article key={item.id}>
-                      <b>{item.label}</b>
-                      <p>{item.description}</p>
-                      <button type="button" className="primary" disabled={submitting || running || !state} onClick={() => void submit(item.id)}>
-                        开始
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {section === "backtest" && (
-              <>
-                <div className="settings-card-head">
-                  <span>03</span>
-                  <div>
-                    <h2>策略回测</h2>
-                    <p>研究目录不再启动已删除的策略。历史回测在开发租户上运行已下发的策略包。</p>
-                  </div>
-                  <i>BACKTEST</i>
-                </div>
-                <p className="research-note">
-                  开发租户声明自己的行情订阅后，用该租户的虚拟账户对已下发的包运行历史区间。
-                  结束时间不包含在区间内，单次最多 366 天。不会下载或补齐数据，也不会读取交易所密钥。
-                </p>
-              </>
-            )}
-
-            {section === "reports" && (
-              <>
-                <div className="settings-card-head">
-                  <span>04</span>
-                  <div>
-                    <h2>报告中心</h2>
-                    <p>打开已有单策略和组合回测报告。数据盘不可用时不展示无法访问的文件，已保存的索引不会被清除。</p>
-                  </div>
-                  <i>REPORTS</i>
-                </div>
-                <label className="field">
-                  <span>搜索</span>
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="策略、名称或运行编号" aria-label="搜索报告" />
-                </label>
-                {reports.length === 0 ? <p className="exchange-empty">没有可打开的报告。</p> : (
-                  <ul className="research-list">
-                    {reports.map((item) => {
-                      const href = artifactHref(item.url);
-                      const summary = artifactHref(item.summary_url);
-                      return (
-                        <li key={item.url}>
-                          <b>{item.strategy}</b>
-                          <span>{item.run_id}</span>
-                          <small>{item.modified_at}</small>
-                          {href && <a href={href} target="_blank" rel="noreferrer">打开报告</a>}
-                          {summary && <a href={summary} target="_blank" rel="noreferrer">统计</a>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </>
-            )}
-
-            {section === "harness" && harnessAccess && <HarnessWorkspace />}
-
-            {section === "jobs" && (
-              <>
-                <div className="settings-card-head">
-                  <span>05</span>
-                  <div>
-                    <h2>任务记录</h2>
-                    <p>状态、输出日志和取消。检查最多 30 分钟，超时会终止。重启后未完成任务标记为中断，不会自动恢复。</p>
-                  </div>
-                  <i>JOBS</i>
-                </div>
-                <div className="research-jobs">
-                  <JobList jobs={state?.jobs ?? []} selectedId={selectedId} onSelect={setSelectedId} />
-                  <div>
-                    <div className="research-log-head">
-                      <b>{selected?.label || "任务日志"}</b>
-                      <span>{selected ? statusLabel(selected.status) : "尚未选择任务"}</span>
-                      {selected?.status === "running" && (
-                        <button type="button" disabled={submitting} onClick={() => void cancel()}>停止任务</button>
-                      )}
-                    </div>
-                    {selected?.error && <p role="status" className="settings-feedback error">{selected.error}</p>}
-                    <pre className="research-log" aria-label="任务输出日志">{selected?.log || "选择一条任务后，这里显示最近的输出。"}</pre>
-                    {selected?.log_truncated && <p className="research-note">日志只显示末尾部分。</p>}
-                    <div className="research-links">
-                      {(selected?.report_urls ?? []).map((url) => {
-                        const href = artifactHref(url);
-                        return href ? <a key={url} href={href} target="_blank" rel="noreferrer">打开本次报告</a> : null;
-                      })}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </main>
-      </div>
-    </section>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -321,7 +182,7 @@ function JobList({
   selectedId: string | null;
   onSelect: (identity: string) => void;
 }) {
-  if (jobs.length === 0) return <p className="exchange-empty">暂无任务记录。可以从总览发起检查。</p>;
+  if (jobs.length === 0) return <p className="exchange-empty">暂无任务记录。</p>;
   return (
     <ul className="research-list">
       {jobs.map((job) => (

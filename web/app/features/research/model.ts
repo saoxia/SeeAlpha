@@ -10,13 +10,6 @@ export type CheckSnapshot = {
   age_seconds?: number | null;
 };
 
-export type ResearchReport = {
-  name: string;
-  strategy: string;
-  run_id: string;
-  url: string;
-};
-
 const STATUS_LABELS: Record<string, string> = {
   running: "运行中",
   succeeded: "已完成",
@@ -45,14 +38,6 @@ export function errorDetail(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object" || !("detail" in payload)) return fallback;
   const detail = payload.detail;
   return typeof detail === "string" && detail ? detail : fallback;
-}
-
-export function reportMatches(report: ResearchReport, query: string) {
-  const needle = query.trim().toLocaleLowerCase();
-  if (!needle) return true;
-  return [report.strategy, report.run_id, report.name].some((part) =>
-    part.toLocaleLowerCase().includes(needle),
-  );
 }
 
 export function checkHeadline(checks: CheckSnapshot) {

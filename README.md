@@ -19,7 +19,7 @@ Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、�
 [Engine / Platform 产品与架构边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)；
 当前已完成 Platform 的源码导入隔离和 Engine 跨进程契约验收，但不意味着已完成实盘策略或真实账户验收。
 
-**Harness 开发集成**：RESEARCH 新增可选 AI Harness 任务入口，保持独立单 Docker、通过 Platform 管理员鉴权代理访问。该实验入口默认关闭，尚未接通可信研究网关、Engine Agent 工具或生产多租户隔离。配置与限制见 [Harness 集成说明](docs/HARNESS_INTEGRATION.md)。
+**Harness 开发集成**：主导航 AI Harness 直接打开研究工作台，保持独立单 Docker、通过 Platform 管理员鉴权代理访问。该实验入口默认关闭，尚未接通可信研究网关、Engine Agent 工具或生产多租户隔离。配置与限制见 [Harness 集成说明](docs/HARNESS_INTEGRATION.md)。
 
 ## 产品范围与当前实现
 
@@ -30,7 +30,7 @@ Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、�
 | --- | --- |
 | 数据准备与行情 | Binance USD-M 永续合约公开行情，默认 BTC、ETH、SOL；连续行情层输出闭合分钟 OHLCV |
 | 策略 | 可下发的策略包。示例是双均线，只公布目标持仓 |
-| Web 管理端 | 独立 Next.js 前端与 FastAPI；项目检查、BTC/ETH 策略回测、报告和任务日志在 RESEARCH 页 |
+| Web 管理端 | 独立 Next.js 前端与 FastAPI；AI Harness 研究工作台、项目检查和任务日志 |
 | 账户与手动交易 | 已实现 Binance 原生账户只读、USD-M 永续手动下单/撤单通路及交易页（管理员显式确认）；真实账户凭据、交易所网络和真实下单尚未验收，不能视为实盘可用 |
 | 业务持久化 | 通过 ORM 支持 PostgreSQL/SQLite；本机已连接 PostgreSQL 并完成迁移 |
 | 其他市场与交易产品 | 已有 Binance 期权行情、历史数据与适配器代码，尚未完成真实账户及实盘策略验收；股票、其他期货和现货等产品仍需单独接入与验收 |
@@ -57,8 +57,7 @@ Platform 的唯一业务 Python 依赖锁位于 [`platform/`](platform/README.md
 ## Web 管理端
 
 先启动 API，再启动 Next.js 前端，浏览器打开
-[综合管理端](http://127.0.0.1:3000) 的 RESEARCH 页，即可查看项目检查、
-查看任务日志及历史报告。研究回测目录已删除，页面不再列出那些策略。使用现有本地数据，
+[综合管理端](http://127.0.0.1:3000) 的 AI Harness 页可打开研究工作台，展开项目检查与任务记录。
 登录沿用 API 用户会话。详见 [前端说明](web/README.md) 与 [API 说明](api/README.md)。
 
 ## 当前进度与检查

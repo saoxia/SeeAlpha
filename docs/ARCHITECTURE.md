@@ -95,7 +95,7 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `engine.pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
 | `packages/` | 可登记的策略包。当前示例是 `ema_crossover/`：元数据、入口和只公布目标持仓的实现。引擎不内置策略名字清单。 |
 | `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理、租户和策略商店，以及检查/回测任务。行情订阅意图、策略包授权和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单、估值事件、行情采集、策略下发和一次性离线数据任务都改调引擎。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。策略商店不启动交易所实盘。 |
-| `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。RESEARCH 页对应 `/api/management`。 |
+| `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。AI Harness 页通过 `/api/harness` 访问常驻 Harness，项目检查和任务记录沿用 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
 
 ## 公共入口、契约与主要数据流

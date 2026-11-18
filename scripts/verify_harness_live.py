@@ -55,7 +55,7 @@ def run(origin: str, username: str, deadline_seconds: int) -> None:
                         raise RuntimeError("实际 Agent 研究任务未成功完成：" + str(latest["status"]))
                     return latest
                 time.sleep(3)
-            raise RuntimeError("任务状态仍未终结：请到 RESEARCH 界面核实，不要自动重发")
+            raise RuntimeError("任务状态仍未终结：请到 AI Harness 界面核实，不要自动重发")
 
         task = client.post("/api/harness/tasks", json={
             "prompt": "请用 Python 分析 1 到 30 的平方数，计算均值和标准差，解释计算方法，并给出简短结论。",

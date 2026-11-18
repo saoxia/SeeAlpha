@@ -1,7 +1,7 @@
 # Binance USD-M 手动交易
 
 2026-11-06 用户要求在 LIVE 与 DATA 之间新增交易页，确认首版市场为 Binance USD-M 永续，
-并要求参照 Binance 交易页组织布局。导航为 LIVE → TRADE → DATA → RESEARCH → SETTINGS。
+并要求参照 Binance 交易页组织布局。导航为 LIVE → TRADE → DATA → AI Harness → SETTINGS。
 
 ## 当前功能
 

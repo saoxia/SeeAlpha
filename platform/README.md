@@ -300,7 +300,7 @@ Engine 本地实现的测试模块。真正交易所资产查询与委托执行�
 
 `/api/management/state.actions` 现在只列出仍实际可执行的项目检查动作；
 旧 `backtest` 管理任务不再出现在动作目录，也不能启动。历史管理任务中
-`backtest` 记录和旧报告仍可读取，不会删除业务状态、持久化文件或前端展示。
+`backtest` 记录和旧报告仍可读取，任务关联报告可从 AI Harness 的任务记录打开。
 真正的回测继续通过开发租户的 `/api/tenants/{id}/accounts/{id}/backtests`
-经独立 Engine HTTP 执行。这轮保留仍被 RESEARCH 页面使用的本地项目检查功能，
+经独立 Engine HTTP 执行。这轮保留仍被 AI Harness 页面使用的本地项目检查功能，
 后续有替代 CI 状态接口后再移除执行器。

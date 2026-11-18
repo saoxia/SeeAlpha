@@ -1,11 +1,11 @@
 # 在 SeeAlpha Platform 接入独立 Harness（本地开发阶段）
 
-> 范围：**独立 `saoxia/seealpha-harness` 常驻服务** → SeeAlpha Platform API → RESEARCH / AI Harness。不会嵌入独立 Harness 运行时代码、安装 DeepSeek SDK 到 Platform，也不会替换独立 Engine 或创建每任务 Docker。
+> 范围：**独立 `saoxia/seealpha-harness` 常驻服务** → SeeAlpha Platform API → AI Harness。不会嵌入独立 Harness 运行时代码、安装 DeepSeek SDK 到 Platform，也不会替换独立 Engine 或创建每任务 Docker。
 
 ## 架构和当前资格
 
 ```text
-登录用户 → SeeAlpha Web /RESEARCH → 同源 /api/harness/*
+登录用户 → SeeAlpha Web AI Harness → 同源 /api/harness/*
           → Platform Session 与管理员权限检查
           → 固定来源 Harness HTTP v1（Bearer 只在服务器）
           → 唯一常驻 Harness Docker → 顺序队列 / 每任务独立 Worker 进程
@@ -13,7 +13,7 @@
 
 **默认关闭，现阶段只支持未代入其他用户的管理员本地开发。** 这不是生产多租户 Agent 沙箱：Harness 任务内的 DeepSeek SDK 自由 Shell 与控制器仍属于单容器/同 UID；不能保证租户工作区间强隔离，模型测试凭据可能被 Agent 读取。禁止把生产交易密钥、共享租户私有行情或生产 Engine 凭据交给 Agent。Platform/Harness/Engine 的真正可信 Research Gateway、任务级 Grant、SDK MCP 工具隔离与 Engine 端到端回测授权仍未接通。
 
-本阶段可以在 RESEARCH 页提交任意本地 AI 研究提示、查询任务状态和安全进度事件、取消、打开历史 Session、在已完成 Session 上继续、阅读最终回答、显式登记 `exports/` 中的研究成果并下载。**不声称已经能通过 Agent 直接运行 Engine 开发回测。**
+本阶段可以在 AI Harness 页提交任意本地 AI 研究提示、查询任务状态和安全进度事件、取消、打开历史 Session、在已完成 Session 上继续、阅读最终回答、显式登记 `exports/` 中的研究成果并下载。**不声称已经能通过 Agent 直接运行 Engine 开发回测。**
 
 ## 启动
 
@@ -45,7 +45,7 @@ export HARNESS_API_TOKEN='<与 Harness .env 中完全一致的高强度密钥>'
 
 ## Web 操作
 
-打开 SeeAlpha → RESEARCH → AI Harness，状态应为「Harness 已连接」。输入研究目标后点击「开始研究」。请求含 `queue_if_busy: true`：常驻 Harness 运行中时任务进入其有界 FIFO 队列，不会启动第二个 Docker。任务状态每两秒通过 Platform API 查询，完成后展示最终回答及已登记成果清单。点击成果名称经 Platform 强制附件下载；主动创建新会话不会删除 Harness 服务端记录。Harness 保留历史任务索引；当前浏览器另外记住最近访问的任务 ID，历史列表不含原始 Prompt。Harness 仍是单用户本地服务，不具备跨用户/租户历史隔离。
+打开 SeeAlpha → AI Harness，状态应为「Harness 已连接」。输入研究目标后点击「开始研究」。请求含 `queue_if_busy: true`：常驻 Harness 运行中时任务进入其有界 FIFO 队列，不会启动第二个 Docker。任务状态每两秒通过 Platform API 查询，完成后展示最终回答及已登记成果清单。点击成果名称经 Platform 强制附件下载；主动创建新会话不会删除 Harness 服务端记录。Harness 保留历史任务索引；当前浏览器另外记住最近访问的任务 ID，历史列表不含原始 Prompt。Harness 仍是单用户本地服务，不具备跨用户/租户历史隔离。
 
 如果任务失败、中断或取消，重新提交将创建新任务；只有完成的 Session 可以续接。断开网络、提交超时等未知结果不会被自动重发，以避免重复运行。Harness 容器重启后，任务恢复与排队门禁由 Harness 自身 `TaskManager` 管理，Platform 不自动向 `/v1/queue/resume` 发控制命令。
 

@@ -5,7 +5,6 @@ import {
   checkHeadline,
   errorDetail,
   hasRunningJob,
-  reportMatches,
   statusLabel,
 } from "./model.ts";
 
@@ -24,14 +23,6 @@ test("job status and running slot use the persisted vocabulary", () => {
   assert.equal(statusLabel("custom"), "custom");
   assert.equal(hasRunningJob([{ status: "failed" }, { status: "running" }]), true);
   assert.equal(hasRunningJob([{ status: "succeeded" }]), false);
-});
-
-test("report search matches strategy, run and name without treating blanks as filters", () => {
-  const report = { name: "trend", strategy: "btc_trend_following_long", run_id: "run-1", url: "/artifacts/x" };
-  assert.equal(reportMatches(report, "  BTC "), true);
-  assert.equal(reportMatches(report, "run-1"), true);
-  assert.equal(reportMatches(report, "missing"), false);
-  assert.equal(reportMatches(report, "   "), true);
 });
 
 test("check headlines keep stale results visible and unqualified", () => {

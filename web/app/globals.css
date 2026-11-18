@@ -250,22 +250,16 @@ html[data-interface-theme="glass"] .data-market-picker select { border-color: #c
 
 .data-configuration-fields{border:0;padding:0;margin:0;min-width:0;display:grid;gap:14px}
 
-.research-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
-.research-metrics article{min-width:0;border-top:1px solid #d7d9dc;padding-top:12px}
-.research-metrics small,.research-metrics b,.research-metrics span{display:block}
-.research-metrics small{margin-bottom:6px;color:#777a80;font-size:8px;letter-spacing:.4px}
-.research-metrics b{font-size:13px}
-.research-metrics span{margin-top:6px;color:#777a80;font-size:8px;line-height:1.5}
-.research-actions{margin-top:16px}
-.research-actions-list{display:grid;gap:12px;margin-top:18px}
-.research-actions-list article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;border-top:1px solid #d7d9dc;padding-top:12px}
-.research-actions-list p{grid-column:1;margin:0;color:#777a80;font-size:8px}
-.research-actions-list button,.research-log-head button{height:32px;border:1px solid #111;background:#111;color:#fff;padding:0 14px;font-size:9px;font-weight:700;cursor:pointer}
-.research-actions-list button:disabled,.research-log-head button:disabled{cursor:wait;opacity:.45}
-.research-note{grid-column:1/-1;margin:8px 0 0;color:#777a80;font-size:8px;line-height:1.6}
+.settings-page.research-page{overflow:auto}
+.research-page .settings-card{max-width:1080px;margin:0 auto;gap:16px}
+.research-page h1{margin:0}
+.research-page h2{font-size:16px;margin:16px 0 10px}
+.research-project-tools{border-top:1px solid #cfd1d4;padding-top:12px}
+.research-project-tools summary{cursor:pointer;font-weight:700}
+.research-log-head button:disabled{cursor:wait;opacity:.45}
+.research-note{margin:8px 0 0;color:#777a80;font-size:8px;line-height:1.6}
 .research-list{display:flex;flex-direction:column;margin:16px 0 0;padding:0;list-style:none}
-.research-list li,.research-list button{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(70px,.6fr) minmax(0,1fr) auto auto;gap:8px 12px;align-items:baseline;width:100%;border:0;border-bottom:1px solid #d7d9dc;background:transparent;padding:10px 0;text-align:left;cursor:pointer}
-.research-list a{font-size:8px;font-weight:700;text-decoration:underline}
+.research-list button{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,auto);gap:8px 12px;align-items:baseline;width:100%;border:0;border-bottom:1px solid #d7d9dc;background:transparent;padding:10px 0;text-align:left;cursor:pointer}
 .research-list b,.research-list span,.research-list small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .research-list b{font-size:10px}
 .research-list span,.research-list small{color:#777a80;font-size:8px}
@@ -278,7 +272,7 @@ html[data-interface-theme="glass"] .data-market-picker select { border-color: #c
 .research-log{min-height:240px;max-height:48vh;margin:0;overflow:auto;border:1px solid #222;background:#17191c;padding:14px;color:#d9ddd8;font:10px/1.6 "Courier New",monospace;white-space:pre-wrap;word-break:break-word}
 .research-links{display:flex;gap:12px;margin-top:8px}
 .research-links a{font-size:8px;font-weight:700;text-decoration:underline}
-@media(max-width:760px){.research-metrics,.research-jobs{grid-template-columns:1fr}.research-list li,.research-list button{grid-template-columns:minmax(0,1fr) auto}}
+@media(max-width:760px){.research-jobs{grid-template-columns:minmax(0,1fr)}}
 
 .impersonation-banner{position:sticky;top:0;z-index:30;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:44px;padding:8px 28px;background:#111;color:#f4f4ee}
 .impersonation-banner p{display:flex;flex-wrap:wrap;gap:8px 14px;margin:0;font-size:12px}
@@ -301,7 +295,7 @@ main:has(.impersonation-banner) .settings-layout{height:calc(100vh - 137px)}
 @media(max-width:760px){.impersonation-banner{align-items:flex-start;flex-direction:column;padding:10px 16px}.tenant-row{grid-template-columns:minmax(0,1fr) auto}.tenant-row>span:nth-of-type(2){display:none}}
 
 
-/* Optional local Harness research workspace (existing RESEARCH page). */
+/* Harness research workspace. */
 .research-harness-form { display: grid; gap: 10px; margin: 20px 0; }
 .research-harness-form > label { color: var(--glass-ink, #27384c); font-size: 12px; font-weight: 650; }
 .research-harness-form textarea { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 120px; padding: 12px; border: 1px solid #cbd3dd; border-radius: 8px; background: #fff; color: #25354b; font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }

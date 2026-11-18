@@ -1,12 +1,5 @@
 import { errorDetail } from "./model";
 
-export type ResearchStrategy = {
-  id: string;
-  label: string;
-  symbol: string;
-  description: string;
-};
-
 export type ResearchAction = {
   id: string;
   label: string;
@@ -28,15 +21,6 @@ export type ResearchJob = {
   log_truncated?: boolean;
 };
 
-export type ResearchReport = {
-  name: string;
-  strategy: string;
-  run_id: string;
-  modified_at: string;
-  url: string;
-  summary_url: string | null;
-};
-
 export type ResearchState = {
   server_time: string;
   checks: {
@@ -50,11 +34,8 @@ export type ResearchState = {
     age_seconds: number | null;
     stale: boolean;
   };
-  strategies: ResearchStrategy[];
   actions: ResearchAction[];
   jobs: ResearchJob[];
-  reports: ResearchReport[];
-  report_count: number;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

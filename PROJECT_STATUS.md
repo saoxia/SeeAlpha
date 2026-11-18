@@ -52,7 +52,7 @@ cd web && npm run test:frontend
 已在 [PR #1](https://github.com/saoxia/SeeAlpha/pull/1) 合并。项目检查、BTC/ETH 策略回测、
 报告浏览和任务日志在 FastAPI `api/management/`（`router.py`、`jobs.py`、`service.py`、
 `artifacts.py`、`storage.py`），路径为 `/api/management`，复用现有用户会话；启动和取消需要管理员。
-Next.js 主导航有 RESEARCH 页：`web/app/components/research/research-page.tsx`，
+Next.js 主导航有 AI Harness 页：`web/app/components/research/research-page.tsx`，
 入口在 `web/app/components/navigation.tsx`。`web/server.py`、`:8765` 服务和 `web/static/*` 已不在树中。
 
 管理任务锁是 `.local/run/web/server.lock`（`api/management/storage.py` 的 `runtime_lock`）。

@@ -174,20 +174,12 @@ export function HarnessWorkspace() {
   }
 
   return <div className="research-harness">
-    <div className="settings-card-head">
-      <span>06</span>
-      <div>
-        <h2>AI Harness 研究工作台</h2>
-        <p>独立常驻 Harness · 任务队列 · 可续接 Session · 研究成果</p>
-      </div>
-      <i>HARNESS</i>
-    </div>
     {loading&&<p className="research-note">正在检查 Harness 服务…</p>}
     {!loading&&status&&<p className="research-note" role="status">
-      {!status.enabled?"尚未启用：需在 Platform 配置 HARNESS_ENABLED、HARNESS_URL 和 HARNESS_API_TOKEN。" :
-        !status.available?"Harness 连接失败或协议不兼容。其他交易与研究功能不受影响。" :
+      {!status.enabled?"此部署尚未启用 AI Harness。" :
+        !status.available?"Harness 连接失败或协议不兼容。" :
         !status.runtime_configured?"Harness 已连接，但没有配置 DeepSeek 测试模型凭据。" :
-        "Harness 已连接 · 单容器常驻 · 任务串行排队"}
+        "Harness 已连接"}
     </p>}
     {error&&<p className="settings-feedback error" role="alert">{error}</p>}
     <div className="research-harness-layout">
