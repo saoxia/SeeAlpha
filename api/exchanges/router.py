@@ -37,8 +37,6 @@ async def markets(
 ):
     if exchange != "binance":
         raise HTTPException(422, "暂不支持此交易所。")
-    if market_type == "spot" and environment != "production":
-        raise HTTPException(422, "现货公开行情仅开放正式环境。")
     product = "spot" if market_type == "spot" else "futures_um"
     items = await request.app.state.exchanges.catalog(environment, product=product)
     return [i for i in items if search.strip().upper() in i["symbol"]][:200]
