@@ -254,8 +254,6 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
 async def market_list(request: Request, _: AdminUser,
                       environment: Literal["production", "sandbox"] = "production",
                       product: Literal["futures_um", "spot"] = "futures_um"):
-    if product == "spot" and environment != "production":
-        raise HTTPException(422, "现货公开行情仅支持正式环境")
     catalog, snapshot = await asyncio.gather(
         request.app.state.exchanges.catalog(environment, product="spot") if product == "spot"
         else request.app.state.exchanges.catalog(environment),
