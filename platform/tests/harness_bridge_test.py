@@ -1,7 +1,6 @@
 """Platform Harness v1 integration tests: no Docker, SDK or network calls."""
 import json
 from hashlib import sha256
-from dataclasses import replace
 
 import httpx
 import pytest
