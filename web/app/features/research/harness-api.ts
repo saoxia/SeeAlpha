@@ -49,6 +49,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   if (!result.ok) {
+    if (result.status === 403) {
+      throw new Error("当前 Harness 执行环境还不支持普通用户安全隔离，研究任务暂未开放。");
+    }
     const payload: unknown = await result.json().catch(() => null);
     throw new Error(errorDetail(payload, "无法访问 Harness，请检查服务连接。"));
   }

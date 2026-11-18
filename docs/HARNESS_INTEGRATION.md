@@ -11,7 +11,7 @@
           → 唯一常驻 Harness Docker → 顺序队列 / 每任务独立 Worker 进程
 ```
 
-**产品归属：AI Harness 是普通用户研究工作台，不属于管理后台。** 目前的服务器桥接仍是单用户开发模式：默认关闭，暂时只允许未代入其他用户的管理员进行本地开发验证；这不是最终用户访问策略。 这不是生产多租户 Agent 沙箱：Harness 任务内的 DeepSeek SDK 自由 Shell 与控制器仍属于单容器/同 UID；不能保证租户工作区间强隔离，模型测试凭据可能被 Agent 读取。禁止把生产交易密钥、共享租户私有行情或生产 Engine 凭据交给 Agent。Platform/Harness/Engine 的真正可信 Research Gateway、任务级 Grant、SDK MCP 工具隔离与 Engine 端到端回测授权仍未接通。
+**产品归属：AI Harness 是普通用户研究工作台，不属于管理后台。** 目前的服务器桥接仍是单用户开发模式：默认关闭，暂时只允许未代入其他用户的管理员进行本地开发验证；这不是最终用户访问策略。当前运行时不是生产多租户 Agent 沙箱：Harness 任务内的 DeepSeek SDK 自由 Shell 与控制器仍属于单容器/同 UID；不能保证租户工作区间强隔离，模型测试凭据可能被 Agent 读取。禁止把生产交易密钥、共享租户私有行情或生产 Engine 凭据交给 Agent。Platform/Harness/Engine 的真正可信 Research Gateway、任务级 Grant、SDK MCP 工具隔离与 Engine 端到端回测授权仍未接通。
 
 本阶段可以在 AI Harness 页提交任意本地 AI 研究提示、查询任务状态和安全进度事件、取消、打开历史 Session、在已完成 Session 上继续、阅读最终回答、显式登记 `exports/` 中的研究成果并下载。**不声称已经能通过 Agent 直接运行 Engine 开发回测。**
 
