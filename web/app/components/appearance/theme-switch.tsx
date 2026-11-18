@@ -1,11 +1,23 @@
 "use client";
 
-import { useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { defaultTheme, readTheme, setTheme, subscribeTheme } from "@/app/features/appearance/theme";
 
 export function ThemeSwitch() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => defaultTheme);
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    function closeOnBackdrop(event: MouseEvent) {
+      if (event.target === dialog) dialog?.close();
+    }
+    // The native dialog handles Escape. A DOM listener is used for backdrop
+    // clicks because the dialog element itself is not an interactive control.
+    dialog.addEventListener("click", closeOnBackdrop);
+    return () => dialog.removeEventListener("click", closeOnBackdrop);
+  }, []);
 
   function selectTheme(next: "classic" | "glass") {
     setTheme(next);
@@ -21,10 +33,7 @@ export function ThemeSwitch() {
     >
       切换主题
     </button>
-    <dialog ref={dialogRef} className="theme-picker" aria-label="选择界面主题" onClick={event => {
-      // A backdrop click targets the dialog element; clicks inside its content do not.
-      if (event.target === dialogRef.current) dialogRef.current?.close();
-    }}>
+    <dialog ref={dialogRef} className="theme-picker" aria-label="选择界面主题">
       <div className="theme-picker-content">
         <header className="theme-picker-header">
           <h2>选择界面主题</h2>
