@@ -99,7 +99,7 @@ class DockerRuntime:
         if (not isinstance(env, dict) or len(env) > 40
                 or any(not isinstance(k, str) or not _ENV.fullmatch(k)
                        or not isinstance(v, str) or len(v) > 8192
-                       or "\\n" in v or "\\r" in v for k, v in env.items())):
+                       or "\n" in v or "\r" in v for k, v in env.items())):
             raise ValueError("Invalid environment")
         if not isinstance(mounts, dict) or len(mounts) > 12:
             raise ValueError("Invalid mounts")
