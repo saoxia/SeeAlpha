@@ -120,6 +120,8 @@ class HarnessClient:
             raise HarnessUnavailable("Harness history response invalid")
         # Only allow task metadata to be returned, even if the upstream
         # regresses and begins including saved user prompts.
+        if not all(isinstance(item, dict) for item in tasks):
+            raise HarnessUnavailable("Harness history response invalid")
         return [{key: self.public_task(item).get(key) for key in (
             "id", "status", "turn", "created_at", "updated_at", "error",
         )} for item in tasks]
@@ -141,7 +143,8 @@ class HarnessClient:
             if (not isinstance(event, dict) or
                     type(event.get("sequence")) is not int or
                     event["sequence"] <= after or event["sequence"] > cursor or
-                    event.get("type") not in {"progress", "terminal", "artifact_ready"}):
+                    not isinstance(event.get("type"), str) or
+                    event["type"] not in {"progress", "terminal", "artifact_ready"}):
                 raise HarnessUnavailable("Harness timeline event invalid")
             # Pass only bounded, non-secret display metadata, not raw SDK
             # output, arguments, tool parameters or environment details.
@@ -155,7 +158,8 @@ class HarnessClient:
                 "notifications": (payload.get("notifications")
                                   if type(payload.get("notifications")) is int else None),
                 "status": (payload.get("status")
-                           if payload.get("status") in {
+                           if isinstance(payload.get("status"), str) and
+                           payload["status"] in {
                                "completed", "failed", "cancelled", "interrupted",
                            } else None),
             })
@@ -185,6 +189,11 @@ class HarnessClient:
             if not isinstance(item, dict) or not isinstance(item.get("artifact_id"), str):
                 raise HarnessUnavailable("Harness artifact response invalid")
             validate_artifact_id(item["artifact_id"])
+            if (type(item.get("size")) is not int or
+                    not 0 <= item["size"] <= 16 * 1024 * 1024 or
+                    not isinstance(item.get("sha256"), str) or
+                    not re.fullmatch(r"[a-f0-9]{64}", item["sha256"])):
+                raise HarnessUnavailable("Harness artifact metadata invalid")
             safe.append({key: item.get(key) for key in
                          ("artifact_id", "filename", "kind", "size", "sha256", "review_status")})
         return safe
