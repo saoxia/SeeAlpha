@@ -6,10 +6,10 @@ Harness and test-only DeepSeek key. No fake Agent or Engine results are used.
 from __future__ import annotations
 
 import argparse
-from getpass import getpass
-from hashlib import sha256
 import sys
 import time
+from getpass import getpass
+from hashlib import sha256
 from urllib.parse import urlsplit
 
 import httpx
