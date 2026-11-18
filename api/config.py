@@ -32,6 +32,10 @@ class Settings:
     engine_production_memory: str = "4g"
     engine_development_cpus: str = "4"
     engine_development_memory: str = "8g"
+    # Opt-in: existing single-user Harness is NOT a production tenant sandbox.
+    harness_enabled: bool = False
+    harness_url: str = ""
+    harness_token: str = field(default="", repr=False)
 
     @classmethod
     def from_environment(cls):
@@ -87,4 +91,7 @@ class Settings:
             engine_production_memory=os.getenv("ENGINE_PRODUCTION_MEMORY", "4g"),
             engine_development_cpus=os.getenv("ENGINE_DEVELOPMENT_CPUS", "4"),
             engine_development_memory=os.getenv("ENGINE_DEVELOPMENT_MEMORY", "8g"),
+            harness_enabled=os.getenv("HARNESS_ENABLED", "false").lower() in {"1", "true", "yes"},
+            harness_url=os.getenv("HARNESS_URL", ""),
+            harness_token=os.getenv("HARNESS_API_TOKEN", ""),
         )
