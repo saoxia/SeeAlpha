@@ -3,6 +3,7 @@
 import argparse
 import getpass
 import sqlite3
+import re
 
 from ..config import Settings
 from ..db.auth_repository import auth_repository
@@ -15,8 +16,12 @@ def set_user_password(database: Database, username: str, password: str, *, creat
     username = username.strip()
     if not 3 <= len(username) <= 64:
         raise ValueError("用户名长度须为 3–64 个字符。")
-    if not 12 <= len(password) <= 256:
-        raise ValueError("新密码长度须为 12–256 个字符；迁入的已有密码继续有效。")
+    if (
+        not 8 <= len(password) <= 256
+        or not re.search(r"[A-Za-z]", password)
+        or not re.search(r"[0-9]", password)
+    ):
+        raise ValueError("新密码须为 8–256 个字符，且同时包含英文字母和数字；已有密码继续有效。")
     repository = auth_repository(database)
     user = repository.get_user_by_username(username)
     if create:
