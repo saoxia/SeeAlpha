@@ -4,7 +4,6 @@ from hashlib import sha256
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from api.auth.security import hash_password, token_digest
 from api.config import Settings
@@ -12,8 +11,11 @@ from api.db.auth_repository import AuthRepository
 from api.db.database import Database
 from api.main import create_app
 from api.research.harness_client import (
-    HARNESS_HEADER, HarnessClient, HarnessUnavailable,
+    HARNESS_HEADER,
+    HarnessClient,
+    HarnessUnavailable,
 )
+from fastapi.testclient import TestClient
 
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
