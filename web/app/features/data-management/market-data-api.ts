@@ -1,6 +1,6 @@
 import type { components } from "@/app/api/generated/schema";
 
-export type DataMarket = components["schemas"]["DataMarket"];
+export type DataMarket = Omit<components["schemas"]["DataMarket"], "product"> & { product?: DataProduct };
 export type DataCapabilities = components["schemas"]["DataCapabilities"];
 export type DataJob = components["schemas"]["DataJobResponse"];
 export type DataDeletionPlan = components["schemas"]["DataDeletionPlan"];
@@ -103,8 +103,8 @@ export function toggleFuturesSymbol(current: string[], symbol: string): string[]
   if (current.length >= FUTURES_BATCH_LIMIT) return current;
   return [...current, symbol];
 }
-export type PairDeletePlanRequest = components["schemas"]["PairDeletePlanRequest"];
-export type PairDeleteRequest = components["schemas"]["PairDeleteRequest"];
+export type PairDeletePlanRequest = Omit<components["schemas"]["PairDeletePlanRequest"], "product"> & { product?: DataProduct };
+export type PairDeleteRequest = Omit<components["schemas"]["PairDeleteRequest"], "product"> & { product?: DataProduct };
 
 export type DataPolicy = Required<Pick<components["schemas"]["DataPolicy"], "symbol" | "product" | "base_level" | "intervals" | "realtime_enabled">> &
   Pick<components["schemas"]["DataPolicy"], "history_enabled" | "history_mode" | "history_start" | "history_days" | "underlying">;
