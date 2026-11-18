@@ -9,6 +9,7 @@ Agent 与 Platform 共用 **saoxia/SeeAlpha** 源码，不创建第三个仓库�
 - Platform 仍是唯一业务入口，节点只通过出站 HTTPS POST 长轮询连接，不要求公网 IP 或开放 Agent 入站端口。
 - 容器镜像必须在节点本地允许列表内；资源、绑定卷、端口及 Docker 操作受约束。
 - 支持通用工作负载的 ensure / stop / status / request 操作。新增业务容器无需修改 Agent。
+- 可选按用户独立 Harness Docker，使用 `harness_user_nodes` 按用户 ID 显式绑定节点；详见 [每用户独立 Harness](HARNESS_PER_USER.md)。该模式不复用租户 Engine 容器，且模型 Key 不注入 Agent Shell。
 - `ENGINE_DEPLOYMENT=distributed` 时，未绑定的租户仍使用现有**本机** Docker 管理器。
 - **远端可部署 development 和 production 租户，包括默认行情租户**；仅使用管理员显式指定的节点绑定，未绑定租户仍在本地。
 - 租户到节点的绑定是管理员维护的静态配置；切换绑定并不迁移状态、数据或账户。

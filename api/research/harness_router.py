@@ -1,7 +1,6 @@
-"""Single trusted-user development bridge to one resident Harness.
+"""Authenticated Platform bridge to single-user or user-dedicated Harness services.
 
-Not a multi-tenant research control plane. No Engine research grants or trading
-credentials are delivered to the Agent. Do not enable for untrusted customers.
+Harness has no production Engine research grants or trading credentials.
 """
 from __future__ import annotations
 
@@ -32,9 +31,13 @@ class ImportArtifactBody(BaseModel):
 
 def _require_harness_owner(request: Request, user: CurrentUser) -> None:
     # A resident Harness has one shared UID, model key, and task history. Only
-    # one explicitly designated, trusted account can use it; admin privilege
-    # does not grant access when another owner is configured.
+    # Single mode has one explicitly designated owner; per-user mode maps each
+    # authenticated non-admin user to a separate resident Harness.
     settings = request.app.state.settings
+    if settings.harness_deployment == "per_user":
+        if user.username.casefold() == settings.admin_username.casefold():
+            raise HTTPException(403, "管理员不能运行普通用户的研究任务。")
+        return
     owner = settings.harness_owner_username
     if not owner or owner.casefold() == settings.admin_username.casefold():
         raise HTTPException(503, "必须将 HARNESS_OWNER_USERNAME 显式设置为独立普通用户。")
@@ -43,14 +46,17 @@ def _require_harness_owner(request: Request, user: CurrentUser) -> None:
 
 
 @contextmanager
-def _client(request: Request):
+def _client(request: Request, user: CurrentUser):
     settings = request.app.state.settings
     if not settings.harness_enabled:
         raise HTTPException(503, "Harness 尚未启用。")
     try:
-        client = HarnessClient(settings.harness_url, settings.harness_token)
-    except ValueError:
-        raise HTTPException(503, "Harness 连接配置不完整。") from None
+        if settings.harness_deployment == "per_user":
+            client = request.app.state.harness_instances.client(user.id)
+        else:
+            client = HarnessClient(settings.harness_url, settings.harness_token)
+    except (ValueError, OSError):
+        raise HTTPException(503, "Harness 实例暂时不可用或配置不完整。") from None
     try:
         yield client
     except HarnessRejected as error:
@@ -69,7 +75,7 @@ def harness_status(request: Request, user: CurrentUser):
     if not request.app.state.settings.harness_enabled:
         return {"enabled": False, "available": False, "runtime_configured": False}
     try:
-        with _client(request) as client:
+        with _client(request, user) as client:
             state = client.health()
         return {"enabled": True, "available": True, **state}
     except HTTPException:
@@ -79,14 +85,14 @@ def harness_status(request: Request, user: CurrentUser):
 @router.post("/tasks", status_code=202)
 def start_harness_task(request: Request, body: PromptBody, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.create(body.prompt, queue_if_busy=body.queue_if_busy)
 
 
 @router.get("/tasks")
 def harness_history(request: Request, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return {"tasks": client.recent_tasks()}
 
 
@@ -94,7 +100,7 @@ def harness_history(request: Request, user: CurrentUser):
 def harness_timeline(request: Request, task_id: str, user: CurrentUser,
                      after: int = 0):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.timeline(task_id, after=after)
 
 
@@ -102,14 +108,14 @@ def harness_timeline(request: Request, task_id: str, user: CurrentUser,
 def import_harness_artifact(request: Request, task_id: str,
                             body: ImportArtifactBody, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.import_artifact(task_id, body.source_file)
 
 
 @router.get("/tasks/{task_id}")
 def harness_task(request: Request, task_id: str, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.get(task_id)
 
 
@@ -117,21 +123,21 @@ def harness_task(request: Request, task_id: str, user: CurrentUser):
 def continue_harness_task(request: Request, task_id: str, body: PromptBody,
                           user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.continue_task(task_id, body.prompt, queue_if_busy=body.queue_if_busy)
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=202)
 def cancel_harness_task(request: Request, task_id: str, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return client.cancel(task_id)
 
 
 @router.get("/tasks/{task_id}/artifacts")
 def harness_artifacts(request: Request, task_id: str, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         return {"artifacts": client.artifacts(task_id)}
 
 
@@ -139,7 +145,7 @@ def harness_artifacts(request: Request, task_id: str, user: CurrentUser):
 def download_harness_artifact(request: Request, task_id: str,
                               artifact_id: str, user: CurrentUser):
     _require_harness_owner(request, user)
-    with _client(request) as client:
+    with _client(request, user) as client:
         items = client.artifacts(task_id)
         item = next((x for x in items if x["artifact_id"] == artifact_id), None)
         if item is None:

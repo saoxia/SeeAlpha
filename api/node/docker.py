@@ -6,6 +6,7 @@ host boundary: allowlisted images, private mounts, limits and loopback ports.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -23,6 +24,7 @@ _ENV = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _TARGET = re.compile(r"^/app(?:/[A-Za-z0-9._-]+)+$")
 _MEMORY = re.compile(r"^([1-9][0-9]*)([mMgG])$")
 _CONTRACT_HEADER = "X-SeeAlpha-Engine-Contract"
+_HARNESS_HEADER = "X-SeeAlpha-Harness-Contract-Version"
 
 
 def memory_bytes(value):
@@ -122,6 +124,11 @@ class DockerRuntime:
 
     def ensure(self, spec):
         workload_id, image, cpus, memory, env, mounts, port = self._spec(spec)
+        if (type(spec.get("require_nonroot", False)) is not bool
+                or type(spec.get("read_only", False)) is not bool):
+            raise ValueError("Invalid workload security flags")
+        if spec.get("require_nonroot") and (not hasattr(os, "getuid") or os.getuid() == 0):
+            raise ValueError("This workload requires a non-root Node Agent user")
         fingerprint = hashlib.sha256(
             json.dumps(spec, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -156,6 +163,8 @@ class DockerRuntime:
                 "--security-opt", "no-new-privileges",
                 "--restart", "unless-stopped",
             ]
+            if spec.get("read_only"):
+                args.extend(["--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m"])
             if hasattr(os, "getuid") and hasattr(os, "getgid"):
                 args.extend(["--user", f"{os.getuid()}:{os.getgid()}"])
             if port is not None:
@@ -242,21 +251,37 @@ class DockerRuntime:
         if not isinstance(headers, dict):
             raise TypeError("Invalid headers")
         headers = {key: value for key, value in headers.items()
-                   if key.lower() in {"authorization", _CONTRACT_HEADER.lower()}}
+                   if key.lower() in {"authorization", _CONTRACT_HEADER.lower(),
+                                      _HARNESS_HEADER.lower()}}
         timeout = min(max(int(payload.get("timeout", 120)), 1), 600)
-        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+        with httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False) as client:
             response = client.request(
                 method, "http://127.0.0.1:" + bound[0]["HostPort"] + path,
                 headers=headers, json=payload.get("json"), params=payload.get("params"),
             )
-        if len(response.content) > 12 * 1024 * 1024:
+        # Base64 increases the JSON relay size by ~33%. Keep binary artifacts
+        # below the Node API's bounded response size.
+        binary = response.headers.get("content-type", "").split(";", 1)[0].lower() not in {
+            "application/json", "application/problem+json",
+        }
+        limit = 8 * 1024 * 1024 if binary else 12 * 1024 * 1024
+        if len(response.content) > limit:
             raise ValueError("Workload response exceeds relay size limit")
-        try:
-            body = response.json() if response.content else None
-        except ValueError as exc:
-            raise ValueError("Workload response is not JSON") from exc
+        if binary:
+            body = None
+            encoded = base64.b64encode(response.content).decode("ascii")
+        else:
+            try:
+                body = response.json() if response.content else None
+            except ValueError as exc:
+                raise ValueError("Workload response is not JSON") from exc
+            encoded = None
         return {"status": response.status_code, "body": body,
-                "headers": {_CONTRACT_HEADER: response.headers.get(_CONTRACT_HEADER, "")}}
+                "binary_b64": encoded,
+                "headers": {
+                    _CONTRACT_HEADER: response.headers.get(_CONTRACT_HEADER, ""),
+                    _HARNESS_HEADER: response.headers.get(_HARNESS_HEADER, ""),
+                }}
 
     def execute(self, action, payload):
         if action == "ensure":
