@@ -430,7 +430,8 @@ class EngineClient:
         return AccountSnapshot(payload["balances"], payload["info"], payload["positions"], payload["observed_at"])
 
     async def trading_state(self, account, symbol):
-        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/trading/state", json={
+        suffix = "/spot/trading/state" if not symbol.endswith("-PERP") else "/trading/state"
+        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + suffix, json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
@@ -438,7 +439,8 @@ class EngineClient:
         })
 
     async def command(self, account, action, values):
-        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/orders", json={
+        suffix = "/spot/orders" if not values["symbol"].endswith("-PERP") else "/orders"
+        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + suffix, json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
