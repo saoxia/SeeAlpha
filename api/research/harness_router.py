@@ -6,6 +6,9 @@ credentials are delivered to the Agent. Do not enable for untrusted customers.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import PurePath
+
+from starlette.responses import Response
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -97,3 +100,28 @@ def harness_artifacts(request: Request, task_id: str, context: CurrentContext):
     _require_developer(request, context)
     with _client(request) as client:
         return {"artifacts": client.artifacts(task_id)}
+
+
+@router.get("/tasks/{task_id}/artifacts/{artifact_id}")
+def download_harness_artifact(request: Request, task_id: str,
+                              artifact_id: str, context: CurrentContext):
+    _require_developer(request, context)
+    with _client(request) as client:
+        items = client.artifacts(task_id)
+        item = next((x for x in items if x["artifact_id"] == artifact_id), None)
+        if item is None:
+            raise HTTPException(404, "成果文件不存在。")
+        raw = client.download_artifact(task_id, artifact_id)
+        if type(item.get("size")) is int and item["size"] != len(raw):
+            raise HTTPException(503, "成果文件完整性检查失败。")
+        # Always a forced download, even for Markdown/HTML. No active user
+        # content is served as trusted same-origin HTML or JavaScript.
+        extension = PurePath(str(item.get("filename") or "")).suffix.lower()
+        if extension not in {".md", ".txt", ".csv", ".json", ".png", ".jpg",
+                             ".jpeg", ".pdf", ".py", ".parquet", ".bin"}:
+            extension = ".bin"
+        return Response(raw, media_type="application/octet-stream", headers={
+            "Content-Disposition": f'attachment; filename="{artifact_id}{extension}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        })
