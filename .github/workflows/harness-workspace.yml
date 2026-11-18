@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "api/research/harness_*.py"
+      - "api/node/**"
+      - "api/node_routes.py"
+      - "platform/tests/harness_instances_test.py"
+      - "platform/tests/node_agent_test.py"
       - "api/config.py"
       - "api/main.py"
       - "platform/tests/harness_bridge_test.py"
@@ -25,9 +29,9 @@ jobs:
           python-version: "3.14"
       - run: uv sync --project platform --locked
       - name: Harness bridge auth, lifecycle, artifacts and failure regressions
-        run: platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/harness_bridge_test.py
+        run: platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/harness_bridge_test.py platform/tests/harness_instances_test.py platform/tests/node_agent_test.py
       - name: Harness-boundary Python lint
-        run: platform/.venv/bin/ruff check api/research/harness_client.py api/research/harness_router.py platform/tests/harness_bridge_test.py
+        run: platform/.venv/bin/ruff check api/research/harness_client.py api/research/harness_router.py api/research/harness_instances.py api/node/docker.py api/node/hub.py platform/tests/harness_bridge_test.py platform/tests/harness_instances_test.py platform/tests/node_agent_test.py
 
   frontend_harness:
     runs-on: ubuntu-latest

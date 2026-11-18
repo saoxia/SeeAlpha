@@ -38,6 +38,7 @@ from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
+from .research.harness_instances import UserHarnessInstances
 from .research.harness_router import router as harness_router
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
@@ -194,6 +195,19 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 development_cpus=settings.engine_development_cpus,
                 development_memory=settings.engine_development_memory,
             )
+    if settings.harness_deployment not in {"single", "per_user"}:
+        raise ValueError("HARNESS_DEPLOYMENT must be single or per_user")
+    app.state.harness_instances = None
+    if settings.harness_enabled and settings.harness_deployment == "per_user":
+        if hub is None and settings.node_config_file is not None:
+            hub = NodeHub(settings.node_config_file)
+        app.state.harness_instances = UserHarnessInstances(
+            root=settings.harness_root or PROJECT / ".local/harness-users",
+            image=settings.harness_docker_image,
+            cpus=settings.harness_cpus,
+            memory=settings.harness_memory,
+            hub=hub,
+        )
     app.state.node_hub = hub
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
