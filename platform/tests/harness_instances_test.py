@@ -6,7 +6,6 @@ import stat
 
 import httpx
 import pytest
-
 from api.auth.security import hash_password, token_digest
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
