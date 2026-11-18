@@ -156,9 +156,10 @@ class DockerRuntime:
                 "--cpus", cpus, "--memory", memory, "--memory-swap", memory,
                 "--pids-limit", "256", "--cap-drop", "ALL",
                 "--security-opt", "no-new-privileges",
-                "--user", f"{os.getuid()}:{os.getgid()}",
                 "--restart", "unless-stopped",
             ]
+            if hasattr(os, "getuid") and hasattr(os, "getgid"):
+                args.extend(["--user", f"{os.getuid()}:{os.getgid()}"])
             if port is not None:
                 args.extend(["--publish", f"127.0.0.1::{port}"])
             volume_root = base / "volumes"

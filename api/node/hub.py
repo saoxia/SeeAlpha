@@ -55,11 +55,19 @@ class NodeHub:
 
     def poll(self, node_id, authorization):
         self.authenticate(node_id, authorization)
-        try:
-            command = self.queues[node_id].get(timeout=12)
-        except queue.Empty:
-            command = None
-        return {"command": command}
+        deadline = time.monotonic() + 12
+        while True:
+            try:
+                command = self.queues[node_id].get(
+                    timeout=max(0.01, deadline - time.monotonic()),
+                )
+            except queue.Empty:
+                return {"command": None}
+            with self.lock:
+                if command["id"] in self.pending:
+                    return {"command": command}
+            if time.monotonic() >= deadline:
+                return {"command": None}
 
     def complete(self, node_id, authorization, result):
         self.authenticate(node_id, authorization)
