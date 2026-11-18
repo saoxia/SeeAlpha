@@ -285,3 +285,80 @@ def test_platform_market_data_has_no_engine_source_or_runtime_file_reads():
         assert 'status.json' not in source
     assert "def observe(" not in (root / "monitor.py").read_text()
     assert "def resolve(" not in (root / "subscriptions.py").read_text()
+
+
+def test_platform_batch_add_is_one_sync_and_rejects_existing_symbols(tmp_path):
+    from api.market_data.contracts import DataPolicy, DataPolicyBatch
+
+    stored, calls = [], []
+
+    class Repository:
+        def save(self, policies, *, tenant_id):
+            assert tenant_id == 42
+            stored[:] = list(policies)
+
+        def list(self, *, tenant_id):
+            assert tenant_id == 42
+            return [p.model_dump(mode="json") for p in stored]
+
+    class Engine:
+        def market_control(self, operation, payload):
+            calls.append((operation, payload))
+            if operation == "sync":
+                return {"synced": len(payload["policies"])}
+            raise AssertionError(operation)
+
+    manager = SimpleNamespace(project=tmp_path, policy_repository=Repository(), engine=Engine())
+    subscription = Subscriptions(manager)
+    subscription._bound_tenant_id = 42
+    policies = [DataPolicy(symbol=symbol, realtime_enabled=False) for symbol in ("ETHUSDT", "BTCUSDT")]
+    assert DataPolicyBatch(policies=policies).policies == policies
+    assert subscription.save_batch(policies) == {
+        "added": 2, "symbols": ["ETHUSDT", "BTCUSDT"],
+    }
+    assert len(calls) == 1 and calls[0][0] == "sync"
+    assert len(calls[0][1]["policies"]) == 2
+    with pytest.raises(HTTPException) as exc:
+        subscription.save_batch([DataPolicy(symbol="ETHUSDT", realtime_enabled=False)])
+    assert exc.value.status_code == 409
+    assert len(calls) == 1
+    assert [p.symbol for p in stored] == ["ETHUSDT", "BTCUSDT"]
+    with pytest.raises(ValueError, match="重复"):
+        DataPolicyBatch(policies=[policies[0], policies[0]])
+    with pytest.raises(ValueError):
+        DataPolicyBatch(policies=[DataPolicy(symbol=f"S{i}USDT") for i in range(129)])
+    subscription.close()
+
+
+def test_platform_batch_rolls_back_all_when_engine_rejects(tmp_path):
+    from api.market_data.contracts import DataPolicy
+
+    previous = DataPolicy(symbol="LTCUSDT", realtime_enabled=False)
+    stored = [previous]
+    calls = []
+
+    class Repository:
+        def save(self, policies, *, tenant_id):
+            assert tenant_id == 42
+            stored[:] = list(policies)
+
+        def list(self, *, tenant_id):
+            return [p.model_dump(mode="json") for p in stored]
+
+    class Engine:
+        def market_control(self, operation, payload):
+            calls.append(operation)
+            raise HTTPException(409, "Engine rejected market-data update")
+
+    manager = SimpleNamespace(project=tmp_path, policy_repository=Repository(), engine=Engine())
+    subscription = Subscriptions(manager)
+    subscription._bound_tenant_id = 42
+    with pytest.raises(HTTPException) as exc:
+        subscription.save_batch([
+            DataPolicy(symbol="ETHUSDT", realtime_enabled=False),
+            DataPolicy(symbol="BTCUSDT", realtime_enabled=False),
+        ])
+    assert exc.value.status_code == 409
+    assert calls == ["sync"]
+    assert stored == [previous]
+    subscription.close()
