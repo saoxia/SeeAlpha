@@ -74,7 +74,7 @@ class UserHarnessInstances:
         self.hub = hub
         self.local = DockerRuntime(
             self.root / "workloads", allowed_images={image},
-            max_containers=1000, max_cpus=64, max_memory="256g",
+            max_containers=32, max_cpus=64, max_memory="256g",
         )
 
     @staticmethod
@@ -132,6 +132,8 @@ class UserHarnessInstances:
             "cpus": self.cpus,
             "memory": self.memory,
             "port": 8777,
+            "read_only": True,
+            "require_nonroot": True,
             "mounts": {"state": "/app/state"},
             "env": {
                 "HARNESS_API_TOKEN": token,
