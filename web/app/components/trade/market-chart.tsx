@@ -6,12 +6,20 @@ import type { Market, TradeState } from "@/app/features/trade/api";
 import { indicatorPlots, restoreIndicators, type IndicatorConfig } from "@/app/features/trade/indicators";
 import { chartViewPrefix, restoreChartView } from "@/app/features/trade/preferences";
 import { IndicatorSettings } from "./indicator-settings";
+import { TradingMarketOverlays } from "./market-overlays-canvas";
+import { appendDepthSnapshot, type DepthSnapshot, type LiquidationEstimates } from "@/app/features/trade/market-overlays";
 
 const defaults = {orders: true, positions: true, history: false, breakeven: false, liquidation: false, preview: true, alerts: false, quick: false};
 type Options = typeof defaults;
-const displays = {quick: "快捷填价（点击图表）", orders: "当前委托", positions: "持有仓位", history: "历史委托（委托价）", breakeven: "损益两平价", liquidation: "强平价格", alerts: "价格提醒", preview: "订单预览线"} as const;
-export function MarketChart({ market, identity, state, preview, onPrice, onNotice, displayDigits, periods, toolbar }: {
-  periods: ReactNode; toolbar: ReactNode; displayDigits: number; market: Pick<Market, "candles" | "last_price" | "symbol"> | null; identity: string; state: TradeState | null; preview: string; onPrice: (price: string) => void; onNotice: (message: string) => void;
+const displays = {quick: "快捷填价（点击图表）", orders: "当前委托", positions: "持有仓位", history: "历史委托（委托价）", breakeven: "损益两平价", liquidation: "账户持仓强平价", alerts: "价格提醒", preview: "订单预览线"} as const;
+export function MarketChart({ market, depth, modeledLiquidations = null, identity, state, preview, onPrice, onNotice, displayDigits, periods, toolbar }: {
+  periods: ReactNode; toolbar: ReactNode; displayDigits: number;
+  market: Pick<Market, "candles" | "last_price" | "symbol"> | null;
+  /** Already-subscribed Binance 20-level display depth (never sent to order execution). */
+  depth: Pick<Market, "bids" | "asks" | "depth_time"> | null;
+  /** Optional, separately sourced market-level *modeled* distribution; absent by default. */
+  modeledLiquidations?: LiquidationEstimates | null;
+  identity: string; state: TradeState | null; preview: string; onPrice: (price: string) => void; onNotice: (message: string) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const candles = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -25,6 +33,10 @@ export function MarketChart({ market, identity, state, preview, onPrice, onNotic
   const [options, setOptions] = useState<Options>(defaults);
   const [studies, setStudies] = useState<IndicatorConfig[] | null>(null);
   const plots = useRef(new Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>());
+  const marketOverlays = useRef<TradingMarketOverlays | null>(null);
+  const depthHistory = useRef<DepthSnapshot[]>([]);
+  const depthIdentity = useRef("");
+
   const [menu, setMenu] = useState<"indicators" | "display" | null>(null);
   const [alertPrice, setAlertPrice] = useState("");
   const [armed, setArmed] = useState<number | null>(null);
@@ -63,6 +75,7 @@ export function MarketChart({ market, identity, state, preview, onPrice, onNotic
     });
     chart.current = value;
     candles.current = value.addSeries(CandlestickSeries, {upColor: "#2ebd85", downColor: "#f6465d", borderVisible: false, wickUpColor: "#2ebd85", wickDownColor: "#f6465d"});
+    marketOverlays.current = new TradingMarketOverlays(container.current, value, candles.current);
     value.subscribeClick(param => {
       if (!handlers.current.quick || param.paneIndex !== 0 || !param.point || !candles.current) return;
       const price = candles.current.coordinateToPrice(param.point.y);
@@ -78,7 +91,7 @@ export function MarketChart({ market, identity, state, preview, onPrice, onNotic
     };
     saveView.current = save;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const schedule = () => {clearTimeout(timer); timer = setTimeout(save, 150);};
+    const schedule = () => {marketOverlays.current?.schedule();clearTimeout(timer); timer = setTimeout(save, 150);};
     value.timeScale().subscribeVisibleLogicalRangeChange(schedule);
     const element = container.current;
     element.addEventListener("pointerup", schedule);
@@ -87,6 +100,7 @@ export function MarketChart({ market, identity, state, preview, onPrice, onNotic
       clearTimeout(timer); save(); activeView.current = null; saveView.current = () => {};
       value.timeScale().unsubscribeVisibleLogicalRangeChange(schedule);
       element.removeEventListener("pointerup", schedule); element.removeEventListener("wheel", schedule);
+      marketOverlays.current?.remove();marketOverlays.current=null;
       value.remove(); chart.current = null; candles.current = null;
     };
   }, []);
@@ -152,6 +166,16 @@ export function MarketChart({ market, identity, state, preview, onPrice, onNotic
       series?.setData(data);
     }
   }, [rows, studies]);
+  useEffect(() => {
+    if(depthIdentity.current!==identity){depthHistory.current=[];depthIdentity.current=identity;}
+    // The browser already receives Binance 20-level depth for the book panel.
+    // Capture a bounded set of genuine snapshots, never invent historical depth.
+    depthHistory.current=appendDepthSnapshot(depthHistory.current,depth);
+    marketOverlays.current?.update({
+      rows:rows??[],studies:studies??[],depths:depthHistory.current,
+      liquidations:modeledLiquidations,symbol:market?.symbol??"",now:Date.now(),
+    });
+  },[identity,rows,studies,depth,modeledLiquidations,market?.symbol]);
   useEffect(() => {
     const series = candles.current; if (!series) return;
     const lines: ReturnType<typeof series.createPriceLine>[] = [];
