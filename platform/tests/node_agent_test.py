@@ -45,6 +45,7 @@ def test_hub_authentication_outbound_round_trip_and_cross_node_isolation(tmp_pat
     assert hub.assigned("7") == "edge"
     assert hub.assigned("8") == "local"
     assert hub.describe()["nodes"][0]["online"] is True
+    hub.last_seen["other"] = 0
     with pytest.raises(OSError, match="offline"):
         hub.call("other", "status", {}, timeout=0.1)
 
