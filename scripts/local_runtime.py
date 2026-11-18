@@ -72,6 +72,8 @@ class LocalRuntime:
         for key in (
             "DATABASE_URL", "DATABASE_URL_FILE", "AUTH_DB_PATH", "DATABASE_SCHEMA",
             "ENGINE_TOKEN", "ENGINE_URL", "ENGINE_DEPLOYMENT", "ENGINE_DOCKER_IMAGE",
+            "ENGINE_STATE", "ENGINE_PROJECT", "ENGINE_HOST", "ENGINE_PORT",
+            "ENGINE_MARKET_ACCOUNT_ID",
             "ENGINE_TENANT_ROOT", "ENGINE_TENANT_ID", "ENGINE_TENANT_PURPOSE",
             "COOKIE_SECURE", "ALLOWED_HOSTS", "ALLOWED_ORIGINS",
             "HARNESS_ENABLED", "HARNESS_URL", "HARNESS_API_TOKEN",
@@ -166,7 +168,8 @@ class LocalRuntime:
         env = self._clean_env()
         if service == "engine":
             env.update(ENGINE_TOKEN=token, ENGINE_HOST="127.0.0.1", ENGINE_PORT="8766",
-                       ENGINE_PROJECT=str(self.engine))
+                       ENGINE_PROJECT=str(self.engine),
+                       ENGINE_STATE=str(self.engine / ".local/state/engine"))
             cwd = self.engine
         elif service == "api":
             env.update(ENGINE_TOKEN=token, ENGINE_DEPLOYMENT="single",
