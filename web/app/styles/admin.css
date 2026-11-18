@@ -31,3 +31,9 @@ html[data-interface-theme="glass"] .admin-overview-cards button { border-color: 
 html[data-interface-theme="glass"] .admin-topbar nav button.active { background: #e8eef8; border-color: #c3d4ed; border-radius: 12px; }
 @media (max-width: 1060px) { .admin-topbar { flex-wrap: wrap; gap: 12px; } .admin-topbar nav { order: 3; flex-basis: 100%; } .admin-topbar-actions { margin-left: auto; } }
 @media (max-width: 620px) { .admin-topbar { padding: 14px; } .admin-identity { display: none; } .admin-topbar nav { justify-content: space-between; } .admin-overview { padding: 36px 16px; } .admin-overview-cards { grid-template-columns: 1fr; } .admin-topbar-actions { gap: 4px; } }
+
+/* Trading DATA uses a decorative overlap; admin DATA must stay below its own header. */
+html[data-interface-theme="glass"] .admin-console .data-management-page {
+  margin-top: 0;
+  padding-top: 28px;
+}
