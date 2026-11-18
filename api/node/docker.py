@@ -124,6 +124,10 @@ class DockerRuntime:
 
     def ensure(self, spec):
         workload_id, image, cpus, memory, env, mounts, port = self._spec(spec)
+        if type(spec.get("require_nonroot", False)) is not bool or type(spec.get("read_only", False)) is not bool:
+            raise ValueError("Invalid workload security flags")
+        if spec.get("require_nonroot") and (not hasattr(os, "getuid") or os.getuid() == 0):
+            raise ValueError("This workload requires a non-root Node Agent user")
         fingerprint = hashlib.sha256(
             json.dumps(spec, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -158,6 +162,8 @@ class DockerRuntime:
                 "--security-opt", "no-new-privileges",
                 "--restart", "unless-stopped",
             ]
+            if spec.get("read_only"):
+                args.extend(["--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m"])
             if hasattr(os, "getuid") and hasattr(os, "getgid"):
                 args.extend(["--user", f"{os.getuid()}:{os.getgid()}"])
             if port is not None:
