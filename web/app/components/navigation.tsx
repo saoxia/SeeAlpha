@@ -123,7 +123,6 @@ export function Navigation({
               </button>
             )}
             <section className="user-menu-appearance" aria-label="主题切换">
-              <h2>界面外观</h2>
               <ThemeSwitch />
             </section>
             {logoutError && <p role="alert" className="user-menu-error">{logoutError}</p>}
