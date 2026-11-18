@@ -6,6 +6,8 @@ import threading
 
 from fastapi import HTTPException
 
+from core.engine_contracts import QueryError
+
 from .contracts import DataPolicy, option_pair
 
 
@@ -69,7 +71,7 @@ class Subscriptions:
                     "policies": [p.model_dump(mode="json") for p in policies],
                 })
                 self.last_error = result.get("last_error")
-            except (OSError, HTTPException, StorageUnavailable, ValueError) as exc:
+            except (OSError, HTTPException, StorageUnavailable, QueryError, ValueError) as exc:
                 self.last_error = str(exc.detail if isinstance(exc, HTTPException) else exc)
 
     def _engine(self):
@@ -89,7 +91,7 @@ class Subscriptions:
             await asyncio.to_thread(self._include_options, markets)
         except HTTPException as exc:
             self.last_error = str(exc.detail)
-        except (StorageUnavailable, OSError, ValueError, RuntimeError, TimeoutError):
+        except (StorageUnavailable, OSError, QueryError, ValueError, RuntimeError, TimeoutError):
             self.last_error = "期权目录同步失败；保留原配置，稍后重试"
 
     def _include_options(self, markets):
