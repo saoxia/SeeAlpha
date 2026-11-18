@@ -1,4 +1,4 @@
-"""Authentication schema, compatible with the legacy business backend during migration."""
+"""Authentication and Platform schema for fresh SQLite databases."""
 
 import sqlite3
 import time
@@ -44,8 +44,7 @@ class Database:
                     token_hash TEXT PRIMARY KEY,
                     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     created_at INTEGER NOT NULL,
-                    expires_at INTEGER NOT NULL,
-                    impersonate_user_id INTEGER REFERENCES users(id)
+                    expires_at INTEGER NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at);
                 CREATE TABLE IF NOT EXISTS login_failures (
@@ -83,6 +82,7 @@ class Database:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS tenants_name_unique ON tenants(lower(name));
                 CREATE UNIQUE INDEX IF NOT EXISTS tenants_system_key_unique ON tenants(system_key);
+                CREATE INDEX IF NOT EXISTS tenants_owner_idx ON tenants(owner_id);
                 CREATE TABLE IF NOT EXISTS virtual_accounts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     tenant_id INTEGER NOT NULL REFERENCES tenants(id),
@@ -171,23 +171,6 @@ class Database:
             connection.execute(
                 "INSERT OR IGNORE INTO api_schema_migrations VALUES (2, ?)", (int(time.time()),)
             )
-            self._ensure_owner_columns(connection)
-
-    @staticmethod
-    def _column_names(connection, table):
-        return {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
-
-    @classmethod
-    def _ensure_owner_columns(cls, connection):
-        """Add ownership columns when an older sqlite file is opened again."""
-        if "owner_id" not in cls._column_names(connection, "tenants"):
-            connection.execute("ALTER TABLE tenants ADD COLUMN owner_id INTEGER REFERENCES users(id)")
-        if "impersonate_user_id" not in cls._column_names(connection, "sessions"):
-            connection.execute(
-                "ALTER TABLE sessions ADD COLUMN impersonate_user_id INTEGER REFERENCES users(id)"
-            )
-        connection.execute("CREATE INDEX IF NOT EXISTS tenants_owner_idx ON tenants(owner_id)")
-
     def close(self):
         pass
 

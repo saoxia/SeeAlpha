@@ -42,8 +42,6 @@ class Session(Base):
     )
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     expires_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    # Server-side act-as. Null means the session is the signed-in user.
-    impersonate_user_id: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id"))
 
 
 class LoginFailure(Base):

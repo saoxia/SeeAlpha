@@ -33,7 +33,7 @@ def environment(tmp_path):
         yield http, app, repository, tenants, admin
 
 
-def test_admin_cannot_act_as_trader_or_impersonate(environment):
+def test_admin_cannot_act_as_trader(environment):
     http, _app, _users, tenants, admin = environment
     signin(http, "admin")
     assert http.get("/api/auth/me").json()["is_admin"] is True
@@ -42,8 +42,8 @@ def test_admin_cannot_act_as_trader_or_impersonate(environment):
     assert http.get("/api/exchange-accounts").status_code == 403
     assert http.get("/api/system/exchange-accounts").status_code == 403
     assert http.get("/api/trading/markets").status_code == 403
-    assert http.post("/api/auth/impersonate", json={"username": "alice"}).status_code == 403
-    assert http.post("/api/auth/impersonate/stop").status_code == 403
+    assert http.post("/api/auth/impersonate", json={"username": "alice"}).status_code == 404
+    assert http.post("/api/auth/impersonate/stop").status_code == 404
     assert http.get("/api/users").json() == []
 
 
@@ -78,31 +78,6 @@ def test_new_ordinary_users_get_separate_tenants_and_cannot_read_each_other(envi
     assert http.get(f"/api/trading/accounts/{account['id']}/state?symbol=BTCUSDT-PERP").status_code == 404
     assert http.delete(f"/api/system/exchange-accounts/{account['id']}").status_code == 404
     assert app.state.accounts.row(account["id"])["tenant_id"] == production[0]["id"]
-
-
-def test_legacy_tenant_requires_explicit_admin_transfer(environment):
-    http, _app, _users, tenants, admin = environment
-    template_id = tenants.template_id_for("production")
-    legacy = tenants.create_tenant(template_id, "production", "管理员原有交易", None, admin["id"])
-    virtual = tenants.create_virtual_account(legacy["id"], "historical-paper", "100", "USDT")
-    signin(http, "admin")
-    response = http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
-    assert response.status_code == 201
-    alice_id = response.json()["id"]
-    found = http.get("/api/users/legacy-tenants")
-    assert found.status_code == 200
-    assert any(row["id"] == legacy["id"] for row in found.json())
-    url = f"/api/users/legacy-tenants/{legacy['id']}/transfer"
-    assert http.post(url, json={"target_username": "alice", "confirm": False}).status_code == 422
-    assert tenants.get_tenant(legacy["id"])["owner_id"] == admin["id"]
-    transferred = http.post(url, json={"target_username": "alice", "confirm": True})
-    assert transferred.status_code == 200, transferred.text
-    assert tenants.get_tenant(legacy["id"])["owner_id"] == alice_id
-    assert tenants.list_virtual_accounts(legacy["id"])[0]["id"] == virtual["id"]
-    assert not any(row["id"] == legacy["id"] for row in http.get("/api/users/legacy-tenants").json())
-    http.post("/api/auth/logout")
-    signin(http, "alice")
-    assert any(row["id"] == legacy["id"] for row in http.get("/api/tenants").json())
 
 
 def test_custom_admin_username_is_not_automatically_provisioned(tmp_path):

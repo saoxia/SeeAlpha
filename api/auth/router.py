@@ -3,14 +3,11 @@
 import time
 
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict, Field
 
 from .contracts import AuthResponse, LoginRequest, UserResponse
 from .dependencies import (
     COOKIE_NAME,
-    AdminUser,
-    CurrentContext,
-    SessionContext,
+    CurrentUser,
     SessionCookie,
     actor_is_admin,
 )
@@ -63,37 +60,9 @@ def login(payload: LoginRequest, request: Request, response: Response) -> AuthRe
     return AuthResponse(user=signed_in, is_admin=actor_is_admin(request, signed_in.username))
 
 
-def _session_response(request: Request, context: SessionContext) -> AuthResponse:
-    return AuthResponse(
-        user=context.user,
-        actor=context.actor if context.impersonating else None,
-        impersonating=context.impersonating,
-        is_admin=actor_is_admin(request, context.actor.username),
-    )
-
-
 @router.get("/me", response_model=AuthResponse)
-def me(request: Request, context: CurrentContext) -> AuthResponse:
-    return _session_response(request, context)
-
-
-class ImpersonateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    username: str = Field(min_length=1, max_length=64)
-
-
-@router.post("/impersonate", response_model=AuthResponse)
-def start_impersonation(
-    payload: ImpersonateRequest, request: Request, context: CurrentContext, _: AdminUser,
-) -> AuthResponse:
-    raise HTTPException(status_code=403, detail="管理员与普通用户身份已隔离，不能模拟用户登录。")
-
-
-
-@router.post("/impersonate/stop", response_model=AuthResponse)
-def stop_impersonation(request: Request, context: CurrentContext, _: AdminUser) -> AuthResponse:
-    raise HTTPException(status_code=403, detail="用户模拟功能已停用，请使用独立用户账户登录。")
-
+def me(request: Request, user: CurrentUser) -> AuthResponse:
+    return AuthResponse(user=user, is_admin=actor_is_admin(request, user.username))
 
 
 @router.post("/logout", status_code=204)

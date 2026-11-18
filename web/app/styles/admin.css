@@ -427,10 +427,3 @@ html[data-interface-theme="glass"] .admin-console .monitor-modal-head h2 { font-
   .admin-console .form-grid { grid-template-columns: minmax(0, 1fr); }
   .admin-console .field-wide { grid-column: auto; }
 }
-
-/* Legacy tenant ownership handoff is a management action, never user impersonation. */
-.admin-legacy-tenants { margin-top: 24px; padding-top: 4px; border-top: 1px solid var(--admin-border); }
-.admin-legacy-tenants select { width: 100%; min-width: 120px; height: 32px; border: 1px solid #9ba7b4; border-radius: 0; background: #fff; color: var(--admin-text); padding: 4px 6px; }
-.admin-legacy-tenants .admin-users-table td { vertical-align: middle; }
-.admin-legacy-tenants .admin-users-table td:last-child { width: 112px; }
-.admin-legacy-tenants .admin-users-table td > small { color: var(--admin-muted); font-size: 11px; }

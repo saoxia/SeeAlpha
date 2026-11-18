@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import Response
 
-from ..auth.dependencies import CurrentContext
+from ..auth.dependencies import CurrentUser
 from .harness_client import HarnessClient, HarnessRejected, HarnessUnavailable
 
 router = APIRouter(prefix="/harness", tags=["research-harness"])
@@ -30,16 +30,15 @@ class ImportArtifactBody(BaseModel):
     source_file: str = Field(min_length=1, max_length=140)
 
 
-def _require_harness_owner(request: Request, context: CurrentContext) -> None:
+def _require_harness_owner(request: Request, user: CurrentUser) -> None:
     # A resident Harness has one shared UID, model key, and task history. Only
     # one explicitly designated, trusted account can use it; admin privilege
-    # does not grant access when another owner is configured. Never allow
-    # impersonation to borrow that account's research execution rights.
+    # does not grant access when another owner is configured.
     settings = request.app.state.settings
     owner = settings.harness_owner_username
     if not owner or owner.casefold() == settings.admin_username.casefold():
         raise HTTPException(503, "必须将 HARNESS_OWNER_USERNAME 显式设置为独立普通用户。")
-    if context.impersonating or context.actor.username.casefold() != owner.casefold():
+    if user.username.casefold() != owner.casefold():
         raise HTTPException(403, "当前账户无权访问此单用户 Harness 运行实例。")
 
 
@@ -65,8 +64,8 @@ def _client(request: Request):
 
 
 @router.get("/status")
-def harness_status(request: Request, context: CurrentContext):
-    _require_harness_owner(request, context)
+def harness_status(request: Request, user: CurrentUser):
+    _require_harness_owner(request, user)
     if not request.app.state.settings.harness_enabled:
         return {"enabled": False, "available": False, "runtime_configured": False}
     try:
@@ -78,68 +77,68 @@ def harness_status(request: Request, context: CurrentContext):
 
 
 @router.post("/tasks", status_code=202)
-def start_harness_task(request: Request, body: PromptBody, context: CurrentContext):
-    _require_harness_owner(request, context)
+def start_harness_task(request: Request, body: PromptBody, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.create(body.prompt, queue_if_busy=body.queue_if_busy)
 
 
 @router.get("/tasks")
-def harness_history(request: Request, context: CurrentContext):
-    _require_harness_owner(request, context)
+def harness_history(request: Request, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return {"tasks": client.recent_tasks()}
 
 
 @router.get("/tasks/{task_id}/timeline")
-def harness_timeline(request: Request, task_id: str, context: CurrentContext,
+def harness_timeline(request: Request, task_id: str, user: CurrentUser,
                      after: int = 0):
-    _require_harness_owner(request, context)
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.timeline(task_id, after=after)
 
 
 @router.post("/tasks/{task_id}/artifacts/import", status_code=201)
 def import_harness_artifact(request: Request, task_id: str,
-                            body: ImportArtifactBody, context: CurrentContext):
-    _require_harness_owner(request, context)
+                            body: ImportArtifactBody, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.import_artifact(task_id, body.source_file)
 
 
 @router.get("/tasks/{task_id}")
-def harness_task(request: Request, task_id: str, context: CurrentContext):
-    _require_harness_owner(request, context)
+def harness_task(request: Request, task_id: str, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.get(task_id)
 
 
 @router.post("/tasks/{task_id}/continue", status_code=202)
 def continue_harness_task(request: Request, task_id: str, body: PromptBody,
-                          context: CurrentContext):
-    _require_harness_owner(request, context)
+                          user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.continue_task(task_id, body.prompt, queue_if_busy=body.queue_if_busy)
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=202)
-def cancel_harness_task(request: Request, task_id: str, context: CurrentContext):
-    _require_harness_owner(request, context)
+def cancel_harness_task(request: Request, task_id: str, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return client.cancel(task_id)
 
 
 @router.get("/tasks/{task_id}/artifacts")
-def harness_artifacts(request: Request, task_id: str, context: CurrentContext):
-    _require_harness_owner(request, context)
+def harness_artifacts(request: Request, task_id: str, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         return {"artifacts": client.artifacts(task_id)}
 
 
 @router.get("/tasks/{task_id}/artifacts/{artifact_id}")
 def download_harness_artifact(request: Request, task_id: str,
-                              artifact_id: str, context: CurrentContext):
-    _require_harness_owner(request, context)
+                              artifact_id: str, user: CurrentUser):
+    _require_harness_owner(request, user)
     with _client(request) as client:
         items = client.artifacts(task_id)
         item = next((x for x in items if x["artifact_id"] == artifact_id), None)
