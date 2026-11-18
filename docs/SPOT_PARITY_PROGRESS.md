@@ -22,7 +22,7 @@ K 线、研究回测、账户、订单、撤单及风险规则。二者共享 En
 
 ## 代码入口（功能分支）
 
-- Engine Spot 公开市场目录、K 线与最近成交：`engine/connectors/binance/spot.py`、
+- Engine Spot 公开市场目录、K 线与最近成交（正式和测试网隔离）：`engine/connectors/binance/spot.py`、
   `engine/public_queries.py`；公开 WebSocket 使用原始逐笔 `@trade`。
 - Engine 持续采集：`engine/feed/managed.py --spot-config ...` 调度独立的
   Spot 共享采集进程，不与永续资金费率连接混合。
