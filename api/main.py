@@ -189,6 +189,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             manager = DistributedTenantManager(
                 local, hub, image=settings.engine_docker_image,
                 root=settings.engine_tenant_root or PROJECT / ".local/tenants",
+                production_cpus=settings.engine_production_cpus,
+                production_memory=settings.engine_production_memory,
                 development_cpus=settings.engine_development_cpus,
                 development_memory=settings.engine_development_memory,
             )
