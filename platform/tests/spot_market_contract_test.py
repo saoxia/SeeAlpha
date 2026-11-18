@@ -4,7 +4,6 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from api.engine_client import EngineClient
 from api.exchanges import router as exchanges_router
 from fastapi import HTTPException
