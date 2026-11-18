@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
-from core.engine_contracts import QueryError
+from core.engine_contracts import EngineConflict, QueryError
 
 from .auth.router import router
 from .auth.users import router as users_router
@@ -18,7 +18,7 @@ from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
-from .engine_client import EngineClient
+from .engine_client import EngineClient, EngineUnavailable
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -41,6 +41,8 @@ from .tenant_docker import DockerTenantManager
 from .tenants.router import router as tenants_router
 from .tenants.service import TenantService
 
+_TENANT_RECONCILE_SECONDS = 15
+
 
 def create_app(settings: Settings | None = None, *, project: Path | None = None) -> FastAPI:
     settings = settings or Settings.from_environment()
@@ -51,6 +53,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     @asynccontextmanager
     async def lifespan(app):
         task = None
+        tenant_task = None
         olap_task = None
         configuration_task = None
         portfolio_task = None
@@ -61,11 +64,36 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 default = app.state.tenants.repository.require_default()
                 if default is not None:
                     manager.bind_market_tenant(default["id"])
-            for tenant in app.state.tenants.repository.list_tenants():
-                if tenant["status"] == "active":
-                    app.state.engine.ensure_tenant(
-                        tenant["id"], tenant["purpose"], tenant["status"]
-                    )
+            async def reconcile_tenants():
+                # Engine registration is not a prerequisite for auth or business APIs.
+                # Retry from the database so tenants created during an outage are
+                # eventually registered without restarting Platform.
+                while True:
+                    try:
+                        tenants = await asyncio.to_thread(
+                            app.state.tenants.repository.list_tenants
+                        )
+                    except (StorageUnavailable, OSError) as exc:
+                        logging.getLogger(__name__).warning(
+                            "租户列表读取失败，稍后重试：%s", exc,
+                        )
+                    else:
+                        for tenant in tenants:
+                            if tenant["status"] != "active":
+                                continue
+                            try:
+                                await asyncio.to_thread(
+                                    app.state.engine.ensure_tenant,
+                                    tenant["id"], tenant["purpose"], tenant["status"],
+                                )
+                            except (OSError, QueryError, EngineConflict) as exc:
+                                logging.getLogger(__name__).warning(
+                                    "租户 %s 的 Engine 注册未完成，稍后重试：%s",
+                                    tenant["id"], exc,
+                                )
+                    await asyncio.sleep(_TENANT_RECONCILE_SECONDS)
+
+            tenant_task = asyncio.create_task(reconcile_tenants())
             if app.state.management_project is not None:
                 # Another process may already hold the management lock. Startup
                 # still continues; only that holder runs and recovers jobs.
@@ -76,7 +104,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             async def settle_market_jobs():
                 try:
                     await asyncio.to_thread(app.state.market_data.reconcile_jobs)
-                except (OSError, HTTPException, StorageUnavailable):
+                except (OSError, HTTPException, StorageUnavailable, QueryError):
                     logging.getLogger(__name__).warning(
                         "行情任务的业务配置结算未完成，保留记录以便下次重试。",
                     )
@@ -110,7 +138,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             yield
         finally:
             await app.state.equity.close()
-            for background in (configuration_task, portfolio_task):
+            for background in (tenant_task, configuration_task, portfolio_task):
                 if background is not None:
                     background.cancel()
                     with suppress(asyncio.CancelledError):
@@ -185,6 +213,10 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
         return response
+
+    @app.exception_handler(EngineUnavailable)
+    async def engine_unavailable(request, error):
+        return JSONResponse({"detail": str(error)}, status_code=503)
 
     @app.exception_handler(QueryError)
     async def connector_error(request, error):
