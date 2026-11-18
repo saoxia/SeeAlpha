@@ -22,3 +22,6 @@
 .trade-page,.trade-ticker{scrollbar-width:none}.trade-page::-webkit-scrollbar,.trade-ticker::-webkit-scrollbar{display:none}
 
 .trade-chart-primary{display:flex;align-items:center;gap:8px;min-width:0}.trade-chart-periods{white-space:nowrap}.trade-chart-primary>.trade-chart-menu-anchor{flex-shrink:0;border-left:1px solid var(--trade-line);padding-left:8px}.trade-source-select{position:relative;margin-left:auto;flex-shrink:0}.trade-page .trade-source-select select{appearance:none;border:0;border-radius:0;background:transparent;color:var(--trade-muted);padding:5px 20px 5px 8px;cursor:pointer}.trade-source-select>span{position:absolute;right:6px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--trade-muted);font-size:11px}.trade-source-select option{background:#fff;color:#181a20}
+
+/* SeeAlpha market analysis overlays remain on top of the existing TradingView price pane, without intercepting chart gestures. */
+.trade-market-overlay-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
