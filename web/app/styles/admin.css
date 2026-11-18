@@ -323,6 +323,37 @@ html[data-interface-theme="glass"] .admin-console .research-page .settings-card 
 .admin-console .research-links a { font-size: 12px; }
 
 
+/* Link-style inventory names and row actions must remain easy to scan. */
+.admin-console .data-inventory-table .data-item-name,
+html[data-interface-theme="glass"] .admin-console .data-inventory-table .data-item-name {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #245a97;
+  box-shadow: none;
+}
+.admin-console .data-inventory-table .data-item-name:hover:not(:disabled),
+html[data-interface-theme="glass"] .admin-console .data-inventory-table .data-item-name:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+.admin-console .data-row-menu > div > button,
+html[data-interface-theme="glass"] .admin-console .data-row-menu > div > button {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 0;
+  background: #fff;
+  color: var(--admin-text);
+  text-align: left;
+}
+.admin-console .data-row-menu > div > button:hover:not(:disabled),
+html[data-interface-theme="glass"] .admin-console .data-row-menu > div > button:hover:not(:disabled) { background: #e7ebf0; }
+.admin-console .data-row-menu > div > button.data-danger-text,
+html[data-interface-theme="glass"] .admin-console .data-row-menu > div > button.data-danger-text { color: #99332e; }
+
 /* Preserve the same flat operator styling with either saved workspace theme. */
 .admin-console .data-overview-stats article,
 html[data-interface-theme="glass"] .admin-console .data-overview-stats article {
