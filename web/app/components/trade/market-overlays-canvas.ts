@@ -95,7 +95,7 @@ export class TradingMarketOverlays {
       if(a===null||b===null)continue;
       const xWidth=maxWidth*row.volume/maxVolume;
       const inValue=row.high<=profile.vah&&row.low>=profile.val;
-      ctx.globalAlpha=inValue?.37:.2;
+      ctx.globalAlpha=inValue ? 0.37 : 0.2;
       ctx.fillStyle=config.colors[0];
       ctx.fillRect(width-xWidth,Math.min(a,b)+.5,xWidth,Math.max(1,Math.abs(a-b)-1));
     }
