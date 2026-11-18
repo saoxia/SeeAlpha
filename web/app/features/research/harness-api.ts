@@ -18,6 +18,18 @@ export type HarnessTask = {
   error: string | null;
 };
 
+export type HarnessHistoryTask = Pick<HarnessTask,
+  "id" | "status" | "turn" | "created_at" | "updated_at" | "error">;
+
+export type HarnessEvent = {
+  sequence: number;
+  timestamp: string;
+  type: "progress" | "terminal" | "artifact_ready";
+  stage: string | null;
+  notifications: number | null;
+  status: string | null;
+};
+
 export type HarnessArtifact = {
   artifact_id: string;
   filename: string;
@@ -54,6 +66,24 @@ export function harnessStart(prompt: string) {
     method: "POST",
     body: JSON.stringify({prompt, queue_if_busy: true}),
   });
+}
+
+export async function harnessHistory(signal?: AbortSignal) {
+  const result = await request<{tasks:HarnessHistoryTask[]}>(base + "/tasks",{signal});
+  return result.tasks;
+}
+
+export function harnessTimeline(id: string, after=0, signal?: AbortSignal) {
+  return request<{events:HarnessEvent[],next_cursor:number,has_more:boolean}>(
+    base + "/tasks/" + encodeURIComponent(id) +
+    "/timeline?after=" + after, {signal});
+}
+
+export function harnessImport(id:string, sourceFile:string) {
+  return request<HarnessArtifact>(
+    base + "/tasks/" + encodeURIComponent(id) + "/artifacts/import",
+    {method:"POST",body:JSON.stringify({source_file:sourceFile})},
+  );
 }
 
 export function harnessGet(id: string, signal?: AbortSignal) {
