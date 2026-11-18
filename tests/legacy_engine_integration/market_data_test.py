@@ -49,7 +49,7 @@ def context(tmp_path, monkeypatch, engine_http):
         if product == "spot":
             return [{"symbol": "ETH/USDT", "base": "ETH", "quote": "USDT", "market_type": "spot"},
                     {"symbol": "ETH/USDC", "base": "ETH", "quote": "USDC", "market_type": "spot"}]
-        return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"
+        return [{"symbol": f"{base}/USDT:USDT", "base": base, "quote": "USDT", "market_type": "linear"}
                 for base in ("ETH", "XRP")] + [{"symbol": "ETH/USDC:USDC", "base": "ETH", "quote": "USDC", "market_type": "linear"}]
 
     app.state.exchanges.catalog = catalog
