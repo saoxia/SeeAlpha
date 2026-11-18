@@ -16,7 +16,7 @@ from pathlib import Path
 import httpx
 
 from ..node.docker import DockerRuntime
-from .harness_client import HarnessClient, HARNESS_HEADER
+from .harness_client import HARNESS_HEADER, HarnessClient
 
 
 class WorkloadTransport(httpx.BaseTransport):
@@ -52,7 +52,7 @@ class WorkloadTransport(httpx.BaseTransport):
             return httpx.Response(
                 result["status"], headers=headers, json=result.get("body"), request=request,
             )
-        except (OSError, KeyError, TypeError, ValueError) as exc:
+        except (OSError, KeyError, TypeError, ValueError):
             raise httpx.ConnectError(
                 "Harness node transport unavailable", request=request,
             ) from None
