@@ -131,7 +131,7 @@ class LocalRuntime:
         try:
             os.kill(pid, 0)
             details = subprocess.run(
-                ["ps", "-p", str(pid), "-o", "command="],
+                ["ps", "-ww", "-p", str(pid), "-o", "command="],
                 check=False, capture_output=True, text=True,
             ).stdout
         except (OSError, ProcessLookupError):

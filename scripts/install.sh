@@ -54,7 +54,7 @@ elif [[ -e "$db_file" ]]; then
   echo "检测到没有安装配置的现有业务数据库，拒绝接管。" >&2
   exit 2
 fi
-if [[ -e "$root/web/.env.local" ]]; then
+if [[ -e "$root/web/.env.local" || -L "$root/web/.env.local" ]]; then
   if [[ -L "$root/web/.env.local" ]] || ! grep -qx 'SEEALPHA_API_URL=http://127.0.0.1:8000' "$root/web/.env.local"; then
     echo "现有 web/.env.local 未指向本机 API，拒绝覆盖或部署。" >&2
     exit 2
