@@ -64,6 +64,14 @@ platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests
 cd web && npm run lint && npm run test:frontend && npm run build
 ```
 
+可执行真实模型的开发机上，先设置 Platform API 进程环境变量、启动已存在的 Harness 容器及 Platform API，然后在 Platform 仓库根目录运行：
+
+```bash
+platform/.venv/bin/python scripts/verify_harness_live.py --origin http://127.0.0.1:8000 --username admin
+```
+
+脚本交互读取管理员密码（不会写入命令行或日志），通过**真实 Platform 登录 Cookie**调用 Harness，实际提交一轮 Python 研究任务、等待完成、核实历史和进度、验证成果附件 SHA-256，然后续接第二轮任务再次验证摘要。它**不**使用假模型或模拟最终结果；模型 Key、Harness/Platform 是否实际部署均必须由当前开发机提供。任务调用产生真实模型成本。脚本不会接触 Engine、交易账户或下单；网络中断后不会自动重发。
+
 真实验收还需要在用户的开发主机上启动现有单 Harness Docker、配置测试模型 Key，执行任务和取消/续接/重启恢复，核实异常网络、任务超时和模型输出安全。当前阶段不可据此声明生产可用。
 
 长期路线：Platform 持久化任务所有者/租户与审计；开发租户权限和资源范围；可信 Research Gateway 代持短期 Engine Grant；Agent SDK 工具经隔离 MCP Bridge 访问 Engine 只读数据与开发回测；结果进入审核/策略登记/独立准入边界，最终支持多轮假设发现、回测、归因和迭代。**不能把目前的管理员本地接口直接当作这一生产控制面。**
