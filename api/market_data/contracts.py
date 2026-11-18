@@ -203,7 +203,7 @@ class DataPolicyBatch(BaseModel):
 
     @model_validator(mode="after")
     def validate_batch(self):
-        if any(p.product != "futures_um" or p.base_level not in {"tick", "1m"}
+        if any(p.product != "futures_um" or p.base_level == "auto"
                for p in self.policies):
             raise ValueError("批量添加只支持 U 本位永续 Tick 或 1m 配置")
         if len({p.symbol for p in self.policies}) != len(self.policies):
