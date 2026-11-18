@@ -103,3 +103,50 @@ def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tm
         assert retry.json()["retry_of"] == identity
 
     app.state.database.close()
+
+
+def test_worker_settings_admin_only_validated_and_forwarded(tmp_path, monkeypatch):
+    app = _client(tmp_path)
+    service = app.state.strategies
+    calls = []
+    monkeypatch.setattr(service.tenants.repository, "list_tenants", lambda: [
+        {"id": 7, "name": "开发 A", "purpose": "development", "status": "active"},
+        {"id": 8, "name": "正式 B", "purpose": "production", "status": "active"},
+        {"id": 9, "name": "已归档", "purpose": "development", "status": "archived"},
+    ])
+    monkeypatch.setattr(service.tenants, "require_active", lambda tenant_id: {
+        "id": tenant_id, "purpose": "production" if tenant_id == 8 else "development",
+        "status": "active",
+    })
+    def forward(method, tenant_id, suffix="", **kwargs):
+        calls.append((method, tenant_id, suffix, kwargs))
+        return {
+            "max_workers": kwargs.get("json", {}).get("max_workers", 1),
+            "timeout_seconds": kwargs.get("json", {}).get("timeout_seconds", 3600),
+            "default_max_workers": 1, "default_timeout_seconds": 3600,
+            "source": "saved" if method == "PUT" else "default",
+            "running": 0, "queued": 0,
+        }
+    monkeypatch.setattr(app.state.engine, "_task_sync", forward)
+    with TestClient(app) as http:
+        path = "/api/tenants/7/backtest/worker-settings"
+        assert http.get(path).status_code == 401
+        assert http.put(path, json={"max_workers": 2, "timeout_seconds": 100}).status_code == 401
+        login(http)
+        available = http.get("/api/admin/backtest-workers/tenants")
+        assert available.status_code == 200
+        assert [row["id"] for row in available.json()["items"]] == [7]
+        original = http.get(path)
+        assert original.status_code == 200 and original.json()["max_workers"] == 1
+        assert http.put(path, json={"max_workers": 9, "timeout_seconds": 100}).status_code == 422
+        assert http.put(path, json={"max_workers": True, "timeout_seconds": 100}).status_code == 422
+        assert http.put(path, json={"max_workers": 2, "timeout_seconds": 100, "extra": 1}).status_code == 422
+        assert http.get("/api/tenants/8/backtest/worker-settings").status_code == 409
+        saved = http.put(path, json={"max_workers": 2, "timeout_seconds": 1800})
+        assert saved.status_code == 200
+        assert saved.json()["max_workers"] == 2
+        assert calls == [
+            ("GET", 7, "/worker-settings", {}),
+            ("PUT", 7, "/worker-settings", {"json": {"max_workers": 2, "timeout_seconds": 1800}}),
+        ]
+    app.state.database.close()

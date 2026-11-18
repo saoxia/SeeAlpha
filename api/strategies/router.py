@@ -8,6 +8,13 @@ from ..auth.dependencies import AdminUser
 router = APIRouter(tags=["strategy-store"])
 
 
+class WorkerSettingsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_workers: int = Field(ge=1, le=8, strict=True)
+    timeout_seconds: int = Field(ge=1, le=86400, strict=True)
+
+
 class PackageCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     archive: str = Field(min_length=1, max_length=400_000)
@@ -51,6 +58,25 @@ def store(request: Request):
     if service is None:
         raise HTTPException(503, "策略商店不可用。")
     return service
+
+
+@router.get("/admin/backtest-workers/tenants")
+def list_worker_tenants(request: Request, _: AdminUser):
+    return {"items": store(request).development_worker_tenants()}
+
+
+@router.get("/tenants/{tenant_id}/backtest/worker-settings")
+def backtest_worker_settings(request: Request, tenant_id: int, _: AdminUser):
+    return store(request).backtest_worker_settings(tenant_id)
+
+
+@router.put("/tenants/{tenant_id}/backtest/worker-settings")
+def update_backtest_worker_settings(
+    request: Request, tenant_id: int, body: WorkerSettingsBody, _: AdminUser,
+):
+    return store(request).update_backtest_worker_settings(
+        tenant_id, body.max_workers, body.timeout_seconds,
+    )
 
 
 @router.get("/strategy-packages")

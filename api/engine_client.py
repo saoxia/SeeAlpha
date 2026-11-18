@@ -380,6 +380,15 @@ class EngineClient:
     def retry_task(self, tenant_id, identity):
         return self._task_sync("POST", tenant_id, f"/{identity}/retry")
 
+    def backtest_worker_settings(self, tenant_id):
+        return self._task_sync("GET", tenant_id, "/worker-settings")
+
+    def update_backtest_worker_settings(self, tenant_id, max_workers, timeout_seconds):
+        return self._task_sync(
+            "PUT", tenant_id, "/worker-settings",
+            json={"max_workers": max_workers, "timeout_seconds": timeout_seconds},
+        )
+
     def latest_backtest(self, tenant_id, account_id):
         try:
             return self._sync("GET", self._account_path(tenant_id, account_id) + "/backtests/latest")

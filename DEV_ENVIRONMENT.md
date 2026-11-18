@@ -1,6 +1,6 @@
 # SeeAlpha macOS / Linux 开发环境（Phase 20）
 
-需要首次运行完整本机环境时，可使用 [本机隔离安装器](docs/INSTALLATION.md)：`./seealpha install`、`./seealpha start`、`./seealpha status`、`./seealpha stop`。该入口仅适用于空数据库的本机开发，以下保留手工 Platform / Engine 开发与验收步骤，不用于生产升级。
+需要首次运行完整本机环境时，可使用 [本机隔离安装器](docs/INSTALLATION.md)：`./seealpha install`、`./seealpha start`、`./seealpha status`、`./seealpha stop`。该入口仅适用于空数据库的本机开发，以下保留手工 Platform / Engine 开发与验收步骤，不用于生产升级。 Windows 可通过 `seealpha.ps1` 引导 WSL2 Ubuntu 并复用该安装器，见 [Windows WSL2 说明](docs/INSTALLATION.md#windowswsl2-ubuntu-引导入口)；不支持 Windows 原生 Engine。
 
 本仓库只负责 Platform。Engine 的 Python/NautilusTrader/Rust 运行环境在
 [saoxia/seealpha-engine](https://github.com/saoxia/seealpha-engine)，
