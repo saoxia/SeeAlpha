@@ -97,7 +97,8 @@ class TenantService:
             )
         except StorageConflict as exc:
             raise HTTPException(409, "租户名称不能重复。") from exc
-        self.engine.ensure_tenant(tenant["id"], tenant["purpose"], "active")
+        # Registration is retried by the API's background tenant reconciler.
+        # Never fail a committed business tenant creation because Engine is offline.
         return self.publish(tenant)
 
     def create_development(self, owner_id, name, description):
