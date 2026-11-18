@@ -5,11 +5,12 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.engine_contracts import EngineConflict
 from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
@@ -27,6 +28,43 @@ class ManualOrderRequest(SubmitOrderValues):
 
 class ManualCancelRequest(CancelOrderValues):
     pass
+
+
+class SpotOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: UUID
+    symbol: str = Field(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")
+    side: Literal["buy", "sell"]
+    order_type: Literal["limit", "market"]
+    quantity: str = Field(pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
+    price: str | None = Field(default=None, pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
+    time_in_force: Literal["GTC", "IOC", "FOK"] = "GTC"
+    post_only: bool = False
+    environment: Literal["production", "sandbox"]
+
+    @model_validator(mode="after")
+    def check_spot(self):
+        if Decimal(self.quantity) <= 0:
+            raise ValueError("现货数量必须大于零")
+        if self.order_type == "limit" and (self.price is None or Decimal(self.price) <= 0):
+            raise ValueError("现货限价单需要有效价格")
+        if self.order_type == "market" and (
+            self.price is not None or self.post_only or self.time_in_force != "GTC"
+        ):
+            raise ValueError("现货市价单不能设置限价或 Post Only")
+        if self.post_only and self.time_in_force != "GTC":
+            raise ValueError("Post Only 仅支持 GTC")
+        return self
+
+
+class SpotCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: UUID
+    symbol: str = Field(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")
+    client_order_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9._:/-]+$")
+    environment: Literal["production", "sandbox"]
 
 
 class ManualOrderView(BaseModel):
@@ -168,14 +206,27 @@ async def state(request: Request, account_id: int, _: AdminUser,
                 symbol: str = Query(pattern=SYMBOL)):
     return await request.app.state.trading.snapshot(account_id, symbol)
 
+@router.get("/accounts/{account_id}/spot/state", response_model=ManualStateResponse)
+async def spot_state(request: Request, account_id: int, _: AdminUser,
+                     symbol: str = Query(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")):
+    return await request.app.state.trading.snapshot(account_id, symbol)
+
 
 @router.post("/accounts/{account_id}/orders", response_model=ManualOrderResponse)
 async def submit(request: Request, account_id: int, payload: ManualOrderRequest, _: AdminUser):
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
 
+@router.post("/accounts/{account_id}/spot/orders", response_model=ManualOrderResponse)
+async def spot_submit(request: Request, account_id: int, payload: SpotOrderRequest, _: AdminUser):
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
+
 
 @router.post("/accounts/{account_id}/cancel", response_model=ManualOrderResponse)
 async def cancel(request: Request, account_id: int, payload: ManualCancelRequest, _: AdminUser):
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
+
+@router.post("/accounts/{account_id}/spot/cancel", response_model=ManualOrderResponse)
+async def spot_cancel(request: Request, account_id: int, payload: SpotCancelRequest, _: AdminUser):
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
 
 
