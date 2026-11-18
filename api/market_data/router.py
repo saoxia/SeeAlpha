@@ -53,7 +53,7 @@ def service(request: Request):
 
 
 def query_range(symbol: str, start: datetime, end: datetime, interval: str = "1m",
-                product: Literal["futures_um", "options"] = "futures_um"):
+                product: Literal["futures_um", "spot", "options"] = "futures_um"):
     try:
         return DataRange(symbol=symbol, start=start, end=end, intervals=[] if interval == "tick" else [interval], product=product)
     except ValueError:
@@ -70,11 +70,11 @@ def capabilities(request: Request, user: CurrentUser):
 
 
 @router.get("/markets", response_model=list[DataMarket])
-async def data_markets(request: Request, _: AdminUser, product: Literal["futures_um", "options"] = "futures_um"):
+async def data_markets(request: Request, _: AdminUser, product: Literal["futures_um", "spot", "options"] = "futures_um"):
     if product == "options":
         return [{**item, "product": "options"} for item in await request.app.state.exchanges.catalog("production", product="options")]
-    items = await request.app.state.exchanges.catalog("production")
-    return [{"symbol": f"{item['base']}{item['quote']}", "base": item["base"], "quote": item["quote"]}
+    items = await request.app.state.exchanges.catalog("production", product=product)
+    return [{"symbol": f"{item['base']}{item['quote']}", "base": item["base"], "quote": item["quote"], "product": product}
             for item in items if item["quote"] in {"USDT", "USDC"}]
 
 
@@ -93,9 +93,10 @@ async def require_download_market(request, payload):
                                       and (item.get("underlying") or option_pair(item["symbol"])) == symbol for item in items):
             raise HTTPException(422, "该合约不在 Binance 当前期权目录中。")
         return
-    items = await request.app.state.exchanges.catalog("production")
-    if not any(f"{item['base']}{item['quote']}" == symbol and item["quote"] in {"USDT", "USDC"} for item in items):
-        raise HTTPException(422, "该交易对不在 Binance 当前支持的 U 本位永续品种中。")
+    items = await request.app.state.exchanges.catalog("production", product=payload.product)
+    quotes = {"USDT", "USDC", "FDUSD"} if payload.product == "spot" else {"USDT", "USDC"}
+    if not any(f"{item['base']}{item['quote']}" == symbol and item["quote"] in quotes for item in items):
+        raise HTTPException(422, "该交易对不在 Binance 当前可交易的对应产品目录中。")
 
 
 @router.get("/status")
@@ -112,21 +113,23 @@ def status(request: Request, _: CurrentUser):
 
 
 @router.get("/datasets")
-def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_levels: bool = False):
+def datasets(request: Request, _: CurrentUser, interval: str | None = None, all_levels: bool = False,
+             product: Literal["futures_um", "spot"] = "futures_um"):
     manager = service(request)
-    symbols = [p.symbol for p in manager.subscriptions._read() if p.product == "futures_um"]
+    symbols = [p.symbol for p in manager.subscriptions._read() if p.product == product]
     return data_engine(manager).data_query("datasets", {
-        "interval": interval, "all_levels": all_levels, "symbols": symbols,
+        "interval": interval, "all_levels": all_levels, "symbols": symbols, "product": product,
     })
 
 
 @router.get("/datasets/latest", response_model=dict[str, str | None])
-def latest_data_times(request: Request, _: CurrentUser):
+def latest_data_times(request: Request, _: CurrentUser,
+                      product: Literal["futures_um", "spot"] = "futures_um"):
     """Latest retained 1s bars for configured futures symbols, from Engine."""
     manager = service(request)
     symbols = [p.symbol for p in manager.subscriptions._read()
-               if p.product == "futures_um"]
-    return data_engine(manager).data_query("latest", {"symbols": symbols})
+               if p.product == product]
+    return data_engine(manager).data_query("latest", {"symbols": symbols, "product": product})
 
 
 @router.get("/coverage")
@@ -159,14 +162,15 @@ def delete_plan(request: Request, payload: DataDeletePlanRequest, _: AdminUser):
 
 @router.get("/chart", response_model=LocalChartResponse)
 def local_chart(request: Request, _: CurrentUser,
-                symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC)$"),
+                symbol: str = Query(pattern=r"^[A-Z0-9]+(?:USDT|USDC|FDUSD)$"),
+                product: Literal["futures_um", "spot"] = "futures_um",
                 interval: Literal["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"] = "1m"):
     """Bounded display projection from tenant Engine, not strategy readiness."""
     manager = service(request)
     policy = next((p for p in manager.subscriptions._read()
-                   if p.symbol == symbol and p.product == "futures_um"), None)
+                   if p.symbol == symbol and p.product == product), None)
     return data_engine(manager).data_query("chart", {
-        "symbol": symbol, "interval": interval,
+        "symbol": symbol, "interval": interval, "product": product,
         "base_level": policy.base_level if policy is not None else None,
     })
 
