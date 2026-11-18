@@ -73,12 +73,21 @@ test("one symbol groups stored levels without inventing coverage of the configur
   assert.equal(subscriptionState(config, 100), "仅历史数据");
 });
 
-test("managed subscription state expires and does not confuse connection with readiness", () => {
-  const config: Subscription = { policy: { symbol: "ETHUSDC", product: "futures_um", base_level: "1m", intervals: [], realtime_enabled: true },
-    runtime: { state: "READY", data_ready: true, reason: "continuous_closed_minutes", checked_ms: 10, valid_until_ms: 100 } };
-  assert.equal(subscriptionState(config, 50), "运行中");
-  assert.equal(subscriptionState(config, 101), "已过期");
-  assert.equal(subscriptionState({ ...config, runtime: { ...config.runtime, data_ready: false, state: "DEGRADED" } }, 50), "补缺或降级");
+test("managed futures status uses recent collected trades across a snapshot expiry", () => {
+  const config: Subscription = { policy: { symbol: "ETHUSDC", product: "futures_um", base_level: "tick", intervals: [], realtime_enabled: true },
+    runtime: { state: "READY", data_ready: true, reason: "collecting", checked_ms: 20_100, valid_until_ms: 25_100,
+      symbols: { ETHUSDC: { last_websocket_ms: 20_000, last_update_ms: 20_000 } } } };
+  assert.equal(subscriptionState(config, 25_101), "运行中");
+  const expired: Subscription = { ...config, runtime: { ...config.runtime, data_ready: false, state: "DEGRADED", reason: "status_expired" } };
+  assert.equal(subscriptionState(expired, 30_000), "运行中");
+  assert.equal(subscriptionState(expired, 30_001), "等待采集更新");
+  assert.equal(subscriptionState({ ...config, runtime: { ...config.runtime, symbols: {} } }, 21_000), "等待采集更新");
+  const collection = { state: "DEGRADED", healthy: false, backlog: 0, reason: "status_expired", last_processed_ms: 23_000 };
+  const services = { collection, history: collection, calculation: collection };
+  assert.equal(subscriptionState({ ...expired, services }, 31_000), "运行中");
+  assert.equal(subscriptionState({ ...expired, services: { ...services, collection: { ...collection, reason: "process_not_running" } } }, 26_000), "采集失败");
+  assert.equal(subscriptionState({ ...expired, runtime: { ...expired.runtime, reason: "raw_trade_stream_disconnected" } }, 26_000), "补缺或降级");
+  assert.equal(subscriptionState({ ...expired, runtime: { ...expired.runtime, reason: "process_exited" } }, 26_000), "采集失败");
   assert.equal(groupDataItems([], [config])[0].symbol, "ETHUSDC");
   assert.equal(subscriptionState({ ...config, policy: { ...config.policy, product: "options" },
     runtime: { ...config.runtime, state: "STOPPED", data_ready: false, reason: "expired" } }, 1000), "已到期");

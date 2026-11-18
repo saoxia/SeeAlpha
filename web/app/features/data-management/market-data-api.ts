@@ -111,8 +111,22 @@ export function subscriptionState(item: Subscription, now: number): string {
   if (runtime.reason === "process_exited") return "采集失败";
   if (runtime.reason === "invalid_status") return "状态异常";
   if (runtime.valid_until_ms == null) return "正在启动";
-  if (now > runtime.valid_until_ms) return "已过期";
-  if (runtime.state === "READY" && runtime.data_ready) return "运行中";
+  const ready = runtime.state === "READY" && runtime.data_ready;
+  if (item.policy.product === "futures_um" && item.policy.base_level !== "auto") {
+    const collection = item.services?.collection;
+    if (collection?.reason === "process_not_running") return "采集失败";
+    if (ready || runtime.reason === "status_expired") {
+      if (runtime.last_error || collection?.last_error) return "补缺或降级";
+      const lastCollected = collection?.last_processed_ms ?? runtime.symbols?.[item.policy.symbol]?.last_update_ms;
+      const observedAt = Math.max(now, runtime.checked_ms ?? now);
+      return lastCollected != null && lastCollected <= observedAt && observedAt - lastCollected <= 10_000
+        ? "运行中"
+        : "等待采集更新";
+    }
+  } else if (now > runtime.valid_until_ms) {
+    return "已过期";
+  }
+  if (ready) return "运行中";
   return ({ WARMING_UP: "预热中", DEGRADED: "补缺或降级", STOPPED: "已停止" }[runtime.state] ?? "待确认");
 }
 
