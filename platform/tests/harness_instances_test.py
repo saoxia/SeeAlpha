@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import base64
-import json
 import stat
 
 import httpx
 import pytest
 
+from api.auth.security import hash_password, token_digest
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
-from api.auth.security import hash_password, token_digest
 from api.main import create_app
 from api.research.harness_client import HARNESS_HEADER
 from api.research.harness_instances import UserHarnessInstances
