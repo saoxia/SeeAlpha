@@ -9,7 +9,6 @@ from api.main import create_app
 from api.tenants.repository import TenantRepository
 from fastapi.testclient import TestClient
 
-
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
 
 

@@ -85,7 +85,9 @@ def _legacy_admin_tenants(request: Request):
             continue
         children = tenants.count_children(tenant["id"])
         # The fresh, empty system seed is not a historical trading tenant.
-        if unclaimed_legacy and not any(children.values()):
+        # Unowned default policies alone are platform market-data configuration,
+        # not evidence that the tenant belonged to a former trading user.
+        if unclaimed_legacy and not (children["exchange_accounts"] or children["virtual_accounts"]):
             continue
         rows.append({
             "id": tenant["id"], "name": tenant["name"],

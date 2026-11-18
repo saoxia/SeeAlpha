@@ -110,7 +110,8 @@ def test_background_retries_and_registers_new_tenants_after_recovery(app_without
                 raise httpx.ConnectError("Engine offline", request=request)
             with lock:
                 registered.add(tenant_id)
-                if len(registered) >= 2:
+                # Platform default, ordinary production, and development tenants.
+                if len(registered) >= 3:
                     all_registered.set()
             return httpx.Response(
                 200,
