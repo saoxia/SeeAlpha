@@ -121,7 +121,6 @@ def test_password_whitespace_is_preserved_and_no_public_registration(environment
         assert client.post("/api/auth/register", json={}).status_code == 404
 
 
-
 @pytest.mark.parametrize("password", [
     "Abc12345",
     "Abcdef1!",
