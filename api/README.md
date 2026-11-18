@@ -127,7 +127,7 @@ platform/.venv/bin/python -m api.auth.manage create-user admin
 platform/.venv/bin/python -m api.auth.manage reset-password admin
 ```
 
-新建、重置密码要求 12–256 个字符；迁移保留原密码哈希，不改变已有账户的密码。
+新建、重置密码要求 8–256 个字符，且同时包含英文字母与数字；允许特殊字符。已有账户的原密码继续有效。
 重置密码会撤销该用户全部登录会话；退出只撤销当前会话。
 旧迁移用户及会话已清除；需要登录时请先通过上述交互命令创建用户。
 
