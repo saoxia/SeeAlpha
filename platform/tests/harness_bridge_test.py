@@ -26,11 +26,11 @@ BODY = {"id": ID, "status": "completed", "turn": 1,
         "prompt": "Secret user prompt", "error": None}
 
 
-def setup(tmp_path, *, enabled=True):
+def setup(tmp_path, *, enabled=True, owner=""):
     settings = Settings(
         tmp_path / "auth.db", cookie_secure=False,
         harness_enabled=enabled, harness_url="http://127.0.0.1:8777",
-        harness_token=TOKEN,
+        harness_token=TOKEN, harness_owner_username=owner,
     )
     db = Database(settings.database_path)
     db.initialize()
@@ -172,6 +172,49 @@ def test_no_impersonated_admin_agent_execution(tmp_path, monkeypatch):
         repository.set_impersonation(token_digest(cookie),viewer["id"])
         assert client.get("/api/harness/status").status_code == 403
         assert client.post("/api/harness/tasks",json={"prompt":"Agent"}).status_code == 403
+
+
+def test_named_trusted_user_can_use_harness_without_admin_privilege(tmp_path, monkeypatch):
+    from api.research import harness_router
+
+    seen = []
+
+    def respond(request):
+        seen.append((request.method, request.url.path))
+        if request.url.path == "/health":
+            return httpx.Response(
+                200, json={"service": "seealpha-harness", "contract_version": 1,
+                           "runtime_configured": True, "runtime_layout": "resident-container"},
+                headers={HARNESS_HEADER: "1"},
+            )
+        if request.url.path == "/v1/tasks" and request.method == "POST":
+            return httpx.Response(202, json=BODY, headers={HARNESS_HEADER: "1"})
+        raise AssertionError("unexpected Harness request")
+
+    class MockHarness(HarnessClient):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, transport=httpx.MockTransport(respond), **kwargs)
+
+    monkeypatch.setattr(harness_router, "HarnessClient", MockHarness)
+    with TestClient(create_app(setup(tmp_path, owner="viewer"))) as client:
+        login(client, "admin")
+        assert client.get("/api/harness/status").status_code == 403
+        assert client.post("/api/harness/tasks", json={"prompt": "x"}).status_code == 403
+        assert not seen
+
+        login(client, "viewer")
+        assert client.get("/api/harness/status").status_code == 200
+        assert client.post("/api/harness/tasks", json={"prompt": "User research"}).status_code == 202
+        assert seen == [("GET", "/health"), ("POST", "/v1/tasks")]
+
+        # Admin impersonation must never be allowed to act as the owner.
+        login(client, "admin")
+        actor_cookie = client.cookies.get("seealpha_session")
+        viewer = client.app.state.repository.get_user_by_username("viewer")
+        client.app.state.repository.set_impersonation(token_digest(actor_cookie), viewer["id"])
+        assert client.get("/api/harness/status").status_code == 403
+        assert client.post("/api/harness/tasks", json={"prompt": "impersonate"}).status_code == 403
+        assert len(seen) == 2
 
 
 def test_transport_errors_do_not_disclose_secrets():

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   bannerText,
+  canAccessAdminConsole,
   copyTenantBody,
   developmentCreateBody,
   errorDetail,
@@ -9,6 +10,7 @@ import {
   productionTenant,
   purposeLabel,
   sessionFromAuth,
+  sessionHomePath,
   shareTenantBody,
   sortTenants,
   statusLabel,
@@ -79,4 +81,19 @@ test("API error bodies surface the server detail", () => {
   assert.equal(errorDetail({ detail: "仅管理员可创建额外的正式租户。" }, "失败"), "仅管理员可创建额外的正式租户。");
   assert.equal(errorDetail({ detail: [{ msg: "x" }] }, "失败"), "失败");
   assert.equal(errorDetail(null, "失败"), "失败");
+});
+
+test("admin and user land in separate routes without granting impersonated access", () => {
+  const user = { id: 2, username: "alice" };
+  const admin = { id: 1, username: "admin" };
+  const ordinary = sessionFromAuth({ user });
+  const administrator = sessionFromAuth({ user: admin, is_admin: true });
+  const actingAsUser = sessionFromAuth({ user, actor: admin, impersonating: true, is_admin: true });
+  assert.ok(ordinary && administrator && actingAsUser);
+  assert.equal(sessionHomePath(ordinary), "/app");
+  assert.equal(sessionHomePath(administrator), "/admin");
+  assert.equal(sessionHomePath(actingAsUser), "/app");
+  assert.equal(canAccessAdminConsole(ordinary), false);
+  assert.equal(canAccessAdminConsole(administrator), true);
+  assert.equal(canAccessAdminConsole(actingAsUser), false);
 });

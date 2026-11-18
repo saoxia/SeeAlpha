@@ -7,10 +7,9 @@ import type { AuthSession, ManagedUser } from "../../features/identity/model";
 type UserAdminPageProps = {
   currentUsername: string;
   onSession: (session: AuthSession) => void;
-  onEntered: () => void;
 };
 
-export function UserAdminPage({ currentUsername, onSession, onEntered }: UserAdminPageProps) {
+export function UserAdminPage({ currentUsername, onSession }: UserAdminPageProps) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -80,7 +79,6 @@ export function UserAdminPage({ currentUsername, onSession, onEntered }: UserAdm
     setError("");
     try {
       onSession(await impersonateUser(username));
-      onEntered();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "无法进入该用户的视图。");
     } finally {

@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { TradingSystemApp } from "../trading-system-app";
+import { AdminConsole } from "../admin/admin-console";
 import { LoginPage } from "./login-page";
 import { SeeAlphaLogo } from "../brand/seealpha-logo";
-import { sessionFromAuth, type AuthSession } from "../../features/identity/model";
+import {
+  canAccessAdminConsole, sessionFromAuth, sessionHomePath, type AuthSession,
+} from "../../features/identity/model";
 
 export type { AuthUser } from "../../features/identity/model";
 
@@ -13,7 +17,10 @@ type AuthState =
   | { status: "anonymous" }
   | { status: "authenticated"; session: AuthSession };
 
-export function AuthGate() {
+type Destination = "auto" | "app" | "admin";
+
+export function AuthGate({ destination = "auto" }: { destination?: Destination }) {
+  const router = useRouter();
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
 
   useEffect(() => {
@@ -38,15 +45,42 @@ export function AuthGate() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (auth.status !== "authenticated") return;
+    if (destination === "auto") {
+      router.replace(sessionHomePath(auth.session));
+    } else if (destination === "admin" && !canAccessAdminConsole(auth.session)) {
+      router.replace("/app");
+    }
+  }, [auth, destination, router]);
+
   async function logout() {
-    await fetch("/api/auth/logout", {
+    const response = await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
     });
+    if (!response.ok) throw new Error("退出失败");
     setAuth({ status: "anonymous" });
+    router.replace("/");
   }
 
-  if (auth.status === "loading") {
+  function updateSession(session: AuthSession) {
+    const returningFromImpersonation =
+      destination === "app" &&
+      auth.status === "authenticated" &&
+      auth.session.impersonating &&
+      canAccessAdminConsole(session);
+    setAuth({ status: "authenticated", session });
+    if (destination === "admin" && !canAccessAdminConsole(session)) {
+      router.replace("/app");
+    } else if (returningFromImpersonation) {
+      router.replace("/admin");
+    }
+  }
+
+  if (auth.status === "loading" ||
+      (auth.status === "authenticated" &&
+        (destination === "auto" || (destination === "admin" && !canAccessAdminConsole(auth.session))))) {
     return (
       <main className="auth-loading" aria-label="正在检查登录状态">
         <SeeAlphaLogo className="loading-brand" />
@@ -56,18 +90,14 @@ export function AuthGate() {
   }
 
   if (auth.status === "anonymous") {
-    return (
-      <LoginPage
-        onAuthenticated={(session) => setAuth({ status: "authenticated", session })}
-      />
-    );
+    return <LoginPage onAuthenticated={(session) => setAuth({ status: "authenticated", session })} />;
+  }
+
+  if (destination === "admin") {
+    return <AdminConsole session={auth.session} onSession={updateSession} onLogout={logout} />;
   }
 
   return (
-    <TradingSystemApp
-      session={auth.session}
-      onSession={(session) => setAuth({ status: "authenticated", session })}
-      onLogout={logout}
-    />
+    <TradingSystemApp session={auth.session} onSession={updateSession} onLogout={logout} />
   );
 }

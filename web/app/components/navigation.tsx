@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { AppView } from "./types";
 import { SeeAlphaLogo } from "./brand/seealpha-logo";
 import { ThemeSwitch } from "./appearance/theme-switch";
@@ -115,12 +116,9 @@ export function Navigation({
               租户
             </button>
             {isAdmin && !impersonating && (
-              <button type="button" className="user-menu-link" onClick={() => {
-                menuRef.current?.removeAttribute("open");
-                onNavigate("users");
-              }}>
-                用户管理
-              </button>
+              <Link href="/admin" className="user-menu-link" onClick={() => menuRef.current?.removeAttribute("open")}>
+                管理后台
+              </Link>
             )}
             <section className="user-menu-appearance" aria-label="主题切换">
               <ThemeSwitch />

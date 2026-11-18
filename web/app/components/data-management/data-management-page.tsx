@@ -8,8 +8,11 @@ import { OperationsList } from "./data-management-sections";
 import { dataManagementApi, timestamp } from "@/app/features/data-management/api";
 import { emptyDataFilters, type DataFilters, type DataTab } from "@/app/features/data-management/types";
 
-export function DataManagementPage() {
-  const [tab, setTab] = useState<DataTab>("market");
+export function DataManagementPage({ scope = "user" }: { scope?: "user" | "admin" }) {
+  const [tab, setTab] = useState<DataTab>(scope === "admin" ? "market" : "operations");
+  const visibleTabs: Array<[DataTab, string]> = scope === "admin"
+    ? [["market", "行情数据"], ["operations", "账户记录运维"], ["monitor", "数据监控"]]
+    : [["operations", "账户记录"]];
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [draftFilters, setDraftFilters] = useState<DataFilters>(emptyDataFilters);
   const [filters, setFilters] = useState<DataFilters>(emptyDataFilters);
@@ -106,11 +109,7 @@ export function DataManagementPage() {
   return (
     <section className="data-management-page">
       <nav className="data-management-tabs" aria-label="数据管理分类">
-        {([
-          ["market", "行情数据"],
-          ["operations", "账户记录"],
-          ["monitor", "数据监控"],
-        ] as Array<[DataTab, string]>).map(([id, label]) => (
+        {visibleTabs.map(([id, label]) => (
           <button
             key={id}
             type="button"
@@ -181,7 +180,7 @@ export function DataManagementPage() {
       {message && <p className="data-management-message">{message}</p>}
 
       <div className="data-management-content">
-        {tab === "operations" && <div className="operation-backfill-bar">
+        {tab === "operations" && scope === "admin" && <div className="operation-backfill-bar">
           <div>
             <b>历史账户记录</b>
             <small>按当前账户与时间筛选补齐记录。未选择开始时间时，订单检查最近 24 小时，资金首次检查最近 87 天、之后续传；历史覆盖可能不完整。</small>
