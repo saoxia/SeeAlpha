@@ -16,6 +16,10 @@ from core.engine_contracts import (
 )
 
 
+class EngineUnavailable(OSError):
+    """Engine transport or tenant container is unavailable to the business API."""
+
+
 class RemoteProcess:
     def __init__(self, client, worker_id, pid):
         self.client = client
@@ -77,7 +81,10 @@ class EngineClient:
             tenant_id = match.group(1)
         elif match is not None and match.group(1) != str(tenant_id):
             raise EngineConflict("Engine 路由租户不匹配。")
-        url, token = self.tenant_manager.endpoint(tenant_id)
+        try:
+            url, token = self.tenant_manager.endpoint(tenant_id)
+        except OSError as exc:
+            raise EngineUnavailable("租户 Engine 不可用。") from exc
         return url, {
             "Authorization": f"Bearer {token}",
             ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
@@ -103,7 +110,7 @@ class EngineClient:
             with httpx.Client(timeout=timeout, transport=self.sync_transport) as client:
                 response = client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
-            raise OSError("交易引擎不可用") from exc
+            raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
             raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
@@ -117,7 +124,7 @@ class EngineClient:
             async with httpx.AsyncClient(timeout=120, transport=self.async_transport) as client:
                 response = await client.request(method, url + path, headers=headers, **kwargs)
         except httpx.HTTPError as exc:
-            raise OSError("交易引擎不可用") from exc
+            raise EngineUnavailable("交易引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code == 409:
             raise EngineConflict(response.json().get("detail", "引擎拒绝了该操作。"))
@@ -205,7 +212,7 @@ class EngineClient:
                     raise QueryError("导出文件不可用。")
                 yield from response.iter_bytes(chunk_size=65536)
         except httpx.HTTPError as exc:
-            raise OSError("租户 Engine 导出服务不可用。") from exc
+            raise EngineUnavailable("租户 Engine 导出服务不可用。") from exc
 
     def _account_credentials(self, account):
         return {
@@ -241,7 +248,7 @@ class EngineClient:
                         raise QueryError(event["error"])
                     yield event
         except httpx.HTTPError as exc:
-            raise OSError("交易引擎不可用") from exc
+            raise EngineUnavailable("交易引擎不可用。") from exc
 
     async def income_history(self, account, start_ms, end_ms):
         payload = {**self._account_credentials(account), "start_ms": start_ms, "end_ms": end_ms}
@@ -263,7 +270,10 @@ class EngineClient:
 
     def ensure_tenant(self, tenant_id, purpose, status="active"):
         if self.tenant_manager is not None:
-            self.tenant_manager.ensure(tenant_id, purpose, status)
+            try:
+                self.tenant_manager.ensure(tenant_id, purpose, status)
+            except OSError as exc:
+                raise EngineUnavailable("租户 Engine 不可用。") from exc
             if status == "archived":
                 return {"tenant_id": str(tenant_id), "status": status}
         return self._sync("PUT", f"/tenants/{tenant_id}", json={"purpose": purpose, "status": status})
@@ -479,12 +489,13 @@ class EngineClient:
         }
         path = self._account_path(account["tenant_id"], account["id"]) + "/valuation"
         url, headers = self._target(path)
-        async with httpx.AsyncClient(timeout=None, transport=self.async_transport) as client, client.stream(
-            "POST",
-            url + path,
-            headers=headers,
-            json=payload,
-        ) as response:
+        try:
+            async with httpx.AsyncClient(timeout=None, transport=self.async_transport) as client, client.stream(
+                "POST",
+                url + path,
+                headers=headers,
+                json=payload,
+            ) as response:
                 self._verify_contract(response)
                 response.raise_for_status()
                 async for line in response.aiter_lines():
@@ -494,6 +505,8 @@ class EngineClient:
                     if "error" in event and len(event) == 1:
                         raise QueryError(event["error"])
                     yield event
+        except httpx.RequestError as exc:
+            raise EngineUnavailable("交易引擎不可用。") from exc
 
 
 async def account_snapshot(account, engine):
