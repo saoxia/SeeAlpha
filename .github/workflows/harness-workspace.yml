@@ -1,0 +1,49 @@
+name: Harness research workspace checks
+
+on:
+  pull_request:
+    paths:
+      - "api/research/harness_*.py"
+      - "api/config.py"
+      - "api/main.py"
+      - "platform/tests/harness_bridge_test.py"
+      - "web/app/components/research/**"
+      - "web/app/features/research/**"
+      - "web/next.config.ts"
+      - "web/app/globals.css"
+      - ".github/workflows/harness-workspace.yml"
+  workflow_dispatch:
+
+jobs:
+  platform_harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --project platform --locked
+      - name: Harness bridge auth, lifecycle, artifacts and failure regressions
+        run: platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/harness_bridge_test.py
+      - name: Harness-boundary Python lint
+        run: platform/.venv/bin/ruff check api/research/harness_client.py api/research/harness_router.py platform/tests/harness_bridge_test.py
+
+  frontend_harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      - run: npm run test:frontend
+        working-directory: web
+      - run: npm run build
+        working-directory: web
