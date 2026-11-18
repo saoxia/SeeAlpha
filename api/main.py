@@ -19,6 +19,9 @@ from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
 from .engine_client import EngineClient, EngineUnavailable
+from .distributed_docker import DistributedTenantManager
+from .node_routes import router as node_router
+from node.hub import NodeHub
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -164,11 +167,12 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.repository = auth_repository(database)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
-    if settings.engine_deployment not in {"single", "docker"}:
-        raise ValueError("ENGINE_DEPLOYMENT must be single or docker")
+    if settings.engine_deployment not in {"single", "docker", "distributed"}:
+        raise ValueError("ENGINE_DEPLOYMENT must be single, docker or distributed")
     manager = None
-    if settings.engine_deployment == "docker":
-        manager = DockerTenantManager(
+    hub = None
+    if settings.engine_deployment in {"docker", "distributed"}:
+        local = DockerTenantManager(
             settings.engine_tenant_root or PROJECT / ".local/tenants",
             image=settings.engine_docker_image,
             production_cpus=settings.engine_production_cpus,
@@ -177,6 +181,18 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             development_memory=settings.engine_development_memory,
             log_root=(project if project is not None else PROJECT) / "logs",
         )
+        manager = local
+        if settings.engine_deployment == "distributed":
+            if settings.node_config_file is None:
+                raise ValueError("Distributed deployment requires NODE_CONFIG_FILE")
+            hub = NodeHub(settings.node_config_file)
+            manager = DistributedTenantManager(
+                local, hub, image=settings.engine_docker_image,
+                root=settings.engine_tenant_root or PROJECT / ".local/tenants",
+                development_cpus=settings.engine_development_cpus,
+                development_memory=settings.engine_development_memory,
+            )
+    app.state.node_hub = hub
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
         market_account_id=settings.engine_market_account_id,
@@ -255,6 +271,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(management_router, prefix="/api")
     app.include_router(harness_router, prefix="/api")
     app.include_router(tenants_router, prefix="/api")
+    app.include_router(node_router, prefix="/api")
     app.include_router(strategies_router, prefix="/api")
     return app
 
