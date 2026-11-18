@@ -171,19 +171,19 @@ async def state(request: Request, account_id: int, user: TradingUser,
 
 
 @router.post("/accounts/{account_id}/orders", response_model=ManualOrderResponse)
-async def submit(request: Request, account_id: int, payload: ManualOrderRequest, _: AdminUser):
+async def submit(request: Request, account_id: int, payload: ManualOrderRequest, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
 
 
 @router.post("/accounts/{account_id}/cancel", response_model=ManualOrderResponse)
-async def cancel(request: Request, account_id: int, payload: ManualCancelRequest, _: AdminUser):
+async def cancel(request: Request, account_id: int, payload: ManualCancelRequest, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
 
 
 @router.get("/accounts/{account_id}/requests/{request_id}", response_model=ManualOrderResponse)
-async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUser,
+async def lookup(request: Request, account_id: int, request_id: UUID, user: TradingUser,
                  environment: Literal["production", "sandbox"]):
     request.app.state.accounts.require_owned(account_id, user.id)
     service = request.app.state.trading
@@ -204,7 +204,7 @@ async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUs
     return stored["response"]
 
 @router.get("/markets", response_model=ManualMarketsResponse)
-async def market_list(request: Request, _: AdminUser,
+async def market_list(request: Request, user: TradingUser,
                       environment: Literal["production", "sandbox"] = "production"):
     catalog, snapshot = await asyncio.gather(request.app.state.exchanges.catalog(environment),
                                              request.app.state.engine.market_tickers(environment))

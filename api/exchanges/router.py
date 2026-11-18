@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from core.engine_contracts import QueryError
 
-from ..auth.dependencies import TradingUser, AdminUser
+from ..auth.dependencies import AdminUser, TradingUser
 from ..operations.options import position_view
 from .contracts import (
     ExchangeAccountCreateRequest,
@@ -41,18 +41,18 @@ async def markets(
 
 
 @router.get("/system/exchange-accounts", response_model=list[ExchangeAccountResponse])
-def accounts(request: Request, _: AdminUser):
+def accounts(request: Request, user: TradingUser):
     return request.app.state.accounts.list(user.id)
 
 
 @router.post("/system/exchange-accounts", response_model=ExchangeAccountResponse, status_code=201)
-def create_account(request: Request, payload: ExchangeAccountCreateRequest, _: AdminUser):
+def create_account(request: Request, payload: ExchangeAccountCreateRequest, user: TradingUser):
     return request.app.state.accounts.save(payload, owner_id=user.id)
 
 
 @router.put("/system/exchange-accounts/{account_id}", response_model=ExchangeAccountResponse)
 def update_account(
-    request: Request, account_id: int, payload: ExchangeAccountUpdateRequest, _: AdminUser
+    request: Request, account_id: int, payload: ExchangeAccountUpdateRequest, user: TradingUser
 ):
     result = request.app.state.accounts.save(payload, account_id, owner_id=user.id)
     request.app.state.exchanges.invalidate(account_id)
@@ -60,7 +60,7 @@ def update_account(
 
 
 @router.delete("/system/exchange-accounts/{account_id}", status_code=204)
-def delete_account(request: Request, account_id: int, _: AdminUser):
+def delete_account(request: Request, account_id: int, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     request.app.state.accounts.repository.delete_exchange_account(account_id)
     request.app.state.exchanges.invalidate(account_id)
@@ -70,7 +70,7 @@ def delete_account(request: Request, account_id: int, _: AdminUser):
 @router.post(
     "/system/exchange-accounts/{account_id}/test", response_model=ExchangeAccountTestResponse
 )
-async def test_account(request: Request, account_id: int, _: AdminUser):
+async def test_account(request: Request, account_id: int, user: TradingUser):
     await asyncio.to_thread(request.app.state.accounts.require_owned, account_id, user.id)
     try:
         await request.app.state.exchanges.snapshot(account_id, fresh=True)
@@ -90,7 +90,7 @@ async def test_account(request: Request, account_id: int, _: AdminUser):
 
 
 @router.get("/system/exchange-accounts/balances", response_model=ExchangeBalancesResponse)
-async def balances(request: Request, _: AdminUser):
+async def balances(request: Request, user: TradingUser):
     items = []
     for account in await asyncio.to_thread(request.app.state.accounts.list, user.id):
         try:
@@ -108,12 +108,12 @@ def navigation(request: Request, user: TradingUser):
 
 
 @router.get("/exchange-accounts/portfolio", response_model=ExchangePortfolioResponse)
-async def overview(request: Request, _: CurrentUser, refresh: bool = False):
+async def overview(request: Request, user: TradingUser, refresh: bool = False):
     return await request.app.state.exchanges.overview(fresh=refresh, owner_id=user.id)
 
 
 @router.get("/exchange-accounts/{account_id}/portfolio", response_model=ExchangePortfolioResponse)
-async def portfolio(request: Request, account_id: int, _: CurrentUser, refresh: bool = False):
+async def portfolio(request: Request, account_id: int, user: TradingUser, refresh: bool = False):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await request.app.state.exchanges.persisted_portfolio(account_id, fresh=refresh)
 
@@ -121,7 +121,7 @@ async def portfolio(request: Request, account_id: int, _: CurrentUser, refresh: 
 @router.get(
     "/exchange-accounts/{account_id}/positions", response_model=list[ExchangePositionResponse]
 )
-async def positions(request: Request, account_id: int, _: CurrentUser):
+async def positions(request: Request, account_id: int, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     values = (await request.app.state.exchanges.portfolio(account_id))["positions"]
     row = await asyncio.to_thread(request.app.state.accounts.row, account_id)

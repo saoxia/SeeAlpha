@@ -1,13 +1,14 @@
 """Administrator is only an operator; trading belongs to ordinary users."""
 
 import pytest
+from fastapi.testclient import TestClient
+
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
 from api.db.database import Database
 from api.main import create_app
 from api.tenants.repository import TenantRepository
-from fastapi.testclient import TestClient
 
 
 pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
@@ -83,7 +84,7 @@ def test_new_ordinary_users_get_separate_tenants_and_cannot_read_each_other(envi
 
 
 def test_legacy_tenant_requires_explicit_admin_transfer(environment):
-    http, app, users, tenants, admin = environment
+    http, _app, _users, tenants, admin = environment
     template_id = tenants.template_id_for("production")
     legacy = tenants.create_tenant(template_id, "production", "管理员原有交易", None, admin["id"])
     virtual = tenants.create_virtual_account(legacy["id"], "historical-paper", "100", "USDT")

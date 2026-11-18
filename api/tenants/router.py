@@ -86,7 +86,7 @@ def list_tenants(request: Request, user: TradingUser):
 
 @router.post("", status_code=201)
 def create_tenant(
-    request: Request, payload: TenantCreate, user: CurrentUser, context: CurrentContext,
+    request: Request, payload: TenantCreate, user: TradingUser,
 ):
     if payload.purpose not in (None, "development", "production"):
         raise HTTPException(422, "租户类型只能是正式或开发。")
@@ -104,50 +104,50 @@ def create_tenant(
 
 
 @router.post("/{tenant_id}/copy", status_code=201)
-def copy_tenant(request: Request, tenant_id: int, payload: TenantCopy, user: CurrentUser):
+def copy_tenant(request: Request, tenant_id: int, payload: TenantCopy, user: TradingUser):
     return tenants(request).copy_for_owner(
         tenant_id, user.id, payload.name, payload.description
     )
 
 
 @router.post("/{tenant_id}/share", status_code=201)
-def share_tenant(request: Request, tenant_id: int, payload: TenantShare, user: CurrentUser):
+def share_tenant(request: Request, tenant_id: int, payload: TenantShare, user: TradingUser):
     return tenants(request).share_with_user(
         tenant_id, user.id, payload.username, payload.name, payload.description
     )
 
 
 @router.post("/{tenant_id}/archive")
-def archive_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def archive_tenant(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).archive(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/restore")
-def restore_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def restore_tenant(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).restore(tenant_id, user.id)
 
 
 @router.delete("/{tenant_id}", status_code=204)
-def delete_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def delete_tenant(request: Request, tenant_id: int, user: TradingUser):
     tenants(request).delete(tenant_id, user.id)
     return Response(status_code=204)
 
 
 @router.get("/{tenant_id}/accounts")
-def list_accounts(request: Request, tenant_id: int, user: CurrentUser):
+def list_accounts(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).list_accounts(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/accounts", status_code=201)
-def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, user: CurrentUser):
+def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, user: TradingUser):
     return tenants(request).add_account(tenant_id, payload, user.id)
 
 
 @router.get("/{tenant_id}/subscriptions")
-def list_subscriptions(request: Request, tenant_id: int, user: CurrentUser):
+def list_subscriptions(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).list_subscriptions(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/subscriptions")
-def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, user: CurrentUser):
+def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, user: TradingUser):
     return tenants(request).save_subscription(tenant_id, payload, user.id)

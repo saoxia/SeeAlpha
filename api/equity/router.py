@@ -118,14 +118,14 @@ def overview(request: Request, user: TradingUser, interval: Interval = "5m", lim
 
 
 @router.get("/exchange-accounts/{account_id}/equity-candles", response_model=EquityCandleSeriesResponse)
-def account(request: Request, account_id: int, _: CurrentUser, interval: Interval = "5m",
+def account(request: Request, account_id: int, user: TradingUser, interval: Interval = "5m",
             limit: int = Query(120, ge=1, le=500)):
     row = request.app.state.accounts.require_owned(account_id, user.id)
     return series(request, [row], interval, limit, account_id, row["account_name"])
 
 
 @router.get("/exchange-accounts/{account_id}/equity-status")
-def status(request: Request, account_id: int, _: CurrentUser):
+def status(request: Request, account_id: int, user: TradingUser):
     row = request.app.state.accounts.require_owned(account_id, user.id)
     state = request.app.state.equity.repository.state(account_id, row["environment"])
     if state["status"] == "ready" and int(time.time() * 1000) - state.get("last_event_at", 0) > 30_000:
@@ -141,7 +141,7 @@ async def rebuild(request: Request, account_id: int, payload: EquityRebuildReque
 
 
 @router.get("/exchange-accounts/{account_id}/equity-rebuilds/{job_id}", response_model=EquityRebuildResponse)
-def rebuild_status(request: Request, account_id: int, job_id: str, _: CurrentUser):
+def rebuild_status(request: Request, account_id: int, job_id: str, user: TradingUser):
     row = request.app.state.accounts.require_owned(account_id, user.id)
     job = request.app.state.equity.repository.job(job_id)
     if job["account_id"] != account_id or job["environment"] != row["environment"]:
