@@ -56,7 +56,7 @@ export function TradingSystemApp({ session, onSession, onLogout }: TradingSystem
       {activeView === "live" && <LiveDashboard />}
       {activeView === "trade" && <TradePage />}
       {activeView === "data" && <DataManagementPage />}
-      {activeView === "research" && <ResearchPage />}
+      {activeView === "research" && <ResearchPage harnessAccess={session.isAdmin && !session.impersonating} />}
       {activeView === "settings" && <SettingsPage />}
       {activeView === "tenants" && <TenantPage />}
       {activeView === "users" && session.isAdmin && !session.impersonating && (
