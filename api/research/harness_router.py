@@ -25,6 +25,11 @@ class PromptBody(BaseModel):
     queue_if_busy: bool = True
 
 
+class ImportArtifactBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    source_file: str = Field(min_length=1, max_length=140)
+
+
 def _require_developer(request: Request, context: CurrentContext) -> None:
     # Never permit the administrator to run arbitrary Agent code while acting
     # as another user. Current local Harness is one-user/single-UID only.
@@ -71,6 +76,29 @@ def start_harness_task(request: Request, body: PromptBody, context: CurrentConte
     _require_developer(request, context)
     with _client(request) as client:
         return client.create(body.prompt, queue_if_busy=body.queue_if_busy)
+
+
+@router.get("/tasks")
+def harness_history(request: Request, context: CurrentContext):
+    _require_developer(request, context)
+    with _client(request) as client:
+        return {"tasks": client.recent_tasks()}
+
+
+@router.get("/tasks/{task_id}/timeline")
+def harness_timeline(request: Request, task_id: str, context: CurrentContext,
+                     after: int = 0):
+    _require_developer(request, context)
+    with _client(request) as client:
+        return client.timeline(task_id, after=after)
+
+
+@router.post("/tasks/{task_id}/artifacts/import", status_code=201)
+def import_harness_artifact(request: Request, task_id: str,
+                            body: ImportArtifactBody, context: CurrentContext):
+    _require_developer(request, context)
+    with _client(request) as client:
+        return client.import_artifact(task_id, body.source_file)
 
 
 @router.get("/tasks/{task_id}")
