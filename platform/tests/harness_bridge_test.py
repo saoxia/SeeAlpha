@@ -1,5 +1,6 @@
 """Platform Harness v1 integration tests: no Docker, SDK or network calls."""
 import json
+from hashlib import sha256
 from dataclasses import replace
 
 import httpx
@@ -76,7 +77,7 @@ def test_harness_auth_task_lifecycle_and_safe_artifact_download(tmp_path, monkey
         if path == f"/v1/tasks/{ID}/artifacts":
             return httpx.Response(200, json={"artifacts": [{
                 "artifact_id": "summary-1", "filename": "summary-1.md",
-                "kind": "markdown", "size": 10, "sha256": "a"*64,
+                "kind": "markdown", "size": 10, "sha256": sha256(b"1234567890").hexdigest(),
             }]}, headers={HARNESS_HEADER: "1"})
         if path == f"/v1/tasks/{ID}/artifacts/summary-1":
             return httpx.Response(200, content=b"1234567890", headers={
