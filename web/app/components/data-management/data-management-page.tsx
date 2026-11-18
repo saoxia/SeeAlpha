@@ -10,6 +10,9 @@ import { emptyDataFilters, type DataFilters, type DataTab } from "@/app/features
 
 export function DataManagementPage({ scope = "user" }: { scope?: "user" | "admin" }) {
   const [tab, setTab] = useState<DataTab>(scope === "admin" ? "market" : "operations");
+  const visibleTabs: Array<[DataTab, string]> = scope === "admin"
+    ? [["market", "行情数据"], ["monitor", "数据监控"]]
+    : [["operations", "账户记录"]];
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [draftFilters, setDraftFilters] = useState<DataFilters>(emptyDataFilters);
   const [filters, setFilters] = useState<DataFilters>(emptyDataFilters);
@@ -106,10 +109,7 @@ export function DataManagementPage({ scope = "user" }: { scope?: "user" | "admin
   return (
     <section className="data-management-page">
       <nav className="data-management-tabs" aria-label="数据管理分类">
-        {(scope === "admin"
-          ? [["market", "行情数据"], ["monitor", "数据监控"]]
-          : [["operations", "账户记录"]]
-        ).map(([id, label]) => (
+        {visibleTabs.map(([id, label]) => (
           <button
             key={id}
             type="button"

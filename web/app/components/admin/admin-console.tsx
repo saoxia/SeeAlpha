@@ -6,13 +6,17 @@ import { SeeAlphaLogo } from "../brand/seealpha-logo";
 import { ThemeSwitch } from "../appearance/theme-switch";
 import { UserAdminPage } from "../identity/user-admin-page";
 import { ResearchPage } from "../research/research-page";
+import { DataManagementPage } from "../data-management/data-management-page";
+import { OlapConnectionSettings } from "../settings/olap-connection-settings";
 import type { AuthSession } from "../../features/identity/model";
 
-type AdminSection = "overview" | "users" | "research";
+type AdminSection = "overview" | "users" | "data" | "olap" | "research";
 
 const sections: Array<{ id: AdminSection; label: string }> = [
   { id: "overview", label: "管理概览" },
   { id: "users", label: "用户管理" },
+  { id: "data", label: "数据运维" },
+  { id: "olap", label: "平台设置" },
   { id: "research", label: "AI Harness" },
 ];
 
@@ -82,8 +86,20 @@ export function AdminConsole({
               <small>创建用户、查看正式租户归属、进入用户视图</small>
               <b aria-hidden="true">→</b>
             </button>
+            <button type="button" onClick={() => setSection("data")}>
+              <span>02 / DATA</span>
+              <strong>数据运维</strong>
+              <small>行情数据管理、运行状态与数据监控</small>
+              <b aria-hidden="true">→</b>
+            </button>
+            <button type="button" onClick={() => setSection("olap")}>
+              <span>03 / SETTINGS</span>
+              <strong>平台设置</strong>
+              <small>配置和测试 OLAP 数据库连接</small>
+              <b aria-hidden="true">→</b>
+            </button>
             <button type="button" onClick={() => setSection("research")}>
-              <span>02 / OPERATIONS</span>
+              <span>04 / OPERATIONS</span>
               <strong>AI Harness</strong>
               <small>研究任务、项目检查与运行记录</small>
               <b aria-hidden="true">→</b>
@@ -94,6 +110,8 @@ export function AdminConsole({
       {section === "users" && (
         <UserAdminPage currentUsername={session.user.username} onSession={onSession} />
       )}
+      {section === "data" && <DataManagementPage scope="admin" />}
+      {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
       {section === "research" && <ResearchPage harnessAccess />}
     </main>
   );
