@@ -75,7 +75,7 @@ async def data_markets(request: Request, _: AdminUser, product: Literal["futures
         return [{**item, "product": "options"} for item in await request.app.state.exchanges.catalog("production", product="options")]
     items = await request.app.state.exchanges.catalog("production", product=product)
     return [{"symbol": f"{item['base']}{item['quote']}", "base": item["base"], "quote": item["quote"], "product": product}
-            for item in items if item["quote"] in {"USDT", "USDC"}]
+            for item in items if item["quote"] in ({"USDT", "USDC", "FDUSD"} if product == "spot" else {"USDT", "USDC"})]
 
 
 async def require_download_market(request, payload):
