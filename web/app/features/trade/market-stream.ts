@@ -19,6 +19,17 @@ export function mergeCandle(rows: Candle[], candle: Candle): Candle[] {
 export function marketUrls(environment: string, symbol: string, interval: string) {
   const raw = symbol.replace(/-PERP$/, "");
   const stream = raw.toLowerCase();
+  if (!symbol.endsWith("-PERP")) {
+    const host = environment === "sandbox" ? "stream.testnet.binance.vision" : "stream.binance.com:9443";
+    const rest = environment === "sandbox"
+      ? "https://testnet.binance.vision/api/v3/" : "https://data-api.binance.vision/api/v3/";
+    return {
+      rest,
+      market: `wss://${host}/stream?streams=${stream}@kline_${interval}/${stream}@aggTrade/${stream}@ticker`,
+      book: `wss://${host}/stream?streams=${stream}@depth20@100ms`,
+      raw,
+    };
+  }
   const host = environment === "sandbox" ? "demo-fstream.binance.com" : "fstream.binance.com";
   return {
     rest: environment === "sandbox" ? "https://demo-fapi.binance.com/fapi/v1/" : "https://fapi.binance.com/fapi/v1/",
@@ -50,6 +61,7 @@ export function applyMarketEvent(market: Market, event: WireEvent): Market {
 export function subscribeMarket(symbol: string, environment: "production" | "sandbox", interval: string,
   onMarket: (market: Market) => void, onError: (message: string) => void) {
   const urls = marketUrls(environment, symbol, interval);
+  const spot = !symbol.endsWith("-PERP");
   let stopped = false, retry = 1000;
   let sockets: WebSocket[] = [];
   let controller: AbortController | undefined;
@@ -82,7 +94,18 @@ export function subscribeMarket(symbol: string, environment: "production" | "san
         socket.onmessage = message => {
           if (stopped || failed || current !== generation) return;
           try {
-            const event = JSON.parse(message.data).data as WireEvent;
+            const event = JSON.parse(message.data).data as WireEvent & {lastUpdateId?: number; bids?: string[][]; asks?: string[][]};
+            if (index === 1 && spot && Array.isArray(event?.bids) && Array.isArray(event?.asks)) {
+              last[index] = Date.now();
+              if (value) {
+                value = {...value, bids: event.bids, asks: event.asks, depth_time: Date.now()};
+                if (!flushTimer) flushTimer = setTimeout(() => {
+                  flushTimer = undefined;
+                  if (!stopped && !failed && value) {onMarket(value); onError(""); retry = 1000;}
+                }, 100);
+              }
+              return;
+            }
             if (!event || event.s !== urls.raw || !Number.isFinite(event.E)) return;
             last[index] = Date.now();
             if (!value) {
@@ -110,14 +133,15 @@ export function subscribeMarket(symbol: string, environment: "production" | "san
       const [candles, ticker, premium] = await Promise.all([
         get<(string | number)[][]>("klines", {interval, limit: "300"}),
         get<{lastPrice: string; priceChangePercent: string; highPrice: string; lowPrice: string; quoteVolume: string; volume: string; priceChange: string}>("ticker/24hr"),
-        get<{markPrice: string; indexPrice: string; lastFundingRate: string; nextFundingTime: number}>("premiumIndex"),
+        spot ? Promise.resolve(null) : get<{markPrice: string; indexPrice: string; lastFundingRate: string; nextFundingTime: number}>("premiumIndex"),
       ]);
       if (stopped || failed || current !== generation) return;
       value = {symbol, environment, interval, checked_at: 0,
         candles: candles.map(r => ({time: Number(r[0]) / 1000, open: String(r[1]), high: String(r[2]), low: String(r[3]), close: String(r[4]), volume: String(r[5])})),
         bids: [], asks: [], trades: [], depth_time: null, last_price: ticker.lastPrice,
         change_percent: ticker.priceChangePercent, change_price: ticker.priceChange, base_volume: ticker.volume, high: ticker.highPrice, low: ticker.lowPrice, quote_volume: ticker.quoteVolume,
-        mark_price: premium.markPrice, index_price: premium.indexPrice, funding_rate: premium.lastFundingRate, next_funding_time: premium.nextFundingTime};
+        mark_price: premium?.markPrice ?? "", index_price: premium?.indexPrice ?? "",
+        funding_rate: premium?.lastFundingRate ?? "", next_funding_time: premium?.nextFundingTime ?? 0};
       for (const event of buffer) value = applyMarketEvent(value, event);
       onMarket(value);
       onError(value.checked_at ? "" : "正在等待 Binance 实时 K 线…");
@@ -138,7 +162,7 @@ export function subscribeMarket(symbol: string, environment: "production" | "san
         onMarket(value);
         interestTimer = setTimeout(loadInterest, 30000);
       }
-      void loadInterest();
+      if (!spot) void loadInterest();
     } catch {fail();}
   }
   void connect();
