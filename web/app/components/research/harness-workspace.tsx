@@ -28,8 +28,9 @@ export function HarnessWorkspace() {
         const next = await harnessStatus(controller.signal);
         if (controller.signal.aborted) return;
         setStatus(next);
-        const id = localStorage.getItem(harnessTaskStorageKey);
-        if (id && /^[a-f0-9-]{36}$/.test(id)) {
+        let id: string | null = null;
+        try { id = localStorage.getItem(harnessTaskStorageKey); } catch { /* Storage may be disabled. */ }
+        if (next.enabled && next.available && id && /^[a-f0-9-]{36}$/.test(id)) {
           const previous = await harnessGet(id, controller.signal);
           if (!controller.signal.aborted) setTask(previous);
         }
@@ -86,7 +87,7 @@ export function HarnessWorkspace() {
       setTask(next);
       setPrompt("");
       setArtifacts([]);
-      localStorage.setItem(harnessTaskStorageKey,next.id);
+      try { localStorage.setItem(harnessTaskStorageKey,next.id); } catch { /* Session still works. */ }
     } catch (e) {
       setError(e instanceof Error ? e.message : "提交结果不明，请先核实任务，不要盲目重试。");
     } finally {
@@ -105,7 +106,7 @@ export function HarnessWorkspace() {
   function fresh() {
     setTask(null);
     setArtifacts([]);
-    localStorage.removeItem(harnessTaskStorageKey);
+    try { localStorage.removeItem(harnessTaskStorageKey); } catch { /* Optional preference. */ }
     setError("");
   }
 
