@@ -172,6 +172,21 @@ class EngineClient:
             json={"environment": environment},
         )
 
+    async def spot_candles(self, symbol, interval, start_ms, end_ms, *, limit=1000):
+        """Read Binance Spot public candles only; no persistent catalog mutation."""
+        return await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/spot/klines",
+            json={"environment": "production", "symbol": symbol, "interval": interval,
+                  "start_ms": start_ms, "end_ms": end_ms, "limit": limit},
+        )
+
+    async def spot_recent_trades(self, symbol, *, limit=500):
+        """Only the venue's bounded recent public trade page, not trade history."""
+        return await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/spot/trades",
+            json={"environment": "production", "symbol": symbol, "limit": limit},
+        )
+
     async def asset_price(self, environment, currency):
         result = await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/asset-price",
