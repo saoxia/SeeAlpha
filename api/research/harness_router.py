@@ -6,6 +6,7 @@ credentials are delivered to the Agent. Do not enable for untrusted customers.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from hashlib import sha256
 from pathlib import PurePath
 
 from starlette.responses import Response
@@ -112,7 +113,9 @@ def download_harness_artifact(request: Request, task_id: str,
         if item is None:
             raise HTTPException(404, "成果文件不存在。")
         raw = client.download_artifact(task_id, artifact_id)
-        if type(item.get("size")) is int and item["size"] != len(raw):
+        if ((type(item.get("size")) is int and item["size"] != len(raw))
+                or (isinstance(item.get("sha256"), str)
+                    and sha256(raw).hexdigest() != item["sha256"])):
             raise HTTPException(503, "成果文件完整性检查失败。")
         # Always a forced download, even for Markdown/HTML. No active user
         # content is served as trusted same-origin HTML or JavaScript.
