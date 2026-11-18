@@ -19,6 +19,8 @@ Platform（`api/` + `web/`）专注用户/租户/授权、策略研发管理、�
 [Engine / Platform 产品与架构边界](docs/ENGINE_PLATFORM_BOUNDARIES.md)；
 当前已完成 Platform 的源码导入隔离和 Engine 跨进程契约验收，但不意味着已完成实盘策略或真实账户验收。
 
+**Harness 开发集成**：RESEARCH 新增可选 AI Harness 任务入口，保持独立单 Docker、通过 Platform 管理员鉴权代理访问。该实验入口默认关闭，尚未接通可信研究网关、Engine Agent 工具或生产多租户隔离。配置与限制见 [Harness 集成说明](docs/HARNESS_INTEGRATION.md)。
+
 ## 产品范围与当前实现
 
 多资产、多交易产品是 SeeAlpha 的产品定位；具体市场能否使用，取决于对应连接器、

@@ -35,6 +35,7 @@ from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
+from .research.harness_router import router as harness_router
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
 from .tenant_docker import DockerTenantManager
@@ -252,6 +253,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(olap_router, prefix="/api")
     app.include_router(market_data_router, prefix="/api")
     app.include_router(management_router, prefix="/api")
+    app.include_router(harness_router, prefix="/api")
     app.include_router(tenants_router, prefix="/api")
     app.include_router(strategies_router, prefix="/api")
     return app

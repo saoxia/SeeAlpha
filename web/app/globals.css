@@ -299,3 +299,38 @@ html[data-interface-theme="glass"] .data-market-picker select { border-color: #c
 .tenant-actions small{color:#777a80;font-size:10px}
 main:has(.impersonation-banner) .settings-layout{height:calc(100vh - 137px)}
 @media(max-width:760px){.impersonation-banner{align-items:flex-start;flex-direction:column;padding:10px 16px}.tenant-row{grid-template-columns:minmax(0,1fr) auto}.tenant-row>span:nth-of-type(2){display:none}}
+
+
+/* Optional local Harness research workspace (existing RESEARCH page). */
+.research-harness-form { display: grid; gap: 10px; margin: 20px 0; }
+.research-harness-form > label { color: var(--glass-ink, #27384c); font-size: 12px; font-weight: 650; }
+.research-harness-form textarea { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 120px; padding: 12px; border: 1px solid #cbd3dd; border-radius: 8px; background: #fff; color: #25354b; font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }
+.research-harness-form textarea:disabled { background: #f2f4f7; color: #747f8d; }
+.research-harness-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.research-harness-controls button { min-height: 34px; padding: 6px 14px; border: 1px solid #cbd3dd; border-radius: 6px; font-size: 12px; }
+.research-harness-controls button:disabled { opacity: .55; cursor: not-allowed; }
+.research-harness-task { border: 1px solid #dce3eb; border-radius: 8px; padding: 14px; min-width: 0; }
+.research-harness-task .research-log { min-height: 100px; max-height: 400px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.research-harness-task .research-log-head { flex-wrap: wrap; gap: 8px; }
+.research-harness-task .research-log-head b { overflow-wrap: anywhere; }
+.research-harness-artifacts { padding: 8px 0; }
+.research-harness-artifacts h3 { font-size: 12px; margin: 8px 0; }
+.research-harness-artifacts p { font-size: 11px; overflow-wrap: anywhere; }
+
+
+.research-harness-layout { display: grid; grid-template-columns: minmax(170px, 220px) minmax(0,1fr); gap: 18px; align-items: start; }
+.research-harness-history { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-height: 520px; overflow-y: auto; border: 1px solid #dce3eb; padding: 10px; border-radius: 8px; }
+.research-harness-history-head { display: flex; justify-content: space-between; align-items: center; gap: 5px; margin-bottom: 5px; font-size: 12px; }
+.research-harness-history button { display: grid; width: 100%; gap: 3px; text-align: left; padding: 8px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; }
+.research-harness-history button:hover { background: #edf1f8; }
+.research-harness-history button.active { background: #e7eef8; border-color: #bdcce0; font-weight: 650; }
+.research-harness-history button small { font-size: 10px; color: #718096; }
+.research-harness-main { min-width: 0; }
+.research-harness-events { padding: 8px 10px; border-left: 2px solid #9fb9d8; background: #f7f9fc; max-height: 140px; overflow-y: auto; }
+.research-harness-events p { font-size: 11px; line-height: 1.5; margin: 2px 0; color: #53657c; }
+.research-harness-import { display: grid; gap: 7px; border-top: 1px solid #dce3eb; padding-top: 12px; margin-top: 12px; }
+.research-harness-import label { font-size: 11px; font-weight: 600; }
+.research-harness-import input { width: 100%; min-width: 0; padding: 8px; border: 1px solid #cbd3dd; background: #fff; color: #27384c; }
+.research-harness-import button { justify-self: start; font-size: 11px; padding: 6px 10px; border: 1px solid #bfcbdc; border-radius: 5px; }
+.research-harness-artifacts a { color: #1c568b; text-decoration: underline; }
+@media (max-width: 820px) { .research-harness-layout { grid-template-columns: minmax(0,1fr); } .research-harness-history { max-height: 200px; } }

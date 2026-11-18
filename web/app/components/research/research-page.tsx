@@ -9,6 +9,7 @@ import {
   type ResearchJob,
   type ResearchState,
 } from "../../features/research/api";
+import { HarnessWorkspace } from "./harness-workspace";
 import {
   artifactHref,
   checkHeadline,
@@ -17,7 +18,7 @@ import {
   statusLabel,
 } from "../../features/research/model";
 
-type Section = "overview" | "checks" | "backtest" | "reports" | "jobs";
+type Section = "overview" | "checks" | "backtest" | "reports" | "jobs" | "harness";
 
 const sections: Array<{ id: Section; number: string; label: string; description: string }> = [
   { id: "overview", number: "01", label: "总览", description: "检查与最近任务" },
@@ -25,9 +26,10 @@ const sections: Array<{ id: Section; number: string; label: string; description:
   { id: "backtest", number: "03", label: "策略回测", description: "开发租户已下发包" },
   { id: "reports", number: "04", label: "报告", description: "已生成结果" },
   { id: "jobs", number: "05", label: "任务记录", description: "日志与取消" },
+
 ];
 
-export function ResearchPage() {
+export function ResearchPage({ harnessAccess = false }: { harnessAccess?: boolean }) {
   const [section, setSection] = useState<Section>("overview");
   const [state, setState] = useState<ResearchState | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -131,7 +133,7 @@ export function ResearchPage() {
             <b>研究与任务</b>
           </div>
           <nav>
-            {sections.map((item) => (
+            {[...sections, ...(harnessAccess ? [{id:"harness" as const,number:"06",label:"AI Harness",description:"独立 AI 研究任务"}] : [])].map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -267,6 +269,8 @@ export function ResearchPage() {
                 )}
               </>
             )}
+
+            {section === "harness" && harnessAccess && <HarnessWorkspace />}
 
             {section === "jobs" && (
               <>
