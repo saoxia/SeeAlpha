@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./styles/features/live.css";
 import "./styles/appearance.css";
+import "./styles/admin.css";
 import { themeBootstrap } from "./features/appearance/theme";
 
 export const metadata: Metadata = {

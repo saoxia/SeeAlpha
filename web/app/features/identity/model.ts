@@ -10,6 +10,14 @@ export type AuthSession = {
   isAdmin: boolean;
 };
 
+export function canAccessAdminConsole(session: AuthSession): boolean {
+  return session.isAdmin && !session.impersonating;
+}
+
+export function sessionHomePath(session: AuthSession): "/admin" | "/app" {
+  return canAccessAdminConsole(session) ? "/admin" : "/app";
+}
+
 export type TenantPurpose = "production" | "development";
 
 export type TenantStatus = "active" | "archived";

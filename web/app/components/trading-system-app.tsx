@@ -5,11 +5,9 @@ import { DataManagementPage } from "./data-management/data-management-page";
 import { TradePage } from "./trade/trade-page";
 import { LiveDashboard } from "./live/live-dashboard";
 import { Navigation } from "./navigation";
-import { ResearchPage } from "./research/research-page";
 import { SettingsPage } from "./settings/settings-page";
 import { ImpersonationBanner } from "./identity/impersonation-banner";
 import { TenantPage } from "./identity/tenant-page";
-import { UserAdminPage } from "./identity/user-admin-page";
 import type { AppView } from "./types";
 import { fetchTenants } from "../features/identity/api";
 import { productionTenant, type AuthSession } from "../features/identity/model";
@@ -56,16 +54,8 @@ export function TradingSystemApp({ session, onSession, onLogout }: TradingSystem
       {activeView === "live" && <LiveDashboard />}
       {activeView === "trade" && <TradePage />}
       {activeView === "data" && <DataManagementPage />}
-      {activeView === "research" && <ResearchPage harnessAccess={session.isAdmin && !session.impersonating} />}
       {activeView === "settings" && <SettingsPage />}
       {activeView === "tenants" && <TenantPage />}
-      {activeView === "users" && session.isAdmin && !session.impersonating && (
-        <UserAdminPage
-          currentUsername={session.user.username}
-          onSession={onSession}
-          onEntered={() => setActiveView("live")}
-        />
-      )}
     </main>
   );
 }
