@@ -55,15 +55,8 @@ export function BacktestWorkerSettings() {
   }, []);
 
   useEffect(() => {
-    if (!tenantId) {
-      setConfig(null);
-      return;
-    }
+    if (!tenantId) return;
     const controller = new AbortController();
-    setConfig(null);
-    setNotice("");
-    setError("");
-    setLoading(true);
     void api<WorkerSettings>(`/api/tenants/${tenantId}/backtest/worker-settings`, {
       signal: controller.signal,
     }).then((value) => {
@@ -132,7 +125,13 @@ export function BacktestWorkerSettings() {
             <span>开发租户 / Engine</span>
             <select
               value={tenantId}
-              onChange={(event) => setTenantId(event.target.value)}
+              onChange={(event) => {
+                setTenantId(event.target.value);
+                setConfig(null);
+                setNotice("");
+                setError("");
+                setLoading(true);
+              }}
               disabled={saving || loading || tenants.length === 0}
             >
               {tenants.length === 0 && <option value="">暂无可配置的开发租户</option>}
@@ -166,7 +165,7 @@ export function BacktestWorkerSettings() {
           </p>
         )}
         <p>降低并发不会取消正在运行的任务；超时修改仅影响新启动的 Worker。配置保存在对应 Engine 的 SQLite 中，容器重启后保留。</p>
-        {loading && <p>正在读取配置…</p>}
+        {(loading || (tenantId && !config && !error)) && <p>正在读取配置…</p>}
         {(error || notice) && (
           <div className={`settings-feedback ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>
             {error || notice}
