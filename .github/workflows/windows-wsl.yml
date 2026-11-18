@@ -1,0 +1,23 @@
+name: Windows WSL2 launcher checks
+
+on:
+  pull_request:
+    paths:
+      - "seealpha.ps1"
+      - "scripts/windows_wsl.ps1"
+      - "tests/windows_wsl_test.ps1"
+      - ".github/workflows/windows-wsl.yml"
+  workflow_dispatch:
+
+jobs:
+  windows_launcher:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test WSL selection and safe Linux command delegation
+        shell: pwsh
+        run: ./tests/windows_wsl_test.ps1
+      - name: Check Windows help without installing WSL
+        shell: pwsh
+        run: ./seealpha.ps1 help
