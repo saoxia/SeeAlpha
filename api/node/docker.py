@@ -124,7 +124,8 @@ class DockerRuntime:
 
     def ensure(self, spec):
         workload_id, image, cpus, memory, env, mounts, port = self._spec(spec)
-        if type(spec.get("require_nonroot", False)) is not bool or type(spec.get("read_only", False)) is not bool:
+        if (type(spec.get("require_nonroot", False)) is not bool
+                or type(spec.get("read_only", False)) is not bool):
             raise ValueError("Invalid workload security flags")
         if spec.get("require_nonroot") and (not hasattr(os, "getuid") or os.getuid() == 0):
             raise ValueError("This workload requires a non-root Node Agent user")
