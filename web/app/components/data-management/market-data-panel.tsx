@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   dataRequest, dataJobLabels, dataStateLabels, dataLevelLabels,
   groupDataItems, optionPair, subscriptionState, hasPairTask, taskTransitions, dataProductLabels,
+  FUTURES_BATCH_LIMIT, toggleFuturesSymbol,
   type ConfigurationPlan, type DataProduct, type DataMarket, type DataCapabilities, type DataDeletionPlan, type DataItem, type DataJob,
   type PairDeletePlanRequest, type PairDeleteRequest, type DataPolicy, type Subscription, type Subscriptions, type DataStatus,
 } from "@/app/features/data-management/market-data-api";
@@ -36,6 +37,7 @@ export function MarketDataPanel() {
   const [mode, setMode] = useState<DialogMode | null>(null);
   const [adding, setAdding] = useState(false);
   const [symbol, setSymbol] = useState("");
+  const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [product, setProduct] = useState("");
   const [markets, setMarkets] = useState<DataMarket[]>([]);
   const [marketSearch, setMarketSearch] = useState("");
@@ -67,7 +69,9 @@ export function MarketDataPanel() {
   const tasks = taskList ?? emptyTasks;
   const grouped = groupDataItems([], subscriptions);
   const symbols = [...new Set(grouped.filter((item) => !filterProduct || (item.product ?? "futures_um") === filterProduct).map((item) => item.symbol))];
-  const marketOptions = markets.filter((item) => item.symbol.includes(marketSearch.trim().toUpperCase()));
+  const marketOptions = markets.filter((item) => item.symbol.includes(marketSearch.trim().toUpperCase())
+    && (product !== "futures_um" || !subscriptions.some((s) => s.policy.product === "futures_um" && s.policy.symbol === item.symbol)));
+  const selectedBusy = adding && currentProduct === "futures_um" && selectedSymbols.some((value) => hasPairTask(tasks, value, "futures_um"));
   const canWrite = Boolean(capabilities?.can_operate && status?.storage.available && status.storage.writable && !pollErrors.status && !pollErrors["subscriptions?group_options=true"]);
   const pairBusy = hasPairTask(tasks, symbol, currentProduct);
   const disabled = busy || pairBusy || !canWrite;
@@ -154,6 +158,7 @@ export function MarketDataPanel() {
     setMode(action); setAdding(!item && action === "configure"); setMessage(""); setMarketSearch(""); setProduct(item ? item.product ?? "futures_um" : ""); setMarkets([]); setMarketError(""); setMarketsLoading(false);
     setDeletion(null); setConfigurationPlan(null); setConfirmation("");
     setSymbol(item?.symbol ?? "");
+    setSelectedSymbols([]);
     const saved = subscriptions.find((value) => value.policy.symbol === item?.symbol && value.policy.product === (item?.product ?? "futures_um"))?.policy;
     setBaseLevel(saved?.base_level === "tick" ? "tick" : "1m");
     setRealtimeEnabled(saved?.realtime_enabled ?? true);
@@ -169,6 +174,33 @@ export function MarketDataPanel() {
   }
 
   async function saveConfiguration() {
+    if (adding && currentProduct === "futures_um") {
+      if (!selectedSymbols.length || selectedSymbols.length > FUTURES_BATCH_LIMIT) {
+        throw new Error("请选择 1 至 128 个交易对。");
+      }
+      if (selectedBusy) throw new Error("部分交易对正在执行数据任务。");
+      const policy = {
+        product: "futures_um" as const, base_level: baseLevel, intervals: [],
+        realtime_enabled: realtimeEnabled, history_enabled: historyEnabled,
+        history_mode: historyStart ? "start" as const : "all" as const,
+        history_start: historyStart ? `${historyStart}T00:00:00Z` : null,
+      };
+      try {
+        const result = await dataRequest<{ added: number }>("subscriptions/batch", {
+          policies: selectedSymbols.map((item) => ({ ...policy, symbol: item })),
+        }, AbortSignal.timeout(60000));
+        setMode(null);
+        setMessage(`已批量添加 ${result.added} 个交易对；将按成交与资金费率分别复用共享 WebSocket。`);
+        await refresh();
+        return;
+      } catch (error) {
+        if (error instanceof TypeError || error instanceof DOMException && ["TimeoutError", "AbortError"].includes(error.name)) {
+          setMode(null);
+          throw new Error("批量添加的提交结果尚不确定，请刷新交易对列表后再重试，避免重复创建。");
+        }
+        throw error;
+      }
+    }
     let proposal = currentConfiguration;
     if (!proposal) {
       proposal = await dataRequest<ConfigurationPlan>("subscriptions/plan", {
@@ -208,7 +240,9 @@ export function MarketDataPanel() {
     }
   }
 
-  const scope = <p className="data-dialog-scope">{symbol || "尚未选择交易对"} <span>{dataLevelLabels[baseLevel] ?? baseLevel}</span><small>Binance · {dataProductLabels[currentProduct]} · UTC</small></p>;
+  const scope = <p className="data-dialog-scope">{adding && currentProduct === "futures_um" && product
+    ? `已选择 ${selectedSymbols.length} 个交易对` : symbol || "尚未选择交易对"}
+    <span>{dataLevelLabels[baseLevel] ?? baseLevel}</span><small>Binance · {dataProductLabels[currentProduct]} · UTC</small></p>;
 
   return <div className="market-data-panel">
     <div className="data-overview-heading">
@@ -281,13 +315,30 @@ export function MarketDataPanel() {
         </div>}
       </div>}
       {mode === "configure" && pairBusy && <p role="status">该交易对正在处理数据，完成后可继续调整配置。</p>}
-      {mode === "configure" && <fieldset disabled={busy || !capabilities?.can_operate || pairBusy} className="data-configuration-fields">
+      {mode === "configure" && <fieldset disabled={busy || !capabilities?.can_operate || pairBusy || selectedBusy} className="data-configuration-fields">
         {adding && <>
-          <div className="data-market-picker"><label>产品<select value={product} onChange={(event) => { setProduct(event.target.value); setSymbol(""); setMarkets([]); setMarketSearch(""); setMarketError(""); setMarketsLoading(false); setBaseLevel("1m"); setHistoryEnabled(event.target.value === "options"); setRealtimeEnabled(true); }}><option value="">请选择产品</option><option value="futures_um">U 本位永续（USDT / USDC）</option><option value="options">期权</option></select></label></div>
+          <div className="data-market-picker"><label>产品<select value={product} onChange={(event) => { setProduct(event.target.value); setSymbol(""); setSelectedSymbols([]); setMarkets([]); setMarketSearch(""); setMarketError(""); setMarketsLoading(false); setBaseLevel("1m"); setHistoryEnabled(event.target.value === "options"); setRealtimeEnabled(true); }}><option value="">请选择产品</option><option value="futures_um">U 本位永续（USDT / USDC）</option><option value="options">期权</option></select></label></div>
           {product === "options" && <p>按标的交易对管理，自动包含该标的全部到期日、方向和行权价；新上市合约沿用同一份采集与补齐设置。</p>}
           {product && <div className="data-market-picker">
-            <label>搜索 Binance 交易对<input type="search" value={marketSearch} placeholder="输入币种，例如 XRP" onChange={(event) => { setMarketSearch(event.target.value); setSymbol(""); }} /></label>
-            <label>交易对<select size={6} value={symbol} disabled={marketsLoading || Boolean(marketError)} onChange={(event) => setSymbol(event.target.value)}><option value="">请选择交易对</option>{marketOptions.map((item) => <option key={item.symbol} value={item.symbol}>{item.base} / {item.quote} · {item.symbol}</option>)}</select></label>
+            <label>搜索 Binance 交易对<input type="search" value={marketSearch} placeholder="输入币种，例如 XRP" onChange={(event) => { setMarketSearch(event.target.value); if (product === "options") setSymbol(""); }} /></label>
+            {product === "futures_um" ? <>
+              <div className="data-multi-picker-heading">
+                <b>交易对（可多选）</b>
+                <span>{selectedSymbols.length} / {FUTURES_BATCH_LIMIT} 个</span>
+                <button type="button" disabled={marketsLoading || Boolean(marketError) || !marketOptions.length}
+                  onClick={() => setSelectedSymbols((current) => [...new Set([...current, ...marketOptions.map((item) => item.symbol)])].slice(0, FUTURES_BATCH_LIMIT))}>选中筛选结果</button>
+                <button type="button" disabled={!selectedSymbols.length} onClick={() => setSelectedSymbols([])}>清空</button>
+              </div>
+              <div role="group" aria-label="选择 U 本位合约交易对" className="data-market-checkboxes">
+                {marketOptions.map((item) => <label key={item.symbol}>
+                  <input type="checkbox" checked={selectedSymbols.includes(item.symbol)}
+                    disabled={marketsLoading || Boolean(marketError) || selectedSymbols.length >= FUTURES_BATCH_LIMIT && !selectedSymbols.includes(item.symbol)}
+                    onChange={() => setSelectedSymbols((current) => toggleFuturesSymbol(current, item.symbol))} />
+                  <span>{item.base} / {item.quote}</span><small>{item.symbol}</small>
+                </label>)}
+              </div>
+              <small>每批最多 {FUTURES_BATCH_LIMIT} 个；采集端分别复用公开成交和资金费率连接，超过 128 个自动新建连接组。已配置的品种不会重复显示。</small>
+            </> : <label>交易对<select size={6} value={symbol} disabled={marketsLoading || Boolean(marketError)} onChange={(event) => setSymbol(event.target.value)}><option value="">请选择交易对</option>{marketOptions.map((item) => <option key={item.symbol} value={item.symbol}>{item.base} / {item.quote} · {item.symbol}</option>)}</select></label>}
             <small>{marketsLoading ? "正在读取 Binance 品种…" : marketError ? "品种读取失败" : `${marketOptions.length} 个匹配交易对`}</small>{marketError && <p role="alert">{marketError} <button type="button" onClick={() => setMarketRetry((value) => value + 1)}>重新加载</button></p>}
           </div>}
         </>}
@@ -314,10 +365,10 @@ export function MarketDataPanel() {
           <label>输入 DELETE {symbol} 确认<input type="text" autoComplete="off" spellCheck={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
         </div>}
         <button type="button" className={currentConfiguration?.requires_confirmation ? "data-danger-button" : "tick-primary"}
-          disabled={busy || !capabilities?.can_operate || !symbol || ((realtimeEnabled || historyEnabled) && !canWrite)
+          disabled={busy || !capabilities?.can_operate || (adding && currentProduct === "futures_um" ? !selectedSymbols.length || selectedBusy : !symbol) || ((realtimeEnabled || historyEnabled) && !canWrite)
             || (adding && (!product || marketsLoading || Boolean(marketError)))
             || Boolean(currentConfiguration?.requires_confirmation && confirmation !== `DELETE ${symbol}`)}
-          onClick={() => void act(saveConfiguration)}>{busy ? "正在保存…" : currentConfiguration?.requires_confirmation ? "确认删除旧数据并保存配置" : adding ? "添加交易对" : "保存配置"}</button>
+          onClick={() => void act(saveConfiguration)}>{busy ? "正在保存…" : currentConfiguration?.requires_confirmation ? "确认删除旧数据并保存配置" : adding && currentProduct === "futures_um" ? `批量添加 ${selectedSymbols.length} 个交易对` : adding ? "添加交易对" : "保存配置"}</button>
       </fieldset>}
     </DataDialog>}
   </div>;

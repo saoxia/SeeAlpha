@@ -328,3 +328,13 @@ main:has(.impersonation-banner) .settings-layout{height:calc(100vh - 137px)}
 .research-harness-import button { justify-self: start; font-size: 11px; padding: 6px 10px; border: 1px solid #bfcbdc; border-radius: 5px; }
 .research-harness-artifacts a { color: #1c568b; text-decoration: underline; }
 @media (max-width: 820px) { .research-harness-layout { grid-template-columns: minmax(0,1fr); } .research-harness-history { max-height: 200px; } }
+
+.data-multi-picker-heading{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12px}
+.data-multi-picker-heading>span{color:#65738b;margin-right:auto}
+.data-multi-picker-heading>button{border:1px solid #bbc8d8;background:#fff;padding:6px 10px;cursor:pointer}
+.data-multi-picker-heading>button:disabled{opacity:.5;cursor:not-allowed}
+.data-market-checkboxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:6px;max-height:240px;overflow:auto;padding:8px;border:1px solid #c5cfdf}
+.data-market-checkboxes>label{display:flex;align-items:center;gap:8px;padding:7px 8px;font-size:12px;background:#f7f9fc;cursor:pointer}
+.data-market-checkboxes>label:has(input:checked){background:#e8f1ff}
+.data-market-checkboxes input[type=checkbox]{width:16px;height:16px;flex:none}
+.data-market-checkboxes small{font-size:10px;color:#68758a}

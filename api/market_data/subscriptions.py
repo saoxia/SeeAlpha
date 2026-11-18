@@ -124,6 +124,22 @@ class Subscriptions:
             if self.last_error == "期权目录同步失败；保留原配置，稍后重试":
                 self.last_error = None
 
+    def save_batch(self, policies):
+        """Add only: one ORM transaction and one Engine sync, no partial success."""
+        if any(p.realtime_enabled or p.history_enabled for p in policies):
+            self.manager.require_storage(write=True)
+        with self.lock:
+            self._claim()
+            existing = self._read(refresh=True)
+            keys = {(p.product, p.symbol) for p in existing}
+            requested = {(p.product, p.symbol) for p in policies}
+            if len(requested) != len(policies) or requested & keys:
+                raise HTTPException(409, "部分交易对已存在；请刷新后在详情中单独修改")
+            if requested & self.deleting:
+                raise HTTPException(409, "选中的交易对正在删除，无法批量添加")
+            self._write([*existing, *policies])
+            return {"added": len(policies), "symbols": [p.symbol for p in policies]}
+
     def save(self, policy):
         # Engine /sync validates deletion exclusion while holding tenant
         # volume access leases. Platform never opens Engine filesystem locks.

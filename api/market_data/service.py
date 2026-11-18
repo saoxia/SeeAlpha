@@ -96,6 +96,25 @@ class DataService:
                 return {"policy": prepared.model_dump(mode="json"), "job": job}
             return self.subscriptions._save(prepared, allow_later_start=True)
 
+    def save_futures_batch(self, policies):
+        """Resolve any historical starts before one durable multi-symbol write."""
+        from .contracts import DataPolicy
+
+        with self.lock:
+            existing = {(p.product, p.symbol) for p in self.subscriptions._read(refresh=True)}
+            if any((p.product, p.symbol) in existing for p in policies):
+                raise HTTPException(409, "交易对已存在，批量添加不会覆盖现有数据")
+            resolved = []
+            for policy in policies:
+                if policy.history_enabled:
+                    proposal = self.configuration_plan(policy)
+                    if proposal["requires_confirmation"]:
+                        raise HTTPException(409, "批量添加不可覆盖或裁剪已有交易对")
+                    resolved.append(DataPolicy.model_validate(proposal["policy"]))
+                else:
+                    resolved.append(policy)
+            return self.subscriptions.save_batch(resolved)
+
     def _required_engine(self):
         """Never fall back to API-local workers or persisted job records."""
         engine = getattr(self, "engine", None)

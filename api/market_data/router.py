@@ -29,6 +29,7 @@ from .contracts import (
     DataJobResponse,
     DataMarket,
     DataPolicy,
+    DataPolicyBatch,
     DataPolicySave,
     DataRange,
     LocalChartResponse,
@@ -332,6 +333,25 @@ async def configuration_plan(request: Request, payload: DataPolicy, _: AdminUser
         await require_download_market(request, payload)
     try:
         return await run_in_threadpool(service(request).configuration_plan, payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+@router.post("/subscriptions/batch", response_model=dict)
+async def add_futures_batch(request: Request, payload: DataPolicyBatch, _: AdminUser):
+    """Validate one venue catalogue and commit all new policies atomically."""
+    active = [p for p in payload.policies if p.realtime_enabled or p.history_enabled]
+    if active:
+        markets = await request.app.state.exchanges.catalog("production")
+        available = {
+            f"{item['base']}{item['quote']}" for item in markets
+            if item["quote"] in {"USDT", "USDC"}
+        }
+        missing = [p.symbol for p in active if p.symbol not in available]
+        if missing:
+            raise HTTPException(422, "Binance 不支持这些永续品种：" + "、".join(missing))
+    try:
+        return await run_in_threadpool(service(request).save_futures_batch, payload.policies)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from None
 
