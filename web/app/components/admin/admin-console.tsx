@@ -1,9 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { SeeAlphaLogo } from "../brand/seealpha-logo";
-import { ThemeSwitch } from "../appearance/theme-switch";
 import { UserAdminPage } from "../identity/user-admin-page";
 import { ProjectChecksPage } from "../research/project-checks-page";
 import { DataManagementPage } from "../data-management/data-management-page";
@@ -13,25 +10,25 @@ import type { AuthSession } from "../../features/identity/model";
 
 type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks";
 
-const sections: Array<{ id: AdminSection; label: string }> = [
-  { id: "overview", label: "管理概览" },
-  { id: "users", label: "用户管理" },
-  { id: "data", label: "数据运维" },
-  { id: "olap", label: "平台设置" },
-  { id: "workers", label: "回测 Worker" },
-  { id: "checks", label: "项目检查" },
+const sections: Array<{ id: AdminSection; label: string; description: string }> = [
+  { id: "overview", label: "概览", description: "常用管理入口" },
+  { id: "users", label: "用户管理", description: "普通用户注册、正式租户和历史数据迁移" },
+  { id: "data", label: "数据运维", description: "行情库存、账户记录与数据监控" },
+  { id: "olap", label: "平台设置", description: "ClickHouse / OLAP 连接配置" },
+  { id: "workers", label: "回测 Worker", description: "开发租户回测并发与超时" },
+  { id: "checks", label: "项目检查", description: "检查任务、执行记录和日志" },
 ];
 
 export function AdminConsole({
-  session, onSession, onLogout,
+  session, onLogout,
 }: {
   session: AuthSession;
-  onSession: (session: AuthSession) => void;
   onLogout: () => Promise<void>;
 }) {
   const [section, setSection] = useState<AdminSection>("overview");
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const current = sections.find((item) => item.id === section) ?? sections[0];
 
   async function logout() {
     setLoggingOut(true);
@@ -47,81 +44,66 @@ export function AdminConsole({
 
   return (
     <main className="admin-console">
-      <header className="admin-topbar">
-        <div className="admin-brand">
-          <Link href="/admin" aria-label="SeeAlpha 管理后台" onClick={() => setSection("overview")}>
-            <SeeAlphaLogo />
-          </Link>
+      <aside className="admin-sidebar" aria-label="管理后台">
+        <div className="admin-sidebar-brand">
+          <strong>SeeAlpha</strong>
           <span>管理后台</span>
         </div>
-        <nav aria-label="管理后台导航">
+        <nav className="admin-nav" aria-label="管理功能">
           {sections.map((item) => (
-            <button key={item.id} type="button"
+            <button
+              key={item.id}
+              type="button"
               className={section === item.id ? "active" : ""}
               aria-current={section === item.id ? "page" : undefined}
-              onClick={() => setSection(item.id)}>
+              onClick={() => setSection(item.id)}
+            >
               {item.label}
             </button>
           ))}
         </nav>
-        <div className="admin-topbar-actions">
+        <div className="admin-sidebar-footer">
           <span className="admin-identity">{session.user.username} · 管理员</span>
-          <Link href="/app" className="admin-workspace-link">进入业务工作台</Link>
-          <ThemeSwitch />
           <button type="button" disabled={loggingOut} onClick={() => void logout()}>
             {loggingOut ? "正在退出…" : "退出登录"}
           </button>
         </div>
-      </header>
-      {logoutError && <p className="admin-error" role="alert">{logoutError}</p>}
-      {section === "overview" && (
-        <section className="admin-overview" aria-labelledby="admin-overview-title">
-          <div className="admin-overview-heading">
-            <p>SEEALPHA / CONTROL PLANE</p>
-            <h1 id="admin-overview-title">管理后台</h1>
-            <span>平台管理与用户交易工作台已分开。管理操作在此进行，日常交易请进入业务工作台。</span>
+      </aside>
+
+      <div className="admin-main">
+        <header className="admin-page-header">
+          <div>
+            <h1>{current.label}</h1>
+            <p>{current.description}</p>
           </div>
-          <div className="admin-overview-cards">
-            <button type="button" onClick={() => setSection("users")}>
-              <span>01 / IDENTITY</span>
-              <strong>用户管理</strong>
-              <small>创建用户、查看正式租户归属、进入用户视图</small>
-              <b aria-hidden="true">→</b>
-            </button>
-            <button type="button" onClick={() => setSection("data")}>
-              <span>02 / DATA</span>
-              <strong>数据运维</strong>
-              <small>行情数据管理、运行状态与数据监控</small>
-              <b aria-hidden="true">→</b>
-            </button>
-            <button type="button" onClick={() => setSection("olap")}>
-              <span>03 / SETTINGS</span>
-              <strong>平台设置</strong>
-              <small>配置和测试 OLAP 数据库连接</small>
-              <b aria-hidden="true">→</b>
-            </button>
-            <button type="button" onClick={() => setSection("workers")}>
-              <span>04 / ENGINE</span>
-              <strong>回测 Worker</strong>
-              <small>配置开发租户回测并发数和执行超时</small>
-              <b aria-hidden="true">→</b>
-            </button>
-            <button type="button" onClick={() => setSection("checks")}>
-              <span>05 / OPERATIONS</span>
-              <strong>项目检查</strong>
-              <small>平台检查、运维任务及检查日志</small>
-              <b aria-hidden="true">→</b>
-            </button>
-          </div>
-        </section>
-      )}
-      {section === "users" && (
-        <UserAdminPage currentUsername={session.user.username} onSession={onSession} />
-      )}
-      {section === "data" && <DataManagementPage scope="admin" />}
-      {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
-      {section === "workers" && <BacktestWorkerSettings />}
-      {section === "checks" && <ProjectChecksPage />}
+          <span>管理员专用</span>
+        </header>
+        {logoutError && <p className="admin-alert" role="alert">{logoutError}</p>}
+
+        <div className="admin-body">
+          {section === "overview" && (
+            <section className="admin-panel" aria-label="常用管理入口">
+              <h2>选择操作</h2>
+              <div className="admin-shortcuts">
+                {sections.filter((item) => item.id !== "overview").map((item) => (
+                  <button key={item.id} type="button" onClick={() => setSection(item.id)}>
+                    <strong>{item.label}</strong>
+                    <span>{item.description}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="admin-hint">管理员只能运维平台。如需交易，请创建独立普通用户账户并使用该账户登录。</p>
+            </section>
+          )}
+          {section === "users" && (
+            <UserAdminPage />
+          )}
+          {section === "data" && <DataManagementPage scope="admin" />}
+          {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
+          {section === "workers" && <BacktestWorkerSettings />}
+          {section === "checks" && <ProjectChecksPage />}
+        </div>
+      </div>
     </main>
   );
 }

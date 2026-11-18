@@ -52,7 +52,7 @@ def _production_count(app, username):
         return user.id, len(rows)
 
 
-def test_users_start_with_one_production_tenant_and_admin_can_create_more(client):
+def test_users_start_with_separate_production_and_admin_has_none(client):
     http, app = client
     created = http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
     assert created.status_code == 201, created.text
@@ -63,32 +63,24 @@ def test_users_start_with_one_production_tenant_and_admin_can_create_more(client
     user_id, count = _production_count(app, "alice")
     assert count == 1
     assert body["production_tenant_id"]
-    listed = http.get("/api/users").json()
-    assert {row["username"] for row in listed} >= {"admin", "alice"}
-
-    extra = http.post("/api/tenants", json={"name": "第二个正式", "purpose": "production"})
-    assert extra.status_code == 201, extra.text
-    assert extra.json()["purpose"] == "production"
-    template = next(
-        row for row in http.get("/api/tenants/templates").json() if row["purpose"] == "production"
-    )
-    another = http.post("/api/tenants", json={"template_id": template["id"], "name": "模板正式"})
-    assert another.status_code == 201, another.text
-    assert http.post("/api/tenants", json={
-        "name": "类型冲突", "purpose": "development", "template_id": template["id"],
-    }).status_code == 422
+    assert {row["username"] for row in http.get("/api/users").json()} == {"alice"}
     _, admin_count = _production_count(app, "admin")
-    assert admin_count == 3
+    assert admin_count == 0
+    assert http.get("/api/tenants").status_code == 403
+    assert http.post("/api/tenants", json={"name": "管理员正式", "purpose": "production"}).status_code == 403
 
-    http.post("/api/auth/logout")
     login(http, username="alice")
-    denied = http.post("/api/tenants", json={"name": "越权正式", "purpose": "production"})
-    assert denied.status_code == 403
+    assert http.post("/api/tenants", json={"name": "额外正式", "purpose": "production"}).status_code == 403
     assert _production_count(app, "alice") == (user_id, 1)
+    assert http.get("/api/tenants/templates").status_code == 403
+
 
 
 def test_owner_manages_development_tenants_and_cannot_remove_production(client):
     http, _app = client
+    created_user = http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
+    assert created_user.status_code == 201
+    login(http, "alice")
     created = http.post("/api/tenants", json={"name": "研究甲", "description": "试策略"})
     assert created.status_code == 201, created.text
     tenant = created.json()
@@ -110,6 +102,8 @@ def test_owner_manages_development_tenants_and_cannot_remove_production(client):
 def test_copy_and_share_keep_subscriptions_and_drop_secrets(client):
     http, app = client
     http.post("/api/users", json={"username": "bob", "password": "test-password-123"})
+    http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
+    login(http, "alice")
     production = next(row for row in http.get("/api/tenants").json() if row["purpose"] == "production")
     source = http.post("/api/tenants", json={"name": "待复制"}).json()
     saved = http.post(f"/api/tenants/{source['id']}/subscriptions", json={
@@ -172,46 +166,36 @@ def test_copy_and_share_keep_subscriptions_and_drop_secrets(client):
         assert "fixture-secret-copy-check" not in original.credentials_encrypted
 
 
-def test_impersonation_scopes_tenant_access_to_the_target_user(client):
+def test_no_administrator_impersonation_and_trader_ownership_scoped(client):
     http, app = client
-    http.post("/api/users", json={"username": "alice", "password": "test-password-123"})
-    http.post("/api/users", json={"username": "bob", "password": "test-password-123"})
-    own = http.post("/api/tenants", json={"name": "管理员开发"}).json()
-    started = http.post("/api/auth/impersonate", json={"username": "alice"})
-    assert started.status_code == 200, started.text
-    session = started.json()
-    assert session["impersonating"] is True
-    assert session["user"]["username"] == "alice"
-    assert session["actor"]["username"] == "admin"
-    me = http.get("/api/auth/me").json()
-    assert me["user"]["username"] == "alice"
-    assert me["impersonating"] is True
-    visible = http.get("/api/tenants").json()
-    assert {row["name"] for row in visible}.isdisjoint({"管理员开发"})
-    assert sum(row["purpose"] == "production" for row in visible) == 1
+    assert http.post("/api/users", json={"username": "alice", "password": "test-password-123"}).status_code == 201
+    assert http.post("/api/users", json={"username": "bob", "password": "test-password-123"}).status_code == 201
+    assert http.post("/api/auth/impersonate", json={"username": "alice"}).status_code == 403
+    assert http.post("/api/auth/impersonate/stop").status_code == 403
+    assert http.get("/api/tenants").status_code == 403
+
+    login(http, "alice")
+    alice = http.get("/api/auth/me").json()
+    assert not alice["is_admin"] and not alice["impersonating"]
     created = http.post("/api/tenants", json={"name": "爱丽丝开发"})
     assert created.status_code == 201, created.text
-    assert created.json()["owner_id"] == me["user"]["id"]
-    assert http.get(f"/api/tenants/{own['id']}/accounts").status_code == 404
-    assert http.get("/api/users").status_code == 409
-    assert http.post("/api/auth/impersonate", json={"username": "bob"}).status_code == 409
-    stopped = http.post("/api/auth/impersonate/stop")
-    assert stopped.status_code == 200, stopped.text
-    assert stopped.json()["impersonating"] is False
-    assert stopped.json()["user"]["username"] == "admin"
-    names = {row["name"] for row in http.get("/api/tenants").json()}
-    assert "管理员开发" in names
-    assert "爱丽丝开发" not in names
-    http.post("/api/auth/logout")
-    login(http, username="alice")
-    assert http.get("/api/auth/me").json()["is_admin"] is False
-    assert http.post("/api/auth/impersonate", json={"username": "bob"}).status_code == 403
+    alice_tenant = created.json()
+    assert alice_tenant["owner_id"] == alice["user"]["id"]
     assert http.get("/api/users").status_code == 403
-    alice_names = {row["name"] for row in http.get("/api/tenants").json()}
-    assert "爱丽丝开发" in alice_names
-    assert "管理员开发" not in alice_names
+
+    login(http, "bob")
+    bob = http.get("/api/auth/me").json()
+    assert not bob["is_admin"]
+    assert http.get(f"/api/tenants/{alice_tenant['id']}/accounts").status_code == 404
+    bob_tenants = http.get("/api/tenants").json()
+    assert all(row["id"] != alice_tenant["id"] for row in bob_tenants)
+    assert sum(row["purpose"] == "production" for row in bob_tenants) == 1
+
+    login(http, "alice")
+    assert any(row["id"] == alice_tenant["id"] for row in http.get("/api/tenants").json())
     _, alice_count = _production_count(app, "alice")
     assert alice_count == 1
+
 
 
 def test_fresh_schema_assigns_default_to_first_user_without_merging(tmp_path):
@@ -233,9 +217,9 @@ def test_fresh_schema_assigns_default_to_first_user_without_merging(tmp_path):
                 Tenant.owner_id.in_([admin.id, second.id]), Tenant.purpose == "production"
             ).order_by(Tenant.id)
         ).all()
-    assert default.owner_id == admin.id
-    assert len(owners) == 2
-    assert owners[0].id == default.id
-    assert owners[1].owner_id == second.id
+    assert default.owner_id is None
+    assert len(owners) == 1
+    assert owners[0].owner_id == second.id
+    assert owners[0].id != default.id
     app.state.engine.close()
     app.state.database.close()

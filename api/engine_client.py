@@ -237,7 +237,7 @@ class EngineClient:
         path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
         url, headers = self._target(path)
         if url.startswith("node://"):
-            raise EngineUnavailable("远程开发节点尚不支持流式文件导出。")
+            raise EngineUnavailable("远程 Node 尚不支持流式文件导出。")
         try:
             with (httpx.Client(timeout=None, transport=self.sync_transport) as client,
                   client.stream("GET", url + path, headers=headers) as response):
@@ -269,7 +269,7 @@ class EngineClient:
         path = f"/tenants/{account['tenant_id']}/venue/{route}"
         url, headers = self._target(path)
         if url.startswith("node://"):
-            raise EngineUnavailable("远程开发节点尚不支持流式交易流水读取。")
+            raise EngineUnavailable("远程 Node 尚不支持流式交易流水读取。")
         try:
             async with (httpx.AsyncClient(timeout=None, transport=self.async_transport) as client,
                         client.stream("POST", url + path, headers=headers, json=payload) as response):

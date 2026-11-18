@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser, CurrentContext, CurrentUser, actor_is_admin
+from ..auth.dependencies import AdminUser, TradingUser
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -80,13 +80,13 @@ def create_template(request: Request, payload: TemplateCreate, _: AdminUser):
 
 
 @router.get("")
-def list_tenants(request: Request, user: CurrentUser):
+def list_tenants(request: Request, user: TradingUser):
     return tenants(request).list_tenants(user.id)
 
 
 @router.post("", status_code=201)
 def create_tenant(
-    request: Request, payload: TenantCreate, user: CurrentUser, context: CurrentContext,
+    request: Request, payload: TenantCreate, user: TradingUser,
 ):
     if payload.purpose not in (None, "development", "production"):
         raise HTTPException(422, "租户类型只能是正式或开发。")
@@ -98,56 +98,56 @@ def create_tenant(
         if payload.purpose is not None and payload.purpose != template["purpose"]:
             raise HTTPException(422, "模板类型与租户用途不匹配。")
         purpose = template["purpose"]
-    if purpose == "production" and not actor_is_admin(request, context.actor.username):
-        raise HTTPException(403, "仅管理员可创建额外的正式租户。")
+    if purpose == "production":
+        raise HTTPException(403, "普通用户只允许拥有自动创建的正式租户；可创建开发租户。")
     return tenants(request).create_for_owner(user.id, purpose, payload.name, payload.description)
 
 
 @router.post("/{tenant_id}/copy", status_code=201)
-def copy_tenant(request: Request, tenant_id: int, payload: TenantCopy, user: CurrentUser):
+def copy_tenant(request: Request, tenant_id: int, payload: TenantCopy, user: TradingUser):
     return tenants(request).copy_for_owner(
         tenant_id, user.id, payload.name, payload.description
     )
 
 
 @router.post("/{tenant_id}/share", status_code=201)
-def share_tenant(request: Request, tenant_id: int, payload: TenantShare, user: CurrentUser):
+def share_tenant(request: Request, tenant_id: int, payload: TenantShare, user: TradingUser):
     return tenants(request).share_with_user(
         tenant_id, user.id, payload.username, payload.name, payload.description
     )
 
 
 @router.post("/{tenant_id}/archive")
-def archive_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def archive_tenant(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).archive(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/restore")
-def restore_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def restore_tenant(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).restore(tenant_id, user.id)
 
 
 @router.delete("/{tenant_id}", status_code=204)
-def delete_tenant(request: Request, tenant_id: int, user: CurrentUser):
+def delete_tenant(request: Request, tenant_id: int, user: TradingUser):
     tenants(request).delete(tenant_id, user.id)
     return Response(status_code=204)
 
 
 @router.get("/{tenant_id}/accounts")
-def list_accounts(request: Request, tenant_id: int, user: CurrentUser):
+def list_accounts(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).list_accounts(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/accounts", status_code=201)
-def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, user: CurrentUser):
+def add_account(request: Request, tenant_id: int, payload: TenantAccountCreate, user: TradingUser):
     return tenants(request).add_account(tenant_id, payload, user.id)
 
 
 @router.get("/{tenant_id}/subscriptions")
-def list_subscriptions(request: Request, tenant_id: int, user: CurrentUser):
+def list_subscriptions(request: Request, tenant_id: int, user: TradingUser):
     return tenants(request).list_subscriptions(tenant_id, user.id)
 
 
 @router.post("/{tenant_id}/subscriptions")
-def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, user: CurrentUser):
+def save_subscription(request: Request, tenant_id: int, payload: DataPolicyBody, user: TradingUser):
     return tenants(request).save_subscription(tenant_id, payload, user.id)

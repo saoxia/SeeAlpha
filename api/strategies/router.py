@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser
+from ..auth.dependencies import AdminUser, CurrentUser, TradingUser
 
 router = APIRouter(tags=["strategy-store"])
 
@@ -80,7 +80,7 @@ def update_backtest_worker_settings(
 
 
 @router.get("/strategy-packages")
-def list_packages(request: Request, _: AdminUser):
+def list_packages(request: Request, _: CurrentUser):
     return store(request).list_packages()
 
 
@@ -100,32 +100,37 @@ def grant_version(request: Request, version_id: int, payload: GrantCreate, _: Ad
 
 
 @router.get("/tenants/{tenant_id}/strategy-loads")
-def list_loads(request: Request, tenant_id: int, _: AdminUser):
+def list_loads(request: Request, tenant_id: int, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).list_loads(tenant_id)
 
 
 @router.post("/tenants/{tenant_id}/strategy-loads", status_code=201)
-def issue_load(request: Request, tenant_id: int, payload: LoadCreate, _: AdminUser):
+def issue_load(request: Request, tenant_id: int, payload: LoadCreate, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).issue(tenant_id, payload.account_id, payload.version_id, payload.parameters)
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests")
 def start_backtest(
-    request: Request, tenant_id: int, account_id: int, payload: BacktestRequest, _: AdminUser,
+    request: Request, tenant_id: int, account_id: int, payload: BacktestRequest, user: TradingUser,
 ):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).backtest(tenant_id, account_id, payload.start, payload.end, payload.interval)
 
 
 @router.get("/tenants/{tenant_id}/accounts/{account_id}/backtests/latest")
-def latest_backtest(request: Request, tenant_id: int, account_id: int, _: AdminUser):
+def latest_backtest(request: Request, tenant_id: int, account_id: int, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).latest_backtest(tenant_id, account_id)
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests/async", status_code=202)
 def submit_backtest_async(
     request: Request, tenant_id: int, account_id: int,
-    payload: AsyncBacktestRequest, _: AdminUser,
+    payload: AsyncBacktestRequest, user: TradingUser,
 ):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).submit_backtest(
         tenant_id, account_id, payload.start, payload.end, payload.interval,
         idempotency_key=payload.idempotency_key,
@@ -133,25 +138,30 @@ def submit_backtest_async(
 
 
 @router.get("/tenants/{tenant_id}/jobs")
-def list_tenant_jobs(request: Request, tenant_id: int, _: AdminUser):
+def list_tenant_jobs(request: Request, tenant_id: int, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return {"items": store(request).tasks(tenant_id)}
 
 
 @router.get("/tenants/{tenant_id}/jobs/{identity}")
-def get_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+def get_tenant_job(request: Request, tenant_id: int, identity: str, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).task(tenant_id, identity)
 
 
 @router.get("/tenants/{tenant_id}/jobs/{identity}/result")
-def tenant_job_result(request: Request, tenant_id: int, identity: str, _: AdminUser):
+def tenant_job_result(request: Request, tenant_id: int, identity: str, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).task_result(tenant_id, identity)
 
 
 @router.post("/tenants/{tenant_id}/jobs/{identity}/cancel")
-def cancel_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+def cancel_tenant_job(request: Request, tenant_id: int, identity: str, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).cancel_task(tenant_id, identity)
 
 
 @router.post("/tenants/{tenant_id}/jobs/{identity}/retry", status_code=202)
-def retry_tenant_job(request: Request, tenant_id: int, identity: str, _: AdminUser):
+def retry_tenant_job(request: Request, tenant_id: int, identity: str, user: TradingUser):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).retry_task(tenant_id, identity)

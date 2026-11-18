@@ -53,7 +53,7 @@ def application(tmp_path, monkeypatch):
     return create_app(settings), database, calls
 
 
-def signin(client, username="admin"):
+def signin(client, username="viewer"):
     assert (
         client.post(
             "/api/auth/login",

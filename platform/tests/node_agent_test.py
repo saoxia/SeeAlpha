@@ -146,7 +146,7 @@ def test_agent_uses_only_outbound_http_and_returns_result(tmp_path):
                   token="a" * 48, runtime=Workloads())
 
 
-def test_distributed_tenant_docker_stays_development_only(tmp_path):
+def test_distributed_tenant_docker_supports_both_purposes_and_remote_market(tmp_path):
     class Local:
         def __init__(self):
             self.actions = []
@@ -166,7 +166,7 @@ def test_distributed_tenant_docker_stays_development_only(tmp_path):
         def __init__(self):
             self.calls = []
         def assigned(self, tenant_id):
-            return "edge" if str(tenant_id) == "7" else "local"
+            return "edge" if str(tenant_id) in {"7", "9"} else "local"
         def call(self, node_id, action, payload, **kwargs):
             self.calls.append((node_id, action, payload))
             if action == "request":
@@ -175,32 +175,52 @@ def test_distributed_tenant_docker_stays_development_only(tmp_path):
             return {"running": True}
 
     local, hub = Local(), Hub()
-    manager = DistributedTenantManager(local, hub, image="engine:test",
-                                       root=tmp_path / "tenants",
-                                       development_cpus="2", development_memory="4g")
+    manager = DistributedTenantManager(
+        local, hub, image="engine:test", root=tmp_path / "tenants",
+        production_cpus="1", production_memory="2g",
+        development_cpus="2", development_memory="4g",
+    )
     manager.bind_market_tenant(1)
     manager.ensure(1, "production")
     assert local.actions == [("1", "production", "active")]
-    with pytest.raises(EngineConflict, match="开发租户"):
-        manager.ensure(7, "production")
+    assert local.market_tenant_id == "1"
+
     manager.ensure(7, "development")
-    assert hub.calls[0][1] == "ensure"
-    spec = hub.calls[0][2]
-    assert spec["id"] == "engine-7" and spec["env"]["ENGINE_TENANT_PURPOSE"] == "development"
-    assert stat.S_IMODE((tmp_path / "tenants" / "7" / "remote-engine.token").stat().st_mode) == 0o600
-    with pytest.raises(EngineConflict):
-        manager.bind_market_tenant(7)
+    dev_spec = hub.calls[-1][2]
+    assert dev_spec["id"] == "engine-7"
+    assert (dev_spec["cpus"], dev_spec["memory"]) == ("2", "4g")
+    assert dev_spec["env"]["ENGINE_TENANT_PURPOSE"] == "development"
+
+    manager.ensure(9, "production")
+    prod_spec = hub.calls[-1][2]
+    assert prod_spec["id"] == "engine-9"
+    assert (prod_spec["cpus"], prod_spec["memory"]) == ("1", "2g")
+    assert prod_spec["env"]["ENGINE_TENANT_PURPOSE"] == "production"
+    assert prod_spec["env"]["ENGINE_TOKEN"] != dev_spec["env"]["ENGINE_TOKEN"]
+    assert stat.S_IMODE((tmp_path / "tenants" / "9" / "remote-engine.token").stat().st_mode) == 0o600
+
+    before = len(hub.calls)
+    with pytest.raises(EngineConflict, match="用途无效"):
+        manager.ensure(9, "invalid")
+    assert len(hub.calls) == before
 
     client = EngineClient(tmp_path, tenant_manager=manager)
-    assert client.ensure_tenant(7, "development")["status"] == "active"
+    assert client.ensure_tenant(9, "production")["status"] == "active"
     assert hub.calls[-1][1] == "request"
-    assert hub.calls[-1][2]["path"] == "/tenants/7"
+    assert hub.calls[-1][2]["path"] == "/tenants/9"
     assert hub.calls[-1][2]["headers"][ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+
+    manager.bind_market_tenant(9)
+    assert manager.market_tenant_id == "9"
+    assert local.market_tenant_id == "1"
+    assert client.data_query("control/status", {}) == {"status": "active"}
+    assert hub.calls[-1][2]["path"] == "/tenants/9/data/control/status"
+
     manager.stop(7, remove=True, retire=True)
     assert hub.calls[-1][1] == "stop"
     assert hub.calls[-1][2]["retire"] is True
     assert not (tmp_path / "tenants" / "7").exists()
-    old_token = spec["env"]["ENGINE_TOKEN"]
+    old_token = dev_spec["env"]["ENGINE_TOKEN"]
     new_token = manager.endpoint(7)[1]
     assert new_token != old_token
     retired = list((tmp_path / "tenants" / ".retired").glob("7-*"))

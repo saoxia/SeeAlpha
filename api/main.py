@@ -164,7 +164,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
 
     app = FastAPI(title="SeeAlpha API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
-    app.state.repository = auth_repository(database)
+    app.state.repository = auth_repository(database, admin_username=settings.admin_username)
     app.state.database = database
     app.state.accounts = Accounts(database, settings)
     if settings.engine_deployment not in {"single", "docker", "distributed"}:
@@ -189,6 +189,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             manager = DistributedTenantManager(
                 local, hub, image=settings.engine_docker_image,
                 root=settings.engine_tenant_root or PROJECT / ".local/tenants",
+                production_cpus=settings.engine_production_cpus,
+                production_memory=settings.engine_production_memory,
                 development_cpus=settings.engine_development_cpus,
                 development_memory=settings.engine_development_memory,
             )

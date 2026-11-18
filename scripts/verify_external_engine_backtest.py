@@ -38,7 +38,7 @@ def _inputs():
         raise RuntimeError("Invalid disposable tenant identity")
     if (root / "engine").exists() or (root / "nautilus_support.py").exists():
         raise RuntimeError("Platform test source must not include Engine internals")
-    package = root / "packages" / "ema_crossover"
+    package = root / "strategy" / "ema_crossover"
     if not (package / "seealpha-package.json").is_file():
         raise RuntimeError("Portable EMA fixture was not copied into isolated Platform")
     return root, url, token, tenant, package

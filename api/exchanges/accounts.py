@@ -74,22 +74,43 @@ class Accounts:
             "market_symbols": json.loads(row["market_symbols_json"]),
         }
 
-    def default_tenant_id(self):
+    def tenant_ids(self, owner_id):
         from api.tenants.repository import TenantRepository
 
-        return TenantRepository(self.database).require_default()["id"]
+        return {tenant["id"] for tenant in TenantRepository(self.database).list_tenants(owner_id)}
 
-    def list(self):
-        return [
-            self.public(row)
-            for row in self.repository.list_exchange_accounts(self.default_tenant_id())
-        ]
+    def owned_ids(self, owner_id):
+        ids = self.tenant_ids(owner_id)
+        return {row["id"] for row in self.repository.list_exchange_accounts()
+                if row["tenant_id"] in ids}
 
-    def navigation(self):
-        return [
-            {name: row[name] for name in ("id", "exchange", "account_name")}
-            for row in self.repository.list_exchange_accounts(self.default_tenant_id())
-        ]
+    def require_owned(self, account_id, owner_id):
+        row = self.row(account_id)
+        if row["tenant_id"] not in self.tenant_ids(owner_id):
+            raise HTTPException(404, "账户不存在。")
+        return row
+
+    def default_tenant_id(self, owner_id=None):
+        from api.tenants.repository import TenantRepository
+
+        tenants = TenantRepository(self.database)
+        if owner_id is None:
+            return tenants.require_default()["id"]
+        production = tenants.production_for_owner(owner_id)
+        if production is None:
+            raise HTTPException(409, "用户缺少正式租户。")
+        return production["id"]
+
+    def list(self, owner_id=None):
+        allowed = self.tenant_ids(owner_id) if owner_id is not None else None
+        return [self.public(row) for row in self.repository.list_exchange_accounts()
+                if allowed is None or row["tenant_id"] in allowed]
+
+    def navigation(self, owner_id=None):
+        allowed = self.tenant_ids(owner_id) if owner_id is not None else None
+        return [{name: row[name] for name in ("id", "exchange", "account_name")}
+                for row in self.repository.list_exchange_accounts()
+                if allowed is None or row["tenant_id"] in allowed]
 
     def private(self, account_id):
         row = self.row(account_id)
@@ -97,8 +118,8 @@ class Accounts:
             raise HTTPException(422, "当前原生账户查询仅支持 Binance USD-M。")
         return {**dict(row), "credentials": self.decrypt(row)}
 
-    def save(self, payload, account_id=None, tenant_id=None):
-        old = self.row(account_id) if account_id is not None else None
+    def save(self, payload, account_id=None, tenant_id=None, owner_id=None):
+        old = (self.require_owned(account_id, owner_id) if owner_id is not None else self.row(account_id)) if account_id is not None else None
         exchange = old["exchange"] if old else payload.exchange
         if exchange != "binance":
             raise HTTPException(422, "当前原生账户接入仅支持 Binance USD-M。")
@@ -137,7 +158,7 @@ class Accounts:
                 row = self.repository.update_exchange_account(account_id, **values)
             else:
                 row = self.repository.create_exchange_account(
-                    tenant_id=tenant_id if tenant_id is not None else self.default_tenant_id(),
+                    tenant_id=tenant_id if tenant_id is not None else self.default_tenant_id(owner_id),
                     exchange=exchange,
                     **values,
                 )

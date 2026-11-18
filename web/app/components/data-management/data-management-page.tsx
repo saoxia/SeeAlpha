@@ -25,14 +25,14 @@ export function DataManagementPage({ scope = "user" }: { scope?: "user" | "admin
   useEffect(() => {
     if (tab !== "operations") return;
     const controller = new AbortController();
-    dataManagementApi.accounts(controller.signal)
+    (scope === "admin" ? dataManagementApi.adminAccounts : dataManagementApi.accounts)(controller.signal)
       .then(setAccounts)
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setMessage(error instanceof Error ? error.message : "无法读取账户列表。");
       });
     return () => controller.abort();
-  }, [tab]);
+  }, [tab, scope]);
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
     if (tab !== "operations") {

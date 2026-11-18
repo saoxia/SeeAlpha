@@ -36,7 +36,9 @@ def _require_harness_owner(request: Request, context: CurrentContext) -> None:
     # does not grant access when another owner is configured. Never allow
     # impersonation to borrow that account's research execution rights.
     settings = request.app.state.settings
-    owner = settings.harness_owner_username or settings.admin_username
+    owner = settings.harness_owner_username
+    if not owner or owner.casefold() == settings.admin_username.casefold():
+        raise HTTPException(503, "必须将 HARNESS_OWNER_USERNAME 显式设置为独立普通用户。")
     if context.impersonating or context.actor.username.casefold() != owner.casefold():
         raise HTTPException(403, "当前账户无权访问此单用户 Harness 运行实例。")
 

@@ -55,7 +55,7 @@ def test_trading_permissions_origin_and_no_secret_echo(trading):
         body = payload()
         route = '/api/trading/accounts/1/orders'
         assert client.post(route, json=body).status_code == 401
-        signin(client, 'viewer')
+        signin(client, 'admin')
         assert client.post(route, json=body).status_code == 403
         signin(client)
         create(client)
@@ -101,7 +101,7 @@ def test_unknown_result_is_reserved_and_never_automatically_resent(trading, monk
         assert first.status_code == 200 and first.json()['status'] == 'unknown'
         assert client.post(route, json=body).json() == first.json()
         assert len(calls) == 1
-        stored = app.state.trading.engine.get_request(1, 1, body['request_id'])
+        stored = app.state.trading.engine.get_request(app.state.accounts.row(1)['tenant_id'], 1, body['request_id'])
         assert stored['response']['status'] == 'unknown'
         assert not list(app.state.trading.root.glob('1/production/*.json'))
 
@@ -130,7 +130,7 @@ def test_cross_process_lock_prevents_second_dispatch(trading):
     with TestClient(app) as client:
         signin(client)
         create(client)
-        directory = app.state.trading.root / '1' / '1' / 'production'
+        directory = app.state.trading.root / str(app.state.accounts.row(1)['tenant_id']) / '1' / 'production'
         directory.mkdir(parents=True)
         with (directory / 'account.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -159,7 +159,7 @@ def test_lookup_resolves_unknown_from_venue_without_resubmitting(trading, monkey
         monkeypatch.setattr(manual, 'execute', snapshot)
         result = client.get(f"/api/trading/accounts/1/requests/{body['request_id']}?environment=production")
         assert result.json()['status'] == 'completed'
-        assert app.state.trading.engine.get_request(1, 1, body['request_id'])['response']['status'] == 'completed'
+        assert app.state.trading.engine.get_request(app.state.accounts.row(1)['tenant_id'], 1, body['request_id'])['response']['status'] == 'completed'
         assert len(calls) == 1
 
 
@@ -188,7 +188,7 @@ def test_ledger_failure_keeps_venue_result_and_replays_only_ingestion(trading, m
         monkeypatch.setattr(app.state.operations.repository, 'ingest', ingested.append)
         assert client.post(route, json=body).json()['status'] == 'completed'
         assert ingested == [{'event_id': 'fixture'}]
-        assert app.state.trading.engine.get_request(1, 1, body['request_id'])['ledger_synced'] is True
+        assert app.state.trading.engine.get_request(app.state.accounts.row(1)['tenant_id'], 1, body['request_id'])['ledger_synced'] is True
         assert len(calls) == 1
 
 

@@ -86,26 +86,14 @@ class ImpersonateRequest(BaseModel):
 def start_impersonation(
     payload: ImpersonateRequest, request: Request, context: CurrentContext, _: AdminUser,
 ) -> AuthResponse:
-    if context.impersonating:
-        raise HTTPException(status_code=409, detail="请先退出当前用户视图。")
-    target = request.app.state.repository.get_user_by_username(payload.username)
-    if target is None:
-        raise HTTPException(status_code=404, detail="用户不存在。")
-    if target["id"] == context.actor.id:
-        raise HTTPException(status_code=409, detail="已经是当前用户。")
-    request.app.state.repository.set_impersonation(context.token_digest, target["id"])
-    return AuthResponse(
-        user=UserResponse(id=target["id"], username=target["username"]),
-        actor=context.actor,
-        impersonating=True,
-        is_admin=True,
-    )
+    raise HTTPException(status_code=403, detail="管理员与普通用户身份已隔离，不能模拟用户登录。")
+
 
 
 @router.post("/impersonate/stop", response_model=AuthResponse)
 def stop_impersonation(request: Request, context: CurrentContext, _: AdminUser) -> AuthResponse:
-    request.app.state.repository.set_impersonation(context.token_digest, None)
-    return AuthResponse(user=context.actor, impersonating=False, is_admin=True)
+    raise HTTPException(status_code=403, detail="用户模拟功能已停用，请使用独立用户账户登录。")
+
 
 
 @router.post("/logout", status_code=204)

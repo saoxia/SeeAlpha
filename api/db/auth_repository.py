@@ -8,8 +8,9 @@ from .database import Database
 
 
 class AuthRepository:
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, admin_username: str = "admin"):
         self.database = database
+        self.admin_username = admin_username
 
     def create_user(self, username: str, password_hash: str) -> dict[str, Any]:
         now = int(time.time())
@@ -19,7 +20,8 @@ class AuthRepository:
                 (username, password_hash, now),
             )
             user = {"id": cursor.lastrowid, "username": username, "created_at": now}
-        provision_user_tenant(self.database, user)
+        if username.casefold() != self.admin_username.casefold():
+            provision_user_tenant(self.database, user)
         return user
 
     def get_user_by_id(self, user_id: int) -> sqlite3.Row | None:
@@ -121,9 +123,9 @@ def provision_user_tenant(database, user):
     TenantRepository(database).ensure_production_tenant(user["id"], user["username"])
 
 
-def auth_repository(database):
+def auth_repository(database, admin_username: str = "admin"):
     if database.backend == "orm":
         from .orm_repositories import ORMAuthRepository
 
-        return ORMAuthRepository(database)
-    return AuthRepository(database)
+        return ORMAuthRepository(database, admin_username=admin_username)
+    return AuthRepository(database, admin_username=admin_username)

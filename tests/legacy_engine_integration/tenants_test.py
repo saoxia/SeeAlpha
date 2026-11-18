@@ -28,8 +28,9 @@ def client(tmp_path):
     app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
     app.state.database.initialize()
     auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
+    auth_repository(app.state.database).create_user("viewer", hash_password("test-password-123"))
     with TestClient(app) as test_client:
-        login(test_client)
+        login(test_client, username="viewer")
         yield test_client, app
 
 
@@ -211,11 +212,22 @@ def test_default_production_tenant_receives_existing_rows(tmp_path):
     auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
     with TestClient(app) as http:
         login(http)
+        assert http.get("/api/tenants").status_code == 403
+        legacy_rows = http.get("/api/users/legacy-tenants").json()
+        assert any(row["name"] == "默认正式" for row in legacy_rows)
+        templates = http.get("/api/tenants/templates").json()
+        assert all("symbol" not in row and "initial_capital" not in row for row in templates)
+        assert http.post("/api/users", json={
+            "username": "viewer", "password": "test-password-123",
+        }).status_code == 201
+        transfer = http.post("/api/users/legacy-tenants/1/transfer", json={
+            "target_username": "viewer", "confirm": True,
+        })
+        assert transfer.status_code == 200, transfer.text
+        login(http, username="viewer")
         tenants = http.get("/api/tenants").json()
         default = next(row for row in tenants if row["name"] == "默认正式")
         assert default["purpose"] == "production" and default["status"] == "active"
-        templates = http.get("/api/tenants/templates").json()
-        assert all("symbol" not in row and "initial_capital" not in row for row in templates)
         symbols = [row["symbol"] for row in http.get(f"/api/tenants/{default['id']}/subscriptions").json()]
         assert symbols == ["ETHUSDT"]
         with app.state.database.session() as session:

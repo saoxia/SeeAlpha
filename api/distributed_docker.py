@@ -1,4 +1,4 @@
-"""Route development tenant workloads to a local Docker host or an outbound Agent.
+"""Route tenant workloads to a local Docker host or an outbound Agent.
 
 A placement is never inferred from node availability. No automatic migration,
 production failover or replay of timed-out trading commands occurs here.
@@ -19,20 +19,21 @@ from .tenant_docker import DockerTenantManager
 
 class DistributedTenantManager:
     def __init__(self, local: DockerTenantManager, hub, *, image, root,
-                 development_cpus, development_memory):
+                 production_cpus, production_memory, development_cpus, development_memory):
         self.local = local
         self.hub = hub
         self.image = image
         self.root = Path(root).expanduser().resolve()
-        self.development_cpus = development_cpus
-        self.development_memory = development_memory
+        self.limits = {
+            "production": (production_cpus, production_memory),
+            "development": (development_cpus, development_memory),
+        }
         self.market_tenant_id = None
 
     def bind_market_tenant(self, tenant_id):
-        if self.hub.assigned(tenant_id) != "local":
-            raise EngineConflict("默认行情/正式租户不能部署在远程开发节点。")
         self.market_tenant_id = str(tenant_id)
-        self.local.bind_market_tenant(tenant_id)
+        if self._node(tenant_id) == "local":
+            self.local.bind_market_tenant(tenant_id)
 
     def _node(self, tenant_id):
         return self.hub.assigned(tenant_id)
@@ -70,8 +71,8 @@ class DistributedTenantManager:
         node_id = self._node(tenant_id)
         if node_id == "local":
             return self.local.ensure(tenant_id, purpose, status)
-        if purpose != "development":
-            raise EngineConflict("远程节点第一阶段仅允许开发租户，不允许实盘租户。")
+        if purpose not in self.limits:
+            raise EngineConflict("租户用途无效。")
         if status == "archived":
             return self.stop(tenant_id)
         if status != "active":
@@ -79,13 +80,13 @@ class DistributedTenantManager:
         spec = {
             "id": self._workload_id(tenant_id),
             "image": self.image,
-            "cpus": self.development_cpus,
-            "memory": self.development_memory,
+            "cpus": self.limits[purpose][0],
+            "memory": self.limits[purpose][1],
             "port": 8766,
             "env": {
                 "ENGINE_TOKEN": self._token(tenant_id),
                 "ENGINE_TENANT_ID": str(tenant_id),
-                "ENGINE_TENANT_PURPOSE": "development",
+                "ENGINE_TENANT_PURPOSE": purpose,
                 "ENGINE_HOST": "0.0.0.0",
                 "ENGINE_PORT": "8766",
                 "ENGINE_PROJECT": "/app",

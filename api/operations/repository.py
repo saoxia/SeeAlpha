@@ -238,6 +238,13 @@ class Operations:
             elif k in ("start_ms", "end_ms"):
                 clauses.append(f"timestamp {'>=' if k == 'start_ms' else '<='} ?")
                 args.append(v)
+        if "account_ids" in filters:
+            allowed = sorted(filters["account_ids"])
+            if allowed:
+                clauses.append("account_id IN (" + ",".join("?" for _ in allowed) + ")")
+                args.extend(allowed)
+            else:
+                clauses.append("0 = 1")
         if cursor:
             clauses.append("(timestamp < ? OR (timestamp = ? AND id < ?))")
             args.extend([cursor[0], cursor[0], cursor[1]])

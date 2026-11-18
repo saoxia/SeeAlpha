@@ -37,7 +37,7 @@ class Settings:
     harness_enabled: bool = False
     harness_url: str = ""
     harness_token: str = field(default="", repr=False)
-    # One trusted user per resident Harness instance; empty preserves the legacy admin owner.
+    # One explicit ordinary user per resident Harness; never fall back to admin.
     harness_owner_username: str = ""
 
     @classmethod

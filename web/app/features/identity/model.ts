@@ -31,6 +31,17 @@ export type TenantRecord = {
   status: TenantStatus;
 };
 
+export type LegacyTenant = {
+  id: number;
+  name: string;
+  purpose: TenantPurpose;
+  status: TenantStatus;
+  owner_id: number | null;
+  exchange_accounts: number;
+  virtual_accounts: number;
+  policies: number;
+};
+
 export type ManagedUser = {
   id: number;
   username: string;

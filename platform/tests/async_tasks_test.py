@@ -37,14 +37,17 @@ def _client(tmp_path):
     auth_repository(app.state.database).create_user(
         "admin", hash_password("test-password-123")
     )
+    auth_repository(app.state.database).create_user(
+        "alice", hash_password("test-password-123")
+    )
     # Exercise only auth and strategy routing. The isolated Engine is not needed.
     app.router.lifespan_context = _router_only_lifespan
     return app
 
 
-def login(client):
+def login(client, username="admin"):
     return client.post("/api/auth/login", json={
-        "username": "admin", "password": "test-password-123",
+        "username": username, "password": "test-password-123",
     })
 
 
@@ -53,6 +56,8 @@ def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tm
     service = app.state.strategies
     events = []
     identity = "b" * 32
+    alice = app.state.repository.get_user_by_username("alice")
+    tenant_id = app.state.tenants.repository.production_for_owner(alice["id"])["id"]
 
     def submit(tenant_id, account_id, start, end, interval, *, idempotency_key):
         events.append(("submit", tenant_id, account_id, idempotency_key))
@@ -84,21 +89,21 @@ def test_admin_async_backtest_and_task_routes_forward_without_running_locally(tm
     monkeypatch.setattr(app.state.engine, "_sync", no_engine_call)
     with TestClient(app) as http:
         assert http.post(
-            "/api/tenants/1/accounts/1/backtests/async", json=submission,
+            f"/api/tenants/{tenant_id}/accounts/1/backtests/async", json=submission,
         ).status_code == 401
-        login(http)
+        login(http, "alice")
         created = http.post(
-            "/api/tenants/1/accounts/1/backtests/async", json=submission,
+            f"/api/tenants/{tenant_id}/accounts/1/backtests/async", json=submission,
         )
         assert created.status_code == 202, created.text
         assert created.json()["id"] == identity
-        assert events == [("submit", 1, 1, "study-1")]
-        listing = http.get("/api/tenants/1/jobs")
+        assert events == [("submit", tenant_id, 1, "study-1")]
+        listing = http.get(f"/api/tenants/{tenant_id}/jobs")
         assert listing.status_code == 200 and listing.json()["items"][0]["id"] == identity
-        assert http.get(f"/api/tenants/1/jobs/{identity}").json()["status"] == "SUCCEEDED"
-        assert http.get(f"/api/tenants/1/jobs/{identity}/result").json()["ending_balance"] == "1050"
-        assert http.post(f"/api/tenants/1/jobs/{identity}/cancel").json()["status"] == "CANCELLED"
-        retry = http.post(f"/api/tenants/1/jobs/{identity}/retry")
+        assert http.get(f"/api/tenants/{tenant_id}/jobs/{identity}").json()["status"] == "SUCCEEDED"
+        assert http.get(f"/api/tenants/{tenant_id}/jobs/{identity}/result").json()["ending_balance"] == "1050"
+        assert http.post(f"/api/tenants/{tenant_id}/jobs/{identity}/cancel").json()["status"] == "CANCELLED"
+        retry = http.post(f"/api/tenants/{tenant_id}/jobs/{identity}/retry")
         assert retry.status_code == 202
         assert retry.json()["retry_of"] == identity
 
