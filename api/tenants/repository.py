@@ -193,25 +193,8 @@ class TenantRepository:
         current = self.production_for_owner(user_id)
         if current is not None:
             return current
-        # Fresh installations seed a default tenant for the current global
-        # market-data API. Assign it once; do not migrate or merge old owners.
-        default = self.require_default()
-        if default is not None and default["owner_id"] is None:
-            if self.database.backend != "orm":
-                with self.database.connect() as connection:
-                    claimed = connection.execute(
-                        "UPDATE tenants SET owner_id = ? WHERE id = ? AND owner_id IS NULL",
-                        (user_id, default["id"]),
-                    ).rowcount
-            else:
-                with self.database.session(write=True) as session:
-                    claimed = session.execute(
-                        update(Tenant)
-                        .where(Tenant.id == default["id"], Tenant.owner_id.is_(None))
-                        .values(owner_id=user_id)
-                    ).rowcount
-            if claimed:
-                return self.production_for_owner(user_id)
+        # The system default holds platform-wide and historical market data.
+        # Never implicitly transfer it to the first ordinary user.
         return self._insert_production(user_id, username)
 
     def transfer_legacy_owner(self, tenant_id: int, admin_id: int, new_owner_id: int):

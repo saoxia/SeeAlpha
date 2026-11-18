@@ -76,7 +76,7 @@ def test_new_ordinary_users_get_separate_tenants_and_cannot_read_each_other(envi
     signin(http, "bob")
     assert http.get("/api/exchange-accounts").json() == []
     assert http.get(f"/api/exchange-accounts/{account['id']}/portfolio").status_code == 404
-    assert http.get(f"/api/trading/accounts/{account['id']}/state?symbol=BTCUSDT").status_code == 404
+    assert http.get(f"/api/trading/accounts/{account['id']}/state?symbol=BTCUSDT-PERP").status_code == 404
     assert http.delete(f"/api/system/exchange-accounts/{account['id']}").status_code == 404
     assert app.state.accounts.row(account["id"])["tenant_id"] == production[0]["id"]
 

@@ -55,7 +55,7 @@ def test_trading_permissions_origin_and_no_secret_echo(trading):
         body = payload()
         route = '/api/trading/accounts/1/orders'
         assert client.post(route, json=body).status_code == 401
-        signin(client, 'viewer')
+        signin(client, 'admin')
         assert client.post(route, json=body).status_code == 403
         signin(client)
         create(client)
