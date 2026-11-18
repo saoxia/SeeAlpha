@@ -114,11 +114,58 @@ def test_origin_host_and_secure_cookie(environment):
 
 def test_password_whitespace_is_preserved_and_no_public_registration(environment):
     settings, database, _ = environment
-    set_user_password(database, "new-user", "  long-password  ", create=True)
+    set_user_password(database, "new-user", "  long-password1  ", create=True)
     with TestClient(create_app(settings)) as client:
-        assert login(client, "long-password", "new-user").status_code == 401
-        assert login(client, "  long-password  ", "new-user").status_code == 200
+        assert login(client, "long-password1", "new-user").status_code == 401
+        assert login(client, "  long-password1  ", "new-user").status_code == 200
         assert client.post("/api/auth/register", json={}).status_code == 404
+
+
+
+@pytest.mark.parametrize("password", [
+    "Abc12345",
+    "Abcdef1!",
+    "A" + "1" * 255,
+])
+def test_new_password_policy_accepts_letters_digits_and_optional_symbols(environment, password):
+    _, database, repository = environment
+    set_user_password(database, "new-user", password, create=True)
+    assert verify_password(repository.get_user_by_username("new-user")["password_hash"], password)
+    set_user_password(database, "admin", password, create=False)
+    assert verify_password(repository.get_user_by_username("admin")["password_hash"], password)
+
+
+@pytest.mark.parametrize("password", [
+    "Abc1234",
+    "abcdefgh",
+    "12345678",
+    "abc!def!",
+    "A" + "1" * 256,
+])
+def test_new_password_policy_rejects_invalid_passwords(environment, password):
+    _, database, _ = environment
+    for create, username in ((True, "new-user"), (False, "admin")):
+        with pytest.raises(ValueError, match="8–256"):
+            set_user_password(database, username, password, create=create)
+
+
+def test_user_creation_api_enforces_password_policy(environment):
+    settings, _, repository = environment
+    with TestClient(create_app(settings)) as client:
+        assert login(client).status_code == 200
+        response = client.post(
+            "/api/users", json={"username": "new-user", "password": "abcdefgh"}
+        )
+        assert response.status_code == 422
+        assert "英文字母和数字" in response.json()["detail"]
+        assert repository.get_user_by_username("new-user") is None
+
+
+def test_existing_passwords_are_not_revalidated_at_login(environment):
+    settings, _, repository = environment
+    repository.create_user("legacy", hash_password("short"))
+    with TestClient(create_app(settings)) as client:
+        assert login(client, "short", "legacy").status_code == 200
 
 
 def test_session_lookup_does_not_write_and_still_enforces_expiry_and_revocation(environment):
