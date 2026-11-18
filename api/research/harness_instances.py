@@ -53,7 +53,9 @@ class WorkloadTransport(httpx.BaseTransport):
                 result["status"], headers=headers, json=result.get("body"), request=request,
             )
         except (OSError, KeyError, TypeError, ValueError) as exc:
-            raise httpx.ConnectError("Harness node transport unavailable", request=request) from None
+            raise httpx.ConnectError(
+                "Harness node transport unavailable", request=request,
+            ) from None
 
 
 class UserHarnessInstances:
