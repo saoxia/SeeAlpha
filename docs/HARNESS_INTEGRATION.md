@@ -29,6 +29,8 @@ docker compose up -d --build
 curl http://127.0.0.1:8777/health
 ```
 
+Harness 镜像中的运行用户是 UID 10001。Linux 首次使用宿主路径 `./.local/state:/state` 绑定卷前，应确认已有状态备份并检查该路径可由 UID 10001 读写；新安装可以在 Harness 仓库执行 `sudo install -d -m 700 -o 10001 -g 10001 .local/state`。不应为绕过权限故障改用 root 运行容器或对已有目录执行不受控递归覆盖。
+
 Harness 默认只监听宿主 `127.0.0.1:8777`，不要将其 API 端口暴露到公网、共享 LAN 或不可信 Agent 网络。SeeAlpha Platform 和 Harness 在同一宿主运行时，在**Platform API 进程**设置：
 
 ```bash
