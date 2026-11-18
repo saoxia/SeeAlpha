@@ -28,9 +28,9 @@ uv sync --project platform --locked --no-default-groups
 可选服务入口：
 
 ```bash
-platform/.venv/bin/python -m node --role platform --host 127.0.0.1 --port 8000
-platform/.venv/bin/python -m node --role agent
-platform/.venv/bin/python -m node --role all --host 127.0.0.1 --port 8000
+platform/.venv/bin/python -m api.node --role platform --host 127.0.0.1 --port 8000
+platform/.venv/bin/python -m api.node --role agent
+platform/.venv/bin/python -m api.node --role all --host 127.0.0.1 --port 8000
 ```
 
 `platform` 使用正常 Platform 配置；`all` 在未明确设置
@@ -62,7 +62,7 @@ export NODE_CONFIG_FILE=/srv/seealpha/private/nodes.json
 export ENGINE_DOCKER_IMAGE=seealpha-engine:<经过验证的固定版本>
 export ENGINE_TENANT_ROOT=/srv/seealpha/tenants
 # 还需要现有 DATABASE_URL、ALLOWED_HOSTS、Engine 相关配置
-platform/.venv/bin/python -m node --role platform
+platform/.venv/bin/python -m api.node --role platform
 ```
 
 请仅在一个 Platform API Worker 中运行分布式控制功能。配置文件在 Platform
@@ -86,7 +86,7 @@ export NODE_ROOT=/srv/seealpha/node-workloads
 export NODE_MAX_CONTAINERS=8
 export NODE_MAX_CPUS=8
 export NODE_MAX_MEMORY=16g
-platform/.venv/bin/python -m node --role agent
+platform/.venv/bin/python -m api.node --role agent
 ```
 
 私有 NODE_TOKEN 应通过受限的环境文件或服务管理器提供，不要写入 shell 历史或
@@ -101,7 +101,7 @@ Node Agent 只接受固定镜像集合、指定的 CPU/内存上限和
 ## 运行与验证
 
 ```bash
-platform/.venv/bin/ruff check node api/distributed_docker.py api/node_routes.py api/engine_client.py api/main.py api/config.py platform/tests/node_agent_test.py
+platform/.venv/bin/ruff check api/node api/distributed_docker.py api/node_routes.py api/engine_client.py api/main.py api/config.py platform/tests/node_agent_test.py
 platform/.venv/bin/python -m pytest -c platform/pyproject.toml -q platform/tests/node_agent_test.py platform/tests/tenant_docker_test.py platform/tests/engine_outage_test.py
 ```
 

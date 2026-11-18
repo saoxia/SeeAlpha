@@ -11,9 +11,9 @@ import pytest
 from api.distributed_docker import DistributedTenantManager
 from api.engine_client import EngineClient
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, EngineConflict
-from node.agent import NodeAgent
-from node.docker import DockerRuntime
-from node.hub import NodeHub
+from api.node.agent import NodeAgent
+from api.node.docker import DockerRuntime
+from api.node.hub import NodeHub
 
 
 def node_config(tmp_path):

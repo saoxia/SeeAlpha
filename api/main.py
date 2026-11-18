@@ -21,7 +21,7 @@ from .db.errors import StorageUnavailable
 from .engine_client import EngineClient, EngineUnavailable
 from .distributed_docker import DistributedTenantManager
 from .node_routes import router as node_router
-from node.hub import NodeHub
+from .node.hub import NodeHub
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
