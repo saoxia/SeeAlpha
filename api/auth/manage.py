@@ -2,8 +2,8 @@
 
 import argparse
 import getpass
-import sqlite3
 import re
+import sqlite3
 
 from ..config import Settings
 from ..db.auth_repository import auth_repository
