@@ -250,6 +250,6 @@ export function HarnessWorkspace() {
         </section>}
       </div>
     </div>
-    <p className="research-note">AI Harness 属于用户研究工作台。当前后端仍为单用户开发运行时，尚未开放普通用户执行研究任务；需要完成任务归属、租户访问控制及 Agent 运行环境隔离后才可启用。不要输入真实交易密钥或生产敏感数据；研究成果需要人工审查。</p>
+    <p className="research-note">AI Harness 属于用户研究工作台。当前后端仅支持一名受信任的研究用户（可由管理员在部署配置中指定），并不支持多个普通用户共享执行。推广为多用户功能前，需要完成任务归属、租户访问控制及 Agent 运行环境隔离。不要输入真实交易密钥或生产敏感数据；研究成果需要人工审查。</p>
   </div>;
 }

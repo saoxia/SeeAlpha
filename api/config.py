@@ -36,6 +36,8 @@ class Settings:
     harness_enabled: bool = False
     harness_url: str = ""
     harness_token: str = field(default="", repr=False)
+    # One trusted user per resident Harness instance; empty preserves the legacy admin owner.
+    harness_owner_username: str = ""
 
     @classmethod
     def from_environment(cls):
@@ -94,4 +96,5 @@ class Settings:
             harness_enabled=os.getenv("HARNESS_ENABLED", "false").lower() in {"1", "true", "yes"},
             harness_url=os.getenv("HARNESS_URL", ""),
             harness_token=os.getenv("HARNESS_API_TOKEN", ""),
+            harness_owner_username=os.getenv("HARNESS_OWNER_USERNAME", "").strip(),
         )
