@@ -72,7 +72,7 @@ Next.js 主导航有 AI Harness 页：`web/app/components/research/research-page
 - **Binance 期权适配器**：行情客户端 `engine/connectors/binance/options_client.py`（`BinanceOptionsDataClient`），只读账户 `engine/connectors/binance/options_account.py`，执行客户端 `engine/connectors/binance/options_execution.py`。公开行情解析在 `engine/connectors/binance/options.py` 与 `engine/connectors/binance/options_parsing.py`。API 没有注册该执行客户端，也没有实盘策略调用它。说明见 [期权适配器](docs/BINANCE_OPTIONS_ADAPTER.md)。
 - **USD-M 现金流台账**：`engine/connectors/binance/income.py` 读取签名 `GET /fapi/v1/income`；`api/operations/service.py` 的 `_sync_income` 写入既有操作账本，事件类型为 `cashflow`。查询仍走 `/api/operations`。说明见 [操作记录](docs/OPERATIONS_API.md)。
 - **期权数据**：离线任务在 `engine/pipeline/options_data.py`，经 `/api/data/*` 传 `product=options`（`api/market_data/`）。历史 K 线为 1m、5m、15m；近期成交有上限，不表示完整历史 Tick。期权连续采集由引擎的 feed 进程承担。方案见 [期权数据](docs/OPTIONS_DATA_PLAN.md)。
-- **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略以 `packages/` 中的可下发包登记，不再使用已删除的研究目录。
+- **常驻交易引擎**：`engine/` 持有连接器、连续行情和完整 `engine/pipeline/`（含 Rust 转换器与 Catalog）。`python -m engine` 提供内部 HTTP，并启动采集、历史补齐和一次性 `data_management` 任务。SQLite 记录订单幂等、成交、持仓、缺口和运行期订阅。API 保存订阅意图和任务索引，不再自行启动这些进程，也不再构造账户/手动/估值 LiveNode。策略以 `strategy/` 中的可下发包登记，不再使用已删除的研究目录。
 - **托管行情数据服务**：业务配置在 `market_data_policies`。引擎按该意图启动 `engine.feed.managed` 与 `engine.pipeline.pair_data --service`。业务 API 周期性同步订阅意图，并通过 Engine HTTP 查询健康与积压，不再由 `ServiceMonitor.sample` 在 Platform 本地写入采集状态文件。离线准备、删除和裁剪由引擎执行 `engine.pipeline.data_management`。
 - **主题设置**：`web/app/features/appearance/theme.ts` 把偏好写入浏览器键 `seealpha.interface-theme`（像素风 / 液态玻璃）。切换组件是 `web/app/components/appearance/theme-switch.tsx`，设置页是 `web/app/components/settings/appearance-settings.tsx`。没有对应的后端设置接口。
 
@@ -157,7 +157,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 
 ## 查看与复查
 
-[运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md) · [策略包示例](packages/ema_crossover/README.md)
+[运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md) · [策略包示例](strategy/ema_crossover/README.md)
 
 2026-10-26 的开发环境记录是当日验收：当时 pytest 为 1,345 项通过。该数字不是上面的当前结果。
 详情见 [开发环境说明](DEV_ENVIRONMENT.md)。

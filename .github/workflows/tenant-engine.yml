@@ -23,6 +23,7 @@ on:
       - "tests/api/tenant_docker_test.py"
       - "tests/api/orm_storage_test.py"
       - "platform/**"
+      - "strategy/**"
       - "tests/legacy_engine_integration/**"
       - "tests/api/auth_test.py"
       - "tests/api/management_test.py"
@@ -72,7 +73,7 @@ jobs:
           python=false
           while IFS= read -r path; do
             case "$path" in
-              api/*|core/*|platform/*|tests/*|migrations/*|packages/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*)
+              api/*|core/*|platform/*|tests/*|migrations/*|strategy/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*)
                 python=true ;;
             esac
             case "$path" in
@@ -84,7 +85,7 @@ jobs:
                 docker=true ;;
             esac
             case "$path" in
-              core/*|docker/*|.dockerignore|migrations/*|packages/*|tests/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*|.github/workflows/tenant-engine.yml)
+              core/*|docker/*|.dockerignore|migrations/*|strategy/*|tests/*|pyproject.toml|uv.lock|ruff.toml|pytest.ini|scripts/*|.github/workflows/tenant-engine.yml)
                 full=true ;;
               api/exchanges/*|api/operations/*|api/strategies/*|api/equity/*|api/market_data/*|api/db/*|api/auth/*|api/tenants/*|api/engine_client.py|api/tenant_docker.py|api/config.py|api/main.py)
                 full=true ;;

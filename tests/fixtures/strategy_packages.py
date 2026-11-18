@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[2]
-EXAMPLE = PROJECT / "packages" / "ema_crossover"
+EXAMPLE = PROJECT / "strategy" / "ema_crossover"
 ALLOWED_SUFFIXES = {".py", ".json", ".md", ".txt"}
 
 
