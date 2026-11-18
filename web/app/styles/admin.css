@@ -1,0 +1,33 @@
+/* Administration uses a separate shell from the trading workspace. */
+.admin-console { min-height: 100vh; }
+.admin-topbar { display: flex; align-items: center; gap: 28px; min-height: 70px; padding: 10px 28px; border-bottom: 1px solid var(--line); background: #fbfbf8; }
+.admin-brand { display: flex; align-items: center; gap: 22px; flex: 0 0 auto; }
+.admin-brand > span { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.admin-brand a { display: inline-flex; align-items: center; }
+.admin-brand .seealpha-logo { display: block; width: 80px; height: 40px; font-family: Georgia, serif; line-height: .7; letter-spacing: -1.5px; }
+.admin-brand .seealpha-logo span, .admin-brand .seealpha-logo b { display: block; font-size: 21px; }
+.admin-brand .seealpha-logo b { margin-left: 10px; }
+.admin-topbar nav { display: flex; gap: 6px; flex: 1 1 auto; }
+.admin-topbar nav button, .admin-topbar-actions > button, .admin-workspace-link { padding: 10px 13px; border: 1px solid transparent; cursor: pointer; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.admin-topbar nav button.active { border-color: currentColor; }
+.admin-topbar nav button:hover, .admin-topbar-actions > button:hover, .admin-workspace-link:hover { background: #e9e9e5; }
+.admin-topbar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.admin-identity { font-size: 11px; white-space: nowrap; }
+.admin-workspace-link { border-color: #a9afb7; }
+.admin-error { margin: 12px 28px; color: var(--red); }
+.admin-overview { width: min(1100px, 100%); margin: 0 auto; padding: 64px 30px; }
+.admin-overview-heading p { font-size: 10px; letter-spacing: 2px; color: #65718a; }
+.admin-overview-heading h1 { margin: 15px 0; font-size: clamp(30px, 4vw, 46px); }
+.admin-overview-heading > span { color: #65718a; font-size: 13px; line-height: 1.7; }
+.admin-overview-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 40px; }
+.admin-overview-cards button { text-align: left; border: 1px solid #aeb5bf; background: #fff; padding: 26px; display: grid; gap: 13px; cursor: pointer; }
+.admin-overview-cards button:hover { border-color: currentColor; }
+.admin-overview-cards button > span { color: #65718a; font-size: 10px; }
+.admin-overview-cards strong { font-size: 23px; }
+.admin-overview-cards small { color: #65718a; font-size: 12px; line-height: 1.6; }
+.admin-overview-cards b { justify-self: end; font-size: 18px; }
+html[data-interface-theme="glass"] .admin-topbar { margin: 12px 18px 0; border: 1px solid #d2deef; border-radius: 20px; background: #ffffffc9; color: #24334c; }
+html[data-interface-theme="glass"] .admin-overview-cards button { border-color: #d2deef; border-radius: 18px; background: #ffffffbd; color: #24334c; }
+html[data-interface-theme="glass"] .admin-topbar nav button.active { background: #e8eef8; border-color: #c3d4ed; border-radius: 12px; }
+@media (max-width: 1060px) { .admin-topbar { flex-wrap: wrap; gap: 12px; } .admin-topbar nav { order: 3; flex-basis: 100%; } .admin-topbar-actions { margin-left: auto; } }
+@media (max-width: 620px) { .admin-topbar { padding: 14px; } .admin-identity { display: none; } .admin-topbar nav { justify-content: space-between; } .admin-overview { padding: 36px 16px; } .admin-overview-cards { grid-template-columns: 1fr; } .admin-topbar-actions { gap: 4px; } }
