@@ -100,7 +100,8 @@ class DockerRuntime:
         port = spec.get("port")
         if (not isinstance(env, dict) or len(env) > 40
                 or any(not isinstance(k, str) or not _ENV.fullmatch(k)
-                       or not isinstance(v, str) or len(v) > 8192 for k, v in env.items())):
+                       or not isinstance(v, str) or len(v) > 8192
+                       or "\\n" in v or "\\r" in v for k, v in env.items())):
             raise ValueError("Invalid environment")
         if not isinstance(mounts, dict) or len(mounts) > 12:
             raise ValueError("Invalid mounts")
@@ -160,8 +161,11 @@ class DockerRuntime:
             ]
             if port is not None:
                 args.extend(["--publish", f"127.0.0.1::{port}"])
+            volume_root = base / "volumes"
+            if volume_root.is_symlink():
+                raise ValueError("Workload volume root is not trusted")
             for volume, target in sorted(mounts.items()):
-                source = base / "volumes" / volume
+                source = volume_root / volume
                 if source.is_symlink():
                     raise ValueError("Workload volume is not trusted")
                 source.mkdir(parents=True, exist_ok=True, mode=0o700)

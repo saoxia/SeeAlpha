@@ -29,9 +29,9 @@ class DistributedTenantManager:
         self.market_tenant_id = None
 
     def bind_market_tenant(self, tenant_id):
-        self.market_tenant_id = str(tenant_id)
         if self.hub.assigned(tenant_id) != "local":
             raise EngineConflict("默认行情/正式租户不能部署在远程开发节点。")
+        self.market_tenant_id = str(tenant_id)
         self.local.bind_market_tenant(tenant_id)
 
     def _node(self, tenant_id):
