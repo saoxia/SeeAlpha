@@ -36,14 +36,19 @@ export const indicatorCatalog = {
   RSI: {name:"相对强弱指标", parameters:[{label:"周期",value:14,min:1,max:500,step:1},{label:"超买线",value:70,min:1,max:100,step:1},{label:"超卖线",value:30,min:0,max:99,step:1}], colors:["RSI","超买线","超卖线"]},
   MACD: {name:"平滑异同移动平均线", parameters:[{label:"快线周期",value:12,min:1,max:499,step:1},{label:"慢线周期",value:26,min:2,max:500,step:1},{label:"信号周期",value:9,min:1,max:500,step:1}], colors:["DIF","DEA","上涨柱","下跌柱"]},
   VOL: {name:"成交量", parameters:[], colors:["上涨量","下跌量"]},
+  VP: {name:"成交量分布（OHLCV 估算）",parameters:[{label:"价格区间数",value:48,min:8,max:128,step:1},{label:"价值区比例(%)",value:70,min:1,max:100,step:1},{label:"显示宽度(px)",value:180,min:40,max:400,step:1}],colors:["成交量","POC","价值区"]},
+  BOOK: {name:"订单簿流动性热力图（实时采样）",parameters:[{label:"观察窗口(秒)",value:180,min:30,max:600,step:1},{label:"热力透明度(%)",value:60,min:10,max:100,step:1}],colors:["买盘","卖盘"]},
+  LIQ: {name:"预估强平热力图（需要模型数据）",parameters:[{label:"热力透明度(%)",value:60,min:10,max:100,step:1}],colors:["多头强平","空头强平"]},
 } as const;
 export type IndicatorKind = keyof typeof indicatorCatalog;
+export const marketOverlayKinds:readonly IndicatorKind[]=["VP","BOOK","LIQ"];
+export function isMarketOverlay(kind:IndicatorKind):boolean{return marketOverlayKinds.includes(kind);}
 export const priceSources = {close:"收盘价",open:"开盘价",high:"最高价",low:"最低价",hl2:"(高+低)/2",hlc3:"(高+低+收)/3",ohlc4:"(开+高+低+收)/4"} as const;
 export type PriceSource = keyof typeof priceSources;
 export type IndicatorConfig = {id:string;kind:IndicatorKind;visible:boolean;parameters:number[];source:PriceSource;colors:string[];width:1|2|3|4;style:0|1|2};
 export const maxIndicators = 24;
 export function newIndicator(kind:IndicatorKind,id:string):IndicatorConfig {
-  const colors=kind==="VOL"?["#2ebd85","#f6465d"]:kind==="MACD"?["#e5b83c","#d94ab1","#2ebd85","#f6465d"]:kind==="RSI"?["#9063b5","#848e9c","#848e9c"]:["#e5b83c","#d94ab1","#9063b5"];
+  const colors=kind==="VP"?["#5396d2","#e5b83c","#4aafad"]:kind==="BOOK"?["#29b899","#e77e56"]:kind==="LIQ"?["#d25da0","#f09c46"]:kind==="VOL"?["#2ebd85","#f6465d"]:kind==="MACD"?["#e5b83c","#d94ab1","#2ebd85","#f6465d"]:kind==="RSI"?["#9063b5","#848e9c","#848e9c"]:["#e5b83c","#d94ab1","#9063b5"];
   return {id,kind,visible:true,parameters:indicatorCatalog[kind].parameters.map(p=>p.value),source:"close",colors:colors.slice(0,indicatorCatalog[kind].colors.length),width:1,style:0};
 }
 export function defaultIndicators():IndicatorConfig[] {
@@ -92,6 +97,9 @@ export function indicatorPlots(rows:IndicatorCandle[],configs:IndicatorConfig[])
   for(const config of configs){
     if(!config.visible)continue;
     const {kind,parameters:p,colors}=config;
+    // Market overlays paint on the existing TradingView Lightweight Charts price pane
+    // rather than inventing line/histogram studies or extra panes.
+    if(isMarketOverlay(kind))continue;
     const values=rows.map(r=>{const o=Number(r.open),h=Number(r.high),l=Number(r.low),c=Number(r.close);return config.source==="hl2"?(h+l)/2:config.source==="hlc3"?(h+l+c)/3:config.source==="ohlc4"?(o+h+l+c)/4:Number(r[config.source]);});
     const target=kind==="RSI"||kind==="MACD"||kind==="VOL"?pane++:0;
     function add(key:string,title:string,values:(number|null)[],color:string,type:"line"|"histogram"="line",barColors?:string[]){plots.push({key:`${config.id}:${key}`,kind:type,title,pane:target,values,color,width:config.width,style:config.style,barColors,volume:kind==="VOL"});}
