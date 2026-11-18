@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
       { source: "/api/tenants/:path*", destination: `${apiUrl}/api/tenants/:path*` },
       { source: "/api/trading/:path*", destination: `${apiUrl}/api/trading/:path*` },
       { source: "/api/management/:path*", destination: `${apiUrl}/api/management/:path*` },
+      { source: "/api/harness/:path*", destination: `${apiUrl}/api/harness/:path*` },
       { source: "/api/health", destination: `${apiUrl}/api/health` },
       { source: "/api/system/olap/:path*", destination: `${apiUrl}/api/system/olap/:path*` },
       { source: "/api/clickhouse/:path*", destination: `${apiUrl}/api/clickhouse/:path*` },
