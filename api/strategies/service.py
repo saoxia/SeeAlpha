@@ -179,6 +179,27 @@ class StrategyStore:
         except EngineConflict as exc:
             raise HTTPException(409, exc.message) from exc
 
+    def development_worker_tenants(self):
+        return [
+            {"id": row["id"], "name": row["name"], "status": row["status"]}
+            for row in self.tenants.repository.list_tenants()
+            if row["purpose"] == "development" and row["status"] == "active"
+        ]
+
+    def _worker_tenant(self, tenant_id):
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "只有开发租户支持回测 Worker 配置。")
+        return tenant["id"]
+
+    def backtest_worker_settings(self, tenant_id):
+        return self.engine.backtest_worker_settings(self._worker_tenant(tenant_id))
+
+    def update_backtest_worker_settings(self, tenant_id, max_workers, timeout_seconds):
+        return self.engine.update_backtest_worker_settings(
+            self._worker_tenant(tenant_id), max_workers, timeout_seconds,
+        )
+
     def _task_tenant(self, tenant_id):
         tenant = self.tenants.require_tenant(tenant_id)
         return tenant["id"]

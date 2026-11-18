@@ -45,7 +45,12 @@ def create_tenant(client, purpose, name):
     response = client.post("/api/tenants", json={"name": name})
     assert response.status_code == 201, response.text
     assert response.json()["purpose"] == "development"
-    return response.json()
+    tenant = response.json()
+    # Tenant registration is eventually consistent in production. Legacy
+    # direct-Engine assertions must establish the test fixture's prerequisite
+    # explicitly rather than race the Platform's 15-second reconciler.
+    client.app.state.engine.ensure_tenant(tenant["id"], tenant["purpose"])
+    return tenant
 
 
 def _app_children(http, tenant_id):

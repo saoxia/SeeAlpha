@@ -8,15 +8,17 @@ import { UserAdminPage } from "../identity/user-admin-page";
 import { ProjectChecksPage } from "../research/project-checks-page";
 import { DataManagementPage } from "../data-management/data-management-page";
 import { OlapConnectionSettings } from "../settings/olap-connection-settings";
+import { BacktestWorkerSettings } from "./backtest-worker-settings";
 import type { AuthSession } from "../../features/identity/model";
 
-type AdminSection = "overview" | "users" | "data" | "olap" | "checks";
+type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks";
 
 const sections: Array<{ id: AdminSection; label: string }> = [
   { id: "overview", label: "管理概览" },
   { id: "users", label: "用户管理" },
   { id: "data", label: "数据运维" },
   { id: "olap", label: "平台设置" },
+  { id: "workers", label: "回测 Worker" },
   { id: "checks", label: "项目检查" },
 ];
 
@@ -98,8 +100,14 @@ export function AdminConsole({
               <small>配置和测试 OLAP 数据库连接</small>
               <b aria-hidden="true">→</b>
             </button>
+            <button type="button" onClick={() => setSection("workers")}>
+              <span>04 / ENGINE</span>
+              <strong>回测 Worker</strong>
+              <small>配置开发租户回测并发数和执行超时</small>
+              <b aria-hidden="true">→</b>
+            </button>
             <button type="button" onClick={() => setSection("checks")}>
-              <span>04 / OPERATIONS</span>
+              <span>05 / OPERATIONS</span>
               <strong>项目检查</strong>
               <small>平台检查、运维任务及检查日志</small>
               <b aria-hidden="true">→</b>
@@ -112,6 +120,7 @@ export function AdminConsole({
       )}
       {section === "data" && <DataManagementPage scope="admin" />}
       {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
+      {section === "workers" && <BacktestWorkerSettings />}
       {section === "checks" && <ProjectChecksPage />}
     </main>
   );
