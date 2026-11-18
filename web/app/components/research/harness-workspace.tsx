@@ -150,7 +150,9 @@ export function HarnessWorkspace() {
       {artifacts.length>0 && <div className="research-harness-artifacts">
         <h3>成果清单（未审核）</h3>
         {artifacts.map(item=><p key={item.artifact_id}>
-          {item.filename||item.artifact_id} · {item.kind} · {Math.ceil((item.size||0)/1024)} KiB
+          <a href={`/api/harness/tasks/${encodeURIComponent(task.id)}/artifacts/${encodeURIComponent(item.artifact_id)}`}
+             download>{item.filename||item.artifact_id}</a>
+          {" · "}{item.kind}{" · "}{Math.ceil((item.size||0)/1024)} KiB
         </p>)}
       </div>}
     </section>}
