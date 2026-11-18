@@ -51,7 +51,7 @@ def checked_spot_symbol(symbol: str):
 
 @router.get("/system/exchange-spot-candles")
 async def spot_candles(
-    request: Request, _: CurrentUser,
+    request: Request, _: TradingUser,
     symbol: str = Query(min_length=3, max_length=30),
     interval: str = Query(default="1m", max_length=3),
     start_ms: int = Query(ge=0),
@@ -69,7 +69,7 @@ async def spot_candles(
 
 @router.get("/system/exchange-spot-recent-trades")
 async def spot_recent_trades(
-    request: Request, _: CurrentUser,
+    request: Request, _: TradingUser,
     symbol: str = Query(min_length=3, max_length=30),
     limit: int = Query(default=500, ge=1, le=1000),
 ):
