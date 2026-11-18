@@ -84,8 +84,10 @@ API 仍选择业务库里 `system_key=default` 的租户作为请求目标，属
 `127.0.0.1` 随机端口，由 API 发现。各租户使用独立 Bearer 令牌，
 Engine 还校验 URL 里的租户 ID 和登记用途。不要在外部反向代理或防火墙上
 公开这些随机端口，也不要将 Engine 令牌交给浏览器。
-现在 Docker 管理只支持**同一 Docker 宿主机**；跨服务器部署需要另行加入
-可信 Worker Agent / 节点路由，而不是暴露 Docker daemon TCP 端口。
+`ENGINE_DEPLOYMENT=docker` 管理**同一 Docker 宿主机**。`ENGINE_DEPLOYMENT=distributed`
+可以通过出站 Node Agent 管理远端开发或正式租户（含默认行情租户），
+具体节点绑定、远端不支持的流式能力与数据迁移约束见 [Node Agent](NODE_AGENT.md)。
+不得暴露 Docker daemon TCP 端口。
 
 ## 全新部署与数据保护
 
