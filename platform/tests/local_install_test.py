@@ -5,7 +5,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.local_runtime import LocalRuntime
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,7 +26,7 @@ def test_install_refuses_inherited_external_database():
     env["DATABASE_URL"] = "postgresql://example.invalid/production"
     result = subprocess.run(
         ["bash", str(ROOT / "scripts/install.sh")],
-        capture_output=True, text=True, env=env, cwd=ROOT,
+        check=False, capture_output=True, text=True, env=env, cwd=ROOT,
     )
     assert result.returncode == 2
     assert "DATABASE_URL" in result.stderr
