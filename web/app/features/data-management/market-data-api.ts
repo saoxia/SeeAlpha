@@ -92,6 +92,16 @@ export function taskTransitions<T extends { id: string; status: string }>(previo
 
 
 export const dataProductLabels: Record<DataProduct, string> = { futures_um: "U 本位永续", options: "期权" };
+
+// A Binance USD-M market socket supports 1,024 streams. The collector reserves
+// headroom by allocating 128 contracts (trade + funding) per combined socket.
+export const FUTURES_BATCH_LIMIT = 128;
+
+export function toggleFuturesSymbol(current: string[], symbol: string): string[] {
+  if (current.includes(symbol)) return current.filter((value) => value !== symbol);
+  if (current.length >= FUTURES_BATCH_LIMIT) return current;
+  return [...current, symbol];
+}
 export type PairDeletePlanRequest = components["schemas"]["PairDeletePlanRequest"];
 export type PairDeleteRequest = components["schemas"]["PairDeleteRequest"];
 

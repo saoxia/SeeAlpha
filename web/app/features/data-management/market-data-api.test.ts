@@ -166,3 +166,14 @@ test("configured pairs appear without catalogue coverage, including stopped futu
   assert.ok(rows.every((row) => row.event_ranges_ns.length === 0));
   assert.deepEqual(groupDataItems([], []), []);
 });
+
+
+test("futures picker deduplicates, toggles and respects a socket-safe batch size", async () => {
+  const { FUTURES_BATCH_LIMIT, toggleFuturesSymbol } = await import("./market-data-api.ts");
+  assert.equal(FUTURES_BATCH_LIMIT, 128);
+  const symbols = Array.from({ length: FUTURES_BATCH_LIMIT }, (_, i) => `S${i}USDT`);
+  assert.deepEqual(toggleFuturesSymbol(symbols, "NEWUSDT"), symbols);
+  assert.equal(toggleFuturesSymbol(symbols, "S1USDT").length, FUTURES_BATCH_LIMIT - 1);
+  assert.deepEqual(toggleFuturesSymbol([], "ETHUSDT"), ["ETHUSDT"]);
+  assert.deepEqual(toggleFuturesSymbol(["ETHUSDT"], "ETHUSDT"), []);
+});
