@@ -220,7 +220,7 @@ class EngineClient:
             raise HTTPException(503, "租户数据引擎不可用。") from exc
         self._verify_contract(response)
         if response.status_code >= 400:
-            detail = response.json().get("detail", "数据查询失败。")
+            detail = self._error_detail(response, "数据查询失败。")
             if response.status_code in {403, 404, 409, 422, 503}:
                 raise HTTPException(response.status_code, detail)
             raise HTTPException(502, "Engine 数据查询失败。")

@@ -14,6 +14,7 @@ from api.db.auth_repository import auth_repository
 from api.engine_client import EngineClient
 from api.main import create_app
 from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -153,3 +154,7 @@ def test_plain_text_engine_errors_do_not_break_background_reconciliation(tmp_pat
         client._sync("GET", "/health")
     with pytest.raises(QueryError, match="引擎请求失败"):
         asyncio.run(client._async("GET", "/health"))
+    with pytest.raises(HTTPException) as exc:
+        client.data_query("control/sync", {})
+    assert exc.value.status_code == 502
+
