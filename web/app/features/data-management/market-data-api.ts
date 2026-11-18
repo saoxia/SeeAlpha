@@ -93,8 +93,9 @@ export function taskTransitions<T extends { id: string; status: string }>(previo
 
 export const dataProductLabels: Record<DataProduct, string> = { futures_um: "U 本位永续", options: "期权" };
 
-// A Binance USD-M market socket supports 1,024 streams. The collector reserves
-// headroom by allocating 128 contracts (trade + funding) per combined socket.
+// Binance USD-M sockets support up to 1,024 streams. We allocate 128 pairs
+// per group: one shared /public socket for raw trades and one shared /market
+// socket for mark-price funding estimates, with capacity headroom.
 export const FUTURES_BATCH_LIMIT = 128;
 
 export function toggleFuturesSymbol(current: string[], symbol: string): string[] {

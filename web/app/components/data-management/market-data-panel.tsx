@@ -190,7 +190,7 @@ export function MarketDataPanel() {
           policies: selectedSymbols.map((item) => ({ ...policy, symbol: item })),
         }, AbortSignal.timeout(60000));
         setMode(null);
-        setMessage(`已批量添加 ${result.added} 个交易对；同一 WebSocket 将共享成交与资金费率订阅。`);
+        setMessage(`已批量添加 ${result.added} 个交易对；将按成交与资金费率分别复用共享 WebSocket。`);
         await refresh();
         return;
       } catch (error) {
@@ -337,7 +337,7 @@ export function MarketDataPanel() {
                   <span>{item.base} / {item.quote}</span><small>{item.symbol}</small>
                 </label>)}
               </div>
-              <small>每批最多 {FUTURES_BATCH_LIMIT} 个；采集端每个连接使用 2 条 stream（成交、资金费率），超过容量自动新建分组。已配置的品种不会重复显示。</small>
+              <small>每批最多 {FUTURES_BATCH_LIMIT} 个；采集端分别复用公开成交和资金费率连接，超过 128 个自动新建连接组。已配置的品种不会重复显示。</small>
             </> : <label>交易对<select size={6} value={symbol} disabled={marketsLoading || Boolean(marketError)} onChange={(event) => setSymbol(event.target.value)}><option value="">请选择交易对</option>{marketOptions.map((item) => <option key={item.symbol} value={item.symbol}>{item.base} / {item.quote} · {item.symbol}</option>)}</select></label>}
             <small>{marketsLoading ? "正在读取 Binance 品种…" : marketError ? "品种读取失败" : `${marketOptions.length} 个匹配交易对`}</small>{marketError && <p role="alert">{marketError} <button type="button" onClick={() => setMarketRetry((value) => value + 1)}>重新加载</button></p>}
           </div>}
