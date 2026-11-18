@@ -4,8 +4,8 @@ import asyncio
 import hashlib
 import json
 import time
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
@@ -257,8 +257,10 @@ async def market_list(request: Request, _: AdminUser,
     if product == "spot" and environment != "production":
         raise HTTPException(422, "现货公开行情仅支持正式环境")
     catalog, snapshot = await asyncio.gather(
-        request.app.state.exchanges.catalog(environment, product=product),
-        request.app.state.engine.market_tickers(environment, product),
+        request.app.state.exchanges.catalog(environment, product="spot") if product == "spot"
+        else request.app.state.exchanges.catalog(environment),
+        request.app.state.engine.market_tickers(environment, "spot") if product == "spot"
+        else request.app.state.engine.market_tickers(environment),
     )
     rows = []
     for item in catalog:
