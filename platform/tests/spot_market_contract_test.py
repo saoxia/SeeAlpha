@@ -4,10 +4,10 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
 from api.engine_client import EngineClient
 from api.exchanges import router as exchanges_router
+from fastapi import HTTPException
 
 
 class MarketVenue:
