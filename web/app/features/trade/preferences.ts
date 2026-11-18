@@ -7,7 +7,7 @@ export function restoreTradeSelection(saved: string | null): {symbol: string; in
   try {
     const value = JSON.parse(saved ?? "null");
     return {
-      symbol: typeof value?.symbol === "string" && /^[A-Z0-9]{2,30}(?:USDT|USDC)-PERP$/.test(value.symbol) ? value.symbol : defaults.symbol,
+      symbol: typeof value?.symbol === "string" && /^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)(?:-PERP)?$/.test(value.symbol) ? value.symbol : defaults.symbol,
       interval: tradeIntervals.includes(value?.interval) ? value.interval : defaults.interval,
     };
   } catch {return defaults;}
