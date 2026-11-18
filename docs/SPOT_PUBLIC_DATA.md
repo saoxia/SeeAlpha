@@ -1,5 +1,10 @@
 # Binance 现货公开行情（阶段一）
 
+> **更新**：本文件只描述起初的只读公共行情接口。Spot 后续已扩展为独立
+> 采集、历史数据、现金账户回测和手动交易功能分支，验收范围及未完成项目
+> 详见 [Spot 能力对齐进度](SPOT_PARITY_PROGRESS.md)。本文件中的“未完成”
+> 列表代表阶段一状态，并非整个功能分支的当前代码状态。
+
 2026-11-19：SeeAlpha 把 Binance Spot 作为独立 `spot` 市场身份，
 不再与 `futures_um` 永续行情混用。同一标的 BTCUSDT 的现货与永续
 对应不同 Nautilus InstrumentId、K 线类型和数据来源。
