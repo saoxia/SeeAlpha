@@ -8,8 +8,8 @@ import { OperationsList } from "./data-management-sections";
 import { dataManagementApi, timestamp } from "@/app/features/data-management/api";
 import { emptyDataFilters, type DataFilters, type DataTab } from "@/app/features/data-management/types";
 
-export function DataManagementPage() {
-  const [tab, setTab] = useState<DataTab>("market");
+export function DataManagementPage({ scope = "user" }: { scope?: "user" | "admin" }) {
+  const [tab, setTab] = useState<DataTab>(scope === "admin" ? "market" : "operations");
   const [accounts, setAccounts] = useState<ExchangeAccount[]>([]);
   const [draftFilters, setDraftFilters] = useState<DataFilters>(emptyDataFilters);
   const [filters, setFilters] = useState<DataFilters>(emptyDataFilters);
@@ -106,11 +106,10 @@ export function DataManagementPage() {
   return (
     <section className="data-management-page">
       <nav className="data-management-tabs" aria-label="数据管理分类">
-        {([
-          ["market", "行情数据"],
-          ["operations", "账户记录"],
-          ["monitor", "数据监控"],
-        ] as Array<[DataTab, string]>).map(([id, label]) => (
+        {(scope === "admin"
+          ? [["market", "行情数据"], ["monitor", "数据监控"]]
+          : [["operations", "账户记录"]]
+        ).map(([id, label]) => (
           <button
             key={id}
             type="button"

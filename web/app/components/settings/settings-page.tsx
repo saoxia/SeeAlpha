@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { ExchangeAccountSettings } from "./exchange-account-settings";
-import { OlapConnectionSettings } from "./olap-connection-settings";
 import { AppearanceSettings } from "./appearance-settings";
 
-type SettingsSection = "exchanges" | "olap" | "appearance";
+type SettingsSection = "exchanges" | "appearance";
 
 const settingsSections: Array<{
   id: SettingsSection;
@@ -14,8 +13,7 @@ const settingsSections: Array<{
   description: string;
 }> = [
   { id: "exchanges", number: "01", label: "交易所账户", description: "Binance 与 OKX 多账户" },
-  { id: "olap", number: "02", label: "OLAP 连接", description: "行情与分析数据源" },
-  { id: "appearance", number: "03", label: "界面外观", description: "像素风 / 液态玻璃" },
+  { id: "appearance", number: "02", label: "界面外观", description: "像素风 / 液态玻璃" },
 ];
 
 export function SettingsPage() {
@@ -51,7 +49,6 @@ export function SettingsPage() {
 
         <main className="settings-content">
           {activeSection === "exchanges" && <ExchangeAccountSettings />}
-          {activeSection === "olap" && <OlapConnectionSettings />}
           {activeSection === "appearance" && <AppearanceSettings />}
         </main>
       </div>

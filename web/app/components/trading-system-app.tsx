@@ -53,7 +53,7 @@ export function TradingSystemApp({ session, onSession, onLogout }: TradingSystem
       />
       {activeView === "live" && <LiveDashboard />}
       {activeView === "trade" && <TradePage />}
-      {activeView === "data" && <DataManagementPage />}
+      {activeView === "data" && <DataManagementPage scope="user" />}
       {activeView === "settings" && <SettingsPage />}
       {activeView === "tenants" && <TenantPage />}
     </main>
