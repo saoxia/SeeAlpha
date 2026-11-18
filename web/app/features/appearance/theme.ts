@@ -1,14 +1,15 @@
 // Keep the existing stored value for the pixel theme so saved preferences continue to work.
 export type InterfaceTheme = "classic" | "glass";
+export const defaultTheme: InterfaceTheme = "glass";
 
 const storageKey = "seealpha.interface-theme";
 const changeEvent = "seealpha:interface-theme";
 
 // A fixed, local preference is applied before paint. No user-supplied script is inserted.
-export const themeBootstrap = `try{document.documentElement.dataset.interfaceTheme=localStorage.getItem(${JSON.stringify(storageKey)})==="glass"?"glass":"classic"}catch{document.documentElement.dataset.interfaceTheme="classic"}`;
+export const themeBootstrap = `try{document.documentElement.dataset.interfaceTheme=localStorage.getItem(${JSON.stringify(storageKey)})==="classic"?"classic":${JSON.stringify(defaultTheme)}}catch{document.documentElement.dataset.interfaceTheme=${JSON.stringify(defaultTheme)}}`;
 
 export function readTheme(): InterfaceTheme {
-  return document.documentElement.dataset.interfaceTheme === "glass" ? "glass" : "classic";
+  return document.documentElement.dataset.interfaceTheme === "classic" ? "classic" : defaultTheme;
 }
 
 export function setTheme(theme: InterfaceTheme) {
@@ -29,7 +30,7 @@ export function subscribeTheme(onChange: () => void) {
       } catch {
         return;
       }
-      document.documentElement.dataset.interfaceTheme = event.newValue === "glass" ? "glass" : "classic";
+      document.documentElement.dataset.interfaceTheme = event.newValue === "classic" ? "classic" : defaultTheme;
       onChange();
     }
   }
