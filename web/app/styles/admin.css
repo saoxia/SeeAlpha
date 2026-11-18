@@ -322,6 +322,47 @@ html[data-interface-theme="glass"] .admin-console .research-page .settings-card 
 .admin-console .research-log { font-size: 11px; max-height: 58vh; }
 .admin-console .research-links a { font-size: 12px; }
 
+
+/* Preserve the same flat operator styling with either saved workspace theme. */
+.admin-console .data-overview-stats article,
+html[data-interface-theme="glass"] .admin-console .data-overview-stats article {
+  border-color: var(--admin-border);
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.admin-console .data-inventory-filters select,
+html[data-interface-theme="glass"] .admin-console .data-inventory-filters select,
+.admin-console .data-row-menu > summary,
+html[data-interface-theme="glass"] .admin-console .data-row-menu > summary,
+.admin-console .data-row-menu > div,
+html[data-interface-theme="glass"] .admin-console .data-row-menu > div {
+  border: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: #fff;
+  color: var(--admin-text);
+  box-shadow: none;
+}
+.admin-console .data-dialog,
+html[data-interface-theme="glass"] .admin-console .data-dialog {
+  border: 1px solid var(--admin-border);
+  border-radius: 0;
+  background: #fff;
+  color: var(--admin-text);
+  font-family: inherit;
+}
+.admin-console .data-dialog :is(input:not([type=checkbox]), select),
+html[data-interface-theme="glass"] .admin-console .data-dialog :is(input:not([type=checkbox]), select) {
+  border-color: var(--admin-border);
+  border-radius: 0;
+  background: #fff;
+}
+.admin-console .data-dialog-scope > span,
+html[data-interface-theme="glass"] .admin-console .data-dialog-scope > span { border-radius: 0; }
+.admin-console .data-dialog-inner > header h2 { font-size: 16px; }
+.admin-console .monitor-modal-head h2,
+html[data-interface-theme="glass"] .admin-console .monitor-modal-head h2 { font-size: 16px; }
+
 @media (max-width: 980px) {
   .admin-console { grid-template-columns: 164px minmax(0, 1fr); }
   .admin-body { padding: 14px; }
