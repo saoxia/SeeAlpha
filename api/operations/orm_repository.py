@@ -192,6 +192,8 @@ class ORMOperations:
                 query = query.where(LedgerOperation.timestamp >= value)
             elif key == "end_ms":
                 query = query.where(LedgerOperation.timestamp <= value)
+        if "account_ids" in filters:
+            query = query.where(LedgerOperation.account_id.in_(filters["account_ids"]))
         if cursor:
             query = query.where(
                 or_(

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from core.engine_contracts import EngineConflict
 from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
 
-from ..auth.dependencies import AdminUser
+from ..auth.dependencies import TradingUser
 from ..db.errors import StorageConflict, StorageUnavailable
 
 router = APIRouter(prefix="/trading", tags=["trading"])
@@ -164,24 +164,28 @@ class ManualTrading:
 
 
 @router.get("/accounts/{account_id}/state", response_model=ManualStateResponse)
-async def state(request: Request, account_id: int, _: AdminUser,
+async def state(request: Request, account_id: int, user: TradingUser,
                 symbol: str = Query(pattern=SYMBOL)):
+    request.app.state.accounts.require_owned(account_id, user.id)
     return await request.app.state.trading.snapshot(account_id, symbol)
 
 
 @router.post("/accounts/{account_id}/orders", response_model=ManualOrderResponse)
 async def submit(request: Request, account_id: int, payload: ManualOrderRequest, _: AdminUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
 
 
 @router.post("/accounts/{account_id}/cancel", response_model=ManualOrderResponse)
 async def cancel(request: Request, account_id: int, payload: ManualCancelRequest, _: AdminUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
 
 
 @router.get("/accounts/{account_id}/requests/{request_id}", response_model=ManualOrderResponse)
 async def lookup(request: Request, account_id: int, request_id: UUID, _: AdminUser,
                  environment: Literal["production", "sandbox"]):
+    request.app.state.accounts.require_owned(account_id, user.id)
     service = request.app.state.trading
     account = await asyncio.to_thread(service.accounts.private, account_id)
     if account["environment"] != environment:

@@ -73,12 +73,12 @@ def status(request: Request, _: CurrentUser):
 
 
 @router.post("/clickhouse/monitor/refresh")
-async def refresh(request: Request, _: CurrentUser):
+async def refresh(request: Request, _: AdminUser):
     return await asyncio.to_thread(request.app.state.olap.refresh_freshness_cache)
 
 
 @router.post("/clickhouse/monitor/tables", status_code=201)
-async def add_table(request: Request, payload: TableRequest, _: CurrentUser):
+async def add_table(request: Request, payload: TableRequest, _: AdminUser):
     try:
         request.app.state.olap.add_monitored_table(payload.table)
         return await asyncio.to_thread(request.app.state.olap.refresh_freshness_cache)
@@ -87,7 +87,7 @@ async def add_table(request: Request, payload: TableRequest, _: CurrentUser):
 
 
 @router.delete("/clickhouse/monitor/tables/{table}")
-async def delete_table(request: Request, table: str, _: CurrentUser):
+async def delete_table(request: Request, table: str, _: AdminUser):
     try:
         request.app.state.olap.remove_monitored_table(table)
         return await asyncio.to_thread(request.app.state.olap.refresh_freshness_cache)

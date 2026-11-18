@@ -30,14 +30,8 @@ def load_session(request: HTTPConnection, session_token: str | None) -> SessionC
     actor = UserResponse(id=record["id"], username=record["username"])
     effective = actor
     impersonating = False
-    target_id = record["impersonate_user_id"]
-    if target_id:
-        target = request.app.state.repository.get_user_by_id(target_id)
-        if target is None:
-            request.app.state.repository.set_impersonation(digest, None)
-        else:
-            effective = UserResponse(id=target["id"], username=target["username"])
-            impersonating = True
+    # Legacy act-as session fields are deliberately ignored. An administrator
+    # can never acquire a user's trading identity through a browser session.
     return SessionContext(
         actor=actor, user=effective, impersonating=impersonating, token_digest=digest
     )
@@ -55,6 +49,15 @@ def require_user(request: HTTPConnection, session_token: SessionCookie = None) -
 
 
 CurrentUser = Annotated[UserResponse, Depends(require_user)]
+
+
+def require_trading_user(request: HTTPConnection, user: CurrentUser) -> UserResponse:
+    if actor_is_admin(request, user.username):
+        raise HTTPException(status_code=403, detail="管理员仅可执行平台管理操作，请使用独立普通用户账户。")
+    return user
+
+
+TradingUser = Annotated[UserResponse, Depends(require_trading_user)]
 
 
 def actor_is_admin(request: HTTPConnection, username: str) -> bool:

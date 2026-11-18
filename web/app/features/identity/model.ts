@@ -11,7 +11,7 @@ export type AuthSession = {
 };
 
 export function canAccessAdminConsole(session: AuthSession): boolean {
-  return session.isAdmin && !session.impersonating;
+  return session.isAdmin;
 }
 
 export function sessionHomePath(session: AuthSession): "/admin" | "/app" {
@@ -29,6 +29,17 @@ export type TenantRecord = {
   name: string;
   description: string | null;
   status: TenantStatus;
+};
+
+export type LegacyTenant = {
+  id: number;
+  name: string;
+  purpose: TenantPurpose;
+  status: TenantStatus;
+  owner_id: number | null;
+  exchange_accounts: number;
+  virtual_accounts: number;
+  policies: number;
 };
 
 export type ManagedUser = {

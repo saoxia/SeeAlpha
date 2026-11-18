@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { UserAdminPage } from "../identity/user-admin-page";
 import { ProjectChecksPage } from "../research/project-checks-page";
 import { DataManagementPage } from "../data-management/data-management-page";
@@ -13,7 +12,7 @@ type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks
 
 const sections: Array<{ id: AdminSection; label: string; description: string }> = [
   { id: "overview", label: "概览", description: "常用管理入口" },
-  { id: "users", label: "用户管理", description: "创建用户、查看正式租户、进入用户视图" },
+  { id: "users", label: "用户管理", description: "普通用户注册、正式租户和历史数据迁移" },
   { id: "data", label: "数据运维", description: "行情库存、账户记录与数据监控" },
   { id: "olap", label: "平台设置", description: "ClickHouse / OLAP 连接配置" },
   { id: "workers", label: "回测 Worker", description: "开发租户回测并发与超时" },
@@ -21,10 +20,9 @@ const sections: Array<{ id: AdminSection; label: string; description: string }> 
 ];
 
 export function AdminConsole({
-  session, onSession, onLogout,
+  session, onLogout,
 }: {
   session: AuthSession;
-  onSession: (session: AuthSession) => void;
   onLogout: () => Promise<void>;
 }) {
   const [section, setSection] = useState<AdminSection>("overview");
@@ -66,7 +64,6 @@ export function AdminConsole({
         </nav>
         <div className="admin-sidebar-footer">
           <span className="admin-identity">{session.user.username} · 管理员</span>
-          <Link href="/app">进入业务工作台</Link>
           <button type="button" disabled={loggingOut} onClick={() => void logout()}>
             {loggingOut ? "正在退出…" : "退出登录"}
           </button>
@@ -95,11 +92,11 @@ export function AdminConsole({
                   </button>
                 ))}
               </div>
-              <p className="admin-hint">此处只管理平台与运维任务；用户交易操作请使用业务工作台。</p>
+              <p className="admin-hint">管理员只能运维平台。如需交易，请创建独立普通用户账户并使用该账户登录。</p>
             </section>
           )}
           {section === "users" && (
-            <UserAdminPage currentUsername={session.user.username} onSession={onSession} />
+            <UserAdminPage />
           )}
           {section === "data" && <DataManagementPage scope="admin" />}
           {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}

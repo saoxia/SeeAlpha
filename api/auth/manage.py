@@ -12,7 +12,8 @@ from ..db.errors import StorageConflict
 from .security import hash_password
 
 
-def set_user_password(database: Database, username: str, password: str, *, create: bool):
+def set_user_password(database: Database, username: str, password: str, *, create: bool,
+                      admin_username: str = "admin"):
     username = username.strip()
     if not 3 <= len(username) <= 64:
         raise ValueError("用户名长度须为 3–64 个字符。")
@@ -22,7 +23,7 @@ def set_user_password(database: Database, username: str, password: str, *, creat
         or not re.search(r"[0-9]", password)
     ):
         raise ValueError("新密码须为 8–256 个字符，且同时包含英文字母和数字；已有密码继续有效。")
-    repository = auth_repository(database)
+    repository = auth_repository(database, admin_username=admin_username)
     user = repository.get_user_by_username(username)
     if create:
         if user:
@@ -45,10 +46,13 @@ def main():
     password = getpass.getpass("密码: ")
     if password != getpass.getpass("确认密码: "):
         raise SystemExit("两次密码不一致。")
-    database = create_database(Settings.from_environment())
+    settings = Settings.from_environment()
+    database = create_database(settings)
     database.initialize()
     try:
-        set_user_password(database, args.username, password, create=args.action == "create-user")
+        set_user_password(database, args.username, password,
+                          create=args.action == "create-user",
+                          admin_username=settings.admin_username)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     finally:

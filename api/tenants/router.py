@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser, CurrentContext, CurrentUser, actor_is_admin
+from ..auth.dependencies import AdminUser, TradingUser
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -80,7 +80,7 @@ def create_template(request: Request, payload: TemplateCreate, _: AdminUser):
 
 
 @router.get("")
-def list_tenants(request: Request, user: CurrentUser):
+def list_tenants(request: Request, user: TradingUser):
     return tenants(request).list_tenants(user.id)
 
 
@@ -98,8 +98,8 @@ def create_tenant(
         if payload.purpose is not None and payload.purpose != template["purpose"]:
             raise HTTPException(422, "模板类型与租户用途不匹配。")
         purpose = template["purpose"]
-    if purpose == "production" and not actor_is_admin(request, context.actor.username):
-        raise HTTPException(403, "仅管理员可创建额外的正式租户。")
+    if purpose == "production":
+        raise HTTPException(403, "普通用户只允许拥有自动创建的正式租户；可创建开发租户。")
     return tenants(request).create_for_owner(user.id, purpose, payload.name, payload.description)
 
 

@@ -51,6 +51,8 @@ export function AuthGate({ destination = "auto" }: { destination?: Destination }
       router.replace(sessionHomePath(auth.session));
     } else if (destination === "admin" && !canAccessAdminConsole(auth.session)) {
       router.replace("/app");
+    } else if (destination === "app" && canAccessAdminConsole(auth.session)) {
+      router.replace("/admin");
     }
   }, [auth, destination, router]);
 
@@ -64,23 +66,13 @@ export function AuthGate({ destination = "auto" }: { destination?: Destination }
     router.replace("/");
   }
 
-  function updateSession(session: AuthSession) {
-    const returningFromImpersonation =
-      destination === "app" &&
-      auth.status === "authenticated" &&
-      auth.session.impersonating &&
-      canAccessAdminConsole(session);
-    setAuth({ status: "authenticated", session });
-    if (destination === "admin" && !canAccessAdminConsole(session)) {
-      router.replace("/app");
-    } else if (returningFromImpersonation) {
-      router.replace("/admin");
-    }
-  }
+
 
   if (auth.status === "loading" ||
       (auth.status === "authenticated" &&
-        (destination === "auto" || (destination === "admin" && !canAccessAdminConsole(auth.session))))) {
+        (destination === "auto" ||
+         (destination === "admin" && !canAccessAdminConsole(auth.session)) ||
+         (destination === "app" && canAccessAdminConsole(auth.session))))) {
     return (
       <main className="auth-loading" aria-label="正在检查登录状态">
         <SeeAlphaLogo className="loading-brand" />
@@ -94,10 +86,10 @@ export function AuthGate({ destination = "auto" }: { destination?: Destination }
   }
 
   if (destination === "admin") {
-    return <AdminConsole session={auth.session} onSession={updateSession} onLogout={logout} />;
+    return <AdminConsole session={auth.session} onLogout={logout} />;
   }
 
   return (
-    <TradingSystemApp session={auth.session} onSession={updateSession} onLogout={logout} />
+    <TradingSystemApp session={auth.session} onLogout={logout} />
   );
 }
