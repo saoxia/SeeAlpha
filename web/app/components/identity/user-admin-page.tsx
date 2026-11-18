@@ -50,7 +50,8 @@ export function UserAdminPage({ currentUsername, onSession }: UserAdminPageProps
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const username = String(form.get("username") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const confirm = String(form.get("confirm") ?? "");
@@ -64,7 +65,7 @@ export function UserAdminPage({ currentUsername, onSession }: UserAdminPageProps
     setNotice("");
     try {
       await createUser({ username, password });
-      event.currentTarget.reset();
+      formElement.reset();
       await refresh();
       setNotice("已创建用户，并自动准备其正式租户。");
     } catch (caught) {
@@ -87,80 +88,76 @@ export function UserAdminPage({ currentUsername, onSession }: UserAdminPageProps
   }
 
   return (
-    <section className="settings-page" id="users">
-      <div className="settings-layout">
-        <aside className="settings-sidebar" aria-label="用户管理">
-          <div className="settings-sidebar-head">
-            <span>USERS</span>
-            <b>用户管理</b>
-          </div>
-          <nav>
-            <button type="button" className="active" aria-current="page">
-              <span>01</span>
-              <div>
-                <b>用户</b>
-                <small>创建并进入视图</small>
-              </div>
-            </button>
-          </nav>
-        </aside>
-        <main className="settings-content">
-          <div className="settings-card">
-            <header className="settings-card-head">
-              <span>01</span>
-              <div>
-                <h2>用户</h2>
-                <p>新建用户会自动获得一个正式租户。进入视图后，租户操作按该用户的权限执行。</p>
-              </div>
-            </header>
-            {error && <p className="settings-feedback error" role="alert">{error}</p>}
-            {notice && <p className="settings-feedback success" role="status">{notice}</p>}
-            <form className="form-grid" onSubmit={(event) => void onCreate(event)}>
-              <label className="field">
-                <span>用户名</span>
-                <input name="username" required minLength={3} maxLength={64} autoComplete="off" />
-              </label>
-              <label className="field">
-                <span>密码</span>
-                <input name="password" type="password" required minLength={8} maxLength={256} pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,256}" title="密码须为 8–256 位，且包含英文字母和数字。" autoComplete="new-password" />
-                <small>至少 8 位，包含英文字母和数字；特殊字符可选。</small>
-              </label>
-              <label className="field">
-                <span>确认密码</span>
-                <input name="confirm" type="password" required minLength={8} maxLength={256} autoComplete="new-password" />
-              </label>
-              <div className="field">
-                <span>创建</span>
-                <button className="monitor-add-button" type="submit" disabled={busy}>
-                  {busy ? "正在创建…" : "创建用户"}
-                </button>
-              </div>
-            </form>
-            {loading ? <p className="exchange-empty">正在读取用户…</p> : (
-              <div className="tenant-list">
-                {users.map((user) => (
-                  <article key={user.id} className="tenant-row">
-                    <div>
-                      <b>{user.username}</b>
-                      <small>正式租户 · {user.production_tenant_name}</small>
-                    </div>
-                    <span className="tenant-badge production">正式</span>
-                    <span />
-                    <div className="tenant-actions">
-                      {user.username === currentUsername ? (
-                        <small>当前用户</small>
-                      ) : (
-                        <button type="button" disabled={busy} onClick={() => void enter(user.username)}>
-                          进入视图
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </main>
+    <section className="admin-panel admin-users" id="users" aria-label="用户管理">
+      <div className="admin-panel-header">
+        <div>
+          <h2>用户</h2>
+          <p>新建用户会自动创建正式租户；进入视图后按该用户的权限操作。</p>
+        </div>
+        <button type="button" disabled={loading || busy} onClick={() => {
+          setLoading(true);
+          void refresh();
+        }}>刷新列表</button>
+      </div>
+
+      {error && <p className="admin-alert" role="alert">{error}</p>}
+      {notice && <p className="admin-notice" role="status">{notice}</p>}
+
+      <form className="admin-create-form" onSubmit={(event) => void onCreate(event)}>
+        <h3>创建用户</h3>
+        <div className="admin-form-fields">
+          <label>
+            <span>用户名</span>
+            <input name="username" required minLength={3} maxLength={64} autoComplete="off" />
+          </label>
+          <label>
+            <span>密码</span>
+            <input name="password" type="password" required minLength={8} maxLength={256}
+              pattern="(?=.*[A-Za-z])(?=.*[0-9]).{8,256}"
+              title="密码须为 8–256 位，且包含英文字母和数字。" autoComplete="new-password" />
+          </label>
+          <label>
+            <span>确认密码</span>
+            <input name="confirm" type="password" required minLength={8} maxLength={256}
+              autoComplete="new-password" />
+          </label>
+          <button type="submit" disabled={busy}>{busy ? "正在创建…" : "创建用户"}</button>
+        </div>
+        <p className="admin-hint">密码至少 8 位，同时包含英文字母和数字。</p>
+      </form>
+
+      <div className="admin-list-header">
+        <h3>用户列表</h3>
+        <span>{loading ? "读取中…" : `${users.length} 个用户`}</span>
+      </div>
+      <div className="admin-table-wrap">
+        <table className="admin-users-table">
+          <thead>
+            <tr><th scope="col">ID</th><th scope="col">用户名</th><th scope="col">正式租户</th><th scope="col">操作</th></tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={4}>正在读取用户…</td></tr>
+            ) : users.length === 0 ? (
+              <tr><td colSpan={4}>暂无用户。</td></tr>
+            ) : users.map((user) => (
+              <tr key={user.id}>
+                <td>{user.id}</td>
+                <td><strong>{user.username}</strong></td>
+                <td>{user.production_tenant_name}</td>
+                <td>
+                  {user.username === currentUsername ? (
+                    <span className="admin-muted">当前用户</span>
+                  ) : (
+                    <button type="button" disabled={busy} onClick={() => void enter(user.username)}>
+                      进入视图
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
