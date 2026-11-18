@@ -11,7 +11,7 @@ import { appendDepthSnapshot, type DepthSnapshot, type LiquidationEstimates } fr
 
 const defaults = {orders: true, positions: true, history: false, breakeven: false, liquidation: false, preview: true, alerts: false, quick: false};
 type Options = typeof defaults;
-const displays = {quick: "快捷填价（点击图表）", orders: "当前委托", positions: "持有仓位", history: "历史委托（委托价）", breakeven: "损益两平价", liquidation: "强平价格", alerts: "价格提醒", preview: "订单预览线"} as const;
+const displays = {quick: "快捷填价（点击图表）", orders: "当前委托", positions: "持有仓位", history: "历史委托（委托价）", breakeven: "损益两平价", liquidation: "账户持仓强平价", alerts: "价格提醒", preview: "订单预览线"} as const;
 export function MarketChart({ market, depth, modeledLiquidations = null, identity, state, preview, onPrice, onNotice, displayDigits, periods, toolbar }: {
   periods: ReactNode; toolbar: ReactNode; displayDigits: number;
   market: Pick<Market, "candles" | "last_price" | "symbol"> | null;
