@@ -80,9 +80,9 @@ class HarnessClient:
         try:
             result = json.loads(body)
             if not isinstance(result, dict):
-                raise ValueError
+                raise TypeError
             return result
-        except (ValueError, UnicodeDecodeError):
+        except (TypeError, ValueError, UnicodeDecodeError):
             raise HarnessUnavailable("Harness response invalid") from None
 
     def health(self) -> dict:
