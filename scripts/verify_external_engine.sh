@@ -96,11 +96,11 @@ fi
 # Real NautilusTrader historical execution. Seed only the *container's* temporary
 # bind mount; the host Python imports no Engine implementation or research tools.
 if [[ "${SEEALPHA_VERIFY_BACKTEST:-0}" == "1" ]]; then
-  test -f "$platform_root/packages/ema_crossover/seealpha-package.json"
-  mkdir -p "$sandbox/platform/packages"
-  mkdir -p "$sandbox/platform/packages/ema_crossover"
+  test -f "$platform_root/strategy/ema_crossover/seealpha-package.json"
+  mkdir -p "$sandbox/platform/strategy"
+  mkdir -p "$sandbox/platform/strategy/ema_crossover"
   for source in seealpha-package.json strategy.py README.md; do
-    cp "$platform_root/packages/ema_crossover/$source" "$sandbox/platform/packages/ema_crossover/$source"
+    cp "$platform_root/strategy/ema_crossover/$source" "$sandbox/platform/strategy/ema_crossover/$source"
   done
   export SEEALPHA_SMOKE_DISPOSABLE=1
   engine_pid_before="$(docker inspect -f '{{.State.Pid}}' "$cid")"
@@ -127,10 +127,10 @@ if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
   mkdir -p "$sandbox"/{api-state,api-data,api-local,api-logs,business,strategy-business}
   cp -R "$platform_root/migrations" "$sandbox/platform/"
   cp "$platform_root/alembic.ini" "$sandbox/platform/alembic.ini"
-  mkdir -p "$sandbox/platform/packages/ema_crossover"
+  mkdir -p "$sandbox/platform/strategy/ema_crossover"
   for source in seealpha-package.json strategy.py README.md; do
-    cp "$platform_root/packages/ema_crossover/$source" \
-      "$sandbox/platform/packages/ema_crossover/$source"
+    cp "$platform_root/strategy/ema_crossover/$source" \
+      "$sandbox/platform/strategy/ema_crossover/$source"
   done
 
   api_token="$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')"

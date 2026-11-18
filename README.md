@@ -111,7 +111,7 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 策略是一份可解压的 zip，由业务端登记、按开发或正式用途授权，再下发到一个租户。
 引擎不保存策略名字清单。示例是双均线：金叉公布满额多头，死叉公布空仓。
-写法见 [`packages/ema_crossover/README.md`](packages/ema_crossover/README.md)。
+写法见 [`strategy/ema_crossover/README.md`](strategy/ema_crossover/README.md)。
 
 ## 行情归档、转换与回测
 

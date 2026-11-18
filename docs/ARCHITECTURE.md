@@ -36,7 +36,7 @@ LiveNode 由引擎执行，不再由 API 进程构造。操作账本同步仍从
 开发授权和正式授权是两条记录，正式授权默认没有。业务端授权后按交易所密钥的同一下发方式
 把包交给引擎；引擎只接收已下发的包，并用 `tenant_id` 隔离。包是带
 `seealpha-package.json` 的 zip，入口由归档自己声明，引擎不再按策略名字做允许清单。
-示例包是 `packages/ema_crossover/`：单品种 EMA 金叉公布满额多头，死叉公布空仓。
+示例包是 `strategy/ema_crossover/`：单品种 EMA 金叉公布满额多头，死叉公布空仓。
 策略只公布目标持仓。引擎用 `PortfolioCoordinator` 与 `target_netting`：先按账户风险额度
 截断合计目标，再对当前净持仓做目标轧差，差额仍走 Nautilus RiskEngine / ExecutionEngine。
 预览使用模拟 venue，不读取密钥，也不发真实订单。
@@ -80,7 +80,7 @@ Tick 同时持久化。沿既有期权批量 connector → Feed → history 桥 
 
 SeeAlpha 是基于 NautilusTrader 的多资产量化交易项目，当前行情接入为 Binance USD-M 永续，研究与回测以 BTC/ETH 策略为主。Platform 的 `platform/pyproject.toml` 和 `platform/uv.lock` 管理轻量业务依赖，独立 Engine 仓库自行管理 `nautilus-trader==2.0.0rc8` 与 Rust 工具链；项目不是引擎源码仓库。
 
-Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换，保留 Python 回退。`strategy_rust/` 当前只有说明文件，不能视为已有可运行 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
+Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换，保留 Python 回退。目前策略示例为 Python；尚未提供可运行的 Rust 策略。独立前端使用 Next.js、React、TypeScript 和 Tailwind，由 `web/package.json` 及锁文件管理。FastAPI 提供 API，SQLAlchemy/Alembic 管理业务持久化，支持 PostgreSQL/SQLite；ClickHouse 用于现有 OLAP 查询与监控。
 
 账户与操作历史查询保持只读；独立 TRADE 手动入口按显式确认发送交易命令，策略实盘未上线（范围见文末）。资产 K 线按启用后持久化的估值证据生成，缺口保留为空；部署须先完成已批准功能对应的迁移。不能将多资产产品定位或历史文档中的后续设计视为已实现能力。
 
@@ -93,7 +93,7 @@ Python 承担行情、管道、策略和 API；Rust 用于历史 trades 转换�
 | `engine/connectors/binance/` | 原生适配器接入与生命周期；`native.py`、`transport.py` 提供公开行情，`queries.py` 查询品种及账户，`operations.py` 读取操作历史。依赖公共定义及 Nautilus 公共能力，不依赖 `engine.feed`、`engine.pipeline`、`api` 或 `web`。 |
 | `engine/pipeline/` | `prepare_data.py` 统一协调归档下载、校验、转换、特征和 Catalog 入库。`catalog.py` 在 Nautilus v2 公共存储能力上提供项目存储接口；Rust 转换通过 Python 桥接调用。`pair_data` 是历史工作进程，`data_management` 是一次性离线任务。 |
 | `engine/feed/` | `service.py` 编排校时、历史衔接和修复；`feed.py` 控制就绪与回放交付，`store.py` 持久化连续分钟线。依赖 `engine.connectors`、`core`，仅 `history.py` 通过 `engine.pipeline.catalog` 桥接已有历史，不启动离线下载/重建。 |
-| `packages/` | 可登记的策略包。当前示例是 `ema_crossover/`：元数据、入口和只公布目标持仓的实现。引擎不内置策略名字清单。 |
+| `strategy/` | 可登记的策略包。当前示例是 `ema_crossover/`：元数据、入口和只公布目标持仓的实现。引擎不内置策略名字清单。 |
 | `api/`、`migrations/` | `main.py` 组装鉴权、交易所账户、操作账本、OLAP、离线数据管理、租户和策略商店，以及检查/回测任务。行情订阅意图、策略包授权和业务账本经 repository/ORM 持久化，Alembic 管理业务表结构。账户快照、手动订单、估值事件、行情采集、策略下发和一次性离线数据任务都改调引擎。研究任务调用既有检查与策略回测入口。启动时运行操作同步与 OLAP 缓存刷新；持有管理锁的进程恢复研究任务。策略商店不启动交易所实盘。 |
 | `web/app/` | 独立 Next.js 界面，通过同源 `/api` 与 FastAPI 交互；代理规则在 `web/next.config.ts`，契约类型位于 `web/app/api/generated/schema.ts`。AI Harness 页通过 `/api/harness` 访问常驻 Harness，项目检查和任务记录沿用 `/api/management`。 |
 | `tests/` | 按业务模块验证行为，包含策略依赖边界测试、冻结源码及研究来源核验。历史快照不等同于当前可运行入口。 |
@@ -140,7 +140,7 @@ OMS 的 NETTING 只合并成交后的持仓，不能代替下单前的目标对�
 单策略回测和清单 `execution=independent` 保持各策略自己下单。
 已下发到引擎的策略不走下单入口：策略只公布目标持仓，引擎侧协调器合并后轧差。
 指标和信号留在策略包内，不是平台对象。作者约定见
-[双均线示例](../packages/ema_crossover/README.md)。
+[双均线示例](../strategy/ema_crossover/README.md)。
 本轮不包含市场状态调权、FOF 动态再平衡、期权对冲或账户级最大回撤锁仓。
 保护性止损和应急退出先记在协调器里，触发后再进入净目标，避免静默丢掉风险退出。
 
@@ -422,7 +422,7 @@ ExchangeService 与 API 生命周期实现进程内分钟采集，最新展示�
 `POST /tenants/{tenant_id}/strategy-loads`，与密钥下发一样由业务端发起，引擎拒绝用途不匹配、
 未登记和已归档的加载。运行记录在引擎 SQLite `strategy_loads`，随租户导出、归档和删除。
 
-当前唯一示例是 `packages/ema_crossover/`：Nautilus `ExponentialMovingAverage` 快慢线，
+当前唯一示例是 `strategy/ema_crossover/`：Nautilus `ExponentialMovingAverage` 快慢线，
 金叉公布满额多头数量，死叉公布零。策略不调用 `submit_order` 或 `close_all_positions`。
 同一账户上的目标进入既有 `PortfolioCoordinator`；引擎先按各下发参数里最紧的 `risk_limit`
 截断合计目标，协调器再用 `target_netting` 对 `Portfolio.net_position` 计算差额，
