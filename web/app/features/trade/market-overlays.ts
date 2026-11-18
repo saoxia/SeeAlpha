@@ -86,7 +86,7 @@ export function verifiedLiquidationEstimates(
   input:LiquidationEstimates|null|undefined,
   symbol:string,now:number,
 ):LiquidationEstimates|null {
-  if(!input||input.symbol!==symbol||!input.source.trim()||!Number.isSafeInteger(input.time)||
+  if(!input||input.symbol!==symbol||typeof input.source!=="string"||!input.source.trim()||!Number.isSafeInteger(input.time)||
     input.time>now+5000||now-input.time>60000||!Array.isArray(input.levels)||input.levels.length>300)return null;
   const levels:LiquidationEstimate[]=[];
   for(const level of input.levels){
