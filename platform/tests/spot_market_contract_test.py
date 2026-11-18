@@ -50,13 +50,12 @@ def test_spot_market_catalog_is_not_futures_catalog():
     ))
     assert result[0]["symbol"] == "BTC/USDT"
     assert venue.calls == [("production", "spot")]
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(exchanges_router.markets(
-            req, None, exchange="binance", environment="sandbox",
-            market_type="spot", search="",
-        ))
-    assert error.value.status_code == 422
-    assert venue.calls == [("production", "spot")]
+    sandbox = asyncio.run(exchanges_router.markets(
+        req, None, exchange="binance", environment="sandbox",
+        market_type="spot", search="",
+    ))
+    assert len(sandbox) == 2
+    assert venue.calls == [("production", "spot"), ("sandbox", "spot")]
 
 
 def test_spot_queries_use_read_only_engine_boundary_and_validate_before_dispatch():
