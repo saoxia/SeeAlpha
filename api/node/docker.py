@@ -70,10 +70,7 @@ class DockerRuntime:
             raw = self._docker("inspect", "--type", "container", name)
         except OSError:
             # Only Docker's explicit not-found status is allowed here, not any failure.
-            try:
-                known = self._docker("ps", "-a", "--format", "{{.Names}}")
-            except OSError:
-                raise
+            known = self._docker("ps", "-a", "--format", "{{.Names}}")
             if name not in known.splitlines():
                 return None
             raise
@@ -81,7 +78,7 @@ class DockerRuntime:
 
     def _spec(self, spec):
         if not isinstance(spec, dict):
-            raise ValueError("Invalid workload definition")
+            raise TypeError("Invalid workload definition")
         name = self._id(spec.get("id"))
         image = spec.get("image")
         if image not in self.images:
@@ -242,7 +239,7 @@ class DockerRuntime:
             raise ValueError("Workload does not have one loopback HTTP port")
         headers = payload.get("headers") or {}
         if not isinstance(headers, dict):
-            raise ValueError("Invalid headers")
+            raise TypeError("Invalid headers")
         headers = {key: value for key, value in headers.items()
                    if key.lower() in {"authorization", _CONTRACT_HEADER.lower()}}
         timeout = min(max(int(payload.get("timeout", 120)), 1), 600)

@@ -18,10 +18,8 @@ from .config import PROJECT, Settings
 from .db.auth_repository import auth_repository
 from .db.database import create_database
 from .db.errors import StorageUnavailable
-from .engine_client import EngineClient, EngineUnavailable
 from .distributed_docker import DistributedTenantManager
-from .node_routes import router as node_router
-from .node.hub import NodeHub
+from .engine_client import EngineClient, EngineUnavailable
 from .equity.router import router as equity_router
 from .equity.service import EquityService
 from .exchanges.accounts import Accounts
@@ -33,6 +31,8 @@ from .management.router import router as management_router
 from .management.service import management_runtime
 from .market_data.router import router as market_data_router
 from .market_data.service import DataService
+from .node.hub import NodeHub
+from .node_routes import router as node_router
 from .olap.repository import olap_repository
 from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
