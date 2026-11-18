@@ -49,9 +49,9 @@ def login(client, username="admin"):
 
 
 def test_disabled_harness_does_not_affect_platform(tmp_path):
-    with TestClient(create_app(setup(tmp_path, enabled=False))) as client:
+    with TestClient(create_app(setup(tmp_path, enabled=False, owner="viewer"))) as client:
         assert client.get("/api/harness/status").status_code == 401
-        login(client)
+        login(client, "viewer")
         assert client.get("/api/harness/status").json()["enabled"] is False
         response = client.post("/api/harness/tasks", json={"prompt": "A"})
         assert response.status_code == 503
@@ -117,12 +117,12 @@ def test_harness_auth_task_lifecycle_and_safe_artifact_download(tmp_path, monkey
         def __init__(self, *args, **kwargs):
             super().__init__(*args, transport=httpx.MockTransport(respond), **kwargs)
     monkeypatch.setattr(harness_router, "HarnessClient", MockHarness)
-    with TestClient(create_app(setup(tmp_path))) as client:
+    with TestClient(create_app(setup(tmp_path, owner="viewer"))) as client:
         assert client.get("/api/harness/status").status_code == 401
-        login(client,"viewer")
+        login(client,"admin")
         assert client.get("/api/harness/status").status_code == 403
         assert client.post("/api/harness/tasks",json={"prompt":"Test"}).status_code == 403
-        login(client,"admin")
+        login(client,"viewer")
         response = client.get("/api/harness/status")
         assert response.status_code == 200 and response.json()["available"]
         response = client.post("/api/harness/tasks",json={"prompt":"Test factor hypothesis"})
@@ -232,3 +232,14 @@ def test_transport_errors_do_not_disclose_secrets():
                    "http://user:password@evil.example","http://host/?token=secret"):
         with pytest.raises(ValueError):
             HarnessClient(origin,TOKEN)
+
+
+def test_harness_requires_explicit_non_admin_owner(tmp_path):
+    with TestClient(create_app(setup(tmp_path, owner=""))) as client:
+        login(client, "admin")
+        assert client.get("/api/harness/status").status_code == 503
+        login(client, "viewer")
+        assert client.get("/api/harness/status").status_code == 503
+    with TestClient(create_app(setup(tmp_path, owner="admin"))) as client:
+        login(client, "admin")
+        assert client.get("/api/harness/status").status_code == 503

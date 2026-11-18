@@ -1,8 +1,6 @@
 """Administrator is only an operator; trading belongs to ordinary users."""
 
 import pytest
-from fastapi.testclient import TestClient
-
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
