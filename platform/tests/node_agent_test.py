@@ -199,3 +199,10 @@ def test_distributed_tenant_docker_stays_development_only(tmp_path):
     manager.stop(7, remove=True, retire=True)
     assert hub.calls[-1][1] == "stop"
     assert hub.calls[-1][2]["retire"] is True
+    assert not (tmp_path / "tenants" / "7").exists()
+    old_token = spec["env"]["ENGINE_TOKEN"]
+    new_token = manager.endpoint(7)[1]
+    assert new_token != old_token
+    retired = list((tmp_path / "tenants" / ".retired").glob("7-*"))
+    assert len(retired) == 1
+    assert (retired[0] / "remote-engine.token").read_text().strip() == old_token

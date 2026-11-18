@@ -125,9 +125,18 @@ class DistributedTenantManager:
         node_id = self._node(tenant_id)
         if node_id == "local":
             return self.local.stop(tenant_id, remove=remove, retire=retire)
-        return self.hub.call(node_id, "stop", {
+        result = self.hub.call(node_id, "stop", {
             "id": self._workload_id(tenant_id), "remove": remove, "retire": retire,
         }, timeout=150)
+        if retire and remove:
+            source = self.root / DockerTenantManager._id(tenant_id)
+            if source.is_symlink():
+                raise EngineConflict("远程 Engine 凭据目录不可信。")
+            if source.exists():
+                quarantine = self.root / ".retired"
+                quarantine.mkdir(parents=True, exist_ok=True, mode=0o700)
+                source.rename(quarantine / (str(tenant_id) + "-" + secrets.token_hex(16)))
+        return result
 
     def worker_log(self, tenant_id, path):
         if self._node(tenant_id) == "local":

@@ -20,6 +20,7 @@ import httpx
 
 _NAME = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _ENV = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_TARGET = re.compile(r"^/app(?:/[A-Za-z0-9._-]+)+$")
 _MEMORY = re.compile(r"^([1-9][0-9]*)([mMgG])$")
 _CONTRACT_HEADER = "X-SeeAlpha-Engine-Contract"
 
@@ -106,7 +107,7 @@ class DockerRuntime:
             path = PurePosixPath(target) if isinstance(target, str) else None
             if (not isinstance(volume, str) or not _NAME.fullmatch(volume)
                     or path is None or not path.is_absolute()
-                    or ".." in path.parts or not str(path).startswith("/app/")):
+                    or ".." in path.parts or not _TARGET.fullmatch(target)):
                 raise ValueError("Mount is outside the permitted container tree")
         if port is not None and (type(port) is not int or not 1 <= port <= 65535):
             raise ValueError("Invalid container port")
