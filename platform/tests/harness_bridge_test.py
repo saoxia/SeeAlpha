@@ -71,6 +71,26 @@ def test_harness_auth_task_lifecycle_and_safe_artifact_download(tmp_path, monkey
             payload = {"service": "seealpha-harness", "contract_version": 1,
                        "runtime_configured": True, "runtime_layout": "resident-container"}
             return httpx.Response(200, json=payload, headers={HARNESS_HEADER: "1"})
+        if path == "/v1/tasks" and request.method == "GET":
+            assert request.url.params["limit"] == "50"
+            return httpx.Response(200, json={"tasks":[{
+                key: BODY.get(key) for key in
+                ("id", "status", "turn", "created_at", "updated_at", "error")
+            }]}, headers={HARNESS_HEADER:"1"})
+        if path == f"/v1/tasks/{ID}/timeline":
+            assert request.url.params["after"] == "0"
+            return httpx.Response(200,json={
+                "events":[{"sequence":1,"type":"progress",
+                           "timestamp":"2026-01-01T00:00:00Z",
+                           "payload":{"stage":"runtime_starting","model_key":"never-expose"}}],
+                "next_cursor":1,"has_more":False,
+            }, headers={HARNESS_HEADER:"1"})
+        if path == f"/v1/tasks/{ID}/artifacts/import":
+            assert json.loads(request.content) == {"source_file":"exports/report.csv"}
+            return httpx.Response(201,json={
+                "artifact_id":"artifact-aabb","filename":"report.csv",
+                "kind":"table","size":10,"sha256":sha256(b"1234567890").hexdigest(),
+            },headers={HARNESS_HEADER:"1"})
         if path == "/v1/tasks" and request.method == "POST":
             assert json.loads(request.content) == {"prompt": "Test factor hypothesis", "queue_if_busy": True}
             return httpx.Response(202, json=BODY, headers={HARNESS_HEADER: "1"})
@@ -110,6 +130,22 @@ def test_harness_auth_task_lifecycle_and_safe_artifact_download(tmp_path, monkey
         assert "prompt" not in response.json()
         assert response.json()["id"] == ID
         assert client.get(f"/api/harness/tasks/{ID}").json()["final_response"] == "Safe markdown result"
+        history = client.get("/api/harness/tasks").json()["tasks"]
+        assert history[0]["id"] == ID and "prompt" not in history[0]
+        events = client.get(f"/api/harness/tasks/{ID}/timeline?after=0").json()
+        assert events["next_cursor"] == 1
+        assert events["events"][0]["stage"] == "runtime_starting"
+        assert "model_key" not in events["events"][0]
+        imported = client.post(
+            f"/api/harness/tasks/{ID}/artifacts/import",
+            json={"source_file":"exports/report.csv"},
+        )
+        assert imported.status_code == 201
+        assert imported.json()["artifact_id"] == "artifact-aabb"
+        assert client.post(
+            f"/api/harness/tasks/{ID}/artifacts/import",
+            json={"source_file":"../../passwd"},
+        ).status_code == 503
         assert client.post(f"/api/harness/tasks/{ID}/continue",json={"prompt":"Try another hypothesis"}).json()["turn"] == 2
         assert client.post(f"/api/harness/tasks/{ID}/cancel").json()["status"] == "cancelled"
         manifests = client.get(f"/api/harness/tasks/{ID}/artifacts").json()["artifacts"]
