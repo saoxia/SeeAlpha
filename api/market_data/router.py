@@ -73,7 +73,8 @@ def capabilities(request: Request, user: CurrentUser):
 async def data_markets(request: Request, _: AdminUser, product: Literal["futures_um", "spot", "options"] = "futures_um"):
     if product == "options":
         return [{**item, "product": "options"} for item in await request.app.state.exchanges.catalog("production", product="options")]
-    items = await request.app.state.exchanges.catalog("production", product=product)
+    items = (await request.app.state.exchanges.catalog("production", product="spot")
+             if product == "spot" else await request.app.state.exchanges.catalog("production"))
     return [{"symbol": f"{item['base']}{item['quote']}", "base": item["base"], "quote": item["quote"], "product": product}
             for item in items if item["quote"] in ({"USDT", "USDC", "FDUSD"} if product == "spot" else {"USDT", "USDC"})]
 
