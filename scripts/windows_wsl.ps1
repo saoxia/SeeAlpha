@@ -158,7 +158,15 @@ function Invoke-SeeAlphaWindows {
         throw '找不到 wsl.exe；请先确认 Windows 版本与 WSL 功能支持情况。'
     }
     $wslExe = $wsl.Source
-    $all = @(& $wslExe --list --verbose 2>&1)
+    # Windows PowerShell 5.1 treats native stderr as a terminating error with Stop.
+    # An uninitialized/disabled WSL can legitimately report "no distributions" on stderr.
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $all = @(& $wslExe --list --verbose 2>&1)
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
     $distributions = @(ConvertFrom-SeeAlphaWSLList -Lines $all)
     $selected = Select-SeeAlphaWSLDistribution -Distributions $distributions -Requested $Distro -Explicit:$ExplicitDistro
     if ($null -eq $selected) {
