@@ -1,4 +1,4 @@
-# SeeAlpha Windows launcher helpers. WSL2 only; no native Windows Engine.
+﻿# SeeAlpha Windows launcher helpers. WSL2 only; no native Windows Engine.
 Set-StrictMode -Version Latest
 
 function ConvertFrom-SeeAlphaWSLList {

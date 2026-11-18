@@ -1,4 +1,4 @@
-# Windows entry point: SeeAlpha runs only inside a WSL2 Ubuntu distribution.
+﻿# Windows entry point: SeeAlpha runs only inside a WSL2 Ubuntu distribution.
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)][string]$Command = 'help',
