@@ -1,5 +1,10 @@
 # SeeAlpha
 
+## 本机一键安装（macOS / Linux，隔离开发）
+
+需要 Git、uv、Node.js >= 22.13.0 与 npm。在仓库根目录运行 `./seealpha install`，随后运行 `./seealpha start` 并打开 <http://127.0.0.1:3000>。`./seealpha status` 查看健康状态，`./seealpha stop` 停止本启动器创建的服务。
+首次安装自动准备固定版本独立 Engine、Platform 依赖、Web 构建和全新本机 SQLite；管理员密码通过交互式命令设置。**仅用于本机研究/开发，不迁移旧数据、不自动开启实盘，也不代表生产部署已验收。** 具体前提、数据保护、故障处理见 [本机安装说明](docs/INSTALLATION.md)。
+
 SeeAlpha 是基于 NautilusTrader 的多资产量化交易系统，面向加密资产、期货、股票等市场，
 覆盖现货、永续合约、期权等交易产品，围绕数据准备、行情、策略研究、回测、风控与交易执行构建。
 
