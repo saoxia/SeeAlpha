@@ -33,7 +33,7 @@ function latestVerifiedTargetEvent(value: unknown): BasketTargetEvent | null {
       || typeof item.symbol !== "string"
       || !/^[A-Z0-9_-]{1,64}$/.test(item.symbol)
       || typeof item.quantity !== "string"
-      || !/^-?(?:\\d+(?:\\.\\d+)?|\\.\\d+)$/.test(item.quantity)
+      || !/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(item.quantity)
     ) return null;
     const key = String(item.product) + "/" + item.symbol;
     if (seen.has(key)) return null;
