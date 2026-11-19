@@ -407,3 +407,38 @@ def test_platform_direct_client_python_candidate_uses_only_pinned_engine_url():
             "starting_balance": "1000", "quote_currency": "USDT",
             "idempotency_key": "iteration-1",
         })["backtest_id"] == "job-2"
+
+
+def test_backend_controls_python_flag_only_for_new_development_docker(tmp_path):
+    def manager(root, python):
+        return DockerTenantManager(
+            root, image="pinned-engine:v1",
+            production_cpus="1", production_memory="1g",
+            development_cpus="1", development_memory="1g",
+            log_root=tmp_path, research_enabled=True,
+            research_python_enabled=python,
+        )
+
+    enabled = manager(tmp_path / "enabled", True)
+    for tenant_id, purpose in (("11", "development"), ("12", "production")):
+        root, *_dirs, env = enabled._paths(tenant_id)
+        root.mkdir(parents=True, exist_ok=True)
+        enabled._credentials(env, tenant_id, purpose, create=True)
+        text = env.read_text()
+        assert "ENGINE_AUTH_MODE=token" in text
+        assert "ENGINE_TOKEN=" in text
+        assert ("ENGINE_RESEARCH_PYTHON_ENABLED=true" in text) == (
+            purpose == "development"
+        )
+        assert ("ENGINE_RESEARCH_SIGNING_KEY=" in text) == (
+            purpose == "development"
+        )
+
+    old = manager(tmp_path / "existing", False)
+    root, *_dirs, env = old._paths("13")
+    root.mkdir(parents=True, exist_ok=True)
+    old._credentials(env, "13", "development", create=True)
+    assert "ENGINE_RESEARCH_PYTHON_ENABLED" not in env.read_text()
+    later = manager(tmp_path / "existing", True)
+    later._credentials(env, "13", "development", create=False)
+    assert "ENGINE_RESEARCH_PYTHON_ENABLED" not in env.read_text()
