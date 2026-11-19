@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.engine_contracts import EngineConflict
+
 from ..auth.dependencies import CurrentUser
 from ..market_data.contracts import DataJobRequest
 from ..tenant_docker import DockerTenantManager
@@ -54,7 +56,7 @@ def _development_engine(request: Request, user: CurrentUser, tenant_id: int):
         raise HTTPException(503, "开发 Engine 管理仅支持本机独立 Docker 部署。")
     try:
         manager.endpoint(tenant_id)
-    except (OSError, ValueError):
+    except (OSError, ValueError, EngineConflict):
         raise HTTPException(503, "开发 Engine 尚未部署或不可用。") from None
     return manager
 
