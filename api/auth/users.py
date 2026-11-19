@@ -39,10 +39,14 @@ class ResourceAllocation(BaseModel):
         return value
 
 
+class DevelopmentAllocation(ResourceAllocation):
+    realtime_enabled: bool = False
+
+
 class UserResourcesBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     harness: ResourceAllocation
-    development: ResourceAllocation
+    development: DevelopmentAllocation
     production: ResourceAllocation
 
 
