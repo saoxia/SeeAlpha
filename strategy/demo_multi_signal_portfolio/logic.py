@@ -34,7 +34,7 @@ def _amount(value, name, *, allow_zero=False):
         not result.is_finite()
         or result < 0
         or (result == 0 and not allow_zero)
-        or result.as_tuple().exponent < -8
+        or not -8 <= result.as_tuple().exponent <= 8
         or len(result.as_tuple().digits) > 30
     ):
         raise ValueError(f"{name}必须是非负的有限十进制数，最多8位小数")
