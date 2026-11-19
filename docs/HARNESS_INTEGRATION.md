@@ -1,5 +1,7 @@
 # 在 SeeAlpha Platform 接入独立 Harness（本地开发阶段）
 
+> **2026-11-19 架构调整**：已选定 Harness → Platform 轻量研究代理 → Engine Research API，不再要求独立 Gateway/MCP Bridge。详见 [简化 AI 研究调用链](DIRECT_AI_RESEARCH.md)。现有 Harness 任务/Session 入口保持不变；新增 Platform 内部 `DirectEngineResearchClient` 但任务级代理授权与 Agent 调用尚未接通，不能称 AI 自动回测已完成。
+
 > 本文描述原有单用户 `HARNESS_DEPLOYMENT=single` 模式。新增的可选 `per_user` 实例部署、远端 Node Agent 和用户级路由见 [每用户独立 Harness](HARNESS_PER_USER.md)。两种模式均尚未获得真实资金或生产级 Agent 沙箱验收。
 
 > 范围：**独立 `saoxia/seealpha-harness` 常驻服务** → SeeAlpha Platform API → AI Harness。不会嵌入独立 Harness 运行时代码、安装 DeepSeek SDK 到 Platform，也不会替换独立 Engine 或创建每任务 Docker。

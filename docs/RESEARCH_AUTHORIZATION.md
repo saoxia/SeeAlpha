@@ -1,6 +1,8 @@
 # Platform → Engine Research 任务授权（内部服务）
 
-> 当前仅实现 Platform 内部签发器与可信 Gateway Client；尚未接入 Web/Harness 的正式任务控制面，也未开通 Grant 签发 HTTP 路由。**不进行实际机器验证**。
+> **2026-11-19 简化设计**：默认采用 Platform 内部研究代理直接调用 Engine Research API，独立 Gateway/MCP Bridge 不再是前置条件。新增 `api/research/direct_engine.py` 为**内部专用、尚未接入任务路由**的固定命令客户端。完整目标见 [简化 AI 研究调用链](DIRECT_AI_RESEARCH.md)。旧 Gateway Client 暂保留为未启用原型，不向 Agent 交付原始 Engine Grant。
+
+> 当前实现内部签发器、直连研究客户端与旧 Gateway Client；尚未接入 Web/Harness 正式任务控制面，也未开通 Grant 签发 HTTP 路由。**不进行实际机器验证**。
 
 ## 已实现边界
 
