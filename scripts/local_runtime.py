@@ -234,6 +234,18 @@ class LocalRuntime:
             raise
         print(f"SeeAlpha 已启动：{WEB_URL}")
 
+    def up(self) -> None:
+        running = [service for service in SERVICE_ORDER if self._owned(service, self._pid(service))]
+        if len(running) == len(SERVICE_ORDER):
+            self.status()
+            return
+        if running:
+            raise RuntimeError(
+                "发现仅部分服务由本启动器运行；请先 ./seealpha status，"
+                "再检查未决任务后执行 ./seealpha stop，不会隐式重启。"
+            )
+        self.start()
+
     def _stop_one(self, service: str) -> bool:
         file = self._pid_file(service)
         pid = self._pid(service)
@@ -311,6 +323,8 @@ def main(argv: list[str]) -> int:
             runtime.check_database()
         elif argv == ["start"]:
             runtime.start()
+        elif argv == ["up"]:
+            runtime.up()
         elif argv == ["stop"]:
             runtime.stop()
         elif argv == ["status"]:
