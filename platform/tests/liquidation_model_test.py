@@ -1,6 +1,5 @@
 """Verified optional LIQ provider: no synthetic market-level liquidation signals."""
 import pytest
-
 from api.exchanges.liquidation_model import validate_model
 
 
