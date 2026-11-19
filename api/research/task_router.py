@@ -201,7 +201,7 @@ async def task_mcp(request: Request, task_id: str):
     if method != "tools/call":
         return _mcp_error(identity, -32601, "Method not found")
     name, arguments = params.get("name"), params.get("arguments", {})
-    if name not in _MCP_TO_OPERATION or not isinstance(arguments, dict):
+    if not isinstance(name, str) or name not in _MCP_TO_OPERATION or not isinstance(arguments, dict):
         return _mcp_error(identity, -32602, "Unknown tool or invalid arguments")
     if (name == "submit_python_candidate_backtest"
             and not request.app.state.settings.research_python_enabled):
@@ -220,7 +220,7 @@ async def task_mcp(request: Request, task_id: str):
             operation, arguments,
         )
         if not isinstance(result, dict):
-            raise ValueError("Invalid research result")
+            raise TypeError("Invalid research result")
         serialized = json.dumps(result, ensure_ascii=False, allow_nan=False)
         if len(serialized.encode("utf-8")) > 1_048_576:
             raise ValueError("Research result too large")
