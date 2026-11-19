@@ -29,7 +29,7 @@ Web/FastAPI、用户权限、业务数据库和策略商店不进入租户容器
 
 ```bash
 export ENGINE_DEPLOYMENT=docker
-export ENGINE_DOCKER_IMAGE=seealpha-engine:9e670a6d2d4c
+export ENGINE_DOCKER_IMAGE=seealpha-engine:7e4d46eca5d0
 export ENGINE_TENANT_ROOT=/absolute/path/to/seealpha/.local/tenants
 export ENGINE_PRODUCTION_CPUS=2
 export ENGINE_PRODUCTION_MEMORY=4g
