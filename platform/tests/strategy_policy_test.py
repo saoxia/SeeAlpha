@@ -42,6 +42,14 @@ class FakeEngine:
         self.calls.append(("run_funding_carry_backtest", *args))
         return {"mode": "native_dual_venue_development_only", "bar_count": 4}
 
+    def run_issued_spot_perp_backtest(self, *args):
+        self.calls.append(("run_issued_spot_perp_backtest", *args))
+        return {"mode": "issued_spot_perp_development_only", "fills": []}
+
+    def latest_issued_spot_perp_backtest(self, *args):
+        self.calls.append(("latest_issued_spot_perp_backtest", *args))
+        return {"mode": "issued_spot_perp_development_only"}
+
     def run_protected_option_backtest(self, *args):
         self.calls.append(("run_protected_option_backtest", *args))
         return {"mode": "native_protected_options_development_only", "bar_count": 4}
@@ -253,4 +261,54 @@ def test_research_only_system_basket_cannot_receive_or_use_production_grant(code
     with pytest.raises(HTTPException, match="禁止加载生产账户") as denied:
         service.issue(7, "1", 17, None)
     assert denied.value.status_code == 409
+    assert service.engine.calls == []
+
+
+def test_single_issued_strategy_basket_scopes_account_and_virtual_budget():
+    service = _service("development", [{
+        "id": 3, "initial_capital": "1000", "quote_currency": "USDT",
+    }])
+
+    class Repository:
+        def list_issuances(self, tenant_id):
+            assert tenant_id == 7
+            return [
+                {"id": 24, "account_id": 3, "purpose": "development"},
+                {"id": 25, "account_id": 4, "purpose": "development"},
+                {"id": 26, "account_id": 3, "purpose": "production"},
+            ]
+
+    service.repository = Repository()
+    args = (7, 3, "24", "2024-01-01", "2024-01-02", "1m", "400", "500", "1200")
+    result = service.issued_spot_perp_backtest(*args)
+    assert result["mode"] == "issued_spot_perp_development_only"
+    assert service.engine.calls == [
+        ("runnable", 7, "backtest"),
+        ("run_issued_spot_perp_backtest", *args),
+    ]
+    service.engine.calls.clear()
+    for unknown in ("25", "26", "999"):
+        with pytest.raises(HTTPException) as rejected:
+            service.issued_spot_perp_backtest(*(
+                7, 3, unknown, *args[3:],
+            ))
+        assert rejected.value.status_code == 404
+        assert service.engine.calls == []
+    with pytest.raises(HTTPException, match="账户初始资金"):
+        service.issued_spot_perp_backtest(*(args[:6] + ("700", "500", "1200")))
+    assert service.engine.calls == []
+    latest = service.latest_issued_spot_perp_backtest(7, 3)
+    assert latest["mode"] == "issued_spot_perp_development_only"
+    assert service.engine.calls == [("latest_issued_spot_perp_backtest", 7, "3")]
+
+
+def test_single_issued_strategy_basket_denies_production_without_engine_call():
+    service = _service("production", [{
+        "id": 3, "initial_capital": "1000", "quote_currency": "USDT",
+    }])
+    with pytest.raises(HTTPException, match="开发租户"):
+        service.issued_spot_perp_backtest(
+            7, 3, "24", "2024-01-01", "2024-01-02", "1m",
+            "400", "500", "1200",
+        )
     assert service.engine.calls == []
