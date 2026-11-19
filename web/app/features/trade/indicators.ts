@@ -1,3 +1,5 @@
+import { computeStudyFormula, studyFormulaError } from "./study-formulas.ts";
+
 export function sma(values: number[], period: number): (number | null)[] {
   let sum = 0;
   return values.map((value, i) => {sum += value; if (i >= period) sum -= values[i-period]; return i >= period-1 ? sum / period : null;});
@@ -39,17 +41,22 @@ export const indicatorCatalog = {
   VP: {name:"成交量分布（OHLCV 估算）",parameters:[{label:"价格区间数",value:48,min:8,max:128,step:1},{label:"价值区比例(%)",value:70,min:1,max:100,step:1},{label:"显示宽度(px)",value:180,min:40,max:400,step:1}],colors:["成交量","POC","价值区"]},
   BOOK: {name:"订单簿流动性热力图（实时采样）",parameters:[{label:"观察窗口(秒)",value:180,min:30,max:600,step:1},{label:"热力透明度(%)",value:60,min:10,max:100,step:1}],colors:["买盘","卖盘"]},
   LIQ: {name:"预估强平热力图（需要模型数据）",parameters:[{label:"热力透明度(%)",value:60,min:10,max:100,step:1}],colors:["多头强平","空头强平"]},
+  CUSTOM: {name:"自定义公式曲线",parameters:[],colors:["曲线"]},
+  SIGNAL: {name:"均线交叉信号（仅图表提示）",parameters:[{label:"快线周期",value:9,min:1,max:499,step:1},{label:"慢线周期",value:21,min:2,max:500,step:1}],colors:["买入标记","卖出标记"]},
 } as const;
 export type IndicatorKind = keyof typeof indicatorCatalog;
 export const marketOverlayKinds:readonly IndicatorKind[]=["VP","BOOK","LIQ"];
 export function isMarketOverlay(kind:IndicatorKind):boolean{return marketOverlayKinds.includes(kind);}
 export const priceSources = {close:"收盘价",open:"开盘价",high:"最高价",low:"最低价",hl2:"(高+低)/2",hlc3:"(高+低+收)/3",ohlc4:"(开+高+低+收)/4"} as const;
 export type PriceSource = keyof typeof priceSources;
-export type IndicatorConfig = {id:string;kind:IndicatorKind;visible:boolean;parameters:number[];source:PriceSource;colors:string[];width:1|2|3|4;style:0|1|2};
+export type IndicatorConfig = {id:string;kind:IndicatorKind;visible:boolean;parameters:number[];source:PriceSource;colors:string[];width:1|2|3|4;style:0|1|2;formula?:string;pane?:"main"|"separate";visibleIntervals?:string[]};
+export const indicatorCategories={trend:["MA","EMA","BOLL","CUSTOM"],momentum:["RSI","MACD","SIGNAL"],volume:["VOL","VP"],depth:["BOOK","LIQ"]} as const;
+export const knownStudyIntervals=["1m","3m","5m","15m","30m","1h","4h","1d"] as const;
+export function studyVisibleForInterval(config:IndicatorConfig,interval:string):boolean {return config.visible && (!config.visibleIntervals||config.visibleIntervals.length===0||config.visibleIntervals.includes(interval));}
 export const maxIndicators = 24;
 export function newIndicator(kind:IndicatorKind,id:string):IndicatorConfig {
-  const colors=kind==="VP"?["#5396d2","#e5b83c","#4aafad"]:kind==="BOOK"?["#29b899","#e77e56"]:kind==="LIQ"?["#d25da0","#f09c46"]:kind==="VOL"?["#2ebd85","#f6465d"]:kind==="MACD"?["#e5b83c","#d94ab1","#2ebd85","#f6465d"]:kind==="RSI"?["#9063b5","#848e9c","#848e9c"]:["#e5b83c","#d94ab1","#9063b5"];
-  return {id,kind,visible:true,parameters:indicatorCatalog[kind].parameters.map(p=>p.value),source:"close",colors:colors.slice(0,indicatorCatalog[kind].colors.length),width:1,style:0};
+  const colors=kind==="VP"?["#5396d2","#e5b83c","#4aafad"]:kind==="BOOK"?["#29b899","#e77e56"]:kind==="LIQ"?["#d25da0","#f09c46"]:kind==="VOL"?["#2ebd85","#f6465d"]:kind==="SIGNAL"?["#2ebd85","#f6465d"]:kind==="MACD"?["#e5b83c","#d94ab1","#2ebd85","#f6465d"]:kind==="RSI"?["#9063b5","#848e9c","#848e9c"]:["#e5b83c","#d94ab1","#9063b5"];
+  return {id,kind,visible:true,parameters:indicatorCatalog[kind].parameters.map(p=>p.value),source:"close",colors:colors.slice(0,indicatorCatalog[kind].colors.length),width:1,style:0,...(kind==="CUSTOM"?{formula:"EMA(close, 20)",pane:"main" as const}:{})};
 }
 export function defaultIndicators():IndicatorConfig[] {
   return [7,25,99].map((period,i)=>({...newIndicator("MA",`ma-${period}`),parameters:[period],colors:[["#e5b83c","#d94ab1","#9063b5"][i]]})).concat([newIndicator("VOL","volume")]);
@@ -61,6 +68,10 @@ export function indicatorError(config:IndicatorConfig):string {
     const field=definition.parameters[i],value=config.parameters[i];
     if(!Number.isFinite(value)||value<field.min||value>field.max||field.step===1&&!Number.isInteger(value))return `${field.label}须为 ${field.min}～${field.max}${field.step===1?" 的整数":" 之间的数值"}。`;
   }
+  if(config.kind==="CUSTOM"){const formulaError=studyFormulaError(config.formula??"");if(formulaError)return formulaError;}
+  if(config.kind==="SIGNAL"&&config.parameters[0]>=config.parameters[1])return "交叉信号快线周期必须小于慢线周期。";
+  if(config.pane!==undefined&&config.pane!=="main"&&config.pane!=="separate")return "副图位置无效。";
+  if(config.visibleIntervals!==undefined&&(!Array.isArray(config.visibleIntervals)||config.visibleIntervals.length>knownStudyIntervals.length||config.visibleIntervals.some(v=>!knownStudyIntervals.includes(v as typeof knownStudyIntervals[number]))))return "指标可见周期无效。";
   if(config.kind==="MACD"&&config.parameters[0]>=config.parameters[1])return "MACD 快线周期必须小于慢线周期。";
   if(config.kind==="RSI"&&config.parameters[2]>=config.parameters[1])return "RSI 超卖线必须低于超买线。";
   if(![1,2,3,4].includes(config.width)||![0,1,2].includes(config.style)||!Object.hasOwn(priceSources,config.source))return "指标样式或价格来源无效。";
@@ -101,7 +112,7 @@ export function indicatorPlots(rows:IndicatorCandle[],configs:IndicatorConfig[])
     // rather than inventing line/histogram studies or extra panes.
     if(isMarketOverlay(kind))continue;
     const values=rows.map(r=>{const o=Number(r.open),h=Number(r.high),l=Number(r.low),c=Number(r.close);return config.source==="hl2"?(h+l)/2:config.source==="hlc3"?(h+l+c)/3:config.source==="ohlc4"?(o+h+l+c)/4:Number(r[config.source]);});
-    const target=kind==="RSI"||kind==="MACD"||kind==="VOL"?pane++:0;
+    const target=kind==="RSI"||kind==="MACD"||kind==="VOL"||(kind==="CUSTOM"&&config.pane==="separate")?pane++:0;
     function add(key:string,title:string,values:(number|null)[],color:string,type:"line"|"histogram"="line",barColors?:string[]){plots.push({key:`${config.id}:${key}`,kind:type,title,pane:target,values,color,width:config.width,style:config.style,barColors,volume:kind==="VOL"});}
     if(kind==="MA"||kind==="EMA")add("line",`${kind}(${p[0]})`,kind==="MA"?sma(values,p[0]):ema(values,p[0]),colors[0]);
     if(kind==="BOLL"){
@@ -119,6 +130,7 @@ export function indicatorPlots(rows:IndicatorCandle[],configs:IndicatorConfig[])
       const histogram=diff.map((d,i)=>d===null||dea[i]===null?null:2*(d-dea[i]!));
       add("hist","MACD",histogram,colors[2],"histogram",histogram.map(v=>v!==null&&v>=0?colors[2]:colors[3]));
     }
+    if(kind==="CUSTOM")add("custom",config.formula??"自定义公式",computeStudyFormula(config.formula??"EMA(close,20)",rows),colors[0]);
     if(kind==="VOL")add("volume","VOL",rows.map(r=>Number(r.volume)),colors[0],"histogram",rows.map(r=>Number(r.close)>=Number(r.open)?colors[0]:colors[1]));
   }
   return plots;

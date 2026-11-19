@@ -26,3 +26,98 @@
 
 /* SeeAlpha market analysis overlays remain on top of the existing TradingView price pane, without intercepting chart gestures. */
 .trade-market-overlay-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+
+
+/* Professional chart study library: scoped to TRADE, preserving both appearance themes. */
+.trade-chart-shell{position:relative;flex:1;min-height:300px;min-width:0;isolation:isolate}
+.trade-chart-shell>.trade-chart{height:100%;min-height:300px;width:100%}
+.trade-study-legends{position:absolute;left:12px;top:10px;z-index:4;display:flex;flex-direction:column;gap:2px;max-width:min(340px,60%);pointer-events:none}
+.trade-study-legend{display:flex;align-items:center;gap:5px;min-height:21px;padding:2px 5px;background:#ffffffdd;border:1px solid transparent;border-radius:4px;pointer-events:auto;font-size:10px;color:#181a20}
+.trade-study-legend:hover,.trade-study-legend:focus-within{border-color:#dedede;background:#fff;box-shadow:0 3px 12px #181a2012}
+.trade-study-legend.inactive{opacity:.48}.trade-study-legend-color{width:13px;height:3px;flex-shrink:0;border-radius:5px}
+.trade-study-legend-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.trade-study-legend>small{font-size:9px;color:#929292;white-space:nowrap}
+.trade-study-legend-actions{display:flex;gap:0;opacity:0;visibility:hidden;transition:opacity .12s}
+.trade-study-legend:hover .trade-study-legend-actions,.trade-study-legend:focus-within .trade-study-legend-actions{opacity:1;visibility:visible}
+.trade-page .trade-study-legend-actions button{border:0;background:transparent;color:#626262;padding:1px 4px;line-height:1.2;font-size:12px}
+.trade-page .trade-study-legend-actions button:hover{color:#181a20;background:#f2f2f2;border-radius:3px}
+.trade-study-modal-backdrop{position:fixed;inset:0;z-index:130;background:#181a2059;backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px}
+.trade-study-modal{display:flex;flex-direction:column;max-height:min(760px,calc(100dvh - 32px));min-height:0;width:min(760px,100%);background:#fff;color:#181a20;border-radius:12px;box-shadow:0 25px 90px #181a2050;border:1px solid #dedede;overflow:hidden;font-size:13px}
+.trade-study-modal-title{display:flex;align-items:center;gap:15px;padding:18px 22px 12px;border-bottom:1px solid #ececec}
+.trade-study-modal-title>div{flex:1;min-width:0}.trade-study-modal-title h2{font-size:18px;margin:0;font-weight:650}
+.trade-study-modal-title p{color:#858585;font-size:11px;margin:2px 0 0}
+.trade-study-modal-title>span{font-size:11px;color:#838383}
+.trade-page .trade-study-modal-title>button{font-size:22px;line-height:1;border-radius:5px;padding:4px 8px;color:#868686}
+.trade-study-search{display:flex;align-items:center;gap:10px;margin:15px 22px 12px;padding:0 12px;height:40px;border-radius:7px;background:#fafafa;border:1px solid #dedede}
+.trade-study-search:focus-within{border-color:#b28e21;box-shadow:0 0 0 2px #fcd53535}
+.trade-study-search>span{font-size:23px;color:#888}
+.trade-page .trade-study-search input{border:0;outline:0;flex:1;background:transparent;padding:8px 0;font-size:12px}
+.trade-study-columns{display:grid;grid-template-columns:165px minmax(0,1fr);min-height:220px;flex:1;overflow:hidden}
+.trade-study-categories{border-right:1px solid #ececec;display:flex;flex-direction:column;padding:6px 10px;overflow:auto;gap:2px}
+.trade-page .trade-study-categories button{text-align:left;color:#555;padding:10px 12px;border-radius:6px;font-size:12px}
+.trade-page .trade-study-categories button:hover{background:#f6f6f6}
+.trade-page .trade-study-categories button.active{background:#fff7d8;color:#181a20;font-weight:600}
+.trade-study-results{padding:4px 18px 16px;overflow:auto;min-height:200px}
+.trade-study-result{display:flex;align-items:center;gap:9px;min-height:54px;border-bottom:1px solid #f0f0f0;padding:7px 3px}
+.trade-study-result:hover{background:#fafafa}
+.trade-study-result-text{display:flex;min-width:0;flex:1;flex-direction:column;gap:1px}
+.trade-study-result-text strong{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trade-study-result-text small{font-size:11px;color:#858585;white-space:normal}
+.trade-page .trade-study-star{font-size:21px;padding:4px;color:#9b9b9b;min-width:27px}
+.trade-page .trade-study-star.active{color:#bc9717}
+.trade-page .trade-study-add{border-radius:5px;padding:7px 10px;color:#181a20;border:1px solid #dedede;white-space:nowrap;font-size:11px}
+.trade-page .trade-study-add:hover:not(:disabled){border-color:#b28e21;background:#fff8d6}
+.trade-study-added{color:#888;font-size:10px}
+.trade-study-empty{font-size:12px;color:#909090;padding:22px 8px}
+.trade-study-template-form{padding:14px 5px 18px;border-bottom:1px solid #eee}
+.trade-study-template-form label{display:block;margin-bottom:9px;font-size:12px}
+.trade-study-template-form>div{display:flex;gap:7px}
+.trade-page .trade-study-template-form input{flex:1;min-width:0;padding:9px 10px;background:#fafafa}
+.trade-page .trade-study-template-form button{padding:7px 16px;background:#fcd535;color:#181a20;border-radius:5px}
+.trade-study-modal-foot{border-top:1px solid #ececec;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-shrink:0;padding:12px 22px;font-size:11px;color:#818181}
+.trade-study-modal-foot>span{min-width:0;overflow-wrap:anywhere}
+.trade-page .trade-study-modal-foot button{padding:8px 18px;border-radius:6px;border:1px solid #dedede;color:#181a20}
+.trade-page .trade-study-modal-foot button.primary,.trade-study-library .trade-study-modal-foot>button{background:#fcd535;border-color:#fcd535;font-weight:600}
+.trade-study-editor{width:min(530px,100%)}.trade-study-editor>form{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.trade-study-editor-tabs{display:flex;gap:26px;padding:0 22px;border-bottom:1px solid #ececec}
+.trade-page .trade-study-editor-tabs button{font-size:12px;padding:12px 2px;border-bottom:2px solid transparent}
+.trade-page .trade-study-editor-tabs button.active{color:#181a20;font-weight:600;border-color:#bc9717}
+.trade-study-editor-content{padding:22px;overflow:auto;min-height:170px;max-height:420px}
+.trade-study-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.trade-study-editor-grid>label{display:flex;flex-direction:column;gap:7px;align-items:stretch;font-size:11px;color:#6f6f6f}
+.trade-study-editor-grid>label.trade-study-full,.trade-study-full{grid-column:1/-1}
+.trade-page .trade-study-editor-grid :where(input:not([type=range]):not([type=color]),select){width:100%;min-width:0;padding:10px;background:#fafafa;border:1px solid #dedede;color:#181a20}
+.trade-study-editor-grid input[type=color]{width:100%;height:36px;cursor:pointer;padding:3px}
+.trade-study-editor-grid input[type=range]{width:100%;accent-color:#c7a314}
+.trade-study-editor-grid label>small{font-size:10px;line-height:1.6;color:#858585}
+.trade-study-visibility>label{display:flex;align-items:center;gap:9px;padding-bottom:14px;font-weight:600}
+.trade-study-visibility>p{color:#838383;font-size:11px;padding-bottom:10px}
+.trade-study-visibility>div{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.trade-study-visibility>div label{display:flex;gap:7px;align-items:center;font-size:11px}
+.trade-page .trade-study-visibility>button{color:#9b7918;font-size:11px;padding:14px 0}
+.trade-study-note{font-size:11px;color:#80691b;background:#fff7d8;padding:10px;border-radius:5px}
+.trade-study-error{color:#d03f4e;font-size:11px;margin-top:12px}
+.trade-study-editor .trade-study-modal-foot>div{display:flex;gap:8px}
+.trade-study-modal :where(button,input,select):focus-visible{outline:2px solid #b28e21;outline-offset:2px}
+@media(max-width:760px){
+  .trade-study-modal-backdrop{padding:8px;align-items:end}
+  .trade-study-modal{max-height:calc(100dvh - 16px);border-radius:12px 12px 6px 6px}
+  .trade-study-modal-title{padding:14px 14px 10px}
+  .trade-study-search{margin:10px 14px}
+  .trade-study-columns{grid-template-columns:116px minmax(0,1fr)}
+  .trade-study-categories{padding:4px}
+  .trade-page .trade-study-categories button{padding:9px 6px;font-size:11px}
+  .trade-study-results{padding:4px 8px}
+  .trade-study-result{gap:5px}
+  .trade-page .trade-study-add{padding:6px}
+  .trade-study-modal-foot{padding:10px 14px}
+  .trade-study-editor-content{padding:15px}
+  .trade-study-legends{max-width:76%;left:6px;top:6px}
+  .trade-study-legend-actions{opacity:1;visibility:visible}
+  .trade-study-legend-name{max-width:68px}
+  .trade-study-legend-actions button:nth-child(3),.trade-study-legend-actions button:nth-child(4){display:none}
+}
+@media(prefers-reduced-motion:reduce){.trade-study-legend-actions{transition:none}}
+
+.trade-study-overlay-dismiss{position:absolute;inset:0;z-index:0;border:0;background:transparent;cursor:default}
+.trade-study-modal{position:relative;z-index:1}
