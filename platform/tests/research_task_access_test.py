@@ -219,6 +219,12 @@ def test_candidate_validator_never_executes_user_python():
             parse_candidate(encoded)
     with pytest.raises(ValueError):
         parse_candidate("not-base64")
+    malicious_quantity, _ = _archive_candidate(
+        "CANDIDATE = {'kind':'ema_cross','symbol':'ETHUSDT',"
+        "'fast_period':8,'slow_period':21,'allocation':'1','risk_limit':'1E+99999999'}"
+    )
+    with pytest.raises(ValueError):
+        parse_candidate(malicious_quantity)
 
 
 def test_candidate_engine_client_only_uses_restricted_submission():

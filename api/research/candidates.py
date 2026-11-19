@@ -74,7 +74,8 @@ def parse_candidate(encoded: str) -> tuple[bytes, dict]:
 
         for label in ("allocation", "risk_limit"):
             value = recipe[label]
-            if not isinstance(value, str) or len(value) > 32:
+            if (not isinstance(value, str)
+                    or not re.fullmatch(r"(?:0|[1-9][0-9]{0,20})(?:\.[0-9]{1,8})?", value)):
                 raise ValueError
             try:
                 number = Decimal(value)
