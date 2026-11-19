@@ -19,7 +19,8 @@ from .tenant_docker import DockerTenantManager
 
 class DistributedTenantManager:
     def __init__(self, local: DockerTenantManager, hub, *, image, root,
-                 production_cpus, production_memory, development_cpus, development_memory):
+                 production_cpus, production_memory, development_cpus, development_memory,
+                 resource_limits=None, development_node=None):
         self.local = local
         self.hub = hub
         self.image = image
@@ -29,6 +30,8 @@ class DistributedTenantManager:
             "development": (development_cpus, development_memory),
         }
         self.market_tenant_id = None
+        self.resource_limits = resource_limits
+        self.development_node = development_node
 
     def bind_market_tenant(self, tenant_id):
         self.market_tenant_id = str(tenant_id)
@@ -36,7 +39,9 @@ class DistributedTenantManager:
             self.local.bind_market_tenant(tenant_id)
 
     def _node(self, tenant_id):
-        return self.hub.assigned(tenant_id)
+        if str(tenant_id) in self.hub.tenant_nodes:
+            return self.hub.assigned(tenant_id)
+        return (self.development_node(tenant_id) if self.development_node else None) or "local"
 
     @staticmethod
     def _workload_id(tenant_id):
@@ -77,11 +82,13 @@ class DistributedTenantManager:
             return self.stop(tenant_id)
         if status != "active":
             raise EngineConflict("租户状态无效。")
+        cpu, memory = (self.resource_limits(tenant_id, purpose)
+                       if self.resource_limits else self.limits[purpose])
         spec = {
             "id": self._workload_id(tenant_id),
             "image": self.image,
-            "cpus": self.limits[purpose][0],
-            "memory": self.limits[purpose][1],
+            "cpus": cpu,
+            "memory": memory,
             "port": 8766,
             "env": {
                 "ENGINE_TOKEN": self._token(tenant_id),

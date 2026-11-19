@@ -46,6 +46,7 @@ from .strategies.service import StrategyStore
 from .tenant_docker import DockerTenantManager
 from .tenants.router import router as tenants_router
 from .tenants.service import TenantService
+from .user_resources import UserResources
 
 _TENANT_RECONCILE_SECONDS = 15
 
@@ -87,6 +88,10 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                         )
                     else:
                         for tenant in tenants:
+                            if (tenant["owner_id"] is not None
+                                    and not app.state.user_resources.enabled(
+                                        tenant["owner_id"], tenant["purpose"])):
+                                continue
                             if tenant["status"] != "active" or (
                                 app.state.production_deployments is not None
                                 and not app.state.production_deployments.eligible(
@@ -174,9 +179,22 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.settings = settings
     app.state.repository = auth_repository(database, admin_username=settings.admin_username)
     app.state.database = database
+    app.state.user_resources = UserResources(database)
     app.state.accounts = Accounts(database, settings)
     if settings.engine_deployment not in {"single", "docker", "distributed"}:
         raise ValueError("ENGINE_DEPLOYMENT must be single, docker or distributed")
+    def tenant_limits(tenant_id, purpose):
+        allocated = app.state.user_resources.for_tenant(tenant_id, purpose)
+        defaults = {
+            "production": (settings.engine_production_cpus, settings.engine_production_memory),
+            "development": (settings.engine_development_cpus, settings.engine_development_memory),
+        }
+        cpu, memory = defaults[purpose]
+        return allocated["cpus"] or cpu, allocated["memory"] or memory
+
+    def development_node(tenant_id):
+        return app.state.user_resources.for_tenant(tenant_id, "development")["node"]
+
     manager = None
     hub = None
     if settings.engine_deployment in {"docker", "distributed"}:
@@ -188,6 +206,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             development_cpus=settings.engine_development_cpus,
             development_memory=settings.engine_development_memory,
             log_root=(project if project is not None else PROJECT) / "logs",
+            resource_limits=tenant_limits,
         )
         manager = local
         if settings.engine_deployment == "distributed":
@@ -201,6 +220,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 production_memory=settings.engine_production_memory,
                 development_cpus=settings.engine_development_cpus,
                 development_memory=settings.engine_development_memory,
+                resource_limits=tenant_limits,
+                development_node=development_node,
             )
         manager = ProductionDeploymentManager(
             manager, settings.engine_tenant_root or PROJECT / ".local/tenants", hub=hub,
@@ -217,6 +238,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             cpus=settings.harness_cpus,
             memory=settings.harness_memory,
             hub=hub,
+            placement=lambda user_id: app.state.user_resources.get(user_id)["harness"]["node"],
         )
     app.state.node_hub = hub
     app.state.production_deployments = manager
@@ -234,7 +256,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                                       app.state.engine.root, app.state.engine)
     app.state.market_data = DataService(database)
     app.state.market_data.engine = app.state.engine
-    app.state.tenants = TenantService(database, app.state.engine, app.state.accounts)
+    app.state.tenants = TenantService(database, app.state.engine, app.state.accounts, app.state.user_resources)
     app.state.strategies = StrategyStore(database, app.state.engine, app.state.tenants)
     app.state.management = None
     app.state.management_project = (
