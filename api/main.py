@@ -38,6 +38,7 @@ from .olap.router import router as olap_router
 from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
+from .production_deployments import ProductionDeploymentManager
 from .research.harness_instances import UserHarnessInstances
 from .research.harness_router import router as harness_router
 from .strategies.router import router as strategies_router
@@ -84,7 +85,11 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                         )
                     else:
                         for tenant in tenants:
-                            if tenant["status"] != "active":
+                            if tenant["status"] != "active" or (
+                                app.state.production_deployments is not None
+                                and not app.state.production_deployments.eligible(
+                                    tenant["id"], tenant["purpose"])
+                            ):
                                 continue
                             try:
                                 await asyncio.to_thread(
@@ -195,6 +200,9 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
                 development_cpus=settings.engine_development_cpus,
                 development_memory=settings.engine_development_memory,
             )
+        manager = ProductionDeploymentManager(
+            manager, settings.engine_tenant_root or PROJECT / ".local/tenants", hub=hub,
+        )
     if settings.harness_deployment not in {"single", "per_user"}:
         raise ValueError("HARNESS_DEPLOYMENT must be single or per_user")
     app.state.harness_instances = None
@@ -209,6 +217,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             hub=hub,
         )
     app.state.node_hub = hub
+    app.state.production_deployments = manager
     app.state.engine = EngineClient(
         settings.database_path.parent / "engine", url=settings.engine_url, token=settings.engine_token,
         market_account_id=settings.engine_market_account_id,

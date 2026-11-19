@@ -125,6 +125,8 @@
 .admin-users-table tbody tr:last-child td { border-bottom: 0; }
 .admin-users-table td:last-child { width: 112px; white-space: nowrap; }
 .admin-users-table td:nth-child(1) { width: 72px; color: var(--admin-muted); }
+.admin-users-table select { min-width: 140px; max-width: 220px; width: 100%; padding: 6px; border: 1px solid #aeb7c2; background: #fff; color: var(--admin-text); font-size: 12px; }
+.admin-users-table small { display: block; margin-top: 4px; color: var(--admin-muted); }
 
 /* Reused operator tools stay functional, but never inherit visual themes. */
 .admin-console .settings-page,
