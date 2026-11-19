@@ -39,7 +39,8 @@ class DistributedTenantManager:
             self.local.bind_market_tenant(tenant_id)
 
     def _node(self, tenant_id):
-        if str(tenant_id) in self.hub.tenant_nodes:
+        existing = getattr(self.hub, "tenant_nodes", None)
+        if existing is None or str(tenant_id) in existing:
             return self.hub.assigned(tenant_id)
         return (self.development_node(tenant_id) if self.development_node else None) or "local"
 

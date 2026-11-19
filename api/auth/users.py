@@ -156,11 +156,12 @@ def update_user_resources(
     proposed = body.model_dump()
     manager = request.app.state.production_deployments
     tenant = request.app.state.tenants.repository.production_for_owner(user_id)
-    if manager is not None and tenant is not None and manager.placement(tenant["id"]):
-        if (not proposed["production"]["enabled"]
-                or any(proposed["production"][key] != before["production"][key]
-                       for key in ("cpus", "memory"))):
-            raise HTTPException(409, "已部署的正式 Docker 不可在此直接停用或调整配额，须走受控停机/升级流程。")
+    if (manager is not None and tenant is not None
+            and manager.placement(tenant["id"])
+            and (not proposed["production"]["enabled"]
+                 or any(proposed["production"][key] != before["production"][key]
+                        for key in ("cpus", "memory")))):
+        raise HTTPException(409, "已部署的正式 Docker 不可在此直接停用或调整配额，须走受控停机/升级流程。")
     developments = [
         tenant for tenant in request.app.state.tenants.repository.list_tenants(user_id)
         if tenant["purpose"] == "development"
