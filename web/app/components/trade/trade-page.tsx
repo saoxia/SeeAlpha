@@ -370,7 +370,7 @@ export function TradePage() {
   }
 
   function prepareAlgoCancel(order: AlgoOrder) {
-    if (!account || !state || busyRef.current || pending || !isFresh(state.algo_checked_at, now)) {
+    if (!account || !state || busyRef.current || pending || !isFresh(state.algo_checked_at ?? undefined, now)) {
       setNotice("请先刷新条件订单，确认交易所最新挂单后撤销。"); return;
     }
     const payload: AlgoCancelRequest = {
