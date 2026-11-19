@@ -34,6 +34,14 @@ class User(Base):
     __table_args__ = (Index("orm_users_username_unique", func.lower(username), unique=True),)
 
 
+class UserResourceSetting(Base):
+    __tablename__ = "user_resource_settings"
+    user_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    configuration_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class Session(Base):
     __tablename__ = "sessions"
     token_hash: Mapped[str] = mapped_column(Text, primary_key=True)
