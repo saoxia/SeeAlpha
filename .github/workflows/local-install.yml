@@ -5,6 +5,8 @@ on:
     paths:
       - "seealpha"
       - "scripts/install.sh"
+      - "scripts/bootstrap_tools.sh"
+      - "scripts/compose_local.sh"
       - "scripts/local_runtime.py"
       - "platform/**"
       - "web/**"
@@ -28,15 +30,17 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install pinned Engine, independent Platform, Web and new local SQLite
-        run: ./seealpha install
+        run: ./seealpha up
       - name: Start and inspect local services
         shell: bash
         run: |
           trap './seealpha stop || true' EXIT
-          ./seealpha start
+          ./seealpha up    # idempotent when all three services are owned
           ./seealpha status
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8000/api/health
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/ > /dev/null
+          ./seealpha stop
+          ./seealpha up    # must restart cleanly after a controlled stop
           ./seealpha stop
       - name: Show limited process logs if a check failed
         if: failure()
