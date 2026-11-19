@@ -36,6 +36,22 @@ export type ManagedUser = {
   production_tenant_id: number;
   production_tenant_name: string;
   engine_node: string | null;
+  resources: UserResources;
+};
+
+export type ResourceKind = "harness" | "development" | "production";
+export type ResourceAllocation = {
+  enabled: boolean;
+  cpus: string | null;
+  memory: string | null;
+  node: string | null;
+};
+export type UserResources = Record<ResourceKind, ResourceAllocation>;
+export type ResourceCapabilities = {
+  nodes: EngineNode[];
+  defaults: Record<ResourceKind, { cpus: string; memory: string }>;
+  harness_deployment: "disabled" | "single" | "per_user";
+  engine_deployment: "single" | "docker" | "distributed";
 };
 
 export type EngineNode = { id: string; online: boolean };

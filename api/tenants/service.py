@@ -31,11 +31,12 @@ def canonical_capital(value):
 
 
 class TenantService:
-    def __init__(self, database, engine, accounts):
+    def __init__(self, database, engine, accounts, user_resources=None):
         self.database = database
         self.repository = TenantRepository(database)
         self.engine = engine
         self.accounts = accounts
+        self.user_resources = user_resources
         self.archives = database.path.parent / "tenant-archives"
 
     def publish(self, tenant):
@@ -81,6 +82,8 @@ class TenantService:
 
     def require_owned_active(self, tenant_id, owner_id):
         tenant = self.require_owned(tenant_id, owner_id)
+        if self.user_resources is not None and not self.user_resources.enabled(owner_id, tenant["purpose"]):
+            raise HTTPException(403, "当前用户未获分配此类型的 Docker 资源。")
         if tenant["status"] != "active":
             raise HTTPException(409, "已归档的租户不能交易、回测或修改内容。")
         return tenant
@@ -88,6 +91,8 @@ class TenantService:
     def create_for_owner(self, owner_id, purpose, name, description):
         if purpose not in PURPOSES:
             raise HTTPException(422, "租户类型只能是正式或开发。")
+        if self.user_resources is not None and not self.user_resources.enabled(owner_id, purpose):
+            raise HTTPException(403, "当前用户未获分配此类型的 Docker 资源。")
         if purpose == "development" and self.repository.production_for_owner(owner_id) is None:
             raise HTTPException(409, "用户还没有正式租户。")
         try:

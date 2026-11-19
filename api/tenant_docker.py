@@ -29,10 +29,12 @@ class DockerTenantManager:
     """One long-lived Engine container per tenant on the local Docker host."""
 
     def __init__(self, root: Path, *, image: str, production_cpus: str,
-                 production_memory: str, development_cpus: str, development_memory: str, log_root: Path):
+                 production_memory: str, development_cpus: str, development_memory: str,
+                 log_root: Path, resource_limits=None):
         self.root = Path(root).expanduser().resolve()
         self.image = image
         self.log_root = Path(log_root).expanduser().resolve()
+        self.resource_limits = resource_limits
         self._endpoints = {}
         self.market_tenant_id = None
         self.limits = {
@@ -146,7 +148,8 @@ class DockerTenantManager:
                     for path in (state, data, local, root / "logs"):
                         path.mkdir(parents=True, exist_ok=True, mode=0o700)
                     token = self._credentials(env_path, tenant_id, purpose, create=True)
-                    cpu, memory = self.limits[purpose]
+                    cpu, memory = (self.resource_limits(tenant_id, purpose)
+                                   if self.resource_limits else self.limits[purpose])
                     self._docker(
                         "run", "--detach", "--name", name,
                         "--label", "seealpha.managed=tenant-engine",

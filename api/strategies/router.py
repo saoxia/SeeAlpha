@@ -166,7 +166,7 @@ def list_loads(request: Request, tenant_id: int, user: TradingUser):
 
 @router.post("/tenants/{tenant_id}/strategy-loads", status_code=201)
 def issue_load(request: Request, tenant_id: int, payload: LoadCreate, user: TradingUser):
-    request.app.state.tenants.require_owned(tenant_id, user.id)
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
     return store(request).issue(
         tenant_id, payload.account_id, payload.version_id, payload.parameters, user_id=user.id,
     )
@@ -176,7 +176,7 @@ def issue_load(request: Request, tenant_id: int, payload: LoadCreate, user: Trad
 def start_backtest(
     request: Request, tenant_id: int, account_id: int, payload: BacktestRequest, user: TradingUser,
 ):
-    request.app.state.tenants.require_owned(tenant_id, user.id)
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
     return store(request).backtest(tenant_id, account_id, payload.start, payload.end, payload.interval)
 
 
@@ -191,7 +191,7 @@ def submit_backtest_async(
     request: Request, tenant_id: int, account_id: int,
     payload: AsyncBacktestRequest, user: TradingUser,
 ):
-    request.app.state.tenants.require_owned(tenant_id, user.id)
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
     return store(request).submit_backtest(
         tenant_id, account_id, payload.start, payload.end, payload.interval,
         idempotency_key=payload.idempotency_key,
@@ -224,5 +224,5 @@ def cancel_tenant_job(request: Request, tenant_id: int, identity: str, user: Tra
 
 @router.post("/tenants/{tenant_id}/jobs/{identity}/retry", status_code=202)
 def retry_tenant_job(request: Request, tenant_id: int, identity: str, user: TradingUser):
-    request.app.state.tenants.require_owned(tenant_id, user.id)
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
     return store(request).retry_task(tenant_id, identity)

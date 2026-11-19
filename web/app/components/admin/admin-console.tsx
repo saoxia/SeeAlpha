@@ -13,7 +13,7 @@ type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks
 
 const sections: Array<{ id: AdminSection; label: string; description: string }> = [
   { id: "overview", label: "概览", description: "常用管理入口" },
-  { id: "users", label: "用户管理", description: "创建普通用户、查看正式租户" },
+  { id: "users", label: "用户管理", description: "管理用户账户、资源授权与计算配额" },
   { id: "data", label: "数据运维", description: "行情库存、账户记录与数据监控" },
   { id: "olap", label: "平台设置", description: "ClickHouse / OLAP 连接配置" },
   { id: "workers", label: "回测 Worker", description: "开发租户回测并发与超时" },

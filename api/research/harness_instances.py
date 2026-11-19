@@ -61,7 +61,8 @@ class WorkloadTransport(httpx.BaseTransport):
 class UserHarnessInstances:
     """Lazy per-user Harness provisioning using the generic DockerRuntime."""
 
-    def __init__(self, *, root: Path, image: str, cpus: str, memory: str, hub=None):
+    def __init__(self, *, root: Path, image: str, cpus: str, memory: str,
+                 hub=None, placement=None):
         self.root = Path(root).expanduser().resolve()
         if Path(root).expanduser().is_symlink():
             raise ValueError("Harness root must not be a symlink")
@@ -74,6 +75,7 @@ class UserHarnessInstances:
         self.cpus = cpus
         self.memory = memory
         self.hub = hub
+        self.placement = placement
         self.local = DockerRuntime(
             self.root / "workloads", allowed_images={image},
             max_containers=32, max_cpus=64, max_memory="256g",
@@ -117,7 +119,8 @@ class UserHarnessInstances:
 
     def _node(self, user_id):
         self._user_id(user_id)
-        return self.hub.harness_assigned(user_id) if self.hub else "local"
+        override = self.placement(user_id) if self.placement else None
+        return override or (self.hub.harness_assigned(user_id) if self.hub else "local")
 
     def _send(self, user_id, action, payload):
         node = self._node(user_id)
@@ -125,14 +128,14 @@ class UserHarnessInstances:
             return self.local.execute(action, payload)
         return self.hub.call(node, action, payload, timeout=90)
 
-    def ensure(self, user_id):
+    def ensure(self, user_id, *, cpus=None, memory=None):
         token = self._token(user_id)
         workload_id = self._workload_id(user_id)
         spec = {
             "id": workload_id,
             "image": self.image,
-            "cpus": self.cpus,
-            "memory": self.memory,
+            "cpus": cpus or self.cpus,
+            "memory": memory or self.memory,
             "port": 8777,
             "read_only": True,
             "require_nonroot": True,
@@ -148,8 +151,8 @@ class UserHarnessInstances:
         self._send(user_id, "ensure", spec)
         return token
 
-    def client(self, user_id):
-        token = self.ensure(user_id)
+    def client(self, user_id, *, cpus=None, memory=None):
+        token = self.ensure(user_id, cpus=cpus, memory=memory)
         transport = WorkloadTransport(
             lambda action, payload: self._send(user_id, action, payload),
             self._workload_id(user_id),
