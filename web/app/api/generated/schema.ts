@@ -37,6 +37,23 @@ export interface components {
         timestamp: number;
         open: boolean;
       };
+      ManualAlgoOrderView: {
+        client_algo_id: string;
+        algo_id?: string | null;
+        symbol: string;
+        side: "buy" | "sell";
+        position_side: "BOTH" | "LONG" | "SHORT";
+        order_type: "STOP" | "STOP_MARKET" | "TAKE_PROFIT" | "TAKE_PROFIT_MARKET" | "TRAILING_STOP_MARKET";
+        quantity: string;
+        price?: string | null;
+        trigger_price?: string | null;
+        activation_price?: string | null;
+        callback_rate?: string | null;
+        working_type: string;
+        status: string;
+        open: boolean;
+        timestamp: number;
+      };
       ManualPosition: {
         position_side?: "BOTH" | "LONG" | "SHORT";
         break_even_price?: string | null;
@@ -65,6 +82,9 @@ export interface components {
         account_revision: string;
         checked_at: number;
         orders: components["schemas"]["ManualOrderView"][];
+        algo_orders?: components["schemas"]["ManualAlgoOrderView"][] | null;
+        algo_checked_at?: number | null;
+        algo_error?: string | null;
         positions: components["schemas"]["ManualPosition"][];
         balances: Record<string, components["schemas"]["ManualBalance"]>;
         instrument: components["schemas"]["ManualInstrument"];
@@ -106,12 +126,45 @@ export interface components {
         client_order_id: string;
         environment: "production" | "sandbox";
       };
+      AlgoOrderValues: {
+        account_revision: string;
+        request_id: string;
+        symbol: string;
+        environment: "production" | "sandbox";
+        side: "buy" | "sell";
+        order_type: "STOP" | "STOP_MARKET" | "TAKE_PROFIT" | "TAKE_PROFIT_MARKET" | "TRAILING_STOP_MARKET";
+        quantity: string;
+        trigger_price?: string | null;
+        price?: string | null;
+        activation_price?: string | null;
+        callback_rate?: string | null;
+        working_type?: "MARK_PRICE" | "CONTRACT_PRICE";
+        position_effect?: "close";
+        expected_position_mode: "oneway" | "hedge";
+        price_protect?: boolean;
+      };
+      AlgoCancelValues: {
+        account_revision: string;
+        request_id: string;
+        symbol: string;
+        client_algo_id: string;
+        environment: "production" | "sandbox";
+      };
+      LeverageChangeValues: {
+        account_revision: string;
+        request_id: string;
+        symbol: string;
+        environment: "production" | "sandbox";
+        leverage: number;
+      };
       ManualOrderResponse: {
         request_id: string;
         client_order_id?: string | null;
         status: "completed" | "unknown";
         message: string;
         order?: components["schemas"]["ManualOrderView"] | null;
+        algo_order?: components["schemas"]["ManualAlgoOrderView"] | null;
+        leverage?: number | null;
       };
       ExchangeAccountCreateRequest: {
         exchange: string;
