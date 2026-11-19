@@ -59,7 +59,7 @@ export function IndicatorLibrary({configs,onChange,onClose,onEdit,workspace,onWo
       setTemplateName("");setNotice("已保存到当前浏览器的指标模板");
     } catch(err){setNotice(err instanceof Error?err.message:"保存失败");}
   }
-  return <div className="trade-study-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
+  return <div className="trade-study-modal-backdrop"><button type="button" className="trade-study-overlay-dismiss" aria-label="关闭指标库" onClick={onClose} />
     <section className="trade-study-modal trade-study-library" role="dialog" aria-modal="true" aria-label="技术指标库">
       <header className="trade-study-modal-title"><div><h2>技术指标</h2><p>搜索、收藏和管理图表指标</p></div><span>{configs.length}/{maxIndicators} 组</span><button type="button" aria-label="关闭指标库" onClick={onClose}>×</button></header>
       <div className="trade-study-search"><span aria-hidden="true">⌕</span><input ref={search} type="search" aria-label="搜索指标" placeholder="搜索指标名称或代码（EMA、布林带…）" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button type="button" aria-label="清除搜索" onClick={()=>setQuery("")}>×</button>}</div>
@@ -102,7 +102,7 @@ export function IndicatorEditor({config,weight,onApply,onClose}:{
   const error=indicatorError(draft);
   useEffect(()=>{const handler=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler);},[onClose]);
   const separately=isSeparate(draft);
-  return <div className="trade-study-modal-backdrop" onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}>
+  return <div className="trade-study-modal-backdrop"><button type="button" className="trade-study-overlay-dismiss" aria-label="关闭指标设置" onClick={onClose} />
     <section className="trade-study-modal trade-study-editor" role="dialog" aria-modal="true" aria-label={`设置 ${draft.kind}`}>
       <header className="trade-study-modal-title"><div><h2>{draft.kind} 指标设置</h2><p>{indicatorCatalog[draft.kind].name}</p></div><button type="button" aria-label="关闭指标设置" onClick={onClose}>×</button></header>
       <div className="trade-study-editor-tabs" role="tablist" aria-label="指标设置选项">{([["inputs","参数"],["style","样式"],["visibility","可见性"]] as const).map(([key,label])=><button key={key} type="button" role="tab" aria-selected={tab===key} className={tab===key?"active":""} onClick={()=>setTab(key)}>{label}</button>)}</div>
