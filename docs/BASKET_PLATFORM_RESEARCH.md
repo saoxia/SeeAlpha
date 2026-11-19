@@ -90,3 +90,19 @@ Spot/UM 或 Options/UM 的各腿历史策略已启用、加载的是对应的**�
 其账户余额和 USDT 限制保持不变。
 这是一项**同步历史模拟**能力，不支持泛化策略 Python 发布、实盘执行、
 生产审批、期权到期流水抓取，也不推断不存在的市场数据。
+
+
+## 已下发的单策略 Spot + 永续组合回测（2026-11-20）
+
+策略库“跨产品组合开发回测”新增“指定一个已下发策略：Spot + 永续”。选择当前开发租户虚拟账户、该账户已下发策略实例和 1m/5m 历史窗口，并分别给 Spot CASH 与 USD-M MARGIN 分配 USDT 模拟资金。两个资金之和不得超过该虚拟账户的初始资金；`max_gross_notional` 同样由 Engine 严格校验。Platform 先核实请求者的租户所有权、策略实例确实属于同一账户且拥有开发授权，再将**单个策略发行 ID**转交独立 Engine；不读取交易所凭据。
+
+- `GET /api/tenants/{tenant_id}/strategy-loads`：查找已下发开发策略 ID；
+- `POST /api/tenants/{tenant_id}/accounts/{account_id}/issued-spot-perp-backtests`：请求字段为 `issuance_id`、`start`、`end`、`interval`、`starting_spot_balance`、`starting_perpetual_balance`、`max_gross_notional`；
+- `GET /api/tenants/{tenant_id}/accounts/{account_id}/issued-spot-perp-backtests/latest`：读取最新历史模拟报告。
+
+Engine 从已校验的发行 ZIP 中隔离执行策略原有的 `on_start` 和 `on_market_snapshot`，要求其使用 `subscribe_market_bundle` 和 `publish_basket` 提交完整 Spot／UM 组合目标。合并同账户成员时只在同产品同合约净额；本入口仅选择**一个发行实例**。必须有同标的、对齐 K 线和可靠历史资金费记录，满足**现货多头与永续空头等额对冲**、逐阶段风险预算和腿间偏差限制。策略真实目标进入 NautilusTrader 独立模拟市场，报告包括订单、成交、手续费原始币种、资金费观测和逐 K 线分账户权益；无法验证任一条件则拒绝，不假装全部订单已经成交。
+
+**边界**：支持“单策略输出两产品目标并在一个历史回测中完成模拟成交”，不等于允许任意两个产品、Options 通用发行包或跨产品实盘下单；期权保护仍用已有专用研究回测。模拟成交不是交易所实盘真实成交，现有 Engine/Platform Git 版本更新不会自动升级生产 Docker 镜像或迁移状态。
+
+
+**已合并 Engine 版本**：Engine [PR #36](https://github.com/saoxia/seealpha-engine/pull/36) 已合并至 `main`，合并提交 `b65234a7864211b6a7366890204539188de73870`。Platform 的安装脚本、独立构建、验收脚本、开发本地运行及 CI 一致固定该完整 SHA。该版本已通过 Engine 原有与新增历史回测回归，不意味着生产 Engine 容器已经部署，更不意味着开启真实多腿交易。

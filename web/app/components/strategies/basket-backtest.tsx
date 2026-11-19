@@ -1,16 +1,19 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
-  latestBasketBacktest, runBasketBacktest,
-  type BasketBacktestResult, type BasketMode,
+  latestBasketBacktest, latestIssuedSpotPerpBacktest, listIssuedStrategyLoads,
+  runBasketBacktest, runIssuedSpotPerpBacktest,
+  type BasketBacktestResult, type BasketMode, type IssuedStrategyLoad,
 } from "@/app/features/strategies/api";
 import { basketReportMetrics } from "@/app/features/strategies/basket-report";
 
 export function BasketBacktestPanel({
   tenantId, accountId,
 }: { tenantId: number; accountId: number }) {
-  const [mode, setMode] = useState<BasketMode>("funding_carry");
+  const [mode, setMode] = useState<BasketMode | "issued_spot_perp">("funding_carry");
+  const [issuedLoads, setIssuedLoads] = useState<IssuedStrategyLoad[]>([]);
+  const [issuanceId, setIssuanceId] = useState("");
   const [interval, setInterval] = useState<"1m" | "5m">("1m");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -20,6 +23,21 @@ export function BasketBacktestPanel({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<BasketBacktestResult | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void listIssuedStrategyLoads(tenantId).then(loads => {
+      if (!active) return;
+      setIssuedLoads(loads.filter(load =>
+        String(load.account_id) === String(accountId)
+        && load.purpose === "development"
+      ));
+      setIssuanceId("");
+    }).catch(() => {
+      if (active) setIssuedLoads([]);
+    });
+    return () => { active = false; };
+  }, [tenantId, accountId]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,12 +52,20 @@ export function BasketBacktestPanel({
     }
     setBusy(true); setError(""); setResult(null);
     try {
-      setResult(await runBasketBacktest(tenantId, accountId, {
-        mode, start: first.toISOString(), end: last.toISOString(),
-        interval, starting_primary_balance: primaryBalance,
-        starting_perpetual_balance: marginBalance,
-        max_gross_notional: grossLimit,
-      }));
+      if (mode === "issued_spot_perp") {
+        if (!issuanceId) throw new Error("请先选择当前账户已下发的策略实例。");
+        setResult(await runIssuedSpotPerpBacktest(tenantId, accountId, {
+          issuance_id: issuanceId, start: first.toISOString(), end: last.toISOString(),
+          interval, starting_spot_balance: primaryBalance,
+          starting_perpetual_balance: marginBalance, max_gross_notional: grossLimit,
+        }));
+      } else {
+        setResult(await runBasketBacktest(tenantId, accountId, {
+          mode, start: first.toISOString(), end: last.toISOString(),
+          interval, starting_primary_balance: primaryBalance,
+          starting_perpetual_balance: marginBalance, max_gross_notional: grossLimit,
+        }));
+      }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "组合回测失败。");
     } finally {
@@ -50,7 +76,9 @@ export function BasketBacktestPanel({
   async function readLatest() {
     setBusy(true); setError("");
     try {
-      setResult(await latestBasketBacktest(tenantId, accountId, mode));
+      setResult(mode === "issued_spot_perp"
+        ? await latestIssuedSpotPerpBacktest(tenantId, accountId)
+        : await latestBasketBacktest(tenantId, accountId, mode));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "无法读取组合回测。");
     } finally {
@@ -70,8 +98,21 @@ export function BasketBacktestPanel({
           <select value={mode} onChange={event => { setMode(event.target.value as BasketMode); setResult(null); }}>
             <option value="funding_carry">现货多头 + 永续空头（资金费）</option>
             <option value="protected_options">永续 + PUT/CALL 保护（到期前）</option>
+            <option value="issued_spot_perp">指定一个已下发策略：Spot + 永续</option>
           </select>
         </label>
+        {mode === "issued_spot_perp" && (
+          <label>已下发策略实例
+            <select required value={issuanceId} onChange={event => setIssuanceId(event.target.value)}>
+              <option value="">请选择此账户的开发策略</option>
+              {issuedLoads.map(load => (
+                <option key={load.id} value={String(load.id)}>
+                  #{load.id} · {load.code_key} · {String(load.parameters.symbol ?? "")}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>历史开始（本地时间）
           <input required type="datetime-local" value={start} onChange={event => setStart(event.target.value)} />
         </label>
@@ -84,7 +125,7 @@ export function BasketBacktestPanel({
             <option value="5m">5 分钟</option>
           </select>
         </label>
-        <label>{mode === "funding_carry" ? "现货现金（USDT）" : "期权现金（USDT）"}
+        <label>{mode === "protected_options" ? "期权现金（USDT）" : "现货现金（USDT）"}
           <input required type="number" min="0.00000001" step="any" value={primaryBalance}
             onChange={event => setPrimaryBalance(event.target.value)} />
         </label>
@@ -99,6 +140,10 @@ export function BasketBacktestPanel({
         <button type="submit" disabled={busy}>{busy ? "模拟中…" : "运行开发回测"}</button>
         <button type="button" disabled={busy} onClick={() => void readLatest()}>查看最新结果</button>
       </form>
+      {mode === "issued_spot_perp" && (
+        <p>选中的策略必须通过 on_market_snapshot 发布完整且等额的现货多头与永续空头目标；
+          缺少历史资金费证据或任意一腿未能完整模拟成交时会拒绝回测，不会启动真实订单。</p>
+      )}
       {mode === "protected_options" && (
         <p>期权策略仅在真实历史买卖报价和足额保护腿均可验证时运行；
           到期行权结算和真实交易所跨产品原子成交不在本次回测范围。</p>
