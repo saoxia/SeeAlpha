@@ -12,7 +12,7 @@ Agent 与 Platform 共用 **saoxia/SeeAlpha** 源码，不创建第三个仓库�
 - 可选按用户独立 Harness Docker，使用 `harness_user_nodes` 按用户 ID 显式绑定节点；详见 [每用户独立 Harness](HARNESS_PER_USER.md)。该模式不复用租户 Engine 容器，且模型 Key 不注入 Agent Shell。
 - `ENGINE_DEPLOYMENT=distributed` 时，未绑定的租户仍使用现有**本机** Docker 管理器。
 - **远端可部署 development 和 production 租户，包括默认行情租户**；仅使用管理员显式指定的节点绑定，未绑定租户仍在本地。
-- 租户到节点的绑定是管理员维护的静态配置；切换绑定并不迁移状态、数据或账户。
+- 开发租户和系统默认行情租户仍支持静态 `tenant_nodes` 配置；**新增普通用户的正式租户必须在管理员后台显式选择节点并点击部署**，放置记录存于私有 `.production-placements.json`，运行时覆盖该正式租户的静态选择。任何改绑都不迁移状态、数据或账户。
 - 初版使用单 Platform API 进程的内存命令队列。**不支持多个 API Worker、水平扩容、跨 API 重启的命令恢复。** 超时操作执行结果不确定，禁止盲目重试实盘指令。
 - Engine 的普通 JSON HTTP v2 API 通过出站节点连接转发；**流式导出、流式交易流水和本地文件日志路径仍不支持远程转发**，包括远程正式租户。请求响应最大 12 MiB。开发租户应使用异步回测接口。
 - 不提供无审核策略执行沙箱，不支持实盘自动切换、容灾接管、跨节点数据迁移或容器镜像热更新。
@@ -66,12 +66,15 @@ export ENGINE_TENANT_ROOT=/srv/seealpha/tenants
 platform/.venv/bin/python -m api.node --role platform
 ```
 
-请仅在一个 Platform API Worker 中运行分布式控制功能。配置文件在 Platform
-启动时加载；修改分配后必须重新启动单个 Platform API 进程。**不要把已有本地
-Engine 的租户 ID 直接指向远端节点**：它会创建一份新的状态卷，必须先人工备份、
+请仅在一个 Platform API Worker 中运行分布式控制功能。节点注册文件在 Platform
+启动时加载，修改节点或开发租户静态分配后必须重启单个 Platform API 进程。
+**用户正式租户由管理员「用户管理」页面选择节点并部署，选择即时生效且重启后保留**。
+**不要把已有本地 Engine 的租户 ID 直接指向远端节点**：它会创建一份新的状态卷，必须先人工备份、
 确认归属和执行受控迁移。**尤其不要将正在交易的正式租户直接改绑远端**；暂不自动搬迁生产账户，改绑也不会自动恢复未完成订单与持仓状态。
 
 管理端登录后可以查询 `GET /api/nodes` 获取在线节点和显式绑定（不返回令牌）。
+`GET /api/users/engine-nodes` 同时提供本机与在线状态，管理员可通过
+`POST /api/users/{user_id}/engine` 选定首次部署位置；正式 Engine 一旦选定不能通过此接口直接改绑。
 
 ## 远端 Agent 配置
 
