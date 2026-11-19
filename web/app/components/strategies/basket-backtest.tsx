@@ -144,6 +144,29 @@ export function BasketBacktestPanel({
           {metrics.targetEvents !== null && (
             <p>有来源的模拟目标事件：{metrics.targetEvents} 条（不等于实际成交）。</p>
           )}
+          {metrics.latestTargetEvent && (
+            <>
+              <h4>最新历史组合目标（并非真实账户委托）</h4>
+              <p>事件时间戳（UTC 纳秒）：{metrics.latestTargetEvent.tsNs}</p>
+              {metrics.latestTargetEvent.memberCount !== null && (
+                <p>参与策略成员数量：{metrics.latestTargetEvent.memberCount}</p>
+              )}
+              {metrics.latestTargetEvent.action && (
+                <p>策略模型动作：{metrics.latestTargetEvent.action}</p>
+              )}
+              <table>
+                <thead>
+                  <tr><th scope="col">产品 / 合约</th><th scope="col">目标数量</th></tr>
+                </thead>
+                <tbody>{metrics.latestTargetEvent.targets.map(item => (
+                  <tr key={item.label}>
+                    <th scope="row">{item.label}</th><td>{item.quantity}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              <small>目标不是已成交仓位；完整阶段状态、真实账户盈亏归因和生产执行审批尚未提供。</small>
+            </>
+          )}
           <small>全部数字来自 Engine 已保存的开发回测报告；无实时持仓查询、无自动下单或独立收益归因。</small>
         </section>
       )}
