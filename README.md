@@ -83,3 +83,9 @@ SeeAlpha 由两个部分组成：本仓库负责 **Platform（Web + API）**，�
 - [Web 前端](web/README.md) · [API 服务](api/README.md)
 - [演示策略](strategy/README.md) · [AI Harness 说明](docs/HARNESS_INTEGRATION.md)
 - [更多技术文档](docs/README.md)
+
+## 许可证与社区 / License and community
+
+本仓库的项目自有核心代码拟采用 [Apache License 2.0](LICENSE)，允许个人及企业在满足许可证条件时免费使用、修改和商业化。独立的 [Engine](https://github.com/saoxia/seealpha-engine) 和 [Harness](https://github.com/saoxia/seealpha-harness) 各有自己的许可证文件。官方 Demo 策略采用目录级 [MIT](strategy/README.md#授权范围--licenses)；私人策略、账户数据与订阅服务遵循各自的权利和协议。
+
+社区参与参见 [贡献指南](CONTRIBUTING.md)、[CLA 草案（尚未生效）](CLA.md)、[自愿商业登记](COMMERCIAL_USE.md)、[品牌政策](TRADEMARKS.md)、[漏洞报告](SECURITY.md) 和 [第三方许可说明](THIRD_PARTY_NOTICES.md)。商业登记不是使用软件的前提。
