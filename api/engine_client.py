@@ -223,11 +223,12 @@ class EngineClient:
         }
         return result
 
-    def data_query(self, operation, payload):
+    def data_query(self, operation, payload, *, tenant_id=None):
         """Call the configured market-data tenant's read-only Engine API."""
         from fastapi import HTTPException
 
-        path = f"/tenants/{self._public_tenant()}/data/{operation}"
+        target = self._public_tenant() if tenant_id is None else str(tenant_id)
+        path = f"/tenants/{target}/data/{operation}"
         try:
             response = self._send_sync("POST", path, timeout=120, json=payload)
         except (httpx.HTTPError, OSError) as exc:
@@ -240,8 +241,8 @@ class EngineClient:
             raise HTTPException(502, "Engine 数据查询失败。")
         return response.json()
 
-    def market_control(self, operation, payload=None):
-        return self.data_query("control/" + operation, payload or {})
+    def market_control(self, operation, payload=None, *, tenant_id=None):
+        return self.data_query("control/" + operation, payload or {}, tenant_id=tenant_id)
 
     def market_export(self, identity):
         path = f"/tenants/{self._public_tenant()}/data/control/exports/{identity}"
