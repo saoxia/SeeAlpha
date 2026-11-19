@@ -47,7 +47,7 @@ cd SeeAlpha
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\seealpha.ps1 up
 ```
 
-Windows 安装器会检查并引导配置 WSL2 Ubuntu；Git、uv、Node.js/npm 等工具仍需在 Ubuntu 内安装。Windows 原生运行暂不支持。详细步骤见 [安装指南](docs/INSTALLATION.md)。
+Windows 安装器会检查并引导配置 WSL2 Ubuntu，并在获得授权后安装缺少的 Ubuntu 基础工具；uv、Node.js/npm 会自动安装在 Linux 项目目录中。Windows 原生运行暂不支持。详细步骤见 [安装指南](docs/INSTALLATION.md)。
 
 ## 预构建镜像部署（可选）
 
