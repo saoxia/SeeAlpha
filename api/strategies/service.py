@@ -89,10 +89,14 @@ class StrategyStore:
                 package["id"], manifest["version"], manifest.get("parameters") or {},
                 manifest["entry_point"], digest, archive,
             )
-            # All demos may be issued to development accounts. Cross-product
-            # demos execute ONLY via Engine's restricted basket-backtest endpoints;
+            # Only explicitly audited system demos get development grants.
+            # Cross-product demos execute via restricted research endpoints;
             # their standard Strategy.on_start remains fail-closed.
-            self.repository.create_grant(version["id"], "development")
+            if manifest["name"] in {
+                "demo_ema_crossover", "demo_multi_signal_portfolio",
+                "demo_funding_carry", "demo_option_hedged_bollinger",
+            }:
+                self.repository.create_grant(version["id"], "development")
 
     def list_packages(self, viewer_id=None, is_admin=False):
         packages = []

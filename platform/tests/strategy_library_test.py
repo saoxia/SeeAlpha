@@ -81,6 +81,7 @@ def test_system_demo_is_seeded_and_public_for_every_login(runtime):
         assert demos["demo_multi_signal_portfolio"]["versions"][0]["grants"] == ["development"]
         assert demos["demo_funding_carry"]["versions"][0]["grants"] == ["development"]
         assert demos["demo_option_hedged_bollinger"]["versions"][0]["grants"] == ["development"]
+        assert all("production" not in v["grants"] for row in demos.values() for v in row["versions"])
         assert all(item["owner_id"] is None for item in demos.values())
     _login(client, "alice")
     seed = client.get("/api/strategy-packages").json()[0]
