@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isFresh, orderBlockReason, orderError, requestId, tradingRequest, type TradingAccount, type Market, type Order, type OrderRequest, type Result, type TradeState } from "@/app/features/trade/api";
+import { isFresh, orderBlockReason, orderError, requestId, tradingRequest, parseBatchLimitLines, matchesIncrement, executeManualBatch, type BatchTask, type TradingAccount, type Market, type Order, type OrderRequest, type Result, type TradeState } from "@/app/features/trade/api";
 import { formatPrice, priceDigits, fundingCountdown } from "@/app/features/trade/display";
 import { subscribeMarket } from "@/app/features/trade/market-stream";
 import type { components } from "@/app/api/generated/schema";
@@ -12,6 +12,7 @@ import { MarketPicker } from "./market-picker";
 import { tradeIntervals as intervals, selectionKey, restoreTradeSelection } from "@/app/features/trade/preferences";
 const pendingKey = "seealpha.manual.pending";
 type Pending = {accountId: number; requestId: string; symbol: string; environment: string};
+type BatchPlan = { accountId: number; kind: "submit" | "cancel"; tasks: BatchTask[]; lines: string[]; };
 function number(value: string | undefined, digits = 6) {return value === undefined ? "—" : Number(value).toLocaleString("en-US", {maximumFractionDigits: digits});}
 function clock(ms: number) {return new Date(ms).toLocaleTimeString("zh-CN", {hour12: false});}
 
@@ -47,6 +48,9 @@ export function TradePage() {
   const [tif, setTif] = useState<"GTC" | "IOC" | "FOK">("GTC");
   const [confirmation, setConfirmation] = useState<{accountId: number; order: OrderRequest} | null>(null);
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+  const [batchDraft, setBatchDraft] = useState("");
+  const [batchPlan, setBatchPlan] = useState<BatchPlan | null>(null);
+  const [selectedCancels, setSelectedCancels] = useState<string[]>([]);
   const [pending, setPending] = useState<Pending | null>(null);
   const [table, setTable] = useState<"positions" | "orders" | "history" | "trades">("positions");
   const [bookTab, setBookTab] = useState<"book" | "trades">("book");
@@ -62,7 +66,7 @@ export function TradePage() {
   function rememberSelection(nextSymbol: string, nextInterval: string) {
     try {localStorage.setItem(selectionKey, JSON.stringify({symbol: nextSymbol, interval: nextInterval}));} catch { /* Optional display preference. */ }
   }
-  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
+  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setSelectedCancels([]); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     const initial = window.setTimeout(() => {
@@ -123,7 +127,7 @@ export function TradePage() {
     return () => {c.abort(); clearTimeout(timer); window.removeEventListener("focus", focus);};
   }, [refreshState]);
   useEffect(() => {
-    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null);}}
+    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null); setBatchPlan(null);}}
     document.addEventListener("keydown", escape); return () => document.removeEventListener("keydown", escape);
   }, []);
 
@@ -153,6 +157,84 @@ export function TradePage() {
     const error = orderError(order); if (error) {setNotice(error); return;}
     setConfirmation({accountId: account.id, order});
   }
+
+  function prepareBatchSubmit() {
+    if (!account || !state || busyRef.current || disabledReason) return;
+    try {
+      if (reduceOnly) throw new Error("批量限价仅支持开仓。请先取消只减仓或平仓选项。");
+      const lines = parseBatchLimitLines(batchDraft);
+      const tasks = lines.map((row, index) => {
+        const order: OrderRequest = {
+          account_revision: state.account_revision, request_id: requestId(),
+          symbol, environment, side: row.side, order_type: "limit",
+          price: row.price, quantity: row.quantity, time_in_force: "GTC",
+          post_only: false,
+          ...(product === "futures_um" ? {
+            expected_position_mode: state.position_mode,
+            position_effect: "open" as const, reduce_only: false,
+          } : {}),
+        };
+        const error = orderError(order);
+        if (error) throw new Error(`第 ${index + 1} 笔：${error}`);
+        if (!matchesIncrement(row.price, state.instrument.price_increment)
+            || !matchesIncrement(row.quantity, state.instrument.size_increment)) {
+          throw new Error(`第 ${index + 1} 笔价格或数量不符合交易所步长。不会自动四舍五入。`);
+        }
+        if (state.instrument.min_quantity && Number(row.quantity) < Number(state.instrument.min_quantity)) {
+          throw new Error(`第 ${index + 1} 笔数量低于交易所最低数量。`);
+        }
+        if (state.instrument.min_notional && Number(row.price) * Number(row.quantity) < Number(state.instrument.min_notional)) {
+          throw new Error(`第 ${index + 1} 笔名义金额低于交易所最低限额。`);
+        }
+        return {kind: "submit" as const,
+          path: `/api/trading/accounts/${account.id}/${product === "spot" ? "spot/" : ""}orders`,
+          payload: order};
+      });
+      setConfirmation(null); setCancelOrder(null);
+      setBatchPlan({accountId: account.id, kind: "submit", tasks,
+        lines: lines.map((row, i) => `${i + 1}. ${row.side === "buy" ? "买" : "卖"} ${row.quantity} ${base} @ ${row.price} ${quote}`)});
+    } catch (error) {setNotice(error instanceof Error ? error.message : "批量委托参数无效。");}
+  }
+
+  function prepareBatchCancel() {
+    if (!account || !state || busyRef.current || pending) return;
+    if (!isFresh(state.checked_at, Date.now()) || accountError) {setNotice("请先刷新账户与委托。");return;}
+    const orders = state.orders.filter(row => row.open && selectedCancels.includes(row.client_order_id));
+    if (!orders.length || orders.length > 20 || orders.length !== selectedCancels.length) {
+      setNotice("请选择当前合约 1～20 笔有效的待撤订单，再刷新核对。");return;
+    }
+    setConfirmation(null);setCancelOrder(null);
+    setBatchPlan({accountId: account.id, kind: "cancel",
+      tasks: orders.map(order => ({
+        kind: "cancel" as const,
+        path: `/api/trading/accounts/${account.id}/${product === "spot" ? "spot/" : ""}cancel`,
+        payload: {account_revision: state.account_revision, request_id: requestId(),
+          symbol, environment, client_order_id: order.client_order_id},
+      })),
+      lines: orders.map((order, i) => `${i + 1}. ${order.client_order_id} · ${order.side} ${order.quantity} @ ${order.price ?? "市价"}`),
+    });
+  }
+
+  async function sendBatch() {
+    if (!batchPlan || !account || busyRef.current || pending || batchPlan.accountId !== account.id) return;
+    if (!state || !isFresh(state.checked_at, Date.now()) || accountError
+        || (batchPlan.kind === "submit" && (disabledReason || !isFresh(market?.checked_at, Date.now())))) {
+      setBatchPlan(null);setNotice("账户或行情快照已过期，请刷新后重新确认批次。");return;
+    }
+    busyRef.current = true;setBusy(true);setNotice("");
+    try {
+      const outcome = await executeManualBatch(batchPlan.tasks, requestId => {
+        remember(requestId ? {accountId: account.id, requestId, symbol, environment} : null);
+      });
+      setNotice(`已确认 ${outcome.done}/${batchPlan.tasks.length} 笔 · ${outcome.message}`);
+      if (!outcome.uncertain) setSelectedCancels([]);
+    } catch (error) {
+      setNotice(`批量操作已停止：${error instanceof Error ? error.message : "未知错误"}。请核对交易所状态。`);
+    } finally {
+      setBatchPlan(null); busyRef.current = false;setBusy(false);void refreshState();
+    }
+  }
+
   async function send() {
     if (busyRef.current || !account || (!confirmation && !cancelOrder)) return;
     busyRef.current = true; setBusy(true); setNotice("");
