@@ -366,6 +366,30 @@ class EngineClient:
             },
         )
 
+    def run_issued_spot_perp_backtest(
+        self, tenant_id, account_id, issuance_id, start, end, interval,
+        starting_spot_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        return self._sync(
+            "POST",
+            self._account_path(tenant_id, account_id) + "/issued-spot-perp-backtests",
+            timeout=600,
+            json={
+                "issuance_id": issuance_id,
+                "start": start, "end": end, "interval": interval,
+                "starting_spot_balance": str(starting_spot_balance),
+                "starting_perpetual_balance": str(starting_perpetual_balance),
+                "max_gross_notional": str(max_gross_notional),
+            },
+        )
+
+    def latest_issued_spot_perp_backtest(self, tenant_id, account_id):
+        return self._sync(
+            "GET", self._account_path(
+                tenant_id, account_id,
+            ) + "/issued-spot-perp-backtests/latest",
+        )
+
     def run_funding_carry_backtest(
         self, tenant_id, account_id, start, end, interval,
         starting_spot_balance, starting_perpetual_balance, max_gross_notional,
