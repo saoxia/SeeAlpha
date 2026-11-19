@@ -72,6 +72,11 @@ jobs:
             sleep 3
           done
           curl --fail --max-time 10 http://127.0.0.1:3000/ >/dev/null
+          # Platform initializes a fresh Alembic database on first boot and may lag Web.
+          for attempt in {1..80}; do
+            if dc exec -T platform /app/platform/.venv/bin/python -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200' >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
           dc exec -T platform /app/platform/.venv/bin/python -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200'
           dc exec -T engine python -c 'import os,urllib.request; r=urllib.request.Request("http://127.0.0.1:8766/health",headers={"Authorization":"Bearer "+os.environ["ENGINE_TOKEN"]}); assert urllib.request.urlopen(r,timeout=5).status == 200'
           dc exec -T platform /app/platform/.venv/bin/python -c 'import sqlite3; c=sqlite3.connect("/app/.local/state/api/seealpha.sqlite"); assert c.execute("SELECT count(*) FROM alembic_version").fetchone()[0] == 1'
