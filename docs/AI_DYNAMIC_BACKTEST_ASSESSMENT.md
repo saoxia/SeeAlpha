@@ -1,5 +1,7 @@
 # 第三项评估：让 Engine 回测 AI 新生成的策略
 
+> **2026-11-19 首期交付状态**：已实现受限候选策略包（字面量 `CANDIDATE` 规则）及 Engine-owned EMA/SMA 趋势/反转模拟回测；不执行 AI 任意 Python。以下隔离任意 Python 的架构仍属于后续工作，不能把本期功能当作通用 Python 沙箱。
+
 ## 当前障碍（2026-11-19）
 
 1. Engine `/research/v1/backtests` 当前要求 `strategy_ref=account:<id>`，并要求开发账户里已经下发的 `strategy_load`；只支持一个 `futures_um:<symbol>:1m|5m` 数据集、`parameters={}`，其身份与任务由 Engine 检验。

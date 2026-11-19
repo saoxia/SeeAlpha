@@ -5,7 +5,10 @@ API workers sharing the same private file; no new service or public grant mint.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
+import re
 import os
 import secrets
 import sqlite3
@@ -13,6 +16,7 @@ import stat
 import time
 from contextlib import contextmanager
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -20,6 +24,7 @@ from core.engine_contracts import EngineConflict
 
 from ..market_data.repository import PolicyRepository
 from ..tenant_docker import DockerTenantManager
+from .candidates import parse_candidate
 from .direct_engine import DirectEngineResearchClient
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
 
@@ -31,6 +36,9 @@ OPERATIONS = {
     "backtest_submit": "backtests:submit",
     "backtest_get": "backtests:read",
     "backtest_cancel": "backtests:cancel",
+    "candidate_create": "candidates:submit",
+    "candidate_get": "candidates:submit",
+    "candidate_submit": "candidates:submit",
 }
 _TTL = 900
 _MAX_CALLS = 80
@@ -71,6 +79,18 @@ class ResearchLeases:
                   task_id TEXT NOT NULL, event TEXT NOT NULL,
                   detail TEXT NOT NULL DEFAULT ''
                 );
+                CREATE TABLE IF NOT EXISTS research_candidates (
+                  id TEXT PRIMARY KEY, task_id TEXT NOT NULL,
+                  owner_id INTEGER NOT NULL, tenant_id INTEGER NOT NULL,
+                  account_id TEXT NOT NULL, dataset_ref TEXT NOT NULL,
+                  turn INTEGER NOT NULL, name TEXT NOT NULL,
+                  title TEXT NOT NULL, version TEXT NOT NULL,
+                  package_hash TEXT NOT NULL, recipe TEXT NOT NULL,
+                  archive BLOB NOT NULL, created_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS research_candidates_task
+                  ON research_candidates(task_id, created_at);
+
             """)
 
     @contextmanager
@@ -169,6 +189,69 @@ class ResearchLeases:
                 (int(time.time()), task_id, "revoked"),
             )
 
+    def create_candidate(self, lease: dict, archive: bytes, parsed: dict) -> dict:
+        identity = uuid4().hex
+        now = int(time.time())
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            live = db.execute(
+                "SELECT * FROM research_leases WHERE task_id=?", (lease["task_id"],)
+            ).fetchone()
+            if (live is None or live["active"] != 1 or live["expires_at"] <= now
+                    or live["turn"] != lease["turn"]
+                    or live["owner_id"] != lease["owner_id"]
+                    or live["tenant_id"] != lease["tenant_id"]
+                    or live["dataset_ref"] != lease["dataset_ref"]):
+                raise HTTPException(403, "Research candidate scope expired")
+            count = db.execute(
+                "SELECT COUNT(*) FROM research_candidates WHERE task_id=?",
+                (lease["task_id"],),
+            ).fetchone()[0]
+            if count >= 24:
+                raise HTTPException(429, "Research candidate version budget exhausted")
+            db.execute(
+                """INSERT INTO research_candidates
+                (id,task_id,owner_id,tenant_id,account_id,dataset_ref,turn,
+                 name,title,version,package_hash,recipe,archive,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    identity, lease["task_id"], lease["owner_id"],
+                    lease["tenant_id"], lease["account_id"], lease["dataset_ref"],
+                    lease["turn"], parsed["name"], parsed["title"], parsed["version"],
+                    parsed["sha256"], json.dumps(parsed["recipe"], sort_keys=True),
+                    archive, now,
+                ),
+            )
+            db.execute(
+                "INSERT INTO research_audit(ts,task_id,event,detail) VALUES(?,?,?,?)",
+                (now, lease["task_id"], "candidate_registered", identity),
+            )
+        return {
+            "candidate_id": identity, "package_hash": parsed["sha256"],
+            "name": parsed["name"], "title": parsed["title"],
+            "version": parsed["version"], "recipe": parsed["recipe"],
+        }
+
+    def get_candidate(self, lease: dict, identity: str) -> dict:
+        if (not isinstance(identity, str)
+                or not re.fullmatch(r"[a-f0-9]{32}", identity)):
+            raise HTTPException(404, "Research candidate not found")
+        with self._connect() as db:
+            row = db.execute(
+                """SELECT * FROM research_candidates
+                WHERE id=? AND task_id=? AND owner_id=? AND tenant_id=?
+                  AND account_id=? AND dataset_ref=?""",
+                (
+                    identity, lease["task_id"], lease["owner_id"],
+                    lease["tenant_id"], lease["account_id"], lease["dataset_ref"],
+                ),
+            ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Research candidate not found")
+        data = dict(row)
+        data["recipe"] = json.loads(data["recipe"])
+        return data
+
     def audit(self, event: dict) -> None:
         with self._connect() as db:
             db.execute(
@@ -179,7 +262,7 @@ class ResearchLeases:
 
 
 def allowed_scope(app, owner_id: int, tenant_id: int, account_id: str,
-                  dataset_ref: str) -> bool:
+                  dataset_ref: str, *, require_issued=True) -> bool:
     """Authoritative business grants: tenant ownership, policy, issued account."""
     try:
         tenant = app.state.tenants.repository.get_tenant(tenant_id)
@@ -204,6 +287,8 @@ def allowed_scope(app, owner_id: int, tenant_id: int, account_id: str,
             for row in policies
         ):
             return False
+        if not require_issued:
+            return True
         loads = app.state.strategies.repository.list_issuances(tenant_id)
         selected = [row for row in loads if row["account_id"] == str(account_id)]
         return bool(selected) and all(
@@ -229,15 +314,37 @@ def engine_connection(app, tenant_id: int) -> tuple[str, str]:
 
 
 def research_command(app, lease: dict, operation: str, args: dict):
-    """Issue a per-operation grant, then call a fixed Engine research endpoint."""
+    """Authorize one candidate or fixed Engine operation; never run AI Python."""
+    require_issued = operation == "backtest_submit"
     if not allowed_scope(
         app, lease["owner_id"], lease["tenant_id"],
-        lease["account_id"], lease["dataset_ref"],
+        lease["account_id"], lease["dataset_ref"], require_issued=require_issued,
     ):
         raise HTTPException(403, "Research scope no longer authorized")
-    origin, key = engine_connection(app, lease["tenant_id"])
     account = "account:" + lease["account_id"]
     dataset = lease["dataset_ref"]
+    if operation == "candidate_create":
+        if set(args) != {"archive"}:
+            raise ValueError("Invalid candidate package request")
+        archive, parsed = parse_candidate(args["archive"])
+        if parsed["recipe"]["symbol"] != dataset.split(":")[1]:
+            raise HTTPException(403, "Candidate symbol outside research scope")
+        return app.state.research_leases.create_candidate(lease, archive, parsed)
+    if operation in {"candidate_get", "candidate_submit"}:
+        expected = {"candidate_id"} if operation == "candidate_get" else {
+            "candidate_id", "start", "end", "starting_balance",
+            "quote_currency", "idempotency_key",
+        }
+        if set(args) != expected:
+            raise ValueError("Invalid candidate reference or backtest request")
+        candidate = app.state.research_leases.get_candidate(lease, args["candidate_id"])
+        if operation == "candidate_get":
+            return {key: candidate[key] for key in (
+                "candidate_id", "name", "title", "version", "package_hash", "recipe",
+            ) if key in candidate} | {"candidate_id": candidate["id"]}
+    else:
+        candidate = None
+    origin, key = engine_connection(app, lease["tenant_id"])
     issuer = ResearchGrantIssuer(
         tenant_repository=app.state.tenants.repository,
         signing_key_for_tenant=lambda _tenant: key,
@@ -256,6 +363,17 @@ def research_command(app, lease: dict, operation: str, args: dict):
     except ResearchGrantDenied:
         raise HTTPException(403, "Research authorization unavailable") from None
     with DirectEngineResearchClient(origin, grant) as client:
+        if operation == "candidate_submit":
+            return client.submit_candidate({
+                "candidate_id": candidate["id"],
+                "package_hash": candidate["package_hash"],
+                "archive": base64.b64encode(candidate["archive"]).decode("ascii"),
+                "strategy_ref": account, "dataset_refs": [dataset],
+                "start": args["start"], "end": args["end"],
+                "starting_balance": args["starting_balance"],
+                "quote_currency": args["quote_currency"],
+                "idempotency_key": args["idempotency_key"],
+            })
         if operation == "datasets":
             if args:
                 raise ValueError("Datasets command takes no parameters")

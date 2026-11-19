@@ -18,7 +18,7 @@ from .grants import ResearchGrant
 ENGINE_HEADER = "X-SeeAlpha-Engine-Contract-Version"
 RESEARCH_HEADER = "X-SeeAlpha-Research-Contract-Version"
 _MAX_JSON = 1_048_576
-_MAX_BODY = 65_536
+_MAX_BODY = 131_072
 _MAX_SNAPSHOT = 16 * 1_048_576
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
@@ -186,6 +186,25 @@ class DirectEngineResearchClient:
         data["purpose"] = "development"
         data["execution"] = "simulation"
         return self._request("POST", "/research/v1/backtests", data)
+
+    def submit_candidate(self, request: dict) -> dict:
+        """Forward a fixed, independently revalidated candidate package to Engine."""
+        fields = {
+            "candidate_id", "package_hash", "archive", "strategy_ref",
+            "dataset_refs", "start", "end", "starting_balance", "quote_currency",
+            "idempotency_key",
+        }
+        if (
+            not isinstance(request, dict) or set(request) != fields
+            or not isinstance(request.get("dataset_refs"), list)
+            or len(request["dataset_refs"]) != 1
+            or not isinstance(request.get("archive"), str)
+            or len(request["archive"]) > 90_000
+        ):
+            raise ValueError("Invalid restricted candidate request")
+        return self._request("POST", "/research/v1/candidate-backtests", {
+            **request, "purpose": "development", "execution": "simulation",
+        })
 
     def get_backtest(self, backtest_id: str) -> dict:
         return self._request("GET", f"/research/v1/backtests/{_identifier(backtest_id)}")
