@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE_SHA = "36aed104d66101e16b788b75dc7033271e7e8bb1"
+ENGINE_SHA = "b4a371cda12f8db5e176cc147b1bac26f3d85e4e"
 API_URL = "http://127.0.0.1:8000"
 ENGINE_URL = "http://127.0.0.1:8766"
 WEB_URL = "http://127.0.0.1:3000"
