@@ -26,7 +26,10 @@ if [[ -n "${SEEALPHA_API_URL:-}" && "$SEEALPHA_API_URL" != "http://127.0.0.1:800
   exit 2
 fi
 
-if [[ "$bootstrap" -eq 1 ]]; then
+if [[ "$bootstrap" -eq 1 ]] && { ! command -v uv >/dev/null 2>&1 ||
+  ! command -v npm >/dev/null 2>&1 ||
+  ! command -v node >/dev/null 2>&1 ||
+  ! node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)' 2>/dev/null; }; then
   bash "$root/scripts/bootstrap_tools.sh"
 fi
 for tool in git uv node npm; do
@@ -83,12 +86,15 @@ if [[ ! -e "$engine_dir" ]]; then
     git clone --quiet --no-checkout https://github.com/saoxia/seealpha-engine.git "$engine_partial"
   fi
   if [[ ! -d "$engine_partial/.git" ]] ||
-     [[ "$(git -C "$engine_partial" remote get-url origin 2>/dev/null || true)" != "https://github.com/saoxia/seealpha-engine.git" ]] ||
-     [[ -n "$(git -C "$engine_partial" status --porcelain 2>/dev/null)" ]]; then
+     [[ "$(git -C "$engine_partial" remote get-url origin 2>/dev/null || true)" != "https://github.com/saoxia/seealpha-engine.git" ]]; then
     echo "Engine 中断检出目录不可信或已有本地修改，拒绝覆盖：$engine_partial" >&2
     exit 1
   fi
   git -C "$engine_partial" checkout --quiet --detach "$engine_sha"
+  if [[ -n "$(git -C "$engine_partial" status --porcelain)" ]]; then
+    echo "Engine 检出后存在未提交文件；拒绝发布中断目录。" >&2
+    exit 1
+  fi
   mv "$engine_partial" "$engine_dir"
 fi
 if [[ ! -d "$engine_dir/.git" ||
