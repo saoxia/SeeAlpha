@@ -5,7 +5,6 @@ import json
 
 import httpx
 import pytest
-
 from api.research.direct_engine import DirectResearchError
 from api.research.grants import ResearchGrant
 from api.research.mcp_engine import EngineMCPResearchClient
