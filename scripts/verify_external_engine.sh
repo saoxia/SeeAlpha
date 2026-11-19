@@ -7,7 +7,7 @@ umask 077
 # No real accounts, business database, exchange keys or live trading.
 # Optional backtest exercises only synthetic bars and virtual orders/fills.
 platform_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-engine_sha="${1:-957385dc040f52ea199abce5007b12ea9eadf7e1}"
+engine_sha="${1:-01ad427c5bc5aefc49a9ea1b24f369b3a8715d4d}"
 if [[ ! "$engine_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected complete 40-character Engine source SHA" >&2
   exit 2
@@ -51,6 +51,7 @@ test ! -e "$sandbox/platform/nautilus_support.py"
 # Disposable secret lives only in a 0600 env file and process environment.
 token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 cat > "$sandbox/engine.env" <<EOF
+ENGINE_AUTH_MODE=token
 ENGINE_TOKEN=$token
 ENGINE_TENANT_ID=987654321
 ENGINE_TENANT_PURPOSE=development
@@ -135,6 +136,7 @@ if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
 
   api_token="$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')"
   cat > "$sandbox/api-engine.env" <<EOF
+ENGINE_AUTH_MODE=token
 ENGINE_TOKEN=$api_token
 ENGINE_HOST=0.0.0.0
 ENGINE_PORT=8766

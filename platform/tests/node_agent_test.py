@@ -190,12 +190,14 @@ def test_distributed_tenant_docker_supports_both_purposes_and_remote_market(tmp_
     assert dev_spec["id"] == "engine-7"
     assert (dev_spec["cpus"], dev_spec["memory"]) == ("2", "4g")
     assert dev_spec["env"]["ENGINE_TENANT_PURPOSE"] == "development"
+    assert dev_spec["env"]["ENGINE_AUTH_MODE"] == "token"
 
     manager.ensure(9, "production")
     prod_spec = hub.calls[-1][2]
     assert prod_spec["id"] == "engine-9"
     assert (prod_spec["cpus"], prod_spec["memory"]) == ("1", "2g")
     assert prod_spec["env"]["ENGINE_TENANT_PURPOSE"] == "production"
+    assert prod_spec["env"]["ENGINE_AUTH_MODE"] == "token"
     assert prod_spec["env"]["ENGINE_TOKEN"] != dev_spec["env"]["ENGINE_TOKEN"]
     assert stat.S_IMODE((tmp_path / "tenants" / "9" / "remote-engine.token").stat().st_mode) == 0o600
 

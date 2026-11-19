@@ -31,8 +31,8 @@ def main():
         or parsed.fragment
     ):
         raise ValueError("Only a loopback HTTP Engine may be tested")
-    if not token or token == "seealpha-local-engine":
-        raise ValueError("Use a disposable Engine token, not the old development default")
+    if len(token) < 32:
+        raise ValueError("Use a strong disposable Engine token")
     if (root / "engine").exists() or (root / "nautilus_support.py").exists():
         raise AssertionError("The isolated Platform must not contain Engine source")
 

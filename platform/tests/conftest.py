@@ -24,7 +24,7 @@ def platform_engine_bootstrap(monkeypatch):
     def respond(request):
         assert request.url.host == "127.0.0.1"
         assert request.headers.get(ENGINE_CONTRACT_HEADER) == ENGINE_CONTRACT_VERSION
-        assert request.headers.get("authorization") == "Bearer seealpha-local-engine"
+        assert request.headers.get("authorization") is None
         if request.method == "PUT" and re.fullmatch(r"/tenants/[1-9][0-9]*", request.url.path):
             payload = json.loads(request.content)
             assert payload["purpose"] in {"development", "production"}

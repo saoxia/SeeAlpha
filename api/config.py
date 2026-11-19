@@ -24,7 +24,7 @@ class Settings:
     operation_sync_seconds: int = 0
     equity_enabled: bool = False
     engine_url: str = "http://127.0.0.1:8766"
-    engine_token: str = field(default="seealpha-local-engine", repr=False)
+    engine_token: str = field(default="", repr=False)
     engine_market_account_id: str = "market-data"
     engine_deployment: str = "single"
     node_config_file: Path | None = None
@@ -97,7 +97,7 @@ class Settings:
                 h.strip() for h in os.getenv("ALLOWED_ORIGINS", "").split(",") if h.strip()
             ),
             engine_url=engine_url,
-            engine_token=os.getenv("ENGINE_TOKEN", "seealpha-local-engine"),
+            engine_token=os.getenv("ENGINE_TOKEN", ""),
             engine_market_account_id=os.getenv("ENGINE_MARKET_ACCOUNT_ID", "market-data"),
             engine_deployment=os.getenv("ENGINE_DEPLOYMENT", "single"),
             node_config_file=(Path(os.environ["NODE_CONFIG_FILE"])

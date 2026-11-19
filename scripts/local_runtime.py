@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE_SHA = "957385dc040f52ea199abce5007b12ea9eadf7e1"
+ENGINE_SHA = "01ad427c5bc5aefc49a9ea1b24f369b3a8715d4d"
 API_URL = "http://127.0.0.1:8000"
 ENGINE_URL = "http://127.0.0.1:8766"
 WEB_URL = "http://127.0.0.1:3000"
@@ -71,7 +71,7 @@ class LocalRuntime:
         env = os.environ.copy()
         for key in (
             "DATABASE_URL", "DATABASE_URL_FILE", "AUTH_DB_PATH", "DATABASE_SCHEMA",
-            "ENGINE_TOKEN", "ENGINE_URL", "ENGINE_DEPLOYMENT", "ENGINE_DOCKER_IMAGE",
+            "ENGINE_TOKEN", "ENGINE_AUTH_MODE", "ENGINE_URL", "ENGINE_DEPLOYMENT", "ENGINE_DOCKER_IMAGE",
             "ENGINE_STATE", "ENGINE_PROJECT", "ENGINE_HOST", "ENGINE_PORT",
             "ENGINE_MARKET_ACCOUNT_ID",
             "ENGINE_TENANT_ROOT", "ENGINE_TENANT_ID", "ENGINE_TENANT_PURPOSE",
@@ -188,7 +188,8 @@ class LocalRuntime:
     def _start_one(self, service: str, token: str) -> None:
         env = self._clean_env()
         if service == "engine":
-            env.update(ENGINE_TOKEN=token, ENGINE_HOST="127.0.0.1", ENGINE_PORT="8766",
+            env.update(ENGINE_AUTH_MODE="token", ENGINE_TOKEN=token,
+                       ENGINE_HOST="127.0.0.1", ENGINE_PORT="8766",
                        ENGINE_PROJECT=str(self.engine),
                        ENGINE_STATE=str(self.engine / ".local/state/engine"))
             cwd = self.engine

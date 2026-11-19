@@ -29,7 +29,7 @@ def test_external_engine_is_reachable_with_platform_http_client():
     assert ipaddress.ip_address(parsed.hostname).is_loopback, "Never probe a remote Engine"
     assert not parsed.username and not parsed.password and not parsed.query
     assert not parsed.fragment and parsed.path in {"", "/"}
-    assert token and token != "seealpha-local-engine", "Use a disposable private token"
+    assert len(token) >= 32, "Use a strong disposable private token"
 
     client = EngineClient(PROJECT, url=url, token=token)
     health = client._sync("GET", "/health", timeout=5)

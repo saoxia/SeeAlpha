@@ -15,7 +15,7 @@ fi
 export PATH="$root/.local/bin:$PATH"
 
 # Never act on inherited production deployment configuration.
-for key in DATABASE_URL DATABASE_URL_FILE ENGINE_DEPLOYMENT ENGINE_URL ENGINE_TOKEN; do
+for key in DATABASE_URL DATABASE_URL_FILE ENGINE_DEPLOYMENT ENGINE_URL ENGINE_TOKEN ENGINE_AUTH_MODE; do
   if [[ -n "${!key:-}" ]]; then
     echo "检测到 $key：本机安装拒绝接管已有部署。请在隔离的终端环境执行。" >&2
     exit 2
@@ -44,7 +44,7 @@ if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number
 fi
 
 # Keep the exact Engine SHA used by scripts/build_external_engine.sh.
-engine_sha="957385dc040f52ea199abce5007b12ea9eadf7e1"
+engine_sha="01ad427c5bc5aefc49a9ea1b24f369b3a8715d4d"
 engine_dir="$root/.local/engine-src"
 db_file="$root/.local/state/api/seealpha.sqlite"
 db_url_file="$root/.local/config/api/database_url"

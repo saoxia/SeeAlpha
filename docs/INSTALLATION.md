@@ -25,7 +25,7 @@ Engine 和 Platform 仍是不同仓库、不同 Python 环境及不同进程。
 1. 拒绝继承 `DATABASE_URL`、`DATABASE_URL_FILE`、Engine 运行配置等可能指向现有部署的变量，并校验固定版本下载的 SHA256；若缺少 uv/Node 则安装到项目私有目录。
 2. 通过 HTTPS 检出固定提交的 [seealpha-engine](https://github.com/saoxia/seealpha-engine)，校验 Engine / Platform 共享契约。
 3. 分别执行两个仓库锁定依赖的 `uv sync`；在 `web/` 执行 `npm ci` 和 `npm run build`。
-4. 仅对**不存在**的本机 `.local/state/api/seealpha.sqlite` 执行 Alembic 初始化；为 API / Engine 生成私有本地令牌。
+4. 仅对**不存在**的本机 `.local/state/api/seealpha.sqlite` 执行 Alembic 初始化；为 API / Engine 生成私有本地令牌，本机 Platform 启动 Engine 时显式启用 `ENGINE_AUTH_MODE=token`（独立运行 Engine 的默认 `none` 模式不需要令牌）。
 5. 首次交互安装时调用现有管理员管理命令输入密码。非交互安装需随后单独创建管理员。
 
 > 源码安装仍使用 Engine Python 依赖与本机工具环境（独立 Rust 数据转换组件是否就绪需要额外验证）。另提供带有 Rust release 转换器的预构建 Docker 镜像部署；只有发布工作流成功并真正发布相应标签后才可拉取。
