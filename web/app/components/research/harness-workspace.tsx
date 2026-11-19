@@ -363,7 +363,7 @@ export function HarnessWorkspace() {
               </section>
               {engineMessage&&<p className="research-note" role="status">{engineMessage}</p>}
             </div>}
-          </details>}
+          </details>
           <div className="research-harness-controls">
             <button type="button" className="primary" disabled={!available||!prompt.trim()||running||busy}
               onClick={()=>void submit()}>
