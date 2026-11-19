@@ -114,7 +114,7 @@ export function matchesIncrement(value: string, increment: string): boolean {
 export type BatchTask = {
   kind: "submit" | "cancel";
   path: string;
-  payload: {request_id: string; [key: string]: unknown};
+  payload: {request_id: string};
 };
 export type BatchOutcome = {done: number; stopped: boolean; uncertain: boolean; message: string};
 
