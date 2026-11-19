@@ -4,7 +4,7 @@ import {
   tenantsPath,
   usersPath,
 } from "./model";
-import type { EngineNodes, ManagedUser, ResourceCapabilities, TenantRecord, UserResources } from "./model";
+import type { EngineNodes, ManagedUser, ResourceCapabilities, TenantCapabilities, TenantRecord, UserResources } from "./model";
 
 export {
   tenantActionPath,
@@ -29,6 +29,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function fetchTenants(signal?: AbortSignal) {
   return request<TenantRecord[]>(tenantsPath(), { signal });
+}
+
+export function fetchTenantCapabilities(signal?: AbortSignal) {
+  return request<TenantCapabilities>("/api/tenants/capabilities", { signal });
 }
 
 export function createDevelopmentTenant(body: { name: string; description?: string; purpose: "development" }) {
