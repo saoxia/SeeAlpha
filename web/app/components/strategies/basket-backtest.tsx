@@ -147,7 +147,7 @@ export function BasketBacktestPanel({
           {metrics.latestTargetEvent && (
             <>
               <h4>最新历史组合目标（并非真实账户委托）</h4>
-              <p>事件时间戳（UTC 纳秒）：{metrics.latestTargetEvent.tsNs}</p>
+              <p>事件时间（UTC，毫秒精度）：{new Date(metrics.latestTargetEvent.tsMs).toISOString()}</p>
               {metrics.latestTargetEvent.memberCount !== null && (
                 <p>参与策略成员数量：{metrics.latestTargetEvent.memberCount}</p>
               )}
