@@ -239,7 +239,7 @@ class StrategyStore:
         package = self.repository.get_package(version["package_id"])
         if package is None:
             raise HTTPException(404, "策略包不存在。")
-        if (purpose == "production" and package["owner_id"] is None
+        if (purpose == "production" and package.get("owner_id") is None
                 and package["code_key"] in _RESEARCH_ONLY_SYSTEM_BASKETS):
             raise HTTPException(409, "跨产品系统 Demo 仅支持开发研究，禁止正式授权。")
         try:
@@ -274,7 +274,7 @@ class StrategyStore:
         package = self.repository.get_package(version["package_id"])
         if package is None:
             raise HTTPException(404, "策略包不存在。")
-        if (tenant["purpose"] == "production" and package["owner_id"] is None
+        if (tenant["purpose"] == "production" and package.get("owner_id") is None
                 and package["code_key"] in _RESEARCH_ONLY_SYSTEM_BASKETS):
             # Also block legacy grants that might have been created previously.
             raise HTTPException(409, "跨产品系统 Demo 无正式运行时，禁止加载生产账户。")
