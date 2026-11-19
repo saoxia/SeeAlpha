@@ -4,7 +4,7 @@ import {
   tenantsPath,
   usersPath,
 } from "./model";
-import type { EngineNodes, ManagedUser, TenantRecord } from "./model";
+import type { EngineNodes, ManagedUser, ResourceCapabilities, TenantRecord, UserResources } from "./model";
 
 export {
   tenantActionPath,
@@ -79,3 +79,13 @@ export function deployUserEngine(userId: number, nodeId: string) {
   });
 }
 
+
+export function fetchResourceCapabilities() {
+  return request<ResourceCapabilities>("/api/users/resource-capabilities");
+}
+
+export function saveUserResources(userId: number, resources: UserResources) {
+  return request<ManagedUser>("/api/users/" + userId + "/resources", {
+    method: "PUT", body: JSON.stringify(resources),
+  });
+}
