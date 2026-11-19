@@ -171,7 +171,7 @@ class LocalRuntime:
         return bool(
             len(lines) == 2
             and sys.platform == "darwin"
-            and re.fullmatch(r"python(?:3(?:\\.\\d+)?)?", details.strip(), re.IGNORECASE)
+            and re.fullmatch(r"python(?:3(?:\.\d+)?)?", details.strip(), re.IGNORECASE)
         )
 
     @staticmethod
