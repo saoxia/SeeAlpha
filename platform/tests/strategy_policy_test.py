@@ -42,6 +42,14 @@ class FakeEngine:
         self.calls.append(("run_funding_carry_backtest", *args))
         return {"mode": "native_dual_venue_development_only", "bar_count": 4}
 
+    def run_generic_portfolio_backtest(self, *args):
+        self.calls.append(("run_generic_portfolio_backtest", *args))
+        return {"mode": "native_generic_development_only", "fills": []}
+
+    def latest_generic_portfolio_backtest(self, *args):
+        self.calls.append(("latest_generic_portfolio_backtest", *args))
+        return {"mode": "native_generic_development_only"}
+
     def run_issued_spot_perp_backtest(self, *args):
         self.calls.append(("run_issued_spot_perp_backtest", *args))
         return {"mode": "issued_spot_perp_development_only", "fills": []}
@@ -310,5 +318,60 @@ def test_single_issued_strategy_basket_denies_production_without_engine_call():
         service.issued_spot_perp_backtest(
             7, 3, "24", "2024-01-01", "2024-01-02", "1m",
             "400", "500", "1200",
+        )
+    assert service.engine.calls == []
+
+
+def test_generic_portfolio_scopes_multiple_symbols_and_issued_members():
+    service = _service("development", [{
+        "id": 3, "initial_capital": "1000", "quote_currency": "USDT",
+    }])
+
+    class Repository:
+        def list_issuances(self, tenant_id):
+            assert tenant_id == 7
+            return [
+                {"id": 24, "account_id": 3, "purpose": "development"},
+                {"id": 25, "account_id": 3, "purpose": "development"},
+                {"id": 26, "account_id": 4, "purpose": "development"},
+                {"id": 27, "account_id": 3, "purpose": "production"},
+            ]
+
+    service.repository = Repository()
+    legs = [
+        {"product": "spot", "symbol": "ETHUSDT"},
+        {"product": "futures_um", "symbol": "BTCUSDT"},
+    ]
+    args = (7, 3, ["24", "25"], legs, "2024-01-01", "2024-01-02",
+            "1m", "400", "500", "1000")
+    result = service.generic_portfolio_backtest(*args)
+    assert result["mode"] == "native_generic_development_only"
+    assert service.engine.calls == [
+        ("runnable", 7, "backtest"),
+        ("run_generic_portfolio_backtest", *args),
+    ]
+    service.engine.calls.clear()
+    for ids in (["26"], ["27"], ["24", "24"], ["999"]):
+        with pytest.raises(HTTPException):
+            service.generic_portfolio_backtest(*(args[:2] + (ids,) + args[3:]))
+        assert service.engine.calls == []
+    with pytest.raises(HTTPException, match="初始资金"):
+        service.generic_portfolio_backtest(*(args[:7] + ("700", "500", "1000")))
+    with pytest.raises(HTTPException, match="重复"):
+        service.generic_portfolio_backtest(*(args[:3] + ([legs[0], legs[0]],) + args[4:]))
+    assert service.engine.calls == []
+    latest = service.latest_generic_portfolio_backtest(7, 3)
+    assert latest["mode"] == "native_generic_development_only"
+    assert service.engine.calls == [("latest_generic_portfolio_backtest", 7, "3")]
+
+
+def test_generic_portfolio_rejects_production_before_any_engine_call():
+    service = _service("production", [{
+        "id": 3, "initial_capital": "1000", "quote_currency": "USDT",
+    }])
+    with pytest.raises(HTTPException, match="开发租户"):
+        service.generic_portfolio_backtest(
+            7, 3, ["24"], [{"product": "spot", "symbol": "ETHUSDT"}],
+            "2024-01-01", "2024-01-02", "1m", "400", "500", "1000",
         )
     assert service.engine.calls == []
