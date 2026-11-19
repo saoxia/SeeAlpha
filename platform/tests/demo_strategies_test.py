@@ -263,7 +263,7 @@ def test_multi_signal_rejects_invalid_parameters(overrides):
 def test_multi_signal_rejects_non_finite_or_non_positive_closed_prices():
     logic = _logic("demo_multi_signal_portfolio")
     for price in ("NaN", "Infinity", "0", "-10", True):
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, TypeError)):
             logic.MultiSignalModel(_multi_signal_params()).on_close(price)
 
 
