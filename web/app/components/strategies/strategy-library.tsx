@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { BasketBacktestPanel } from "./basket-backtest";
 import { fetchTenants } from "@/app/features/identity/api";
 import type { TenantRecord } from "@/app/features/identity/model";
 import {
@@ -20,9 +21,9 @@ const filters: Array<{ id: View; label: string }> = [
 ];
 const support: Record<string, string> = {
   demo_ema_crossover: "单品种回测示例",
-  demo_funding_carry: "研究示例 · 多腿执行尚未接入",
+  demo_funding_carry: "开发租户支持独立 CASH/MARGIN 资金费组合回测；实盘未开放",
   demo_multi_signal_portfolio: "单品种多信号回测示例",
-  demo_option_hedged_bollinger: "研究示例 · 期权多腿执行尚未接入",
+  demo_option_hedged_bollinger: "支持保护腿先成交的到期前开发回测；实盘未开放",
 };
 
 export function StrategyLibrary({ userId, admin = false }: { userId: number; admin?: boolean }) {
@@ -41,6 +42,8 @@ export function StrategyLibrary({ userId, admin = false }: { userId: number; adm
   const [accounts, setAccounts] = useState<TenantAccount[]>([]);
   const [accountId, setAccountId] = useState("");
   const [versionId, setVersionId] = useState("");
+  const [putSymbol, setPutSymbol] = useState("");
+  const [callSymbol, setCallSymbol] = useState("");
 
   const refresh = useCallback(async () => {
     setItems(await listStrategyPackages());
@@ -218,7 +221,13 @@ export function StrategyLibrary({ userId, admin = false }: { userId: number; adm
           event.preventDefault();
           if (!tenantId || !versionId || !accountId) return;
           void run(async () => {
-            await issueStrategy(Number(tenantId), Number(versionId), Number(accountId));
+            await issueStrategy(
+              Number(tenantId), Number(versionId), Number(accountId),
+              selectedPackage?.code_key === "demo_option_hedged_bollinger"
+                ? { put_symbol: putSymbol.trim().toUpperCase(),
+                    call_symbol: callSymbol.trim().toUpperCase() }
+                : undefined,
+            );
           }, "策略已下发至所选租户账户。");
         }}>
           <h2>加载策略到租户账户</h2>
@@ -247,11 +256,29 @@ export function StrategyLibrary({ userId, admin = false }: { userId: number; adm
               </select>
             </label>
           </div>
+          {selectedPackage?.code_key === "demo_option_hedged_bollinger" && (
+            <div className="strategy-load-fields">
+              <label>看跌期权合约代码
+                <input required value={putSymbol} maxLength={64}
+                  placeholder="ETH-YYMMDD-行权价-P" onChange={e => setPutSymbol(e.target.value)} />
+              </label>
+              <label>看涨期权合约代码
+                <input required value={callSymbol} maxLength={64}
+                  placeholder="ETH-YYMMDD-行权价-C" onChange={e => setCallSymbol(e.target.value)} />
+              </label>
+              <p>两条期权必须同标的、同到期，且历史报价真实可用。此配置仅允许开发回测。</p>
+            </div>
+          )}
           {activeTenant && selectedVersion && !selectedVersion.grants.includes(activeTenant.purpose) &&
             <p role="status">该版本尚未获得{activeTenant.purpose === "production" ? "正式" : "开发"}授权，无法加载。</p>}
           <button type="submit" disabled={busy || !tenantId || !accountId || !selectedVersion ||
-            !activeTenant || !selectedVersion.grants.includes(activeTenant.purpose)}>加载策略</button>
+            !activeTenant || !selectedVersion.grants.includes(activeTenant.purpose) ||
+            (selectedPackage?.code_key === "demo_option_hedged_bollinger" &&
+             (!putSymbol.trim() || !callSymbol.trim()))}>加载策略</button>
         </form>}
+        {!admin && activeTenant?.purpose === "development" && accountId && (
+          <BasketBacktestPanel tenantId={Number(tenantId)} accountId={Number(accountId)} />
+        )}
       </div>
     </section>
   );

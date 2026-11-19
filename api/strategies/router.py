@@ -1,5 +1,7 @@
 """Catalog, tenant-type grants, and issuance of strategy packages."""
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -66,6 +68,14 @@ class AsyncBacktestRequest(BacktestRequest):
         default=None, min_length=1, max_length=128,
         pattern=r"^[A-Za-z0-9._:-]{1,128}$",
     )
+
+class BasketBacktestRequest(BacktestRequest):
+    """Separated CASH/MARGIN research budgets; no live execution fields."""
+
+    mode: Literal["funding_carry", "protected_options"]
+    starting_primary_balance: str = Field(min_length=1, max_length=40)
+    starting_perpetual_balance: str = Field(min_length=1, max_length=40)
+    max_gross_notional: str = Field(min_length=1, max_length=40)
 
 
 def store(request: Request):
@@ -184,6 +194,28 @@ def start_backtest(
 def latest_backtest(request: Request, tenant_id: int, account_id: int, user: TradingUser):
     request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).latest_backtest(tenant_id, account_id)
+
+
+@router.post("/tenants/{tenant_id}/accounts/{account_id}/basket-backtests")
+def start_basket_backtest(
+    request: Request, tenant_id: int, account_id: int,
+    payload: BasketBacktestRequest, user: TradingUser,
+):
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
+    return store(request).basket_backtest(
+        tenant_id, account_id, payload.mode, payload.start, payload.end,
+        payload.interval, payload.starting_primary_balance,
+        payload.starting_perpetual_balance, payload.max_gross_notional,
+    )
+
+
+@router.get("/tenants/{tenant_id}/accounts/{account_id}/basket-backtests/{mode}/latest")
+def latest_basket_backtest(
+    request: Request, tenant_id: int, account_id: int,
+    mode: Literal["funding_carry", "protected_options"], user: TradingUser,
+):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
+    return store(request).latest_basket_backtest(tenant_id, account_id, mode)
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests/async", status_code=202)
