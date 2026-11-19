@@ -26,8 +26,8 @@ from ..market_data.repository import PolicyRepository
 from ..tenant_docker import DockerTenantManager
 from .candidates import parse_candidate
 from .direct_engine import DirectEngineResearchClient
-from .python_candidates import parse_python_candidate
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
+from .python_candidates import parse_python_candidate
 
 OPERATIONS = {
     "datasets": "datasets:read",
