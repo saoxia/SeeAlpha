@@ -118,3 +118,6 @@
   .trade-study-legend-actions button:nth-child(3),.trade-study-legend-actions button:nth-child(4){display:none}
 }
 @media(prefers-reduced-motion:reduce){.trade-study-legend-actions{transition:none}}
+
+.trade-study-overlay-dismiss{position:absolute;inset:0;z-index:0;border:0;background:transparent;cursor:default}
+.trade-study-modal{position:relative;z-index:1}
