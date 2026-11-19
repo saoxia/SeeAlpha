@@ -53,7 +53,7 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "安装项目私有 uv $uv_version ($uv_target)"
   download "$uv_url" "$tmp/uv.tar.gz"
   download "$uv_url.sha256" "$tmp/uv.sha256"
-  expected="$(awk 'match($0, /[a-fA-F0-9]{64}/) {print substr($0, RSTART, RLENGTH); exit}' "$tmp/uv.sha256")"
+  expected="$(awk 'NR==1 {print $1}' "$tmp/uv.sha256")"
   verify "$tmp/uv.tar.gz" "$expected"
   tar -xzf "$tmp/uv.tar.gz" -C "$tmp" "uv-${uv_target}/uv"
   install -m 700 "$tmp/uv-${uv_target}/uv" "$bin/uv"
