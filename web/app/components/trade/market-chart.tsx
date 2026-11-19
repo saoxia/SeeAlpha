@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CandlestickSeries, ColorType, HistogramSeries, LineSeries, createChart, createSeriesMarkers, type ISeriesApi, type SeriesMarker, type UTCTimestamp } from "lightweight-charts";
+import { CandlestickSeries, ColorType, HistogramSeries, LineSeries, createChart, createSeriesMarkers, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp } from "lightweight-charts";
 import type { Market, TradeState } from "@/app/features/trade/api";
 import { indicatorPlots, restoreIndicators, studyVisibleForInterval, type IndicatorConfig } from "@/app/features/trade/indicators";
 import { chartViewPrefix, restoreChartView } from "@/app/features/trade/preferences";
@@ -42,7 +42,7 @@ export function MarketChart({ market, depth, modeledLiquidations = null, strateg
   const editingStudy=studies?.find(s=>s.id===editingStudyId);
   const plots = useRef(new Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>());
   const marketOverlays = useRef<TradingMarketOverlays | null>(null);
-  const signalMarkers=useRef<ReturnType<typeof createSeriesMarkers>|null>(null);
+  const signalMarkers=useRef<{setMarkers:(markers:SeriesMarker<Time>[])=>void}|null>(null);
   const depthHistory = useRef<DepthSnapshot[]>([]);
   const depthIdentity = useRef("");
 
@@ -190,7 +190,7 @@ export function MarketChart({ market, depth, modeledLiquidations = null, strateg
   }, [rows, activeStudies, studies]);
   useEffect(()=>{
     const times=new Set((rows??[]).map(row=>row.time));
-    const markers:SeriesMarker<UTCTimestamp>[]=[];
+    const markers:SeriesMarker<Time>[]=[];
     for(const study of activeStudies){if(study.kind!=="SIGNAL")continue;
       for(const signal of crossoverSignals(rows??[],study.parameters[0],study.parameters[1])){
         if(!times.has(signal.time))continue;
