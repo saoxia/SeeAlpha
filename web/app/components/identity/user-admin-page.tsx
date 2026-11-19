@@ -95,7 +95,6 @@ export function UserAdminPage() {
       setNotice("已提交正式 Docker 部署；绑定节点：" + nodeId + "。");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "正式 Engine 部署失败。");
-      await refresh();
     } finally {
       setBusy(false);
     }

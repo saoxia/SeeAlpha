@@ -55,9 +55,12 @@ def _client(request: Request, user: CurrentUser):
     try:
         if settings.harness_deployment == "per_user":
             allocation = request.app.state.user_resources.get(user.id)["harness"]
-            client = request.app.state.harness_instances.client(
-                user.id, cpus=allocation["cpus"], memory=allocation["memory"]
-            )
+            if allocation["cpus"] is None and allocation["memory"] is None:
+                client = request.app.state.harness_instances.client(user.id)
+            else:
+                client = request.app.state.harness_instances.client(
+                    user.id, cpus=allocation["cpus"], memory=allocation["memory"]
+                )
         else:
             client = HarnessClient(settings.harness_url, settings.harness_token)
     except (ValueError, OSError):
