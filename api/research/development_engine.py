@@ -89,7 +89,9 @@ def prepare_plan(request: Request, body: PrepareRequest, user: CurrentUser):
     dataset = _dataset(request, user, body)
     payload = _prepare_payload(body, dataset)
     return request.app.state.engine.data_query(
-        "prepare-plan", payload, tenant_id=body.tenant_id,
+        "prepare-plan", {
+            key: payload[key] for key in ("symbol", "product", "start", "end", "intervals")
+        }, tenant_id=body.tenant_id,
     )
 
 
