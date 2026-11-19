@@ -246,6 +246,8 @@ def test_multi_signal_partial_strength_and_mode_specific_warmup():
     {"trend_weight": "0", "reversion_weight": "0"},
     {"trend_weight": "NaN"},
     {"allocation": "-1"},
+    {"allocation": "1e10000000"},
+    {"trend_weight": "1e10000000"},
     {"risk_limit": "0"},
     {"mode": "unknown"},
     {"symbol": "BTCUSDT"},
