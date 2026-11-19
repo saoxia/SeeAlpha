@@ -8,7 +8,6 @@ import json
 import stat
 
 import httpx
-
 import pytest
 from alembic import command
 from alembic.config import Config
