@@ -66,7 +66,7 @@ export function TradePage() {
   function rememberSelection(nextSymbol: string, nextInterval: string) {
     try {localStorage.setItem(selectionKey, JSON.stringify({symbol: nextSymbol, interval: nextInterval}));} catch { /* Optional display preference. */ }
   }
-  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setSelectedCancels([]); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
+  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setSelectedCancels([]); setBatchDraft(""); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     const initial = window.setTimeout(() => {
@@ -161,7 +161,7 @@ export function TradePage() {
   function prepareBatchSubmit() {
     if (!account || !state || busyRef.current || disabledReason) return;
     try {
-      if (reduceOnly) throw new Error("批量限价仅支持开仓。请先取消只减仓或平仓选项。");
+      if (product === "futures_um" && reduceOnly) throw new Error("批量限价仅支持开仓。请先取消只减仓或平仓选项。");
       const lines = parseBatchLimitLines(batchDraft);
       const tasks = lines.map((row, index) => {
         const order: OrderRequest = {
