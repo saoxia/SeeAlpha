@@ -137,41 +137,30 @@ class LocalRuntime:
             ).stdout
         except (OSError, ProcessLookupError):
             return False
-        command = self._command(service)
         try:
             lines = self._pid_file(service).read_text(encoding="ascii").splitlines()
             if not lines or lines[0] != str(pid):
                 return False
-            # New launcher PID files include birth-time evidence, preventing accidental
-            # ownership after process ID reuse. Keep old one-line files usable only when
-            # their full original command remains identifiable.
             if len(lines) == 2:
+                # Immutable process identity survives macOS Python and Next.js title
+                # rewrites. Recycled PIDs have a different birth timestamp.
                 started = subprocess.run(
                     ["ps", "-p", str(pid), "-o", "lstart="],
                     check=False, capture_output=True, text=True,
                 ).stdout.strip()
-                if not started or started != lines[1]:
-                    return False
-            elif len(lines) != 1:
+                return bool(started) and started == lines[1]
+            if len(lines) != 1:
                 return False
         except OSError:
             return False
 
+        # Legacy one-line PID files: never fall back to a generic Python process
+        # name, which could belong to another app.
+        command = self._command(service)
         if service == "web":
-            return command[1] in details or (
-                len(lines) == 2 and details.strip().startswith("next-server (v")
-            )
-        expected = command[0] in details and (
+            return command[1] in details
+        return command[0] in details and (
             "-m engine" in details if service == "engine" else "-m uvicorn" in details
-        )
-        if expected:
-            return True
-        # On macOS the Python interpreter can change its process title to "Python"
-        # after uvicorn startup. Only accept it with the recorded PID birth timestamp.
-        return bool(
-            len(lines) == 2
-            and sys.platform == "darwin"
-            and re.fullmatch(r"python(?:3(?:\.\d+)?)?", details.strip(), re.IGNORECASE)
         )
 
     @staticmethod
