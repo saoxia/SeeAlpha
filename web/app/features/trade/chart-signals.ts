@@ -2,7 +2,7 @@
  * Chart-only signal projection. This module is not connected to order placement,
  * strategy publication or broker execution. Callers must supply provenance.
  */
-import { ema } from "./indicators";
+import { ema } from "./indicators.ts";
 
 export type ChartSignal = {
   id:string;
