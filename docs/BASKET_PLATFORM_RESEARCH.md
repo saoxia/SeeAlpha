@@ -66,3 +66,27 @@ Engine #30 新增显式的纯研究态紧急全平规划：对现有严重腿偏
 - Platform 本次额外禁止对内置资金费和期权保护 Demo 建立生产授权，且即使历史授权错误存在也拒绝生产租户加载。
 
 这些功能均是**研究态增量**。完整 #107 的通用 Nautilus 多产品生命周期、交易所真实订单发送/补偿、保证金风控、到期历史接线及受控账户长期验收仍没有完成。生产权限没有通过本次合并开启。
+
+## Harness 任务级组合研究入口（开发租户，#107 D 增量）
+
+Platform 研究任务 MCP 新增 `run_basket_backtest` 和 `get_latest_basket_backtest`，
+并提供相应的、必须使用任务 Bearer Capability 的固定 HTTP 命令
+`basket_run` / `basket_latest`。Harness Agent 只接收当前任务限定的
+Platform 地址与任务令牌，**不接触 Engine 管理令牌、交易所密钥、任意租户 ID 或账户 ID**。
+
+`run_basket_backtest` 必填：
+`mode`（`funding_carry` / `protected_options`）、`start`、
+`end`（严格 `YYYY-MM-DD`，窗口恰好 1 天）、`interval`（与任务绑定
+`futures_um:SYMBOL:1m|5m` 相同）、`starting_primary_balance`、
+`starting_perpetual_balance` 和 `max_gross_notional`（字符串十进制金额）。
+`get_latest_basket_backtest` 只接受 `mode`，结果仍绑定该任务的
+开发租户及虚拟账户。
+
+Platform 每次操作都重新校验：Harness 任务运行中且当前轮次有效、
+预算未耗尽、任务拥有租户与账户、用户仍有开发/Harness 权限、
+Spot/UM 或 Options/UM 的各腿历史策略已启用、加载的是对应的**原版系统 Demo**，
+且期权双翼标的/到期日一致。缺失任意条件直接拒绝。
+真实模拟入口继续复用已存在的 `StrategyStore.basket_backtest`，
+其账户余额和 USDT 限制保持不变。
+这是一项**同步历史模拟**能力，不支持泛化策略 Python 发布、实盘执行、
+生产审批、期权到期流水抓取，也不推断不存在的市场数据。
