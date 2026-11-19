@@ -40,6 +40,8 @@ export type BasketBacktestResult = {
     spot_equity?: string;
     perpetual_equity?: string;
     options_equity?: string;
+    product_equity?: Record<string, string>;
+    positions?: Array<{ product: string; symbol: string; quantity: string }>;
   }>;
   [key: string]: unknown;
 };
