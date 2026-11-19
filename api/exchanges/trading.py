@@ -13,7 +13,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.engine_contracts import EngineConflict
-from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
+from core.trading_contracts import (TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues,
+                                    AlgoOrderValues, AlgoCancelValues, LeverageChangeValues)
 
 from ..auth.dependencies import TradingUser
 from ..db.errors import StorageConflict, StorageUnavailable
@@ -83,6 +84,25 @@ class ManualOrderView(BaseModel):
     open: bool
 
 
+
+class ManualAlgoOrderView(BaseModel):
+    client_algo_id: str
+    algo_id: str | None = None
+    symbol: str
+    side: Literal["buy", "sell"]
+    position_side: Literal["BOTH", "LONG", "SHORT"]
+    order_type: Literal["STOP", "STOP_MARKET", "TAKE_PROFIT", "TAKE_PROFIT_MARKET", "TRAILING_STOP_MARKET"]
+    quantity: str
+    price: str | None = None
+    trigger_price: str | None = None
+    activation_price: str | None = None
+    callback_rate: str | None = None
+    working_type: str
+    status: str
+    open: bool
+    timestamp: int
+
+
 class ManualPosition(BaseModel):
     position_side: Literal["BOTH", "LONG", "SHORT"] = "BOTH"
     break_even_price: str | None = None
@@ -114,6 +134,9 @@ class ManualStateResponse(BaseModel):
     account_revision: str
     checked_at: int
     orders: list[ManualOrderView]
+    algo_orders: list[ManualAlgoOrderView] | None = None
+    algo_checked_at: int | None = None
+    algo_error: str | None = None
     positions: list[ManualPosition]
     balances: dict[str, ManualBalance]
     instrument: ManualInstrument
@@ -141,6 +164,8 @@ class ManualOrderResponse(BaseModel):
     status: Literal["completed", "unknown"]
     message: str
     order: ManualOrderView | None = None
+    algo_order: ManualAlgoOrderView | None = None
+    leverage: int | None = None
 
 
 def account_revision(account):
@@ -234,6 +259,25 @@ async def cancel(request: Request, account_id: int, payload: ManualCancelRequest
 async def spot_cancel(request: Request, account_id: int, payload: SpotCancelRequest, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
+
+
+
+@router.post("/accounts/{account_id}/algo/orders", response_model=ManualOrderResponse)
+async def algo_submit(request: Request, account_id: int, payload: AlgoOrderValues, user: TradingUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "algo_submit"))
+
+
+@router.post("/accounts/{account_id}/algo/cancel", response_model=ManualOrderResponse)
+async def algo_cancel(request: Request, account_id: int, payload: AlgoCancelValues, user: TradingUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "algo_cancel"))
+
+
+@router.post("/accounts/{account_id}/leverage", response_model=ManualOrderResponse)
+async def set_leverage(request: Request, account_id: int, payload: LeverageChangeValues, user: TradingUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "leverage"))
 
 
 @router.get("/accounts/{account_id}/requests/{request_id}", response_model=ManualOrderResponse)
