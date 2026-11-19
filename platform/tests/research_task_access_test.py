@@ -155,3 +155,109 @@ def test_direct_client_uses_scoped_grant_only_not_engine_admin_token():
     ) as client:
         assert client.discover_datasets() == {"datasets": []}
     assert len(seen) == 1
+
+
+def _archive_candidate(source=None):
+    import base64
+    import hashlib
+    import io
+    import json
+    import zipfile
+
+    source = source or (
+        "CANDIDATE = {'kind':'ema_cross','symbol':'ETHUSDT',"
+        "'fast_period':8,'slow_period':21,'allocation':'1','risk_limit':'1'}\n"
+    )
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("seealpha-package.json", json.dumps({
+            "format": 1, "name": "research_ema", "title": "AI EMA",
+            "version": "1", "entry_point": "strategy:CANDIDATE",
+        }))
+        archive.writestr("strategy.py", source)
+    raw = stream.getvalue()
+    return base64.b64encode(raw).decode(), hashlib.sha256(raw).hexdigest()
+
+
+def test_candidate_versions_are_private_immutable_and_reusable_across_turns(leases):
+    from api.research.candidates import parse_candidate
+
+    encoded, digest = _archive_candidate()
+    archive, parsed = parse_candidate(encoded)
+    token, _ = _issue(leases)
+    row = {**leases.consume("task-uuid", token, 1, "candidate_create"), "task_id": "task-uuid"}
+    first = leases.create_candidate(row, archive, parsed)
+    second = leases.create_candidate(row, archive, parsed)
+    assert first["candidate_id"] != second["candidate_id"]
+    assert first["package_hash"] == digest
+    selected = leases.get_candidate(row, first["candidate_id"])
+    assert selected["archive"] == archive
+    assert selected["package_hash"] == digest
+    assert selected["recipe"]["kind"] == "ema_cross"
+    with pytest.raises(HTTPException):
+        leases.get_candidate({**row, "task_id": "foreign"}, first["candidate_id"])
+    with pytest.raises(HTTPException):
+        leases.get_candidate(row, "not-a-candidate")
+    leases.revoke("task-uuid")
+    with pytest.raises(HTTPException):
+        leases.create_candidate(row, archive, parsed)
+
+
+def test_candidate_validator_never_executes_user_python():
+    from api.research.candidates import parse_candidate
+
+    archive, _ = _archive_candidate()
+    _, parsed = parse_candidate(archive)
+    assert parsed["recipe"]["symbol"] == "ETHUSDT"
+    for source in (
+        "import os\nCANDIDATE = {}",
+        "CANDIDATE = __import__('os').system('id')",
+        "CANDIDATE = {}\nopen('/etc/passwd').read()",
+    ):
+        encoded, _ = _archive_candidate(source)
+        with pytest.raises(ValueError):
+            parse_candidate(encoded)
+    with pytest.raises(ValueError):
+        parse_candidate("not-base64")
+    malicious_quantity, _ = _archive_candidate(
+        "CANDIDATE = {'kind':'ema_cross','symbol':'ETHUSDT',"
+        "'fast_period':8,'slow_period':21,'allocation':'1','risk_limit':'1E+99999999'}"
+    )
+    with pytest.raises(ValueError):
+        parse_candidate(malicious_quantity)
+
+
+def test_candidate_engine_client_only_uses_restricted_submission():
+    from api.research.direct_engine import DirectEngineResearchClient
+
+    encoded, digest = _archive_candidate()
+    scope = {"candidate_id": "a" * 32, "package_hash": digest,
+             "archive": encoded, "strategy_ref": "account:5",
+             "dataset_refs": ["futures_um:ETHUSDT:1m"],
+             "start": "2026-01-01", "end": "2026-01-02",
+             "starting_balance": "1000", "quote_currency": "USDT",
+             "idempotency_key": "ai-iteration-1"}
+    grant = ResearchGrant(
+        token="scoped-hmac-grant", task_id="task",
+        tenant_id="11", expires_at=1900000000, fingerprint="abc",
+    )
+    seen = []
+    def responder(request):
+        seen.append(request)
+        assert request.url.path == "/research/v1/candidate-backtests"
+        assert request.headers["authorization"] == "Bearer scoped-hmac-grant"
+        payload = __import__("json").loads(request.content)
+        assert payload["purpose"] == "development"
+        assert payload["execution"] == "simulation"
+        assert payload["package_hash"] == digest
+        return httpx.Response(202, headers={
+            "X-SeeAlpha-Engine-Contract-Version": "2",
+            "X-SeeAlpha-Research-Contract-Version": "1",
+        }, json={"backtest_id": "1234", "status": "queued"})
+    with DirectEngineResearchClient(
+        "https://engine.example", grant, transport=httpx.MockTransport(responder),
+    ) as client:
+        assert client.submit_candidate(scope)["backtest_id"] == "1234"
+        with pytest.raises(ValueError):
+            client.submit_candidate({**scope, "path": "/tmp/strategy.py"})
+    assert len(seen) == 1

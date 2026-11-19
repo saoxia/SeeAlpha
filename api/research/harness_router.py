@@ -106,7 +106,9 @@ def _requested_research(request: Request, body: PromptBody, user: CurrentUser):
     if request.app.state.research_leases is None:
         raise HTTPException(503, "Development research is not enabled")
     tenant_id, account_id, dataset = selection
-    if not allowed_scope(request.app, user.id, tenant_id, account_id, dataset):
+    if not allowed_scope(
+        request.app, user.id, tenant_id, account_id, dataset, require_issued=False,
+    ):
         raise HTTPException(403, "Development research scope not authorized")
     engine_connection(request.app, tenant_id)
     origin = request.app.state.settings.research_platform_origin
