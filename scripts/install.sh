@@ -123,6 +123,10 @@ fi
   cd "$root/web"
   npm ci
   npm run build
+  # Next standalone does not copy public/static assets on its own.
+  mkdir -p .next/standalone/.next
+  cp -R .next/static .next/standalone/.next/static
+  cp -R public .next/standalone/public
 )
 
 echo "[4/5] 初始化独立本机数据库与服务令牌"
