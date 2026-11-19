@@ -1,0 +1,44 @@
+name: "商业生态自愿登记 / Voluntary commercial ecosystem"
+description: "自愿公开介绍基于 SeeAlpha 的商业项目；不是软件使用授权条件。"
+title: "[Ecosystem] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这是公开 GitHub Issue。登记完全自愿；不登记仍可按照 Apache-2.0 自由商用。
+        请勿提交邮箱、交易账户、密钥、客户数据、私人策略或其他敏感内容。
+        这不是官方合作伙伴申请，也不授予商标使用权。
+  - type: input
+    id: project
+    attributes:
+      label: "项目或机构名称 / Project or organization"
+      description: "仅填写愿意公开的信息"
+      placeholder: "Example Quant"
+    validations:
+      required: true
+  - type: input
+    id: website
+    attributes:
+      label: "公开网站 / Public website (optional)"
+      placeholder: "https://example.com"
+    validations:
+      required: false
+  - type: dropdown
+    id: category
+    attributes:
+      label: "业务类型 / Business category"
+      options:
+        - "托管服务 / Hosting"
+        - "策略研究与订阅 / Strategy research"
+        - "部署与系统集成 / Integration"
+        - "咨询与培训 / Consulting"
+        - "其他 / Other"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: "公开业务说明 / Public description (optional)"
+      description: "不包含任何私人交易或个人敏感信息"
+    validations:
+      required: false
