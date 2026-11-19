@@ -52,10 +52,11 @@ function Select-SeeAlphaWSLDistribution {
 
 function New-SeeAlphaLinuxCommand {
     param(
-        [ValidateSet('install', 'start', 'stop', 'status', 'doctor', 'admin')]
+        [ValidateSet('install', 'up', 'start', 'stop', 'status', 'doctor', 'admin')]
         [string]$Command,
         [string]$Action = '',
-        [string]$Username = 'admin'
+        [string]$Username = 'admin',
+        [bool]$Yes = $false
     )
     $prefix = @'
 set -eu
@@ -69,13 +70,23 @@ if [ -L "$project" ]; then
   exit 2
 fi
 '@
-    if ($Command -eq 'install') {
-        return $prefix + @'
-
-if ! command -v git >/dev/null 2>&1; then
-  echo "WSL Ubuntu 缺少 Git；请在 Ubuntu 内执行 sudo apt-get update && sudo apt-get install -y git。" >&2
-  exit 2
+    if ($Command -in @('install', 'up')) {
+        # Ubuntu OS packages need sudo; ask before modifying the distribution.
+        # -Yes is an explicit opt-in for unattended installations.
+        $consent = if ($Yes) { 'yes' } else { '' }
+        $setup = @'
+if ! command -v git >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1 ||
+   ! command -v xz >/dev/null 2>&1 || ! command -v sha256sum >/dev/null 2>&1; then
+  consent="__CONSENT__"
+  if [ "$consent" != yes ]; then
+    printf 'Ubuntu 缺少基础工具。允许通过 sudo apt-get 安装 git/curl/xz-utils/ca-certificates/coreutils 吗？[y/N] ' >&2
+    read -r reply
+    case "$reply" in y|Y|yes|YES) ;; *) echo '已取消。' >&2; exit 2 ;; esac
+  fi
+  sudo apt-get update
+  sudo apt-get install -y git curl xz-utils ca-certificates coreutils
 fi
+project="$HOME/seealpha"
 if [ ! -e "$project" ]; then
   git clone --branch main --single-branch https://github.com/saoxia/SeeAlpha.git "$project"
 fi
@@ -89,8 +100,9 @@ case "$remote" in
   *) echo "目录 ~/seealpha 的 Git 远端并非 SeeAlpha，拒绝接管。" >&2; exit 2 ;;
 esac
 cd "$project"
-./seealpha install
+./seealpha __COMMAND__
 '@
+        return $prefix + $setup.Replace('__CONSENT__', $consent).Replace('__COMMAND__', $Command)
     }
     if ($Command -eq 'admin') {
         if ($Action -notin @('create', 'reset')) {
@@ -136,17 +148,17 @@ function Invoke-SeeAlphaWindows {
     )
     if ($Command -eq 'help') {
         Write-Host 'SeeAlpha Windows / WSL2 本机入口：'
-        Write-Host '  .\seealpha.ps1 install [-Distro Ubuntu-24.04] [-Yes]'
+        Write-Host '  .\seealpha.ps1 up|install [-Distro Ubuntu-24.04] [-Yes]'
         Write-Host '  .\seealpha.ps1 start|stop|status|doctor [-Distro Ubuntu-24.04]'
         Write-Host '  .\seealpha.ps1 admin create|reset [用户名] [-Distro Ubuntu-24.04]'
         Write-Host 'Windows 仅作引导；Engine、Platform 与 Web 在 WSL2 Ubuntu 内运行。'
         return
     }
-    if ($Command -notin @('install', 'start', 'stop', 'status', 'doctor', 'admin')) {
+    if ($Command -notin @('install', 'up', 'start', 'stop', 'status', 'doctor', 'admin')) {
         throw '未知命令；执行 .\seealpha.ps1 help 查看帮助。'
     }
     # Validate arguments before invoking any external program or elevated action.
-    $null = New-SeeAlphaLinuxCommand -Command $Command -Action $Action -Username $Username
+    $null = New-SeeAlphaLinuxCommand -Command $Command -Action $Action -Username $Username -Yes:$Yes
     if ($Distro -cnotmatch '^Ubuntu(?:[-.][A-Za-z0-9._-]+)?$') {
         throw '只能选择 Ubuntu WSL2 发行版。'
     }
@@ -170,7 +182,7 @@ function Invoke-SeeAlphaWindows {
     $distributions = @(ConvertFrom-SeeAlphaWSLList -Lines $all)
     $selected = Select-SeeAlphaWSLDistribution -Distributions $distributions -Requested $Distro -Explicit:$ExplicitDistro
     if ($null -eq $selected) {
-        if ($Command -ne 'install') {
+        if ($Command -notin @('install', 'up')) {
             throw '未找到所选 Ubuntu WSL2 发行版。请先执行 .\seealpha.ps1 install。'
         }
         if (-not $Yes) {
@@ -191,7 +203,7 @@ function Invoke-SeeAlphaWindows {
     Write-Host "使用已安装的 WSL2 发行版：$selected（停止状态会在运行 Linux 命令时自动启动）。"
     $script = New-SeeAlphaLinuxCommand -Command $Command -Action $Action -Username $Username
     Invoke-SeeAlphaLinux -WslExe $wslExe -Distro $selected -Script $script
-    if ($Command -eq 'start') {
+    if ($Command -in @('start', 'up')) {
         Write-Host '可在 Windows 浏览器打开 http://127.0.0.1:3000（需 WSL localhost 转发正常）。'
     }
 }
