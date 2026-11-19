@@ -18,6 +18,8 @@ from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSIO
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+pytestmark = pytest.mark.usefixtures("platform_engine_bootstrap")
+
 
 def test_prepare_requires_bounded_utc_history():
     dataset = ("futures_um", "ETHUSDT", "1m")
