@@ -77,7 +77,7 @@ def test_reset_development_preserves_data_and_backs_up_state(tmp_path, monkeypat
         production_cpus="1", production_memory="1g",
         development_cpus="1", development_memory="1g", log_root=tmp_path,
     )
-    root, state, data, local, env = manager._paths("11")
+    _root, state, data, local, env = manager._paths("11")
     for folder in (state, data, local):
         folder.mkdir(parents=True)
     state.joinpath("book.sqlite").write_text("runtime")
@@ -117,7 +117,7 @@ def test_reset_development_preserves_data_and_backs_up_state(tmp_path, monkeypat
 
     # A production credential or wrong mount cannot be reset, even if a caller
     # mistakenly selected the tenant in the UI.
-    prod, state2, data2, local2, cred2 = manager._paths("12")
+    prod, _state2, _data2, _local2, cred2 = manager._paths("12")
     prod.mkdir()
     manager._credentials(cred2, "12", "production", create=True)
     with pytest.raises(EngineConflict):
