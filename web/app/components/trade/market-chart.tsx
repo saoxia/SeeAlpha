@@ -163,9 +163,6 @@ export function MarketChart({ market, depth, modeledLiquidations = null, strateg
       current.set(plot.key, series);
     }
     plots.current = current;
-    const paneOwners=new Map<number,string>();
-    for(const plot of definitions){if(plot.pane>0){const owner=activeStudies.find(s=>plot.key.startsWith(s.id+":"));if(owner)paneOwners.set(plot.pane,owner.id);}}
-    value.panes().forEach((pane,i)=>pane.setStretchFactor(i===0?5:workspace.paneWeights[paneOwners.get(i)??""]??2));
     return () => {if(chart.current===value)current.forEach(series=>value.removeSeries(series));};
   }, [activeStudies, studies]);
   useEffect(() => {
