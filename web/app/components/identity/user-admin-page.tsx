@@ -182,7 +182,7 @@ export function UserAdminPage() {
                     <td>{user.engine_node ? "节点已分配：" + user.engine_node : "未部署"}</td>
                     <td>
                       <button type="button" disabled={busy || !capabilities}
-                        onClick={() => setEditing(user)}>配置资源</button>
+                        onClick={() => { setError(""); setNotice(""); setEditing(user); }}>配置资源</button>
                     </td>
                   </tr>
                 ))}
@@ -191,7 +191,7 @@ export function UserAdminPage() {
       </div>
       {editing && capabilities && (
         <UserResourcesDialog key={editing.id} user={editing} capabilities={capabilities}
-          busy={busy} onClose={() => setEditing(null)}
+          busy={busy} error={error} notice={notice} onClose={() => setEditing(null)}
           onSave={saveResources} onDeploy={deployEngine} />
       )}
 

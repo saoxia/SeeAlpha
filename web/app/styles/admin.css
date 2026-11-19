@@ -484,3 +484,6 @@ html[data-interface-theme="glass"] .admin-console .monitor-modal-head h2 { font-
   .admin-resource-summary { gap: 6px; }
 }
 .admin-users-header-actions { display: flex; flex-wrap: wrap; gap: 8px; } .admin-users-header-actions button { padding: 5px 12px; border: 1px solid #9ba7b4; background: #f7f8fa; cursor: pointer; border-radius: 5px; min-height: 32px; }
+
+.admin-resource-feedback { padding: 0 24px; max-height: 100px; overflow-y: auto; }
+.admin-resource-feedback .admin-alert, .admin-resource-feedback .admin-notice { margin: 8px 0; }

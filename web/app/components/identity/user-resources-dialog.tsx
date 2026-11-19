@@ -15,13 +15,15 @@ type Props = {
   user: ManagedUser;
   capabilities: ResourceCapabilities;
   busy: boolean;
+  error: string;
+  notice: string;
   onClose: () => void;
   onSave: (resources: UserResources) => Promise<void>;
   onDeploy: (nodeId: string) => Promise<void>;
 };
 
 export function UserResourcesDialog({
-  user, capabilities, busy, onClose, onSave, onDeploy,
+  user, capabilities, busy, error, notice, onClose, onSave, onDeploy,
 }: Props) {
   const [draft, setDraft] = useState<UserResources>(() => structuredClone(user.resources));
   const [expanded, setExpanded] = useState<ResourceKind | null>(null);
@@ -179,6 +181,10 @@ export function UserResourcesDialog({
             {dirty && <small>请先保存资源权限后再部署。</small>}
           </div>
         </div>
+        {(error || notice) && <div className="admin-resource-feedback">
+          {error && <p className="admin-alert" role="alert">{error}</p>}
+          {notice && <p className="admin-notice" role="status">{notice}</p>}
+        </div>}
         <footer className="admin-resource-footer">
           <span>{dirty ? "有尚未保存的变更" : "当前配置已保存"}</span>
           <div>
