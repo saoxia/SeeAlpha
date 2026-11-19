@@ -33,7 +33,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check shell entrypoints
         run: |
-          bash -n seealpha scripts/bootstrap_tools.sh scripts/install.sh scripts/compose_local.sh scripts/container_api.sh scripts/build_external_engine.sh
+          for script in seealpha scripts/bootstrap_tools.sh scripts/install.sh scripts/compose_local.sh scripts/container_api.sh scripts/build_external_engine.sh; do
+            bash -n "$script"
+          done
       - name: Fetch pinned Engine and verify shared contract
         shell: bash
         run: |
@@ -73,7 +75,7 @@ jobs:
           dc exec -T platform /app/platform/.venv/bin/python -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200'
           dc exec -T engine python -c 'import os,urllib.request; r=urllib.request.Request("http://127.0.0.1:8766/health",headers={"Authorization":"Bearer "+os.environ["ENGINE_TOKEN"]}); assert urllib.request.urlopen(r,timeout=5).status == 200'
           dc exec -T platform /app/platform/.venv/bin/python -c 'import sqlite3; c=sqlite3.connect("/app/.local/state/api/seealpha.sqlite"); assert c.execute("SELECT count(*) FROM alembic_version").fetchone()[0] == 1'
-      - name: Publish immutable version tags
+      - name: Publish versioned release images
         if: github.event_name != 'pull_request'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
