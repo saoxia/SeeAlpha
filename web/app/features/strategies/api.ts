@@ -44,6 +44,14 @@ export type BasketBacktestResult = {
   [key: string]: unknown;
 };
 
+export type IssuedStrategyLoad = {
+  id: number;
+  account_id: number | string;
+  code_key: string;
+  purpose: "development" | "production";
+  parameters: Record<string, unknown>;
+};
+
 export type ShareRecipient = { id: number; username: string };
 export type TenantAccount = { id: number; kind: string; account_name: string };
 
@@ -113,6 +121,10 @@ export function strategyArchiveUrl(packageId: number, versionId: number) {
   return `/api/strategy-packages/${packageId}/versions/${versionId}/archive`;
 }
 
+export function listIssuedStrategyLoads(tenantId: number) {
+  return request<IssuedStrategyLoad[]>(`/api/tenants/${tenantId}/strategy-loads`);
+}
+
 export function listTenantAccounts(tenantId: number) {
   return request<TenantAccount[]>(`/api/tenants/${tenantId}/accounts`);
 }
@@ -127,6 +139,26 @@ export function issueStrategy(
       ...(parameters ? { parameters } : {}),
     }),
   });
+}
+
+export function runIssuedSpotPerpBacktest(
+  tenantId: number, accountId: number, values: {
+    issuance_id: string; start: string; end: string; interval: "1m" | "5m";
+    starting_spot_balance: string; starting_perpetual_balance: string;
+    max_gross_notional: string;
+  },
+) {
+  return request<BasketBacktestResult>(
+    `/api/tenants/${tenantId}/accounts/${accountId}/issued-spot-perp-backtests`, {
+      method: "POST", body: JSON.stringify(values),
+    },
+  );
+}
+
+export function latestIssuedSpotPerpBacktest(tenantId: number, accountId: number) {
+  return request<BasketBacktestResult>(
+    `/api/tenants/${tenantId}/accounts/${accountId}/issued-spot-perp-backtests/latest`,
+  );
 }
 
 export function runBasketBacktest(
