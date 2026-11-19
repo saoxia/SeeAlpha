@@ -390,7 +390,7 @@ def _basket_command(app, lease: dict, operation: str, args: dict) -> dict:
     grants. The service independently checks development-only capital bounds.
     """
     if not isinstance(args, dict):
-        raise ValueError("Invalid basket research arguments")
+        raise TypeError("Invalid basket research arguments")
     if operation == "basket_latest":
         if set(args) != {"mode"}:
             raise ValueError("Invalid basket research lookup")
