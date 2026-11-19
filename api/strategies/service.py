@@ -414,6 +414,61 @@ class StrategyStore:
         except EngineConflict as exc:
             raise HTTPException(409, exc.message) from exc
 
+    def issued_spot_perp_backtest(
+        self, tenant_id, account_id, issuance_id, start, end, interval,
+        starting_spot_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        """Run a single issued strategy against verified Spot/UM history only."""
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "多产品策略历史回测仅允许开发租户。")
+        account = self._virtual_account(tenant, str(account_id).strip())
+        if account["quote_currency"] != "USDT":
+            raise HTTPException(422, "多产品策略回测仅接受 USDT 虚拟账户。")
+        issue = next((
+            item for item in self.repository.list_issuances(tenant["id"])
+            if str(item["id"]) == str(issuance_id)
+            and str(item["account_id"]) == str(account["id"])
+            and item["purpose"] == "development"
+        ), None)
+        if issue is None:
+            raise HTTPException(404, "该账户没有对应的开发授权策略实例。")
+        try:
+            spot = Decimal(str(starting_spot_balance))
+            perpetual = Decimal(str(starting_perpetual_balance))
+            cap = Decimal(str(max_gross_notional))
+            initial = Decimal(str(account["initial_capital"]))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise HTTPException(422, "跨产品模拟资金格式无效。") from exc
+        if (
+            any(not number.is_finite() or number <= 0
+                for number in (spot, perpetual, cap, initial))
+            or spot + perpetual > initial
+        ):
+            raise HTTPException(422, "两模拟资金必须为正且不能超过账户初始资金。")
+        try:
+            self.engine.runnable(tenant["id"], "backtest")
+            return self.engine.run_issued_spot_perp_backtest(
+                tenant["id"], account["id"], str(issue["id"]),
+                start, end, interval,
+                format(spot, "f"), format(perpetual, "f"), format(cap, "f"),
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+
+    def latest_issued_spot_perp_backtest(self, tenant_id, account_id):
+        tenant = self.tenants.require_tenant(tenant_id)
+        self._virtual_account(tenant, str(account_id).strip())
+        try:
+            result = self.engine.latest_issued_spot_perp_backtest(
+                tenant["id"], str(account_id).strip(),
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+        if result is None:
+            raise HTTPException(404, "还没有该策略的多产品开发回测结果。")
+        return result
+
     def latest_basket_backtest(self, tenant_id, account_id, mode):
         tenant = self.tenants.require_tenant(tenant_id)
         self._virtual_account(tenant, str(account_id).strip())
