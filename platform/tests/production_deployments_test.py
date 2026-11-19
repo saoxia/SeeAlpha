@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import stat
 
+import httpx
+
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -17,7 +19,7 @@ from api.main import create_app
 from api.node.hub import NodeHub
 from api.production_deployments import ProductionDeploymentManager
 from api.tenant_docker import DockerTenantManager
-from core.engine_contracts import EngineConflict
+from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, EngineConflict
 from fastapi.testclient import TestClient
 
 
@@ -102,7 +104,7 @@ def test_placement_file_rejects_unsafe_permissions(tmp_path):
 
 
 def test_admin_user_creation_does_not_deploy_docker_until_server_selected(
-    tmp_path, monkeypatch, platform_engine_bootstrap,
+    tmp_path, monkeypatch,
 ):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     alembic = Config("alembic.ini")
@@ -121,6 +123,22 @@ def test_admin_user_creation_does_not_deploy_docker_until_server_selected(
         lambda self, tenant_id, purpose, status="active":
         ensure_calls.append((str(tenant_id), purpose, status)),
     )
+    monkeypatch.setattr(
+        DockerTenantManager, "endpoint",
+        lambda self, tenant_id: ("http://127.0.0.1:8766", "seealpha-local-engine"),
+    )
+    def market_transport(request):
+        if request.url.path.endswith("/data/control/jobs"):
+            body = []
+        elif request.url.path.endswith("/data/control/sync"):
+            body = {"last_error": None}
+        else:
+            raise AssertionError(f"Unexpected Engine request: {request.url.path}")
+        return httpx.Response(200, json=body, headers={
+            ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
+        })
+    app.state.engine.sync_transport = httpx.MockTransport(market_transport)
+    app.state.engine.async_transport = app.state.engine.sync_transport
     monkeypatch.setattr(
         app.state.engine, "_sync",
         lambda method, path, **kwargs: {"status": "active", "tenant_id": path.split("/")[2]},
