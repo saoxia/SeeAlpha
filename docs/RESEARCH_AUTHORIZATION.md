@@ -7,7 +7,7 @@
 ## 已实现边界
 
 - `api/research/grants.py`：对开发租户检查真实归属、active 状态、期限、数据集/策略范围、操作白名单，并依赖权威资源策略；生成与 Engine Research API v1 匹配的 HMAC-SHA256 签名。默认最大 TTL 为 900 秒。
-- `api/research/gateway_client.py`：服务端固定 Gateway Origin，调用 `/internal/v1/leases` 登记已签发的 Engine grant，得到任务专属的 Bridge 令牌，并支持 `DELETE /internal/v1/tasks/{task_id}` 撤销网关本地登记。
+- `api/research/direct_engine.py`：服务端固定 Engine Research Origin，使用经审计的短期 Grant 调用固定研究 HTTP 路由；不把 Grant 交给 Agent。不含公共路由或任务编排。\n- `api/research/gateway_client.py`：旧 Gateway/Bridge 实验客户端，未接入正式任务；不再是默认调用链前置要求。
 - 只返回公开的任务收据，**不得把原始 Engine Grant / Bridge Token 发送到浏览器、日志、Agent 环境变量、任务 Artifacts 或 Session**。
 - 当前研究授权仍仅用于开发数据、快照和模拟回测，绝无下单、撤单、生产策略启停或交易账户管理权限。
 
@@ -20,7 +20,7 @@
 3. `authorize_resources`：针对本租户实际 Catalog/下发开发策略的权威检查。当前不能由请求体自报已授权数据集，也不能仅靠字符串格式判断所属租户；此回调必须由正式服务实现并测试。
 4. `record_audit`：持久审计插入，必须在返回 grant 前成功。现有实现只定义回调，未改动数据库模型和表；不可用就拒绝签发。
 
-控制面还需实现真正的任务创建、租户会话审批、Gateway 登记、Agent/Bridge Sidecar 启动与失败回滚。因这些关键依赖尚未接入，**本次没有向 `api/main.py` 注册任何公开 Grant 签发接口**，避免把内部凭据误暴露给 Web。
+控制面还需实现真正的任务创建、租户会话审批、Platform 受限命令入口、任务绑定与失败回滚；独立 Gateway/Bridge Sidecar 不再是默认要求。因这些关键依赖尚未接入，**本次没有向 `api/main.py` 注册任何公开 Grant 签发接口**，避免把内部凭据误暴露给 Web。
 
 ## 请求与安全语义
 

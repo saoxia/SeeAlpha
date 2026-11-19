@@ -15,7 +15,7 @@
           → 唯一常驻 Harness Docker → 顺序队列 / 每任务独立 Worker 进程
 ```
 
-**产品归属：AI Harness 是普通用户研究工作台，不属于管理后台。** 当前服务器桥接仍是单用户开发模式：默认关闭；可通过 `HARNESS_OWNER_USERNAME` 指定一名受信任的普通用户使用，管理员不会因管理员身份自动获得该用户的 Harness 权限。出于原有单用户部署兼容性，未设置时仍由既有 `UPDATE_ADMIN_USERNAME` 账户使用。不得开放给多个不可信用户，这不是最终多用户访问策略。当前运行时不是生产多租户 Agent 沙箱：Harness 任务内的 DeepSeek SDK 自由 Shell 与控制器仍属于单容器/同 UID；不能保证租户工作区间强隔离，模型测试凭据可能被 Agent 读取。禁止把生产交易密钥、共享租户私有行情或生产 Engine 凭据交给 Agent。Platform/Harness/Engine 的真正可信 Research Gateway、任务级 Grant、SDK MCP 工具隔离与 Engine 端到端回测授权仍未接通。
+**产品归属：AI Harness 是普通用户研究工作台，不属于管理后台。** 当前服务器桥接仍是单用户开发模式：默认关闭；可通过 `HARNESS_OWNER_USERNAME` 指定一名受信任的普通用户使用，管理员不会因管理员身份自动获得该用户的 Harness 权限。出于原有单用户部署兼容性，未设置时仍由既有 `UPDATE_ADMIN_USERNAME` 账户使用。不得开放给多个不可信用户，这不是最终多用户访问策略。当前运行时不是生产多租户 Agent 沙箱：Harness 任务内的 DeepSeek SDK 自由 Shell 与控制器仍属于单容器/同 UID；不能保证租户工作区间强隔离，模型测试凭据可能被 Agent 读取。禁止把生产交易密钥、共享租户私有行情或生产 Engine 凭据交给 Agent。选定的 Platform 轻量研究代理仍需接入任务级 Grant、Agent 命令鉴权、隔离与 Engine 端到端回测授权；旧 Gateway/MCP 不再是前置要求。
 
 本阶段可以在 AI Harness 页提交任意本地 AI 研究提示、查询任务状态和安全进度事件、取消、打开历史 Session、在已完成 Session 上继续、阅读最终回答、显式登记 `exports/` 中的研究成果并下载。**不声称已经能通过 Agent 直接运行 Engine 开发回测。**
 
@@ -80,4 +80,4 @@ platform/.venv/bin/python scripts/verify_harness_live.py --origin http://127.0.0
 
 真实验收还需要在用户的开发主机上启动现有单 Harness Docker、配置测试模型 Key，执行任务和取消/续接/重启恢复，核实异常网络、任务超时和模型输出安全。当前阶段不可据此声明生产可用。
 
-长期路线：Platform 持久化任务所有者/租户与审计；开发租户权限和资源范围；可信 Research Gateway 代持短期 Engine Grant；Agent SDK 工具经隔离 MCP Bridge 访问 Engine 只读数据与开发回测；结果进入审核/策略登记/独立准入边界，最终支持多轮假设发现、回测、归因和迭代。**不能把目前的管理员本地接口直接当作这一生产控制面。**
+长期路线：Platform 持久化任务所有者/租户与审计；开发租户权限和资源范围；Platform 内部轻量代理代持短期 Engine Grant，向 Agent 提供经任务授权的固定研究命令访问 Engine 开发数据与回测；结果进入审核/策略登记/独立准入边界，最终支持多轮假设发现、回测、归因和迭代。**不能把目前的管理员本地接口直接当作这一生产控制面。**
