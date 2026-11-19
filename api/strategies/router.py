@@ -78,6 +78,23 @@ class BasketBacktestRequest(BacktestRequest):
     max_gross_notional: str = Field(min_length=1, max_length=40)
 
 
+class GenericPortfolioLeg(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: Literal["spot", "futures_um"]
+    symbol: str = Field(min_length=2, max_length=64, pattern=r"^[A-Z0-9-]+$")
+
+
+class GenericPortfolioBacktestRequest(BacktestRequest):
+    """One native replay for explicit development strategies and instruments."""
+
+    issuance_ids: list[str] = Field(min_length=1, max_length=16)
+    legs: list[GenericPortfolioLeg] = Field(min_length=1, max_length=8)
+    starting_spot_balance: str = Field(min_length=1, max_length=40)
+    starting_perpetual_balance: str = Field(min_length=1, max_length=40)
+    max_gross_notional: str = Field(min_length=1, max_length=40)
+
+
 class IssuedSpotPerpBacktestRequest(BacktestRequest):
     """One issued strategy, independently funded Spot and UM simulation."""
 
@@ -203,6 +220,29 @@ def start_backtest(
 def latest_backtest(request: Request, tenant_id: int, account_id: int, user: TradingUser):
     request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).latest_backtest(tenant_id, account_id)
+
+
+@router.post("/tenants/{tenant_id}/accounts/{account_id}/generic-portfolio-backtests")
+def start_generic_portfolio_backtest(
+    request: Request, tenant_id: int, account_id: int,
+    payload: GenericPortfolioBacktestRequest, user: TradingUser,
+):
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
+    return store(request).generic_portfolio_backtest(
+        tenant_id, account_id, payload.issuance_ids,
+        [leg.model_dump() for leg in payload.legs],
+        payload.start, payload.end, payload.interval,
+        payload.starting_spot_balance, payload.starting_perpetual_balance,
+        payload.max_gross_notional,
+    )
+
+
+@router.get("/tenants/{tenant_id}/accounts/{account_id}/generic-portfolio-backtests/latest")
+def latest_generic_portfolio_backtest(
+    request: Request, tenant_id: int, account_id: int, user: TradingUser,
+):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
+    return store(request).latest_generic_portfolio_backtest(tenant_id, account_id)
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/issued-spot-perp-backtests")
