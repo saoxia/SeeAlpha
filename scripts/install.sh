@@ -5,10 +5,14 @@ umask 077
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-if [[ $# -ne 0 ]]; then
-  echo "安装命令不接受额外参数。" >&2
+bootstrap=1
+if [[ $# -eq 1 && "$1" == "--no-bootstrap" ]]; then
+  bootstrap=0
+elif [[ $# -ne 0 ]]; then
+  echo "安装只接受可选参数 --no-bootstrap。" >&2
   exit 2
 fi
+export PATH="$root/.local/bin:$PATH"
 
 # Never act on inherited production deployment configuration.
 for key in DATABASE_URL DATABASE_URL_FILE ENGINE_DEPLOYMENT ENGINE_URL ENGINE_TOKEN; do
@@ -22,9 +26,12 @@ if [[ -n "${SEEALPHA_API_URL:-}" && "$SEEALPHA_API_URL" != "http://127.0.0.1:800
   exit 2
 fi
 
+if [[ "$bootstrap" -eq 1 ]]; then
+  bash "$root/scripts/bootstrap_tools.sh"
+fi
 for tool in git uv node npm; do
   if ! command -v "$tool" >/dev/null 2>&1; then
-    echo "缺少 $tool。请先安装该工具，再运行 ./seealpha install。" >&2
+    echo "缺少 $tool。可尝试 ./seealpha install（自动安装本机私有 uv/Node），Git 需系统安装。" >&2
     exit 2
   fi
 done
@@ -64,11 +71,29 @@ fi
 mkdir -p "$root/.local/config/api" "$root/.local/state/api" "$root/.local/run/seealpha" "$root/.local/logs/seealpha"
 
 echo "[1/5] 准备固定版本的独立 Engine"
-if [[ ! -e "$engine_dir" ]]; then
-  git clone --quiet --no-checkout https://github.com/saoxia/seealpha-engine.git "$engine_dir"
-  git -C "$engine_dir" checkout --quiet --detach "$engine_sha"
+# A clone interrupted before publication can be resumed without deleting user state.
+# Never reset or update an existing published Engine checkout.
+engine_partial="$root/.local/engine-src.partial"
+if [[ -L "$engine_partial" ]]; then
+  echo "Engine 临时目录是符号链接，拒绝接管。" >&2
+  exit 1
 fi
-if [[ ! -d "$engine_dir/.git" || "$(git -C "$engine_dir" rev-parse HEAD)" != "$engine_sha" ]]; then
+if [[ ! -e "$engine_dir" ]]; then
+  if [[ ! -e "$engine_partial" ]]; then
+    git clone --quiet --no-checkout https://github.com/saoxia/seealpha-engine.git "$engine_partial"
+  fi
+  if [[ ! -d "$engine_partial/.git" ]] ||
+     [[ "$(git -C "$engine_partial" remote get-url origin 2>/dev/null || true)" != "https://github.com/saoxia/seealpha-engine.git" ]] ||
+     [[ -n "$(git -C "$engine_partial" status --porcelain 2>/dev/null)" ]]; then
+    echo "Engine 中断检出目录不可信或已有本地修改，拒绝覆盖：$engine_partial" >&2
+    exit 1
+  fi
+  git -C "$engine_partial" checkout --quiet --detach "$engine_sha"
+  mv "$engine_partial" "$engine_dir"
+fi
+if [[ ! -d "$engine_dir/.git" ||
+      "$(git -C "$engine_dir" remote get-url origin 2>/dev/null || true)" != "https://github.com/saoxia/seealpha-engine.git" ||
+      "$(git -C "$engine_dir" rev-parse HEAD 2>/dev/null || true)" != "$engine_sha" ]]; then
   echo "本地 Engine 来源与审查版本不一致；不会自动覆盖。" >&2
   exit 1
 fi
@@ -107,6 +132,32 @@ fi
 new_database=0
 if [[ ! -e "$db_file" ]]; then
   new_database=1
+else
+  # Retry only a genuinely empty SQLite file. Never migrate, erase or adopt
+  # a database containing unknown tables or partly-applied migrations.
+  db_state="$("$root/platform/.venv/bin/python" - "$db_file" <<'PY'
+import sqlite3
+import sys
+try:
+    connection = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+    try:
+        tables = {row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )}
+    finally:
+        connection.close()
+    print("empty" if not tables else "migrated" if "alembic_version" in tables else "unknown")
+except sqlite3.DatabaseError:
+    print("unknown")
+PY
+)"
+  case "$db_state" in
+    empty) new_database=1 ;;
+    migrated) ;;
+    *) echo "SQLite 含有未识别或中断的迁移状态；请备份并人工核对，不会自动重建。" >&2; exit 1 ;;
+  esac
+fi
+if [[ "$new_database" -eq 1 ]]; then
   "$root/platform/.venv/bin/alembic" upgrade head
 fi
 "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" check-database
