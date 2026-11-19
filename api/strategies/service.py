@@ -19,8 +19,6 @@ from core.engine_contracts import EngineConflict, QueryError
 
 from .repository import StrategyRepository
 
-
-
 # These built-in cross-product Demos have only *research* runtimes.
 # Even an admin-created grant must not silently turn them into live strategies.
 _RESEARCH_ONLY_SYSTEM_BASKETS = frozenset({
