@@ -108,6 +108,7 @@ class DockerTenantManager:
                 file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
                 if purpose == "development" and self.research_enabled:
                     file.write(f"ENGINE_RESEARCH_SIGNING_KEY={secrets.token_urlsafe(48)}\n")
+                    file.write("ENGINE_RESEARCH_MCP_ENABLED=true\n")
                     if self.research_python_enabled:
                         file.write("ENGINE_RESEARCH_PYTHON_ENABLED=true\n")
                 file.write("ENGINE_HOST=0.0.0.0\n")
@@ -135,6 +136,8 @@ class DockerTenantManager:
         values = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
         if values.get("ENGINE_TENANT_ID") != tenant_id or values.get("ENGINE_TENANT_PURPOSE") != "development":
             raise EngineConflict("Research tenant is not a development tenant")
+        if values.get("ENGINE_RESEARCH_MCP_ENABLED") != "true":
+            raise EngineConflict("Research MCP not enabled on this development tenant")
         key = values.get("ENGINE_RESEARCH_SIGNING_KEY", "")
         if len(key) < 32 or key == values.get("ENGINE_TOKEN"):
             raise EngineConflict("Research signing key unavailable on this tenant")
