@@ -85,6 +85,8 @@ _MCP_TO_OPERATION = {
     "submit_backtest": "backtest_submit",
     "get_backtest": "backtest_get",
     "cancel_backtest": "backtest_cancel",
+    "run_basket_backtest": "basket_run",
+    "get_latest_basket_backtest": "basket_latest",
     "submit_candidate_backtest": "candidate_submit",
     "submit_python_candidate_backtest": "python_candidate_submit",
 }
@@ -97,6 +99,11 @@ _MCP_ARGUMENTS = {
     ),
     "get_backtest": ("backtest_id",),
     "cancel_backtest": ("backtest_id",),
+    "run_basket_backtest": (
+        "mode", "start", "end", "interval", "starting_primary_balance",
+        "starting_perpetual_balance", "max_gross_notional",
+    ),
+    "get_latest_basket_backtest": ("mode",),
     "submit_candidate_backtest": (
         "candidate_id", "start", "end", "starting_balance",
         "quote_currency", "idempotency_key",
@@ -126,6 +133,8 @@ def _mcp_tools(request: Request) -> list[dict]:
                 and not request.app.state.settings.research_python_enabled):
             continue
         title = name.replace("_", " ")
+        if name in {"run_basket_backtest", "get_latest_basket_backtest"}:
+            title += " for a verified, task-bound development Demo only"
         if name in {"submit_candidate_backtest", "submit_python_candidate_backtest"}:
             title += " using a candidate ID registered by the Platform research CLI"
         properties = {field: {"type": "string", "minLength": 1}
