@@ -491,6 +491,12 @@ export function TradePage() {
         {bookTab === "book" ? <><div className="trade-book-rows">{market?.asks.slice(0, 9).reverse().map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-red">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div><div className="trade-book-price">{displayPrice(market?.last_price)}{product === "futures_um" && <small>标记 {displayPrice(market?.mark_price)}</small>}</div><div className="trade-book-rows">{market?.bids.slice(0,9).map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-green">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div></> : <div className="trade-recent">{market?.trades.slice().reverse().map(t => <div className="trade-book-row" key={t.id}><span className={t.isBuyerMaker ? "trade-red" : "trade-green"}>{displayPrice(t.price)}</span><span>{t.qty}</span><span>{clock(t.time)}</span></div>)}</div>}
       </section>
       <aside className="trade-ticket"><div className="trade-ticket-title"><h2>下单</h2><span>{environment === "sandbox" ? "测试网" : "实盘"}</span></div>{product === "futures_um" ? <p className="trade-muted">杠杆倍数：{isFresh(state?.checked_at, now) && !accountError && state?.leverage ? `${state.leverage}×` : "—"}</p> : <p className="trade-muted">现货交易无合约杠杆、资金费率或裸卖空</p>}
+        <div className="trade-panel-tabs trade-professional-tabs">
+          <button className={tradeMode === "standard" ? "active" : ""} disabled={busy} onClick={()=>setTradeMode("standard")}>常规</button>
+          {product === "futures_um" && <button className={tradeMode === "conditional" ? "active" : ""} disabled={busy} onClick={()=>setTradeMode("conditional")}>止盈止损/条件</button>}
+          {product === "futures_um" && <button className={tradeMode === "leverage" ? "active" : ""} disabled={busy} onClick={()=>setTradeMode("leverage")}>杠杆</button>}
+        </div>
+        {(tradeMode === "standard" || product === "spot") && <>
         <div className="trade-panel-tabs"><button className={orderType === "limit" ? "active" : ""} onClick={() => setOrderType("limit")} disabled={busy}>限价单</button><button className={orderType === "market" ? "active" : ""} onClick={() => setOrderType("market")} disabled={busy}>市价单</button></div>
         <div className="trade-available"><span>可用余额</span><b>{number(state?.balances[quote]?.free)} {quote}</b></div>
         {product === "spot" && <div className="trade-available"><span>可卖数量</span><b>{number(state?.balances[base]?.free)} {base}</b></div>}
@@ -506,6 +512,34 @@ export function TradePage() {
           <textarea aria-label="批量限价委托清单" rows={4} value={batchDraft} disabled={busy} placeholder={"买,2000,0.01\n卖,2100,0.01"} onChange={event => setBatchDraft(event.target.value)} />
           <button className="trade-batch-action" disabled={!ready || !batchDraft.trim()} onClick={prepareBatchSubmit}>预览批量限价单</button>
         </div>
+        </>}
+        {product === "futures_um" && tradeMode === "conditional" && <div className="trade-professional-form">
+          <p className="trade-muted">由 Binance 托管触发。仅支持对当前真实仓位做保护性减仓，不是前端价格提醒；下单前会重新核对账户与仓位。</p>
+          <label>条件单类型<select aria-label="条件单类型" value={algoType} disabled={busy} onChange={e=>setAlgoType(e.target.value as AlgoRequest["order_type"])}>
+            <option value="STOP_MARKET">止损市价 STOP_MARKET</option>
+            <option value="TAKE_PROFIT_MARKET">止盈市价 TAKE_PROFIT_MARKET</option>
+            <option value="STOP">止损限价 STOP</option>
+            <option value="TAKE_PROFIT">止盈限价 TAKE_PROFIT</option>
+            <option value="TRAILING_STOP_MARKET">跟踪止损 TRAILING_STOP_MARKET</option>
+          </select></label>
+          <label>减仓数量<input aria-label="条件单数量" inputMode="decimal" disabled={busy} value={algoQty} onChange={e=>setAlgoQty(e.target.value)} /></label>
+          {algoType === "TRAILING_STOP_MARKET" ? <>
+            <label>回调率（%）<input aria-label="跟踪回调率" inputMode="decimal" disabled={busy} value={callbackRate} onChange={e=>setCallbackRate(e.target.value)} /></label>
+            <label>激活价（可留空）<input aria-label="跟踪激活价" inputMode="decimal" disabled={busy} value={activationPrice} onChange={e=>setActivationPrice(e.target.value)} /></label>
+          </> : <>
+            <label>触发价格<input aria-label="条件触发价格" inputMode="decimal" disabled={busy} value={triggerPrice} onChange={e=>setTriggerPrice(e.target.value)} /></label>
+            {(algoType === "STOP" || algoType === "TAKE_PROFIT") && <label>触发后限价<input aria-label="条件单限价" inputMode="decimal" disabled={busy} value={stopLimitPrice} onChange={e=>setStopLimitPrice(e.target.value)} /></label>}
+          </>}
+          <label>触发价格来源<select aria-label="条件触发来源" value={workingType} disabled={busy} onChange={e=>setWorkingType(e.target.value as "MARK_PRICE" | "CONTRACT_PRICE")}><option value="MARK_PRICE">标记价格</option><option value="CONTRACT_PRICE">最新成交价格</option></select></label>
+          {(algoType === "STOP_MARKET" || algoType === "TAKE_PROFIT_MARKET") && <label className="trade-checkbox"><input type="checkbox" checked={priceProtect} disabled={busy} onChange={e=>setPriceProtect(e.target.checked)} />启用交易所价格保护</label>}
+          <div className="trade-order-buttons"><button className="trade-buy" disabled={!ready || !state?.positions.some(p=>p.side==="short")} onClick={()=>prepareConditional("buy")}>买入 / 平空</button><button className="trade-sell" disabled={!ready || !state?.positions.some(p=>p.side==="long")} onClick={()=>prepareConditional("sell")}>卖出 / 平多</button></div>
+          <p className="trade-muted">原生条件单与普通委托分开展示。触发后订单可能变为成交、拒绝或过期，请核对实际交易所状态。</p>
+        </div>}
+        {product === "futures_um" && tradeMode === "leverage" && <div className="trade-professional-form">
+          <p className="trade-muted">修改合约初始杠杆，不会切换逐仓/全仓或单向/双向持仓。具体上限由交易所返回。</p>
+          <label>目标杠杆（1～125×）<input aria-label="目标杠杆" inputMode="numeric" disabled={busy} value={newLeverage} onChange={e=>setNewLeverage(e.target.value)} /></label>
+          <button className="trade-batch-action" disabled={!ready} onClick={prepareLeverage}>预览杠杆修改</button>
+        </div>}
         {!ready && <p className="trade-muted" role="status">{disabledReason}</p>}
         <div className="trade-contract-info"><h3>{product === "spot" ? "现货交易规则" : "合约信息"}</h3><p><span>价格步长</span><b>{state?.instrument.price_increment ?? "—"}</b></p><p><span>数量步长</span><b>{state?.instrument.size_increment ?? "—"}</b></p><p><span>最小名义金额</span><b>{state?.instrument.min_notional ?? "—"} {quote}</b></p></div>
       </aside>
