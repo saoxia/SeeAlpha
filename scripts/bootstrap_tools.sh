@@ -56,7 +56,8 @@ if ! command -v uv >/dev/null 2>&1; then
   expected="$(awk 'NR==1 {print $1}' "$tmp/uv.sha256")"
   verify "$tmp/uv.tar.gz" "$expected"
   tar -xzf "$tmp/uv.tar.gz" -C "$tmp" "uv-${uv_target}/uv"
-  install -m 700 "$tmp/uv-${uv_target}/uv" "$bin/uv"
+  install -m 700 "$tmp/uv-${uv_target}/uv" "$tmp/uv-ready"
+  mv "$tmp/uv-ready" "$bin/uv"
 fi
 if ! command -v node >/dev/null 2>&1 || ! node -e 'const [major,minor]=process.versions.node.split(".").map(Number);process.exit(major>22||(major===22&&minor>=13)?0:1)' 2>/dev/null || ! command -v npm >/dev/null 2>&1; then
   node_version=v22.16.0
@@ -74,9 +75,13 @@ if ! command -v node >/dev/null 2>&1 || ! node -e 'const [major,minor]=process.v
   fi
   for name in node npm npx; do
     if [[ -e "$bin/$name" || -L "$bin/$name" ]]; then
-      echo "本机私有工具目标已存在：$bin/$name；拒绝覆盖。" >&2; exit 2
+      if [[ ! -L "$bin/$name" || "$(readlink "$bin/$name")" != "$dest/bin/$name" ]]; then
+        echo "本机私有工具目标非本安装器创建：$bin/$name；拒绝覆盖。" >&2
+        exit 2
+      fi
+    else
+      ln -s "$dest/bin/$name" "$bin/$name"
     fi
-    ln -s "$dest/bin/$name" "$bin/$name"
   done
 fi
 echo "本机依赖检查完成（仅写入 .local/）。"
