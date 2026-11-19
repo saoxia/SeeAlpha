@@ -35,7 +35,11 @@ export type ManagedUser = {
   created_at: number;
   production_tenant_id: number;
   production_tenant_name: string;
+  engine_node: string | null;
 };
+
+export type EngineNode = { id: string; online: boolean };
+export type EngineNodes = { deployment: "single" | "docker" | "distributed"; nodes: EngineNode[] };
 
 export type AuthPayload = {
   user?: AuthUser;
