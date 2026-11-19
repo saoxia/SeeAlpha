@@ -214,6 +214,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             log_root=(project if project is not None else PROJECT) / "logs",
             resource_limits=tenant_limits,
             research_enabled=settings.research_proxy_enabled,
+            research_python_enabled=settings.research_python_enabled,
         )
         manager = local
         if settings.engine_deployment == "distributed":

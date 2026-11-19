@@ -261,3 +261,149 @@ def test_candidate_engine_client_only_uses_restricted_submission():
         with pytest.raises(ValueError):
             client.submit_candidate({**scope, "path": "/tmp/strategy.py"})
     assert len(seen) == 1
+
+
+def _full_python_archive(*, symbol="ETHUSDT", source=None):
+    import base64
+    import hashlib
+    import io
+    import json
+    import zipfile
+
+    source = source if source is not None else (
+        "from nautilus_trader.trading import Strategy\n"
+        "class AiSignal(Strategy):\n"
+        "    def on_bar(self, bar): pass\n"
+    )
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("seealpha-package.json", json.dumps({
+            "format": 1, "name": "ai_signal", "title": "AI Research",
+            "version": "1", "entry_point": "strategy:AiSignal",
+            "parameters": {
+                "symbol": symbol, "allocation": "1", "risk_limit": "1",
+            },
+        }))
+        z.writestr("strategy.py", source)
+    raw = stream.getvalue()
+    return base64.b64encode(raw).decode(), hashlib.sha256(raw).hexdigest()
+
+
+def test_full_python_candidate_is_immutable_and_task_scoped(leases, monkeypatch):
+    from api.research import task_access
+    from api.research.python_candidates import parse_python_candidate
+
+    token, _ = _issue(leases)
+    row = {**leases.consume("task-uuid", token, 1, "python_candidate_create"), "task_id": "task-uuid"}
+    encoded, digest = _full_python_archive()
+    data, parsed = parse_python_candidate(encoded)
+    assert parsed["recipe"]["mode"] == "python"
+    assert parsed["recipe"]["entry_point"] == "strategy:AiSignal"
+    created = leases.create_candidate(row, data, parsed)
+    assert created["package_hash"] == digest
+    saved = leases.get_candidate(row, created["candidate_id"])
+    assert saved["archive"] == data
+    assert saved["recipe"]["parameters"]["symbol"] == "ETHUSDT"
+    with pytest.raises(HTTPException):
+        leases.get_candidate({**row, "tenant_id": 12}, created["candidate_id"])
+
+    app = SimpleNamespace(state=SimpleNamespace(
+        settings=SimpleNamespace(research_python_enabled=True, engine_token=""),
+        research_leases=leases,
+        tenants=SimpleNamespace(repository=object()),
+    ))
+    monkeypatch.setattr(task_access, "allowed_scope", lambda *args, **kwargs: True)
+    issued = []
+    class FakeGrantIssuer:
+        def __init__(self, **kwargs):
+            pass
+        def issue(self, **kwargs):
+            issued.append(kwargs)
+            return ResearchGrant(
+                token="test-scoped-engine-grant", tenant_id="11",
+                task_id="task-uuid", expires_at=1900000000, fingerprint="x",
+            )
+    seen = []
+    class FakeClient:
+        def __init__(self, origin, grant):
+            seen.append((origin, grant.token))
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            pass
+        def submit_python_candidate(self, request):
+            seen.append(request)
+            return {"backtest_id": "job-1", "status": "queued"}
+    monkeypatch.setattr(task_access, "engine_connection", lambda _app, tenant: (
+        f"https://engine-{tenant}.internal", "test-signing-key",
+    ))
+    monkeypatch.setattr(task_access, "ResearchGrantIssuer", FakeGrantIssuer)
+    monkeypatch.setattr(task_access, "DirectEngineResearchClient", FakeClient)
+    args = {
+        "candidate_id": created["candidate_id"],
+        "start": "2026-01-01", "end": "2026-01-02",
+        "starting_balance": "1000", "quote_currency": "USDT",
+        "idempotency_key": "iteration-1",
+    }
+    assert task_access.research_command(
+        app, row, "python_candidate_submit", args,
+    )["backtest_id"] == "job-1"
+    assert seen[0][0] == "https://engine-11.internal"
+    assert seen[1]["package_hash"] == digest
+    assert seen[1]["strategy_ref"] == "account:5"
+    assert seen[1]["dataset_refs"] == ["futures_um:ETHUSDT:1m"]
+    assert issued[0]["operations"] == ("python_candidates:submit",)
+    with pytest.raises(HTTPException):
+        task_access.research_command(app, row, "candidate_submit", args)
+    app.state.settings.research_python_enabled = False
+    with pytest.raises(HTTPException):
+        task_access.research_command(app, row, "python_candidate_submit", args)
+
+
+def test_full_python_candidate_preflight_rejects_wrong_symbol_and_entry():
+    from api.research.python_candidates import parse_python_candidate
+
+    encoded, digest = _full_python_archive()
+    _, parsed = parse_python_candidate(encoded)
+    assert parsed["sha256"] == digest
+    wrong_entry, _ = _full_python_archive(source="print('no class')\n")
+    with pytest.raises(ValueError):
+        parse_python_candidate(wrong_entry)
+    with pytest.raises(ValueError):
+        parse_python_candidate("not-base64")
+    with pytest.raises(ValueError):
+        parse_python_candidate("e" * 400_001)
+
+
+def test_platform_direct_client_python_candidate_uses_only_pinned_engine_url():
+    from api.research.direct_engine import DirectEngineResearchClient
+
+    encoded, digest = _full_python_archive()
+    grant = ResearchGrant(
+        token="granted-research-hmac", tenant_id="11",
+        task_id="task-uuid", expires_at=1900000000, fingerprint="x",
+    )
+    def transport(request):
+        assert request.url.host == "pinned-development-engine.internal"
+        assert request.url.path == "/research/v1/python-candidate-backtests"
+        assert request.headers["Authorization"] == "Bearer granted-research-hmac"
+        import json
+        payload = json.loads(request.content)
+        assert payload["purpose"] == "development"
+        assert payload["execution"] == "simulation"
+        assert payload["package_hash"] == digest
+        return httpx.Response(202, headers={
+            "X-SeeAlpha-Engine-Contract-Version": "2",
+            "X-SeeAlpha-Research-Contract-Version": "1",
+        }, json={"backtest_id": "job-2"})
+    with DirectEngineResearchClient(
+        "https://pinned-development-engine.internal",
+        grant, transport=httpx.MockTransport(transport),
+    ) as client:
+        assert client.submit_python_candidate({
+            "candidate_id": "a" * 32, "package_hash": digest, "archive": encoded,
+            "strategy_ref": "account:5", "dataset_refs": ["futures_um:ETHUSDT:1m"],
+            "start": "2026-01-01", "end": "2026-01-02",
+            "starting_balance": "1000", "quote_currency": "USDT",
+            "idempotency_key": "iteration-1",
+        })["backtest_id"] == "job-2"
