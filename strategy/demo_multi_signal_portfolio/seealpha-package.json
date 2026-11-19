@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "demo_multi_signal_portfolio",
+  "title": "演示｜多信号组合与目标仓位净额",
+  "version": "1",
+  "entry_point": "strategy:DemoMultiSignalPortfolio",
+  "description": "EMA 趋势方向 + 布林带均值回归强度，按权重生成目标数量；可加载独立 trend/reversion 实例展示现有 Engine 净额协调。",
+  "parameters": {
+    "symbol": "ETHUSDT",
+    "mode": "combined",
+    "fast_period": 8,
+    "slow_period": 21,
+    "bollinger_period": 20,
+    "deviation": "2",
+    "trend_weight": "0.6",
+    "reversion_weight": "0.4",
+    "allocation": "1",
+    "risk_limit": "1"
+  }
+}

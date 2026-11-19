@@ -1,10 +1,11 @@
-"""Offline regression tests for three shipping demo package definitions.
+"""Offline regression tests for four shipping demo package definitions.
 
 This test suite deliberately does not import Engine or NautilusTrader.
 """
 import ast  # noqa: I001 -- CI isort grouping for standalone package tests
 import importlib.util
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -169,7 +170,8 @@ def test_option_rejects_bars_from_future_and_mismatched_expiry():
 def test_all_public_sample_packages_are_labeled_demo_and_declare_entry_points():
     folders = sorted(x for x in ROOT.iterdir() if x.is_dir())
     assert [folder.name for folder in folders] == [
-        "demo_ema_crossover", "demo_funding_carry", "demo_option_hedged_bollinger",
+        "demo_ema_crossover", "demo_funding_carry",
+        "demo_multi_signal_portfolio", "demo_option_hedged_bollinger",
     ]
     for folder in folders:
         manifest = json.loads((folder / "seealpha-package.json").read_text(encoding="utf-8"))
@@ -184,3 +186,91 @@ def test_all_public_sample_packages_are_labeled_demo_and_declare_entry_points():
         assert any(isinstance(node, ast.FunctionDef) and node.name == "prepare" for node in tree.body)
         assert "submit_order(" not in source
         assert "close_all_positions(" not in source
+
+
+def _multi_signal_params(mode="combined", **overrides):
+    logic = _logic("demo_multi_signal_portfolio")
+    return logic.prepare_parameters({
+        "mode": mode, "fast_period": 2, "slow_period": 3,
+        "bollinger_period": 5, "deviation": "1",
+        "trend_weight": "0.6", "reversion_weight": "0.4",
+        **overrides,
+    })
+
+
+def _multi_signal_run(mode="combined", *, closes=None, **overrides):
+    logic = _logic("demo_multi_signal_portfolio")
+    model = logic.MultiSignalModel(_multi_signal_params(mode, **overrides))
+    signals = [model.on_close(close) for close in (closes or [100, 100, 100, 100, 110])]
+    return signals
+
+
+def test_multi_signal_combined_equals_two_issued_members_after_warmup():
+    combined = _multi_signal_run()
+    trend = _multi_signal_run("trend")
+    reversion = _multi_signal_run("reversion")
+    assert combined[:4] == [None] * 4
+    assert combined[-1]["trend_signal"] == 1
+    assert combined[-1]["reversion_signal"] == -1
+    assert combined[-1]["trend_contribution"] == trend[-1]["target"] == Decimal("0.6")
+    assert combined[-1]["reversion_contribution"] == reversion[-1]["target"] == Decimal("-0.4")
+    assert combined[-1]["target"] == Decimal("0.2")
+    # Independent members use Engine PortfolioCoordinator to net the same
+    # symbol, rather than generating two venue orders.
+    assert trend[-1]["target"] + reversion[-1]["target"] == combined[-1]["target"]
+
+
+def test_multi_signal_short_direction_flat_volatility_and_risk_clip():
+    short = _multi_signal_run(closes=[100, 100, 100, 100, 90])[-1]
+    assert short["trend_signal"] == -1
+    assert short["reversion_signal"] == 1
+    assert short["target"] == Decimal("-0.2")
+    assert _multi_signal_run(closes=[100] * 5)[-1]["target"] == 0
+    assert _multi_signal_run(risk_limit="0.1")[-1]["target"] == Decimal("0.1")
+
+
+def test_multi_signal_partial_strength_and_mode_specific_warmup():
+    closes = [100, 101, 102, 103, 104]
+    partial = _multi_signal_run(closes=closes, deviation="2")[-1]
+    assert -1 < partial["reversion_signal"] < 0
+    assert 0 < partial["target"] < Decimal("0.6")
+    assert _multi_signal_run("trend")[:2] == [None, None]
+    assert _multi_signal_run("trend")[2] is not None
+    assert _multi_signal_run("reversion")[:4] == [None] * 4
+
+
+@pytest.mark.parametrize("overrides", [
+    {"fast_period": 3, "slow_period": 3},
+    {"bollinger_period": 4},
+    {"trend_weight": "0.8", "reversion_weight": "0.4"},
+    {"trend_weight": "0", "reversion_weight": "0"},
+    {"trend_weight": "NaN"},
+    {"allocation": "-1"},
+    {"allocation": "1e10000000"},
+    {"trend_weight": "1e10000000"},
+    {"risk_limit": "0"},
+    {"mode": "unknown"},
+    {"symbol": "BTCUSDT"},
+    {"deviation": True},
+    {"token": "not-allowed"},
+])
+def test_multi_signal_rejects_invalid_parameters(overrides):
+    logic = _logic("demo_multi_signal_portfolio")
+    with pytest.raises((ValueError, TypeError)):
+        logic.prepare_parameters(overrides)
+
+
+def test_multi_signal_rejects_non_finite_or_non_positive_closed_prices():
+    logic = _logic("demo_multi_signal_portfolio")
+    for price in ("NaN", "Infinity", "0", "-10", True):
+        with pytest.raises((ValueError, TypeError)):
+            logic.MultiSignalModel(_multi_signal_params()).on_close(price)
+
+
+def test_multi_signal_manifest_matches_real_normalized_defaults():
+    logic = _logic("demo_multi_signal_portfolio")
+    manifest = json.loads(
+        (ROOT / "demo_multi_signal_portfolio" / "seealpha-package.json").read_text(encoding="utf-8")
+    )
+    assert manifest["parameters"] == logic.DEFAULTS
+    assert logic.prepare_parameters({}) == logic.DEFAULTS
