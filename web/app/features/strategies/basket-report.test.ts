@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { BasketBacktestResult } from "./api";
-import { basketReportMetrics } from "./basket-report";
+import { basketReportMetrics } from "./basket-report.ts";
 
 const base = {
   bar_count: 2,
