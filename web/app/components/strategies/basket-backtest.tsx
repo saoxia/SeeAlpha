@@ -2,18 +2,21 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import {
-  latestBasketBacktest, latestIssuedSpotPerpBacktest, listIssuedStrategyLoads,
-  runBasketBacktest, runIssuedSpotPerpBacktest,
-  type BasketBacktestResult, type BasketMode, type IssuedStrategyLoad,
+  latestBasketBacktest, latestGenericPortfolioBacktest, latestIssuedSpotPerpBacktest,
+  listIssuedStrategyLoads, runBasketBacktest, runGenericPortfolioBacktest,
+  runIssuedSpotPerpBacktest,
+  type BasketBacktestResult, type BasketMode, type GenericPortfolioLeg, type IssuedStrategyLoad,
 } from "@/app/features/strategies/api";
 import { basketReportMetrics } from "@/app/features/strategies/basket-report";
 
 export function BasketBacktestPanel({
   tenantId, accountId,
 }: { tenantId: number; accountId: number }) {
-  const [mode, setMode] = useState<BasketMode | "issued_spot_perp">("funding_carry");
+  const [mode, setMode] = useState<BasketMode | "issued_spot_perp" | "generic">("funding_carry");
   const [issuedLoads, setIssuedLoads] = useState<IssuedStrategyLoad[]>([]);
   const [issuanceId, setIssuanceId] = useState("");
+  const [otherIssuances, setOtherIssuances] = useState("");
+  const [marketLegs, setMarketLegs] = useState("spot:ETHUSDT\nfutures_um:BTCUSDT");
   const [interval, setInterval] = useState<"1m" | "5m">("1m");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -52,7 +55,32 @@ export function BasketBacktestPanel({
     }
     setBusy(true); setError(""); setResult(null);
     try {
-      if (mode === "issued_spot_perp") {
+      if (mode === "generic") {
+        if (!issuanceId) throw new Error("请先选择一个已下发的开发策略实例。");
+        const extra = otherIssuances.split(",").map(value => value.trim()).filter(Boolean);
+        const ids = [issuanceId, ...extra];
+        if (
+          ids.length > 16 || new Set(ids).size !== ids.length
+          || ids.some(id => !/^[0-9]+$/.test(id))
+          || ids.some(id => !issuedLoads.some(load => String(load.id) === id))
+        ) throw new Error("策略编号必须属于当前账户且不能重复（最多16个）。");
+        const legs: GenericPortfolioLeg[] = marketLegs.split(/\r?\n/).map(line => {
+          const [product, symbol, ...rest] = line.trim().split(":");
+          if (
+            rest.length || !["spot", "futures_um"].includes(product)
+            || !/^[A-Z0-9-]{2,64}$/.test(symbol ?? "")
+          ) throw new Error("每行必须为 spot:ETHUSDT 或 futures_um:BTCUSDT 等合法产品合约。");
+          return { product: product as GenericPortfolioLeg["product"], symbol };
+        });
+        if (legs.length < 1 || legs.length > 8
+          || new Set(legs.map(leg => leg.product + ":" + leg.symbol)).size !== legs.length
+        ) throw new Error("请选择1至8条不重复的市场腿。");
+        setResult(await runGenericPortfolioBacktest(tenantId, accountId, {
+          issuance_ids: ids, legs, start: first.toISOString(), end: last.toISOString(),
+          interval, starting_spot_balance: primaryBalance,
+          starting_perpetual_balance: marginBalance, max_gross_notional: grossLimit,
+        }));
+      } else if (mode === "issued_spot_perp") {
         if (!issuanceId) throw new Error("请先选择当前账户已下发的策略实例。");
         setResult(await runIssuedSpotPerpBacktest(tenantId, accountId, {
           issuance_id: issuanceId, start: first.toISOString(), end: last.toISOString(),
@@ -76,9 +104,11 @@ export function BasketBacktestPanel({
   async function readLatest() {
     setBusy(true); setError("");
     try {
-      setResult(mode === "issued_spot_perp"
-        ? await latestIssuedSpotPerpBacktest(tenantId, accountId)
-        : await latestBasketBacktest(tenantId, accountId, mode));
+      setResult(mode === "generic"
+        ? await latestGenericPortfolioBacktest(tenantId, accountId)
+        : mode === "issued_spot_perp"
+          ? await latestIssuedSpotPerpBacktest(tenantId, accountId)
+          : await latestBasketBacktest(tenantId, accountId, mode));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "无法读取组合回测。");
     } finally {
@@ -99,9 +129,10 @@ export function BasketBacktestPanel({
             <option value="funding_carry">现货多头 + 永续空头（资金费）</option>
             <option value="protected_options">永续 + PUT/CALL 保护（到期前）</option>
             <option value="issued_spot_perp">指定一个已下发策略：Spot + 永续</option>
+            <option value="generic">通用多标的 · 原生模拟（开发）</option>
           </select>
         </label>
-        {mode === "issued_spot_perp" && (
+        {(mode === "issued_spot_perp" || mode === "generic") && (
           <label>已下发策略实例
             <select required value={issuanceId} onChange={event => setIssuanceId(event.target.value)}>
               <option value="">请选择此账户的开发策略</option>
@@ -112,6 +143,18 @@ export function BasketBacktestPanel({
               ))}
             </select>
           </label>
+        )}
+        {mode === "generic" && (
+          <>
+            <label>其他开发策略编号（选填，英文逗号分隔）
+              <input value={otherIssuances} onChange={event => setOtherIssuances(event.target.value)}
+                placeholder="例如 24,25（须为当前账户已下发策略）" />
+            </label>
+            <label>市场腿（每行 product:SYMBOL，最多8条）
+              <textarea required rows={4} value={marketLegs}
+                onChange={event => setMarketLegs(event.target.value)} />
+            </label>
+          </>
         )}
         <label>历史开始（本地时间）
           <input required type="datetime-local" value={start} onChange={event => setStart(event.target.value)} />
@@ -140,6 +183,11 @@ export function BasketBacktestPanel({
         <button type="submit" disabled={busy}>{busy ? "模拟中…" : "运行开发回测"}</button>
         <button type="button" disabled={busy} onClick={() => void readLatest()}>查看最新结果</button>
       </form>
+      {mode === "generic" && (
+        <p>使用一个 NautilusTrader 原生模拟引擎处理多标的。所选已下发开发策略需通过
+          subscribe_market_bundle 声明全部市场腿，并通过 publish_basket 提交目标。
+          当前通用模式仅支持 USDT 现货和 USD-M 永续；资金费结算、期权通用回测及实盘下单均不在此入口。</p>
+      )}
       {mode === "issued_spot_perp" && (
         <p>选中的策略必须通过 on_market_snapshot 发布完整且等额的现货多头与永续空头目标；
           缺少历史资金费证据或任意一腿未能完整模拟成交时会拒绝回测，不会启动真实订单。</p>
