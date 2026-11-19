@@ -44,7 +44,7 @@ if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number
 fi
 
 # Keep the exact Engine SHA used by scripts/build_external_engine.sh.
-engine_sha="b4a371cda12f8db5e176cc147b1bac26f3d85e4e"
+engine_sha="17e79403c762d65e254e58176a2a8f17fb1ed220"
 engine_dir="$root/.local/engine-src"
 db_file="$root/.local/state/api/seealpha.sqlite"
 db_url_file="$root/.local/config/api/database_url"

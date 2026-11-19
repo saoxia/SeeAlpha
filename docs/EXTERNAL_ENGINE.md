@@ -13,7 +13,7 @@ Phase 20 已从 SeeAlpha Platform 仓库移除 `engine/` 源码、旧 Dockerfile
 ./scripts/build_external_engine.sh
 ```
 
-脚本通过 Git 克隆独立 Engine 仓库，核对完整 SHA `b4a371cda12f8db5e176cc147b1bac26f3d85e4e`，然后只使用新仓库的 Dockerfile、锁文件和源码构建 `seealpha-engine:b4a371cda12f`，**不会读取本仓库的 `engine/`、`pyproject.toml` 或 Dockerfile**。若要构建另一已审查的提交：
+脚本通过 Git 克隆独立 Engine 仓库，核对完整 SHA `17e79403c762d65e254e58176a2a8f17fb1ed220`，然后只使用新仓库的 Dockerfile、锁文件和源码构建 `seealpha-engine:17e79403c762`，**不会读取本仓库的 `engine/`、`pyproject.toml` 或 Dockerfile**。若要构建另一已审查的提交：
 
 ```bash
 ./scripts/build_external_engine.sh <40位Engine提交SHA>
@@ -49,7 +49,7 @@ platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 
 ```bash
 export ENGINE_DEPLOYMENT=docker
-export ENGINE_DOCKER_IMAGE=seealpha-engine:b4a371cda12f
+export ENGINE_DOCKER_IMAGE=seealpha-engine:17e79403c762
 export ENGINE_TENANT_ROOT=/absolute/path/to/disposable-test-tenants
 ```
 
