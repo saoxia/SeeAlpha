@@ -6,7 +6,7 @@ import stat
 
 import httpx
 import pytest
-from api.auth.security import hash_password, token_digest
+from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
@@ -117,7 +117,7 @@ def test_bad_ids_and_private_credentials_fail_closed(tmp_path):
         manager.ensure(1)
 
 
-def test_per_user_api_routes_to_actor_and_rejects_impersonation(tmp_path, monkeypatch):
+def test_per_user_api_routes_to_authenticated_identity(tmp_path, monkeypatch):
     settings = Settings(
         tmp_path / "auth.db", cookie_secure=False, harness_enabled=True,
         harness_deployment="per_user", harness_docker_image="seealpha-harness:ci",
@@ -163,14 +163,4 @@ def test_per_user_api_routes_to_actor_and_rejects_impersonation(tmp_path, monkey
             }).status_code == 200
             assert client.get("/api/harness/status").status_code == 200
             assert client.post("/api/harness/tasks", json={"prompt": "test"}).status_code == 202
-        assert seen == [users["viewer"], users["viewer"], users["alice"], users["alice"]]
-
-        assert client.post("/api/auth/login", json={
-            "username": "admin", "password": "test-password-123",
-        }).status_code == 200
-        cookie = client.cookies.get("seealpha_session")
-        client.app.state.repository.set_impersonation(
-            token_digest(cookie), users["viewer"],
-        )
-        assert client.get("/api/harness/status").status_code == 403
         assert seen == [users["viewer"], users["viewer"], users["alice"], users["alice"]]

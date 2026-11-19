@@ -91,7 +91,6 @@ class ORMAuthRepository:
                 session.execute(
                     select(
                         User.id, User.username, User.created_at, Session.expires_at,
-                        Session.impersonate_user_id,
                     )
                     .join(Session, Session.user_id == User.id)
                     .where(Session.token_hash == token_hash, Session.expires_at > now)
@@ -100,14 +99,6 @@ class ORMAuthRepository:
                 .first()
             )
             return dict(result) if result else None
-
-    def set_impersonation(self, token_hash, user_id):
-        with self.database.session(write=True) as session:
-            session.execute(
-                update(Session)
-                .where(Session.token_hash == token_hash)
-                .values(impersonate_user_id=user_id)
-            )
 
     def delete_session(self, token_hash):
         with self.database.session(write=True) as session:

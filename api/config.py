@@ -39,7 +39,7 @@ class Settings:
     harness_token: str = field(default="", repr=False)
     # One explicit ordinary user per resident Harness; never fall back to admin.
     harness_owner_username: str = ""
-    # Opt in to dedicated Docker workspaces; legacy single-user mode is unchanged.
+    # Optional per-user Docker workspaces; single mode is a separately configured deployment.
     harness_deployment: str = "single"
     harness_docker_image: str = ""
     harness_root: Path | None = None

@@ -4,7 +4,7 @@ import {
   tenantsPath,
   usersPath,
 } from "./model";
-import type { ManagedUser, TenantRecord, LegacyTenant } from "./model";
+import type { ManagedUser, TenantRecord } from "./model";
 
 export {
   tenantActionPath,
@@ -69,13 +69,3 @@ export function createUser(body: { username: string; password: string }) {
   return request<ManagedUser>(usersPath(), { method: "POST", body: JSON.stringify(body) });
 }
 
-export function fetchLegacyTenants() {
-  return request<LegacyTenant[]>("/api/users/legacy-tenants");
-}
-
-export function transferLegacyTenant(tenantId: number, targetUsername: string) {
-  return request<{ id: number; name: string; owner_id: number; target_username: string }>(
-    `/api/users/legacy-tenants/${tenantId}/transfer`,
-    { method: "POST", body: JSON.stringify({ target_username: targetUsername, confirm: true }) },
-  );
-}
