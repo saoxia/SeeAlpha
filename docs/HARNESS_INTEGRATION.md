@@ -81,3 +81,36 @@ platform/.venv/bin/python scripts/verify_harness_live.py --origin http://127.0.0
 真实验收还需要在用户的开发主机上启动现有单 Harness Docker、配置测试模型 Key，执行任务和取消/续接/重启恢复，核实异常网络、任务超时和模型输出安全。当前阶段不可据此声明生产可用。
 
 长期路线：Platform 持久化任务所有者/租户与审计；开发租户权限和资源范围；Platform 内部轻量代理代持短期 Engine Grant，向 Agent 提供经任务授权的固定研究命令访问 Engine 开发数据与回测；结果进入审核/策略登记/独立准入边界，最终支持多轮假设发现、回测、归因和迭代。**不能把目前的管理员本地接口直接当作这一生产控制面。**
+
+## AI Harness 页面：开发 Engine 数据准备与恢复初始状态（2026-11-19）
+
+AI Harness「开发 Engine：研究授权、历史数据和状态重置」区域统一使用用户选择的
+**开发租户 ID、虚拟账户 ID 和已授权数据集**（例如 `futures_um:ETHUSDT:1m`）。
+目前只支持已部署的本机独立开发 Engine Docker；不支持正式租户、远程 Node 或
+默认系统行情 Engine 的历史目录。操作使用登录用户 Cookie，Platform 检查
+Harness 所属用户、开发租户归属、开发资源配额、虚拟账户及历史订阅，再由
+Platform 的 `EngineClient` 按开发租户路由。Engine 管理令牌不进入浏览器或 Harness。
+
+- **获取与准备历史数据**：输入 UTC 开始日期和不包含在内的结束日期，
+  每次不超过 31 天且不允许未来时间。可先查询缺失归档计划，再提交已有 Engine
+  的 `prepare` 数据任务；任务直接在对应开发 Engine 的独立数据卷工作，只补缺失，
+  不删除或强制重建已有 Catalog。页面轮询该数据集的历史准备任务状态、进度，
+  可请求取消正在执行的任务。大跨度历史按多个 31 天区间分批操作。
+- **恢复 Engine 初始运行状态**：需完整输入 `RESET ENGINE <开发租户ID>`
+  确认。Platform 在重置前拒绝尚未结束的数据任务、回测任务及 Harness 研究会话；
+  验证 Docker 镜像、租户标签、独立挂载及开发凭据后，停止并移除开发 Engine 容器，
+  将原 `state/` 和 `local/` 目录移入 Platform 宿主机私有
+  `.local/tenants/.resets/<租户ID>-<随机标识>/` 作为恢复备份，再创建全新的 Engine。
+  **`data/` 下的原始归档和 Catalog 保留**；`engine.env` 和日志保留。
+  Platform 业务库中的开发租户、账户、历史订阅、策略授权及 Harness Session 不变；
+  原 Engine 运行状态和已加载策略记录不恢复，可能需要重新下发已授权的策略包。
+- **安全边界**：不能传自定义 Docker 命令、Engine URL、任意本地目录或用户凭据；
+  不触发真实交易。缺少本地 Docker、权限或任务状态不明时拒绝重置。
+  当前重置过程不支持在容器移除后因宿主故障而自动恢复，原状态备份保留供运维核查；
+  真实 Docker/模型联调需在隔离开发主机验证。
+
+新增同源 API：`POST /api/harness/development-engine/data/plan`、
+`POST /api/harness/development-engine/data/prepare`、
+`GET /api/harness/development-engine/data/jobs`、
+`POST /api/harness/development-engine/data/jobs/{id}/cancel`、
+`POST /api/harness/development-engine/reset`。
