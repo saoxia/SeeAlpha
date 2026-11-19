@@ -1,4 +1,4 @@
-import { computeStudyFormula, studyFormulaError } from "./study-formulas";
+import { computeStudyFormula, studyFormulaError } from "./study-formulas.ts";
 
 export function sma(values: number[], period: number): (number | null)[] {
   let sum = 0;
