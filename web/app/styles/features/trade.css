@@ -121,3 +121,15 @@
 
 .trade-study-overlay-dismiss{position:absolute;inset:0;z-index:0;border:0;background:transparent;cursor:default}
 .trade-study-modal{position:relative;z-index:1}
+
+/* Non-atomic manual batches reuse the ordinary trading account safety boundary. */
+.trade-batch-entry{border-top:1px solid var(--trade-line);margin-top:18px;padding-top:14px}
+.trade-batch-entry h3{font-size:12px;margin:0}
+.trade-batch-entry textarea{width:100%;resize:vertical;min-height:92px;box-sizing:border-box;border:1px solid var(--trade-line);border-radius:6px;background:var(--trade-panel);color:inherit;padding:10px;font:12px/1.5 monospace}
+.trade-batch-action{width:100%;margin-top:10px;border:1px solid var(--trade-line);background:var(--trade-panel);border-radius:6px;padding:10px;font-size:12px;font-weight:600}
+.trade-account-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.trade-account-actions button{white-space:nowrap;color:var(--trade-accent-ink);font-size:11px}
+.trade-account-actions button:disabled{opacity:.4}
+.trade-account input[type="checkbox"]{accent-color:var(--trade-accent-ink)}
+.trade-batch-review{max-height:230px;overflow:auto;overflow-wrap:anywhere;padding:10px 12px 10px 32px;margin:18px 0;background:var(--trade-panel);border:1px solid var(--trade-line);border-radius:6px;font-size:12px}
+.trade-batch-review li{padding:4px 0}
