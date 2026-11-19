@@ -3,7 +3,7 @@
 import sqlite3
 import time
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 
 from api.db.errors import StorageConflict, StorageUnavailable
 from api.db.models import (
@@ -193,33 +193,8 @@ class TenantRepository:
         current = self.production_for_owner(user_id)
         if current is not None:
             return current
-        # The system default holds platform-wide and historical market data.
-        # Never implicitly transfer it to the first ordinary user.
+        # The system tenant is reserved for platform market data, not user ownership.
         return self._insert_production(user_id, username)
-
-    def transfer_legacy_owner(self, tenant_id: int, admin_id: int, new_owner_id: int):
-        """Explicitly reassign legacy admin data; preserve tenant/account/Engine IDs."""
-        if new_owner_id == admin_id:
-            raise ValueError("目标账户必须是独立的普通用户。")
-        if self.database.backend != "orm":
-            with self.database.connect() as connection:
-                updated = connection.execute(
-                    """UPDATE tenants SET owner_id = ? WHERE id = ?
-                       AND (owner_id = ? OR (owner_id IS NULL AND system_key = 'default'))""",
-                    (new_owner_id, tenant_id, admin_id),
-                ).rowcount
-        else:
-            with self.database.session(write=True) as session:
-                updated = session.execute(
-                    update(Tenant).where(
-                        Tenant.id == tenant_id,
-                        (Tenant.owner_id == admin_id) |
-                        (Tenant.owner_id.is_(None) & (Tenant.system_key == "default")),
-                    ).values(owner_id=new_owner_id)
-                ).rowcount
-        if not updated:
-            raise ValueError("旧管理员租户不存在，或已被其他用户接管。")
-        return self.get_tenant(tenant_id)
 
     def _available_name(self, username, user_id):
         base = f"正式·{username}"

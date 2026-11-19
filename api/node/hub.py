@@ -30,14 +30,21 @@ class NodeHub:
         settings = json.loads(path.read_text(encoding="utf-8"))
         nodes = settings.get("nodes", {})
         assignments = settings.get("tenant_nodes", {})
+        harness_assignments = settings.get("harness_user_nodes", {})
         if (not isinstance(nodes, dict) or not isinstance(assignments, dict)
+                or not isinstance(harness_assignments, dict)
                 or any(not _NODE.fullmatch(n) or not isinstance(t, str) or len(t) < 32
                        for n, t in nodes.items())
-                or any(not _TENANT.fullmatch(t) or (n != "local" and n not in nodes)
-                       for t, n in assignments.items())):
+                or any(not isinstance(t, str) or not _TENANT.fullmatch(t)
+                       or (n != "local" and n not in nodes)
+                       for t, n in assignments.items())
+                or any(not isinstance(u, str) or not _TENANT.fullmatch(u)
+                       or (n != "local" and n not in nodes)
+                       for u, n in harness_assignments.items())):
             raise ValueError("Invalid node configuration or tenant placement")
         self.tokens = nodes
         self.tenant_nodes = assignments
+        self.harness_user_nodes = harness_assignments
         self.queues = {node: queue.Queue(maxsize=32) for node in nodes}
         self.last_seen = {}
         self.pending = {}
@@ -45,6 +52,9 @@ class NodeHub:
 
     def assigned(self, tenant_id):
         return self.tenant_nodes.get(str(tenant_id), "local")
+
+    def harness_assigned(self, user_id):
+        return self.harness_user_nodes.get(str(user_id), "local")
 
     def authenticate(self, node_id, authorization):
         token = self.tokens.get(node_id)
@@ -121,4 +131,5 @@ class NodeHub:
                     for node in sorted(self.tokens)
                 ],
                 "tenant_nodes": dict(self.tenant_nodes),
+                "harness_user_nodes": dict(self.harness_user_nodes),
             }

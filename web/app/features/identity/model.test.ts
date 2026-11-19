@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  bannerText,
   canAccessAdminConsole,
   copyTenantBody,
   developmentCreateBody,
   errorDetail,
-  impersonatePath,
   productionTenant,
   purposeLabel,
   sessionFromAuth,
@@ -14,31 +12,18 @@ import {
   shareTenantBody,
   sortTenants,
   statusLabel,
-  stopImpersonationPath,
   tenantActionPath,
   tenantsPath,
   usersPath,
 } from "./model.ts";
 
-test("auth payload keeps the acted-as user separate from the admin actor", () => {
+test("auth payload exposes only the actual signed-in identity", () => {
   assert.equal(sessionFromAuth(null), null);
   assert.equal(sessionFromAuth({}), null);
-  const session = sessionFromAuth({
-    user: { id: 2, username: "alice" },
-    actor: { id: 1, username: "admin" },
-    impersonating: true,
-    is_admin: true,
-  });
-  assert.deepEqual(session, {
-    user: { id: 2, username: "alice" },
-    actor: { id: 1, username: "admin" },
-    impersonating: true,
-    isAdmin: true,
-  });
-  const plain = sessionFromAuth({ user: { id: 1, username: "admin" }, is_admin: true });
-  assert.equal(plain?.impersonating, false);
-  assert.equal(plain?.actor, null);
-  assert.equal(plain?.isAdmin, true);
+  const admin = sessionFromAuth({ user: { id: 1, username: "admin" }, is_admin: true });
+  assert.deepEqual(admin, { user: { id: 1, username: "admin" }, isAdmin: true });
+  const user = sessionFromAuth({ user: { id: 2, username: "alice" } });
+  assert.deepEqual(user, { user: { id: 2, username: "alice" }, isAdmin: false });
 });
 
 test("production tenant is the default and sorts ahead of development tenants", () => {
@@ -64,14 +49,11 @@ test("tenant requests stay on development copies and do not send a second produc
   assert.deepEqual(shareTenantBody(" 起点 ", " bob "), { name: "起点", username: "bob" });
 });
 
-test("identity paths and banner name the active view", () => {
+test("identity paths and tenant labels", () => {
   assert.equal(usersPath(), "/api/users");
   assert.equal(tenantsPath(), "/api/tenants");
   assert.equal(tenantActionPath(4, "copy"), "/api/tenants/4/copy");
   assert.equal(tenantActionPath(4, "share"), "/api/tenants/4/share");
-  assert.equal(impersonatePath(), "/api/auth/impersonate");
-  assert.equal(stopImpersonationPath(), "/api/auth/impersonate/stop");
-  assert.equal(bannerText("alice"), "正在查看「alice」的视图");
   assert.equal(purposeLabel("production"), "正式");
   assert.equal(purposeLabel("development"), "开发");
   assert.equal(statusLabel("archived"), "已归档");
@@ -83,17 +65,12 @@ test("API error bodies surface the server detail", () => {
   assert.equal(errorDetail(null, "失败"), "失败");
 });
 
-test("admin and user land in separate routes without granting impersonated access", () => {
-  const user = { id: 2, username: "alice" };
-  const admin = { id: 1, username: "admin" };
-  const ordinary = sessionFromAuth({ user });
-  const administrator = sessionFromAuth({ user: admin, is_admin: true });
-  const actingAsUser = sessionFromAuth({ user, actor: admin, impersonating: true, is_admin: true });
-  assert.ok(ordinary && administrator && actingAsUser);
+test("admin and ordinary users have separate destinations", () => {
+  const ordinary = sessionFromAuth({ user: { id: 2, username: "alice" } });
+  const administrator = sessionFromAuth({ user: { id: 1, username: "admin" }, is_admin: true });
+  assert.ok(ordinary && administrator);
   assert.equal(sessionHomePath(ordinary), "/app");
   assert.equal(sessionHomePath(administrator), "/admin");
-  assert.equal(sessionHomePath(actingAsUser), "/app");
   assert.equal(canAccessAdminConsole(ordinary), false);
   assert.equal(canAccessAdminConsole(administrator), true);
-  assert.equal(canAccessAdminConsole(actingAsUser), false);
 });

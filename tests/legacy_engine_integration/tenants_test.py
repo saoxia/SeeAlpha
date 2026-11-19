@@ -7,7 +7,6 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from api.auth.security import hash_password
 from api.config import Settings
@@ -185,56 +184,6 @@ def test_archive_restore_and_delete_are_distinct(client, engine_http):
     assert not path.exists()
     assert http.get("/api/tenants").json()
     assert all(row["id"] != tenant["id"] for row in http.get("/api/tenants").json())
-
-
-def test_default_production_tenant_receives_existing_rows(tmp_path):
-    url = f"sqlite:///{tmp_path / 'legacy.db'}"
-    config = Config("alembic.ini")
-    config.attributes["database_url"] = url
-    command.upgrade(config, "a9f42e716c08")
-    from sqlalchemy import create_engine
-
-    engine = create_engine(url)
-    with engine.begin() as connection:
-        connection.execute(text(
-            """INSERT INTO exchange_accounts (
-                   exchange, account_name, environment, credentials_encrypted,
-                   market_symbols_json, created_at, updated_at
-               ) VALUES ('binance', 'legacy', 'production', 'cipher-text', '[]', 1, 1)"""
-        ))
-        connection.execute(text(
-            """INSERT INTO market_data_policies (product, symbol, parameters)
-               VALUES ('futures_um', 'ETHUSDT', '{"symbol":"ETHUSDT","product":"futures_um"}')"""
-        ))
-    command.upgrade(config, "head")
-    app = create_app(Settings(tmp_path / "reference.db", database_url=url, cookie_secure=False))
-    app.state.database.initialize()
-    auth_repository(app.state.database).create_user("admin", hash_password("test-password-123"))
-    with TestClient(app) as http:
-        login(http)
-        assert http.get("/api/tenants").status_code == 403
-        legacy_rows = http.get("/api/users/legacy-tenants").json()
-        assert any(row["name"] == "默认正式" for row in legacy_rows)
-        templates = http.get("/api/tenants/templates").json()
-        assert all("symbol" not in row and "initial_capital" not in row for row in templates)
-        assert http.post("/api/users", json={
-            "username": "viewer", "password": "test-password-123",
-        }).status_code == 201
-        transfer = http.post("/api/users/legacy-tenants/1/transfer", json={
-            "target_username": "viewer", "confirm": True,
-        })
-        assert transfer.status_code == 200, transfer.text
-        login(http, username="viewer")
-        tenants = http.get("/api/tenants").json()
-        default = next(row for row in tenants if row["name"] == "默认正式")
-        assert default["purpose"] == "production" and default["status"] == "active"
-        symbols = [row["symbol"] for row in http.get(f"/api/tenants/{default['id']}/subscriptions").json()]
-        assert symbols == ["ETHUSDT"]
-        with app.state.database.session() as session:
-            account = session.query(ExchangeAccount).one()
-            policy = session.query(MarketDataPolicy).one()
-            assert account.account_name == "legacy"
-            assert account.tenant_id == default["id"] == policy.tenant_id == 1
 
 
 def test_engine_orders_do_not_cross_tenants(tmp_path):

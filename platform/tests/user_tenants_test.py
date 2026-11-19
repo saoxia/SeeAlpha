@@ -1,4 +1,4 @@
-"""User ownership, production tenant creation, sharing and impersonation.
+"""User ownership, production tenant creation, sharing and isolation.
 
 Real Platform database and HTTP auth; only tenant Engine persistence is stubbed.
 The Engine-free suite never imports in-process Engine or trades.
@@ -166,17 +166,17 @@ def test_copy_and_share_keep_subscriptions_and_drop_secrets(client):
         assert "fixture-secret-copy-check" not in original.credentials_encrypted
 
 
-def test_no_administrator_impersonation_and_trader_ownership_scoped(client):
+def test_admin_does_not_trade_and_trader_ownership_is_scoped(client):
     http, app = client
     assert http.post("/api/users", json={"username": "alice", "password": "test-password-123"}).status_code == 201
     assert http.post("/api/users", json={"username": "bob", "password": "test-password-123"}).status_code == 201
-    assert http.post("/api/auth/impersonate", json={"username": "alice"}).status_code == 403
-    assert http.post("/api/auth/impersonate/stop").status_code == 403
+    assert http.post("/api/auth/impersonate", json={"username": "alice"}).status_code == 404
+    assert http.post("/api/auth/impersonate/stop").status_code == 404
     assert http.get("/api/tenants").status_code == 403
 
     login(http, "alice")
     alice = http.get("/api/auth/me").json()
-    assert not alice["is_admin"] and not alice["impersonating"]
+    assert not alice["is_admin"]
     created = http.post("/api/tenants", json={"name": "爱丽丝开发"})
     assert created.status_code == 201, created.text
     alice_tenant = created.json()
@@ -198,7 +198,7 @@ def test_no_administrator_impersonation_and_trader_ownership_scoped(client):
 
 
 
-def test_fresh_schema_assigns_default_to_first_user_without_merging(tmp_path):
+def test_system_tenant_is_not_owned_by_new_users(tmp_path):
     url = f"sqlite:///{tmp_path / 'business.db'}"
     config = Config("alembic.ini")
     config.attributes["database_url"] = url

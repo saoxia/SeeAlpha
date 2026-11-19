@@ -179,50 +179,6 @@ def upgrade():
                 ["tenant_id"], ["tenants.id"], name="exchange_accounts_tenant_id_fkey"
             ),
         )
-        previous_accounts = sa.table(
-            "exchange_accounts",
-            sa.column("id", identity),
-            sa.column("exchange", sa.Text()),
-            sa.column("account_name", sa.Text()),
-            sa.column("environment", sa.Text()),
-            sa.column("credentials_encrypted", sa.Text()),
-            sa.column("market_symbols_json", sa.Text()),
-            sa.column("last_test_status", sa.Text()),
-            sa.column("last_tested_at", sa.BigInteger()),
-            sa.column("created_at", sa.BigInteger()),
-            sa.column("updated_at", sa.BigInteger()),
-        )
-        copied_accounts = [
-            {
-                "id": row.id,
-                "tenant_id": default_tenant,
-                "exchange": row.exchange,
-                "account_name": row.account_name,
-                "environment": row.environment,
-                "credentials_encrypted": row.credentials_encrypted,
-                "market_symbols_json": row.market_symbols_json,
-                "last_test_status": row.last_test_status,
-                "last_tested_at": row.last_tested_at,
-                "created_at": row.created_at,
-                "updated_at": row.updated_at,
-            }
-            for row in connection.execute(sa.select(previous_accounts))
-        ]
-        if copied_accounts:
-            op.bulk_insert(sa.table(
-                "exchange_accounts_next",
-                sa.column("id", identity),
-                sa.column("tenant_id", identity),
-                sa.column("exchange", sa.Text()),
-                sa.column("account_name", sa.Text()),
-                sa.column("environment", sa.Text()),
-                sa.column("credentials_encrypted", sa.Text()),
-                sa.column("market_symbols_json", sa.Text()),
-                sa.column("last_test_status", sa.Text()),
-                sa.column("last_tested_at", sa.BigInteger()),
-                sa.column("created_at", sa.BigInteger()),
-                sa.column("updated_at", sa.BigInteger()),
-            ), copied_accounts)
         op.drop_table("exchange_accounts")
         op.rename_table("exchange_accounts_next", "exchange_accounts")
         _advance_id_sequence("exchange_accounts")
@@ -254,29 +210,6 @@ def upgrade():
             sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], name="market_data_policies_tenant_id_fkey"),
             sa.PrimaryKeyConstraint("tenant_id", "product", "symbol"),
         )
-        previous = sa.table(
-            "market_data_policies",
-            sa.column("product", sa.Text()),
-            sa.column("symbol", sa.Text()),
-            sa.column("parameters", _document()),
-        )
-        copied = [
-            {
-                "tenant_id": default_tenant,
-                "product": row.product,
-                "symbol": row.symbol,
-                "parameters": row.parameters,
-            }
-            for row in connection.execute(sa.select(previous))
-        ]
-        if copied:
-            op.bulk_insert(sa.table(
-                "market_data_policies_next",
-                sa.column("tenant_id", identity),
-                sa.column("product", sa.Text()),
-                sa.column("symbol", sa.Text()),
-                sa.column("parameters", _document()),
-            ), copied)
         op.drop_table("market_data_policies")
         op.rename_table("market_data_policies_next", "market_data_policies")
 

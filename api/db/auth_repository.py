@@ -71,20 +71,12 @@ class AuthRepository:
         with self.database.connect() as connection:
             return connection.execute(
                 """
-                SELECT users.id, users.username, users.created_at, sessions.expires_at,
-                       sessions.impersonate_user_id
+                SELECT users.id, users.username, users.created_at, sessions.expires_at
                 FROM sessions JOIN users ON users.id = sessions.user_id
                 WHERE sessions.token_hash = ? AND sessions.expires_at > ?
                 """,
                 (token_hash, now),
             ).fetchone()
-
-    def set_impersonation(self, token_hash: str, user_id: int | None) -> None:
-        with self.database.connect() as connection:
-            connection.execute(
-                "UPDATE sessions SET impersonate_user_id = ? WHERE token_hash = ?",
-                (user_id, token_hash),
-            )
 
     def delete_session(self, token_hash: str) -> None:
         with self.database.connect() as connection:

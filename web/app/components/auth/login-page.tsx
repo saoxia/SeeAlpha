@@ -30,8 +30,6 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
       });
       const data = (await response.json()) as {
         user?: { id: number; username: string };
-        actor?: { id: number; username: string } | null;
-        impersonating?: boolean;
         is_admin?: boolean;
         detail?: unknown;
       };

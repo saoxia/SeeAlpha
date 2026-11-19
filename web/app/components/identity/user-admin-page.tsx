@@ -1,13 +1,11 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { createUser, fetchLegacyTenants, fetchUsers, transferLegacyTenant } from "../../features/identity/api";
-import type { LegacyTenant, ManagedUser } from "../../features/identity/model";
+import { createUser, fetchUsers } from "../../features/identity/api";
+import type { ManagedUser } from "../../features/identity/model";
 
 export function UserAdminPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
-  const [legacy, setLegacy] = useState<LegacyTenant[]>([]);
-  const [targets, setTargets] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -15,12 +13,10 @@ export function UserAdminPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextUsers, nextLegacy] = await Promise.all([fetchUsers(), fetchLegacyTenants()]);
-      setUsers(nextUsers);
-      setLegacy(nextLegacy);
+      setUsers(await fetchUsers());
       setError("");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "无法读取用户和历史租户。");
+      setError(caught instanceof Error ? caught.message : "无法读取用户列表。");
     } finally {
       setLoading(false);
     }
@@ -53,29 +49,6 @@ export function UserAdminPage() {
       setNotice("普通用户已创建，并已分配独立的正式租户。");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "无法创建普通用户。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function transfer(tenant: LegacyTenant) {
-    const target = targets[tenant.id];
-    if (!target) {
-      setError("请选择接收旧租户的普通用户。");
-      return;
-    }
-    if (!window.confirm(
-      `确认将旧租户「${tenant.name}」(ID ${tenant.id}) 及其账户、凭据和记录归属变更为「${target}」吗？请先停止相关交易任务。此操作不会复制或删除数据。`,
-    )) return;
-    setBusy(true);
-    setNotice("");
-    setError("");
-    try {
-      await transferLegacyTenant(tenant.id, target);
-      await refresh();
-      setNotice(`旧租户「${tenant.name}」已转交给「${target}」。`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "迁移失败。");
     } finally {
       setBusy(false);
     }
@@ -143,39 +116,6 @@ export function UserAdminPage() {
         </table>
       </div>
 
-      {legacy.length > 0 && (
-        <div className="admin-legacy-tenants">
-          <div className="admin-list-header">
-            <h3>待处理的旧管理员租户</h3>
-            <span>{legacy.length} 个</span>
-          </div>
-          <p className="admin-hint">升级不会自动迁移或删除旧交易数据。请先停止相关交易任务，再明确指定接收者；迁移保留租户、账户及关联记录的原 ID。</p>
-          <div className="admin-table-wrap">
-            <table className="admin-users-table">
-              <thead><tr><th scope="col">租户</th><th scope="col">类型</th><th scope="col">账户</th><th scope="col">接收普通用户</th><th scope="col">操作</th></tr></thead>
-              <tbody>
-                {legacy.map((tenant) => (
-                  <tr key={tenant.id}>
-                    <td><strong>{tenant.name}</strong><small> · ID {tenant.id}</small></td>
-                    <td>{tenant.purpose === "production" ? "正式" : "开发"}</td>
-                    <td>{tenant.exchange_accounts} 交易所 / {tenant.virtual_accounts} 模拟</td>
-                    <td>
-                      <select aria-label={`选择租户 ${tenant.name} 的接收用户`}
-                        value={targets[tenant.id] ?? ""}
-                        disabled={busy}
-                        onChange={(event) => setTargets((current) => ({ ...current, [tenant.id]: event.target.value }))}>
-                        <option value="">请选择</option>
-                        {users.map((user) => <option key={user.id} value={user.username}>{user.username}</option>)}
-                      </select>
-                    </td>
-                    <td><button type="button" disabled={busy || !targets[tenant.id]} onClick={() => void transfer(tenant)}>转移归属</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

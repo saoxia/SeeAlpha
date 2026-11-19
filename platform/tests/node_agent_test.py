@@ -45,7 +45,7 @@ def test_hub_authentication_outbound_round_trip_and_cross_node_isolation(tmp_pat
     assert hub.assigned("7") == "edge"
     assert hub.assigned("8") == "local"
     assert hub.describe()["nodes"][0]["online"] is True
-    hub.last_seen["other"] = 0
+    hub.last_seen["other"] = float("-inf")
     with pytest.raises(OSError, match="offline"):
         hub.call("other", "status", {}, timeout=0.1)
 
@@ -226,3 +226,92 @@ def test_distributed_tenant_docker_supports_both_purposes_and_remote_market(tmp_
     retired = list((tmp_path / "tenants" / ".retired").glob("7-*"))
     assert len(retired) == 1
     assert (retired[0] / "remote-engine.token").read_text().strip() == old_token
+
+
+def test_harness_user_node_placement_is_explicit_and_validated(tmp_path):
+    path = node_config(tmp_path)
+    config = json.loads(path.read_text())
+    config["harness_user_nodes"] = {"1": "edge", "2": "local"}
+    path.write_text(json.dumps(config))
+    hub = NodeHub(path)
+    assert hub.harness_assigned(1) == "edge"
+    assert hub.harness_assigned(2) == "local"
+    assert hub.harness_assigned(3) == "local"
+    assert hub.describe()["harness_user_nodes"] == config["harness_user_nodes"]
+
+    config["harness_user_nodes"]["1"] = "missing-node"
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError, match="placement"):
+        NodeHub(path)
+
+
+def test_harness_workload_requires_non_root_read_only_runtime(tmp_path, monkeypatch):
+    runtime = DockerRuntime(
+        tmp_path / "workloads", allowed_images={"harness:ci"},
+    )
+    spec = {
+        "id": "harness-user-3", "image": "harness:ci", "cpus": "1",
+        "memory": "1g", "port": 8777,
+        "env": {"HARNESS_STATE_DIR": "/app/state"},
+        "mounts": {"state": "/app/state"},
+        "read_only": True, "require_nonroot": True,
+    }
+    monkeypatch.setattr("api.node.docker.os.getuid", lambda: 0)
+    with pytest.raises(ValueError, match="non-root"):
+        runtime.ensure(spec)
+
+    commands = []
+    monkeypatch.setattr("api.node.docker.os.getuid", lambda: 1000)
+    monkeypatch.setattr("api.node.docker.os.getgid", lambda: 1000)
+    monkeypatch.setattr(runtime, "_inspect", lambda name: None)
+    monkeypatch.setattr(runtime, "_docker", lambda *args: commands.append(args) or "")
+    runtime.ensure(spec)
+    launch = next(row for row in commands if row[0] == "run")
+    assert "--read-only" in launch and "--tmpfs" in launch
+    assert "--user" in launch and "1000:1000" in launch
+
+
+def test_node_http_relay_preserves_harness_contract_and_download(tmp_path, monkeypatch):
+    import base64
+
+    from api.research.harness_client import HARNESS_HEADER
+
+    runtime = DockerRuntime(
+        tmp_path / "workloads", allowed_images={"harness:ci"},
+    )
+    monkeypatch.setattr(runtime, "_inspect", lambda name: {
+        "Config": {"Labels": {
+            "seealpha.node-managed": "true", "seealpha.workload": "harness-user-3",
+        }},
+        "State": {"Running": True},
+        "NetworkSettings": {"Ports": {
+            "8777/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18777"}],
+        }},
+    })
+
+    seen = []
+
+    def respond(request):
+        seen.append(request)
+        assert request.url.host == "127.0.0.1"
+        assert request.headers[HARNESS_HEADER] == "1"
+        return httpx.Response(
+            200, content=b"raw artifact",
+            headers={HARNESS_HEADER: "1", "content-type": "application/octet-stream"},
+        )
+
+    real_client = httpx.Client
+
+    def client_factory(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(respond)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr("api.node.docker.httpx.Client", client_factory)
+    result = runtime.request({
+        "id": "harness-user-3", "method": "GET",
+        "path": "/v1/tasks/test/artifacts/report",
+        "headers": {"Authorization": "Bearer " + "a" * 48, HARNESS_HEADER: "1"},
+    })
+    assert result["headers"][HARNESS_HEADER] == "1"
+    assert base64.b64decode(result["binary_b64"]) == b"raw artifact"
+    assert len(seen) == 1

@@ -5,13 +5,11 @@ export type AuthUser = {
 
 export type AuthSession = {
   user: AuthUser;
-  actor: AuthUser | null;
-  impersonating: boolean;
   isAdmin: boolean;
 };
 
 export function canAccessAdminConsole(session: AuthSession): boolean {
-  return session.isAdmin && !session.impersonating;
+  return session.isAdmin;
 }
 
 export function sessionHomePath(session: AuthSession): "/admin" | "/app" {
@@ -31,17 +29,6 @@ export type TenantRecord = {
   status: TenantStatus;
 };
 
-export type LegacyTenant = {
-  id: number;
-  name: string;
-  purpose: TenantPurpose;
-  status: TenantStatus;
-  owner_id: number | null;
-  exchange_accounts: number;
-  virtual_accounts: number;
-  policies: number;
-};
-
 export type ManagedUser = {
   id: number;
   username: string;
@@ -52,8 +39,6 @@ export type ManagedUser = {
 
 export type AuthPayload = {
   user?: AuthUser;
-  actor?: AuthUser | null;
-  impersonating?: boolean;
   is_admin?: boolean;
 };
 
@@ -61,8 +46,6 @@ export function sessionFromAuth(data: AuthPayload | null | undefined): AuthSessi
   if (!data?.user?.username) return null;
   return {
     user: data.user,
-    actor: data.actor ?? null,
-    impersonating: Boolean(data.impersonating),
     isAdmin: Boolean(data.is_admin),
   };
 }
@@ -76,10 +59,6 @@ export function sortTenants<T extends { id: number; purpose: string }>(tenants: 
     if (left.purpose !== right.purpose) return left.purpose === "production" ? -1 : 1;
     return left.id - right.id;
   });
-}
-
-export function bannerText(username: string): string {
-  return `正在查看「${username}」的视图`;
 }
 
 export function purposeLabel(purpose: string): string {
@@ -122,14 +101,6 @@ export function tenantsPath() {
 
 export function tenantActionPath(tenantId: number, action: "archive" | "restore" | "copy" | "share") {
   return `/api/tenants/${tenantId}/${action}`;
-}
-
-export function impersonatePath() {
-  return "/api/auth/impersonate";
-}
-
-export function stopImpersonationPath() {
-  return "/api/auth/impersonate/stop";
 }
 
 export function errorDetail(payload: unknown, fallback: string): string {

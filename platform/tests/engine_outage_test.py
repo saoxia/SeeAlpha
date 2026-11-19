@@ -1,5 +1,6 @@
 """Engine outages must not block Platform startup, auth, or business administration."""
 
+import asyncio
 import threading
 
 import api.main as api_main
@@ -10,8 +11,10 @@ from alembic.config import Config
 from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import auth_repository
+from api.engine_client import EngineClient
 from api.main import create_app
-from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION
+from core.engine_contracts import ENGINE_CONTRACT_HEADER, ENGINE_CONTRACT_VERSION, QueryError
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -140,3 +143,18 @@ def test_background_retries_and_registers_new_tenants_after_recovery(app_without
             assert "1" in registered
             assert str(created.json()["id"]) in registered
         assert client.get("/api/auth/me").status_code == 200
+
+
+def test_plain_text_engine_errors_do_not_break_background_reconciliation(tmp_path):
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(500, text="Internal Server Error")
+    )
+    client = EngineClient(tmp_path, sync_transport=transport, async_transport=transport)
+    with pytest.raises(QueryError, match="引擎请求失败"):
+        client._sync("GET", "/health")
+    with pytest.raises(QueryError, match="引擎请求失败"):
+        asyncio.run(client._async("GET", "/health"))
+    with pytest.raises(HTTPException) as exc:
+        client.data_query("control/sync", {})
+    assert exc.value.status_code == 502
+

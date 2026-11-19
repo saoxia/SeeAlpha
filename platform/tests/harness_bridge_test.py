@@ -4,7 +4,7 @@ from hashlib import sha256
 
 import httpx
 import pytest
-from api.auth.security import hash_password, token_digest
+from api.auth.security import hash_password
 from api.config import Settings
 from api.db.auth_repository import AuthRepository
 from api.db.database import Database
@@ -159,21 +159,6 @@ def test_harness_auth_task_lifecycle_and_safe_artifact_download(tmp_path, monkey
         assert len(calls) >= 7
 
 
-def test_no_impersonated_admin_agent_execution(tmp_path, monkeypatch):
-    from api.research import harness_router
-    def forbidden(*args, **kwargs):
-        raise AssertionError("Harness must not be contacted during impersonation")
-    monkeypatch.setattr(harness_router,"HarnessClient",forbidden)
-    with TestClient(create_app(setup(tmp_path, owner="viewer"))) as client:
-        login(client)
-        cookie = client.cookies.get("seealpha_session")
-        repository = client.app.state.repository
-        viewer = repository.get_user_by_username("viewer")
-        repository.set_impersonation(token_digest(cookie),viewer["id"])
-        assert client.get("/api/harness/status").status_code == 403
-        assert client.post("/api/harness/tasks",json={"prompt":"Agent"}).status_code == 403
-
-
 def test_named_trusted_user_can_use_harness_without_admin_privilege(tmp_path, monkeypatch):
     from api.research import harness_router
 
@@ -207,14 +192,6 @@ def test_named_trusted_user_can_use_harness_without_admin_privilege(tmp_path, mo
         assert client.post("/api/harness/tasks", json={"prompt": "User research"}).status_code == 202
         assert seen == [("GET", "/health"), ("POST", "/v1/tasks")]
 
-        # Admin impersonation must never be allowed to act as the owner.
-        login(client, "admin")
-        actor_cookie = client.cookies.get("seealpha_session")
-        viewer = client.app.state.repository.get_user_by_username("viewer")
-        client.app.state.repository.set_impersonation(token_digest(actor_cookie), viewer["id"])
-        assert client.get("/api/harness/status").status_code == 403
-        assert client.post("/api/harness/tasks", json={"prompt": "impersonate"}).status_code == 403
-        assert len(seen) == 2
 
 
 def test_transport_errors_do_not_disclose_secrets():
