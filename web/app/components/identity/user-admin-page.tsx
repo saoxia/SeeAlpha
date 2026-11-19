@@ -10,6 +10,7 @@ export function UserAdminPage() {
   const [capabilities, setCapabilities] = useState<ResourceCapabilities | null>(null);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -51,6 +52,7 @@ export function UserAdminPage() {
     try {
       await createUser({ username, password });
       formElement.reset();
+      setShowCreate(false);
       await refresh();
       setNotice("普通用户及正式租户已创建。资源分配和正式 Docker 部署请在用户配置中管理。");
     } catch (caught) {
@@ -106,15 +108,21 @@ export function UserAdminPage() {
           <h2>普通用户</h2>
           <p>管理账户与租户。管理员本身不能交易，也不拥有交易租户。</p>
         </div>
-        <button type="button" disabled={loading || busy} onClick={() => {
-          setLoading(true);
-          void refresh();
-        }}>刷新列表</button>
+        <div className="admin-users-header-actions">
+          <button type="button" disabled={loading || busy}
+            onClick={() => setShowCreate((value) => !value)}>
+            {showCreate ? "收起" : "＋ 创建用户"}
+          </button>
+          <button type="button" disabled={loading || busy} onClick={() => {
+            setLoading(true);
+            void refresh();
+          }}>刷新列表</button>
+        </div>
       </div>
       {error && <p role="alert" className="admin-alert">{error}</p>}
       {notice && <p role="status" className="admin-notice">{notice}</p>}
 
-      <form className="admin-create-form" onSubmit={(event) => void onCreate(event)}>
+      {showCreate && <form className="admin-create-form" onSubmit={(event) => void onCreate(event)}>
         <h3>创建独立普通用户</h3>
         <div className="admin-form-fields">
           <label>
@@ -135,7 +143,7 @@ export function UserAdminPage() {
           <button type="submit" disabled={busy}>{busy ? "正在创建…" : "创建用户"}</button>
         </div>
         <p className="admin-hint">如需自己交易，请创建单独账户并用其凭据登录业务工作台。</p>
-      </form>
+      </form>}
 
       <div className="admin-list-header">
         <h3>用户列表</h3>
