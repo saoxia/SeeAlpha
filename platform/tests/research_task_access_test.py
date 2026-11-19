@@ -224,8 +224,6 @@ def test_candidate_validator_never_executes_user_python():
 def test_candidate_engine_client_only_uses_restricted_submission():
     from api.research.direct_engine import DirectEngineResearchClient
 
-    import base64
-
     encoded, digest = _archive_candidate()
     scope = {"candidate_id": "a" * 32, "package_hash": digest,
              "archive": encoded, "strategy_ref": "account:5",
