@@ -21,6 +21,7 @@ const filters: Array<{ id: View; label: string }> = [
 const support: Record<string, string> = {
   demo_ema_crossover: "单品种回测示例",
   demo_funding_carry: "研究示例 · 多腿执行尚未接入",
+  demo_multi_signal_portfolio: "单品种多信号回测示例",
   demo_option_hedged_bollinger: "研究示例 · 期权多腿执行尚未接入",
 };
 

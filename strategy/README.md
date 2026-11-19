@@ -6,7 +6,8 @@
 | --- | --- | --- |
 | [demo_ema_crossover](demo_ema_crossover/README.md) | EMA 金叉做多、死叉退出；单品种目标持仓经 Coordinator 净额执行 | **现有 Engine 单品种回测示例** |
 | [demo_funding_carry](demo_funding_carry/README.md) | 等量现货多头 + USD-M 永续空头；费率、基差、仓位偏差与数据新鲜度门禁 | **研究逻辑与多腿意图；尚不可回测/下单** |
-| [demo_multi_signal_portfolio](demo_multi_signal_portfolio/README.md) | EMA 趋势方向 + 布林带反向强度；单包加权目标或两独立实例由 Coordinator 统一净额 | **现有 Engine 单品种回测示例** |\n| [demo_option_hedged_bollinger](demo_option_hedged_bollinger/README.md) | 永续布林带均值回归，配合同标的看涨/看跌多头期权尾部保护与期权覆盖预算 | **研究逻辑与多腿意图；尚不可回测/下单** |
+| [demo_multi_signal_portfolio](demo_multi_signal_portfolio/README.md) | EMA 趋势方向 + 布林带反向强度；单包加权目标或两独立实例由 Coordinator 统一净额 | **现有 Engine 单品种回测示例** |
+| [demo_option_hedged_bollinger](demo_option_hedged_bollinger/README.md) | 永续布林带均值回归，配合同标的看涨/看跌多头期权尾部保护与期权覆盖预算 | **研究逻辑与多腿意图；尚不可回测/下单** |
 
 ## 策略与执行边界
 
@@ -18,9 +19,9 @@
 
 ## 策略库权限与默认可见性
 
-Platform 启动后在业务数据库中幂等登记本目录自带的三个 Demo。
+Platform 启动后在业务数据库中幂等登记本目录自带的四个 Demo。
 系统 Demo 对所有已登录用户可见；这不创建策略加载记录、租户或 Docker。
-EMA Demo 自动赋予 **开发租户** 加载授权，另两个跨产品示例仅可查看和复制，
+EMA 与多信号 Demo 自动赋予 **开发租户** 加载授权，另两个跨产品示例仅可查看和复制，
 在 Engine 支持多腿执行之前不会获得开发/正式授权。
 
 普通用户通过策略库上传的 ZIP 默认 `private`，只对本人可见。

@@ -8,7 +8,11 @@ from sqlalchemy import delete, select
 
 from api.db.errors import StorageConflict
 from api.db.models import (
-    StrategyGrant, StrategyIssuance, StrategyPackage, StrategyPackageShare, StrategyPackageVersion,
+    StrategyGrant,
+    StrategyIssuance,
+    StrategyPackage,
+    StrategyPackageShare,
+    StrategyPackageVersion,
 )
 
 

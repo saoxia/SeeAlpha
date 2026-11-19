@@ -58,7 +58,7 @@ class StrategyStore:
                 manifest["entry_point"], hashlib.sha256(archive).hexdigest(), archive,
             )
             # Only the single-product EMA demo has an executable Engine path today.
-            if manifest["name"] == "demo_ema_crossover":
+            if manifest["name"] in {"demo_ema_crossover", "demo_multi_signal_portfolio"}:
                 self.repository.create_grant(version["id"], "development")
 
     def list_packages(self, viewer_id=None, is_admin=False):
