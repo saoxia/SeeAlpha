@@ -1,0 +1,27 @@
+.strategy-library{width:100%;max-width:1400px;margin:0 auto;padding:28px}
+.strategy-library>.settings-card{padding:24px}
+.strategy-library h1{font-size:24px;margin:0 0 12px}
+.strategy-library h2{font-size:14px;margin:0 0 10px}
+.strategy-library p{line-height:1.7;color:var(--ink)}
+.strategy-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}
+.strategy-tabs button,.strategy-actions button,.strategy-actions a,.strategy-library form button,.strategy-details>button,.strategy-recipient button{border:1px solid var(--line);padding:8px 12px;background:var(--paper);cursor:pointer}
+.strategy-tabs button.active{background:var(--ink);color:var(--paper)}
+.strategy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+.strategy-item{border:1px solid var(--soft);padding:18px;min-width:0;background:var(--paper)}
+.strategy-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.strategy-item-head code{font-size:10px;overflow-wrap:anywhere}
+.strategy-item-head>span{font-size:10px;border:1px solid var(--soft);padding:4px;white-space:nowrap}
+.strategy-versions{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}
+.strategy-versions span{font-size:10px;padding:5px 8px;background:#e9ebec}
+.strategy-support{display:block;color:#94651b}
+.strategy-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.strategy-details{margin-top:14px;border-top:1px solid var(--soft);padding-top:12px}
+.strategy-details summary{cursor:pointer;font-weight:700}
+.strategy-details form{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;padding:12px 0}
+.strategy-details label,.strategy-load label{display:grid;gap:6px;flex:1}
+.strategy-details input,.strategy-load select{min-width:0;width:100%;border:1px solid var(--soft);padding:8px;background:white;color:var(--ink)}
+.strategy-recipient{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.strategy-upload,.strategy-load{margin-top:26px;padding:22px;border:1px solid var(--soft)}
+.strategy-load-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.strategy-library button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:760px){.strategy-library{padding:12px}.strategy-load-fields{grid-template-columns:1fr}}

@@ -1,9 +1,9 @@
 """Catalog, tenant-type grants, and issuance of strategy packages."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth.dependencies import AdminUser, CurrentUser, TradingUser
+from ..auth.dependencies import AdminUser, CurrentUser, TradingUser, actor_is_admin
 
 router = APIRouter(tags=["strategy-store"])
 
@@ -25,6 +25,21 @@ class VersionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     archive: str = Field(min_length=1, max_length=400_000)
     parameters: dict = Field(default_factory=dict)
+
+
+class CloneCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class VisibilityCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    visibility: str = Field(pattern=r"^(private|public)$")
+
+
+class ShareCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    username: str = Field(min_length=1, max_length=64)
 
 
 class GrantCreate(BaseModel):
@@ -80,18 +95,62 @@ def update_backtest_worker_settings(
 
 
 @router.get("/strategy-packages")
-def list_packages(request: Request, _: CurrentUser):
-    return store(request).list_packages()
+def list_packages(request: Request, user: CurrentUser):
+    return store(request).list_packages(
+        viewer_id=user.id, is_admin=actor_is_admin(request, user.username),
+    )
 
 
 @router.post("/strategy-packages", status_code=201)
-def create_package(request: Request, payload: PackageCreate, _: AdminUser):
-    return store(request).create_package(payload.archive, payload.parameters)
+def create_package(request: Request, payload: PackageCreate, user: CurrentUser):
+    admin = actor_is_admin(request, user.username)
+    return store(request).create_package(
+        payload.archive, payload.parameters, owner_id=None if admin else user.id,
+    )
 
 
 @router.post("/strategy-packages/{package_id}/versions", status_code=201)
-def create_version(request: Request, package_id: int, payload: VersionCreate, _: AdminUser):
-    return store(request).create_version(package_id, payload.archive, payload.parameters)
+def create_version(request: Request, package_id: int, payload: VersionCreate, user: CurrentUser):
+    return store(request).create_version(
+        package_id, payload.archive, payload.parameters, user_id=user.id,
+        is_admin=actor_is_admin(request, user.username),
+    )
+
+
+@router.post("/strategy-packages/{package_id}/clone", status_code=201)
+def clone_package(request: Request, package_id: int, payload: CloneCreate, user: TradingUser):
+    return store(request).clone(package_id, user.id, title=payload.title)
+
+
+@router.put("/strategy-packages/{package_id}/visibility")
+def update_visibility(
+    request: Request, package_id: int, payload: VisibilityCreate, user: TradingUser,
+):
+    return store(request).set_visibility(package_id, user.id, payload.visibility)
+
+
+@router.get("/strategy-packages/{package_id}/shares")
+def list_shares(request: Request, package_id: int, user: TradingUser):
+    return store(request).list_shares(package_id, user.id)
+
+
+@router.post("/strategy-packages/{package_id}/shares", status_code=201)
+def share_package(request: Request, package_id: int, payload: ShareCreate, user: TradingUser):
+    return store(request).share(package_id, user.id, payload.username)
+
+
+@router.delete("/strategy-packages/{package_id}/shares/{recipient_id}")
+def unshare_package(request: Request, package_id: int, recipient_id: int, user: TradingUser):
+    return store(request).unshare(package_id, user.id, recipient_id)
+
+
+@router.get("/strategy-packages/{package_id}/versions/{version_id}/archive")
+def get_archive(request: Request, package_id: int, version_id: int, user: CurrentUser):
+    archive, code_key, _ = store(request).archive(package_id, version_id, user.id)
+    return Response(
+        archive, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{code_key}.zip"'},
+    )
 
 
 @router.post("/strategy-packages/versions/{version_id}/grants", status_code=201)
@@ -108,7 +167,9 @@ def list_loads(request: Request, tenant_id: int, user: TradingUser):
 @router.post("/tenants/{tenant_id}/strategy-loads", status_code=201)
 def issue_load(request: Request, tenant_id: int, payload: LoadCreate, user: TradingUser):
     request.app.state.tenants.require_owned(tenant_id, user.id)
-    return store(request).issue(tenant_id, payload.account_id, payload.version_id, payload.parameters)
+    return store(request).issue(
+        tenant_id, payload.account_id, payload.version_id, payload.parameters, user_id=user.id,
+    )
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/backtests")

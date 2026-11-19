@@ -3,9 +3,16 @@
 import base64
 import binascii
 import hashlib
+import io
+import json
+import zipfile
+from pathlib import Path
+from uuid import uuid4
 
 from fastapi import HTTPException
 
+from api.config import PROJECT
+from api.db.auth_repository import auth_repository
 from api.db.errors import StorageConflict
 from core.engine_contracts import EngineConflict, QueryError
 
@@ -18,9 +25,45 @@ class StrategyStore:
         self.engine = engine
         self.tenants = tenants
 
-    def list_packages(self):
+    def seed_system_demos(self):
+        """Install checked-in examples once per database; no Engine or Docker required."""
+        directory = PROJECT / "strategy"
+        for folder in sorted(directory.glob("demo_*")):
+            manifest_path = folder / "seealpha-package.json"
+            if not manifest_path.is_file():
+                continue
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if manifest.get("name") != folder.name or manifest.get("format") != 1:
+                raise ValueError("演示策略元数据与目录不一致。")
+            if any(p["code_key"] == folder.name and p["owner_id"] is None
+                   for p in self.repository.list_packages(is_admin=True)):
+                continue
+            source_files = sorted(p for p in folder.iterdir() if p.name == "seealpha-package.json"
+                                  or p.suffix == ".py")
+            with io.BytesIO() as memory:
+                with zipfile.ZipFile(memory, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+                    for file in source_files:
+                        bundle.write(file, arcname=file.name)
+                archive = memory.getvalue()
+            try:
+                package = self.repository.create_package(
+                    manifest["name"], manifest["title"], manifest.get("description"),
+                    owner_id=None, visibility="system",
+                )
+            except StorageConflict:
+                # Parallel Platform startup may have seeded the same immutable code key.
+                continue
+            version = self.repository.create_version(
+                package["id"], manifest["version"], manifest.get("parameters") or {},
+                manifest["entry_point"], hashlib.sha256(archive).hexdigest(), archive,
+            )
+            # Only the single-product EMA demo has an executable Engine path today.
+            if manifest["name"] in {"demo_ema_crossover", "demo_multi_signal_portfolio"}:
+                self.repository.create_grant(version["id"], "development")
+
+    def list_packages(self, viewer_id=None, is_admin=False):
         packages = []
-        for package in self.repository.list_packages():
+        for package in self.repository.list_packages(viewer_id, is_admin=is_admin):
             versions = []
             for version in self.repository.list_versions(package["id"]):
                 grants = [row["purpose"] for row in self.repository.list_grants(version["id"])]
@@ -28,26 +71,121 @@ class StrategyStore:
             packages.append({**package, "versions": versions})
         return packages
 
-    def create_package(self, archive_b64, parameters):
+    def _visible_package(self, package_id, user_id, *, is_admin=False):
+        package = self.repository.get_package(package_id)
+        if package is None or not (
+            is_admin
+            or package["visibility"] in {"system", "public"}
+            or (user_id is not None and package["owner_id"] == user_id)
+            or (user_id is not None and package_id in self.repository.shared_package_ids(user_id))
+        ):
+            raise HTTPException(404, "策略包不存在。")
+        return package
+
+    def _owned_package(self, package_id, owner_id):
+        package = self.repository.get_package(package_id)
+        if package is None or package["owner_id"] != owner_id or owner_id is None:
+            raise HTTPException(404, "私有策略不存在或不属于当前用户。")
+        return package
+
+    def create_package(self, archive_b64, parameters, owner_id=None):
         metadata, prepared, archive = _open(self.engine, archive_b64, parameters)
         try:
             package = self.repository.create_package(
                 metadata["name"], metadata["title"], metadata["description"],
+                owner_id=owner_id, visibility="system" if owner_id is None else "private",
             )
         except StorageConflict as exc:
             raise HTTPException(409, "策略包名称或实现不能重复。") from exc
         version = self._store_version(package, metadata, prepared, archive)
+        if owner_id is not None:
+            self.repository.create_grant(version["id"], "development")
         return {**package, "version": _public_version(version)}
 
-    def create_version(self, package_id, archive_b64, parameters):
+    def create_version(self, package_id, archive_b64, parameters, user_id=None, is_admin=False):
         package = self.repository.get_package(package_id)
-        if package is None:
-            raise HTTPException(404, "策略包不存在。")
+        if package is None or not (
+            (package["owner_id"] is None and is_admin)
+            or (user_id is not None and package["owner_id"] == user_id)
+        ):
+            raise HTTPException(404, "没有权限修改该策略包。")
         metadata, prepared, archive = _open(self.engine, archive_b64, parameters)
         if metadata["name"] != package["code_key"]:
             raise HTTPException(422, "策略包名称与归档不一致。")
         version = self._store_version(package, metadata, prepared, archive)
+        if package["owner_id"] is not None:
+            self.repository.create_grant(version["id"], "development")
         return _public_version(version)
+
+    def set_visibility(self, package_id, owner_id, visibility):
+        self._owned_package(package_id, owner_id)
+        self.repository.set_visibility(package_id, visibility)
+        return self.repository.get_package(package_id)
+
+    def list_shares(self, package_id, owner_id):
+        self._owned_package(package_id, owner_id)
+        auth = auth_repository(self.repository.database)
+        return [
+            {"id": user_id, "username": user["username"]}
+            for user_id in self.repository.list_shares(package_id)
+            if (user := auth.get_user_by_id(user_id)) is not None
+        ]
+
+    def share(self, package_id, owner_id, username):
+        self._owned_package(package_id, owner_id)
+        user = auth_repository(self.repository.database).get_user_by_username(username.strip())
+        if user is None:
+            raise HTTPException(404, "分享对象不存在。")
+        if user["id"] == owner_id:
+            raise HTTPException(409, "无需向自己分享策略。")
+        try:
+            self.repository.add_share(package_id, user["id"])
+        except StorageConflict:
+            pass
+        return self.list_shares(package_id, owner_id)
+
+    def unshare(self, package_id, owner_id, user_id):
+        self._owned_package(package_id, owner_id)
+        self.repository.remove_share(package_id, user_id)
+        return self.list_shares(package_id, owner_id)
+
+    def clone(self, package_id, owner_id, *, title=None):
+        package = self._visible_package(package_id, owner_id)
+        versions = self.repository.list_versions(package_id)
+        if not versions:
+            raise HTTPException(409, "该策略包尚无可复制版本。")
+        source = versions[-1]
+        if not source["archive"]:
+            raise HTTPException(409, "该策略版本没有可复制的归档。")
+        code_key = f"u{owner_id}_copy_{uuid4().hex[:16]}"
+        name = title.strip() if title is not None else f"{package['name']}（副本）"
+        try:
+            archive = _rename_archive(source["archive"], code_key, name)
+        except (ValueError, zipfile.BadZipFile, KeyError) as exc:
+            raise HTTPException(409, "源策略包归档无法复制。") from exc
+        try:
+            copied = self.repository.create_package(
+                code_key, name, package["description"],
+                owner_id=owner_id, visibility="private",
+            )
+            new_version = self.repository.create_version(
+                copied["id"], source["version"], source["parameters"],
+                source["entry_point"], hashlib.sha256(archive).hexdigest(), archive,
+            )
+        except StorageConflict as exc:
+            raise HTTPException(409, "策略复制发生名称冲突，请重试。") from exc
+        if self.repository.find_grant(source["id"], "development"):
+            self.repository.create_grant(new_version["id"], "development")
+        return {**copied, "version": _public_version(new_version)}
+
+    def archive(self, package_id, version_id, user_id):
+        package = self._visible_package(package_id, user_id)
+        if package["owner_id"] != user_id and package["visibility"] != "system":
+            raise HTTPException(404, "仅策略所有者可下载私人归档。")
+        version = self.repository.get_version(version_id)
+        if version is None or version["package_id"] != package_id or not version["archive"]:
+            raise HTTPException(404, "策略版本归档不存在。")
+        return version["archive"], package["code_key"], version["version"]
 
     def grant(self, version_id, purpose):
         if purpose not in {"production", "development"}:
@@ -79,7 +217,7 @@ class StrategyStore:
             })
         return loads
 
-    def issue(self, tenant_id, account_id, version_id, overrides):
+    def issue(self, tenant_id, account_id, version_id, overrides, user_id=None):
         tenant = self.tenants.require_active(tenant_id)
         version = self.repository.get_version(version_id)
         if version is None:
@@ -87,6 +225,8 @@ class StrategyStore:
         package = self.repository.get_package(version["package_id"])
         if package is None:
             raise HTTPException(404, "策略包不存在。")
+        if user_id is not None:
+            self._visible_package(package["id"], user_id)
         if self.repository.find_grant(version["id"], tenant["purpose"]) is None:
             if tenant["purpose"] == "production":
                 raise HTTPException(409, "正式租户加载需要单独的正式授权。")
@@ -265,3 +405,28 @@ def _open(engine, archive_b64, parameters):
 
 def _public_version(version):
     return {key: value for key, value in version.items() if key != "archive"}
+
+
+def _rename_archive(raw, new_code_key, title):
+    """Copy package source without loading it or importing trading dependencies."""
+    with zipfile.ZipFile(io.BytesIO(raw)) as original:
+        entries = original.infolist()
+        if len(entries) > 40 or sum(item.file_size for item in entries) > 2_000_000:
+            raise ValueError("策略归档内容超过复制上限。")
+        if any(item.filename.startswith("/") or ".." in Path(item.filename).parts
+               for item in entries):
+            raise ValueError("策略归档包含无效路径。")
+        with io.BytesIO() as output:
+            with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as copied:
+                for item in entries:
+                    data = original.read(item)
+                    if item.filename == "seealpha-package.json":
+                        manifest = json.loads(data.decode("utf-8"))
+                        manifest["name"] = new_code_key
+                        manifest["title"] = title
+                        data = json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+                    copied.writestr(item.filename, data)
+            archive = output.getvalue()
+    if len(archive) > 300_000:
+        raise ValueError("复制的策略包超过上传限制。")
+    return archive

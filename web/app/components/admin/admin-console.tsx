@@ -6,9 +6,10 @@ import { ProjectChecksPage } from "../research/project-checks-page";
 import { DataManagementPage } from "../data-management/data-management-page";
 import { OlapConnectionSettings } from "../settings/olap-connection-settings";
 import { BacktestWorkerSettings } from "./backtest-worker-settings";
+import { StrategyLibrary } from "../strategies/strategy-library";
 import type { AuthSession } from "../../features/identity/model";
 
-type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks";
+type AdminSection = "overview" | "users" | "data" | "olap" | "workers" | "checks" | "strategies";
 
 const sections: Array<{ id: AdminSection; label: string; description: string }> = [
   { id: "overview", label: "概览", description: "常用管理入口" },
@@ -17,6 +18,7 @@ const sections: Array<{ id: AdminSection; label: string; description: string }> 
   { id: "olap", label: "平台设置", description: "ClickHouse / OLAP 连接配置" },
   { id: "workers", label: "回测 Worker", description: "开发租户回测并发与超时" },
   { id: "checks", label: "项目检查", description: "检查任务、执行记录和日志" },
+  { id: "strategies", label: "系统策略", description: "查看 Demo、登记系统策略包与版本" },
 ];
 
 export function AdminConsole({
@@ -102,6 +104,7 @@ export function AdminConsole({
           {section === "olap" && <section className="settings-page"><OlapConnectionSettings /></section>}
           {section === "workers" && <BacktestWorkerSettings />}
           {section === "checks" && <ProjectChecksPage />}
+          {section === "strategies" && <StrategyLibrary userId={session.user.id} admin />}
         </div>
       </div>
     </main>

@@ -20,6 +20,7 @@ class Settings:
     database_url: str = field(default="", repr=False)
     database_schema: str = ""
     require_database_url: bool = False
+    seed_demo_strategies: bool = True
     operation_sync_seconds: int = 0
     equity_enabled: bool = False
     engine_url: str = "http://127.0.0.1:8766"
@@ -71,6 +72,8 @@ class Settings:
             database_url=database_url,
             database_schema=os.getenv("DATABASE_SCHEMA", ""),
             require_database_url=True,
+            seed_demo_strategies=os.getenv("SEED_DEMO_STRATEGIES", "true").lower()
+            not in {"0", "false", "no"},
             equity_enabled=os.getenv("EQUITY_ENABLED", "true").lower() not in {"0", "false", "no"},
             operation_sync_seconds=max(0, int(os.getenv("OPERATION_SYNC_SECONDS", "300"))),
             cookie_secure=os.getenv("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"},

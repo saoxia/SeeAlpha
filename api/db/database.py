@@ -115,12 +115,10 @@ class Database:
                     code_key TEXT NOT NULL,
                     name TEXT NOT NULL,
                     description TEXT,
+                    owner_id INTEGER REFERENCES users(id),
+                    visibility TEXT NOT NULL DEFAULT 'system' CHECK (visibility IN ('system','private','public')),
                     created_at INTEGER NOT NULL
                 );
-                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_code_key_unique
-                    ON strategy_packages(code_key);
-                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_name_unique
-                    ON strategy_packages(lower(name));
                 CREATE TABLE IF NOT EXISTS strategy_package_versions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     package_id INTEGER NOT NULL REFERENCES strategy_packages(id),
@@ -150,6 +148,26 @@ class Database:
                 );
                 CREATE INDEX IF NOT EXISTS strategy_issuances_tenant_idx
                     ON strategy_issuances(tenant_id, id);
+            """)
+            # Standalone SQLite installations may predate strategy ownership.
+            columns = {row["name"] for row in connection.execute("PRAGMA table_info(strategy_packages)")}
+            if "owner_id" not in columns:
+                connection.execute("ALTER TABLE strategy_packages ADD COLUMN owner_id INTEGER REFERENCES users(id)")
+            if "visibility" not in columns:
+                connection.execute("ALTER TABLE strategy_packages ADD COLUMN visibility TEXT NOT NULL DEFAULT 'system'")
+            connection.execute("DROP INDEX IF EXISTS strategy_packages_code_key_unique")
+            connection.execute("DROP INDEX IF EXISTS strategy_packages_name_unique")
+            connection.executescript("""
+                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_system_code_unique
+                    ON strategy_packages(code_key) WHERE owner_id IS NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS strategy_packages_owner_code_unique
+                    ON strategy_packages(owner_id, code_key) WHERE owner_id IS NOT NULL;
+                CREATE TABLE IF NOT EXISTS strategy_package_shares (
+                    package_id INTEGER NOT NULL REFERENCES strategy_packages(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at INTEGER NOT NULL,
+                    PRIMARY KEY (package_id, user_id)
+                );
             """)
             now = int(time.time())
             connection.execute(
