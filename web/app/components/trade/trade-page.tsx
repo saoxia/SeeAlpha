@@ -168,6 +168,71 @@ export function TradePage() {
     return () => c.abort();
   }, [table, accountId, symbol, environment]);
 
+
+  // Model data is opt-in; the platform never infers market-wide liquidations.
+  useEffect(() => {
+    if (!preferencesReady || product !== "futures_um") return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const result = await tradingRequest<{model: LiquidationEstimates | null}>(
+          `/api/trading/liquidation-model?symbol=${encodeURIComponent(symbol)}`,
+          {signal: controller.signal},
+        );
+        if (!controller.signal.aborted) setLiquidationModel(result.model);
+      } catch {
+        if (!controller.signal.aborted) setLiquidationModel(null);
+      }
+      if (!controller.signal.aborted) timer = setTimeout(poll, 20_000);
+    }
+    void poll();
+    return () => {controller.abort(); clearTimeout(timer); setLiquidationModel(null);};
+  }, [preferencesReady, symbol, product]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const tenants = await tradingRequest<DevTenant[]>("/api/tenants", {signal: controller.signal});
+        const candidates = tenants.filter(item => item.purpose === "development").slice(0, 20);
+        const accounts = await Promise.all(candidates.map(async tenant => {
+          try {
+            const rows = await tradingRequest<VirtualAccount[]>(`/api/tenants/${tenant.id}/accounts`,
+              {signal: controller.signal});
+            return rows.filter(row => row.kind === "virtual").map(row => ({
+              value: `${tenant.id}:${row.id}`, label: `${tenant.name} / ${row.account_name}`,
+            }));
+          } catch {return [];}
+        }));
+        if (!controller.signal.aborted) setStrategySources(accounts.flat());
+      } catch {if (!controller.signal.aborted) setStrategySources([]);}
+    }
+    void load();
+    return () => controller.abort();
+  }, []);
+
+  // User-chosen, tenant-authorized *historical backtest targets*, never execution signals.
+  useEffect(() => {
+    setStrategyMarkers([]);
+    setStrategyMessage("");
+    if (!selectedStrategySource || product !== "futures_um") return;
+    const [tenantId, virtualAccountId] = selectedStrategySource.split(":");
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const query = `tenant_id=${tenantId}&virtual_account_id=${virtualAccountId}&symbol=${encodeURIComponent(symbol)}`;
+        const data = await tradingRequest<{signals:ChartSignal[];message:string}>(
+          `/api/trading/chart-signals?${query}`, {signal: controller.signal});
+        if (!controller.signal.aborted) {setStrategyMarkers(data.signals);setStrategyMessage(data.message);}
+      } catch {
+        if (!controller.signal.aborted) setStrategyMessage("授权回测目标暂不可读取；没有叠加任何标记。");
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [selectedStrategySource, symbol, product]);
+
   function remember(value: Pending | null) {
     setPending(value);
     try {if (value) localStorage.setItem(pendingKey, JSON.stringify(value)); else localStorage.removeItem(pendingKey);} catch { /* Server retains durable identity. */ }
@@ -418,10 +483,10 @@ export function TradePage() {
       {[["24h最高价",displayPrice(market?.high)],["24h最低价",displayPrice(market?.low)],[`24h 成交量(${base})`,number(market?.base_volume,3)],[`24h 成交额(${quote})`,number(market?.quote_volume,2)],[`合约持仓量(${quote})`,product === "futures_um" && market?.open_interest !== undefined && isFresh(market.open_interest_checked_at,now) ? number(String(Number(market.open_interest)*Number(market.mark_price)),2) : "—"]].map(([label,value])=><div className="trade-stat" key={label}><span>{label}</span><b>{value}</b></div>)}
       <button className="trade-fullscreen" aria-label={expanded ? "退出全屏" : "全屏交易"} onClick={()=>void toggleFullscreen()}>{expanded ? "⤡ 退出全屏" : "⤢ 全屏"}</button>
     </div>
-    {(marketError || accountError || notice || showLocal && localError) && <div className="trade-notice" role="status">{[marketError, accountError, showLocal ? localError : "", notice].filter(Boolean).join(" · ")}</div>}
+    {(marketError || accountError || notice || showLocal && localError || strategyMessage) && <div className="trade-notice" role="status">{[marketError, accountError, showLocal ? localError : "", notice, selectedStrategySource ? strategyMessage : ""].filter(Boolean).join(" · ")}</div>}
     {pending && <div className="trade-pending" role="alert"><span>有一笔操作结果待核实 · {pending.symbol} · {pending.requestId}</span><button disabled={busy} onClick={() => void checkPending()}>核对交易结果</button></div>}
     <div className="trade-layout">
-      <section className="trade-chart-panel"><MarketChart interval={interval} periods={<div className="trade-chart-periods">{intervals.map(i => <button key={i} className={interval === i ? "active" : ""} onClick={() => {setMarket(null); setLocalChart(null); setInterval(i);rememberSelection(symbol, i);}}>{i}</button>)}</div>} toolbar={<><label className="trade-price-precision"><span>价格精度</span><select aria-label="价格显示精度" value={digits} onChange={e=>setDisplayDigits(Number(e.target.value))}>{Array.from({length:13},(_,i)=><option key={i} value={i}>{i===0?"1":`0.${"0".repeat(i-1)}1`}</option>)}</select></label>{environment === "production" && (local?.candles.length || showLocal) ? <div className="trade-source-select"><select aria-label="K线数据来源" title="K线数据来源" disabled={busy} value={showLocal ? "local" : "binance"} onChange={e => {setConfirmation(null); setChartSource(e.target.value === "local" ? "local" : "binance");}}><option value="binance">实时 K线</option><option value="local">后端 K线</option></select><span aria-hidden="true">▾</span></div> : null}</>} displayDigits={digits} market={chartMarket} depth={market} identity={`${environment}:${symbol}:${interval}:${showLocal ? "local" : "binance"}`} state={isFresh(state?.checked_at, now) && !accountError ? state : null} preview={orderType === "limit" ? price : ""} onPrice={value=>{if (!busy) {setPrice(value);setOrderType("limit");}}} onNotice={setNotice} /></section>
+      <section className="trade-chart-panel"><MarketChart interval={interval} periods={<div className="trade-chart-periods">{intervals.map(i => <button key={i} className={interval === i ? "active" : ""} onClick={() => {setMarket(null); setLocalChart(null); setInterval(i);rememberSelection(symbol, i);}}>{i}</button>)}</div>} toolbar={<><label className="trade-price-precision"><span>价格精度</span><select aria-label="价格显示精度" value={digits} onChange={e=>setDisplayDigits(Number(e.target.value))}>{Array.from({length:13},(_,i)=><option key={i} value={i}>{i===0?"1":`0.${"0".repeat(i-1)}1`}</option>)}</select></label><label className="trade-source-select"><span>回测目标</span><select aria-label="回测目标来源（只读）" value={selectedStrategySource} onChange={e => setSelectedStrategySource(e.target.value)}><option value="">不叠加</option>{strategySources.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{environment === "production" && (local?.candles.length || showLocal) ? <div className="trade-source-select"><select aria-label="K线数据来源" title="K线数据来源" disabled={busy} value={showLocal ? "local" : "binance"} onChange={e => {setConfirmation(null); setChartSource(e.target.value === "local" ? "local" : "binance");}}><option value="binance">实时 K线</option><option value="local">后端 K线</option></select><span aria-hidden="true">▾</span></div> : null}</>} displayDigits={digits} market={chartMarket} depth={market} modeledLiquidations={liquidationModel} strategySignals={strategyMarkers} identity={`${environment}:${symbol}:${interval}:${showLocal ? "local" : "binance"}`} state={isFresh(state?.checked_at, now) && !accountError ? state : null} preview={orderType === "limit" ? price : ""} onPrice={value=>{if (!busy) {setPrice(value);setOrderType("limit");}}} onNotice={setNotice} /></section>
       <section className="trade-book"><div className="trade-panel-tabs"><button className={bookTab === "book" ? "active" : ""} onClick={() => setBookTab("book")}>订单簿</button><button className={bookTab === "trades" ? "active" : ""} onClick={() => setBookTab("trades")}>最新成交</button></div><div className="trade-book-head"><span>价格({quote})</span><span>数量({base})</span><span>{bookTab === "book" ? "金额" : "时间"}</span></div>
         {bookTab === "book" ? <><div className="trade-book-rows">{market?.asks.slice(0, 9).reverse().map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-red">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div><div className="trade-book-price">{displayPrice(market?.last_price)}{product === "futures_um" && <small>标记 {displayPrice(market?.mark_price)}</small>}</div><div className="trade-book-rows">{market?.bids.slice(0,9).map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-green">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div></> : <div className="trade-recent">{market?.trades.slice().reverse().map(t => <div className="trade-book-row" key={t.id}><span className={t.isBuyerMaker ? "trade-red" : "trade-green"}>{displayPrice(t.price)}</span><span>{t.qty}</span><span>{clock(t.time)}</span></div>)}</div>}
       </section>
