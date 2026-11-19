@@ -13,8 +13,14 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.engine_contracts import EngineConflict
-from core.trading_contracts import (TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues,
-                                    AlgoOrderValues, AlgoCancelValues, LeverageChangeValues)
+from core.trading_contracts import (
+    TRADING_SYMBOL,
+    AlgoCancelValues,
+    AlgoOrderValues,
+    CancelOrderValues,
+    LeverageChangeValues,
+    SubmitOrderValues,
+)
 
 from ..auth.dependencies import TradingUser
 from ..db.errors import StorageConflict, StorageUnavailable
