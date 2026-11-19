@@ -1,11 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$root/.local/bin:$PATH"
 command="${1:-help}"
 case "$command" in
   install)
     shift
     exec bash "$root/scripts/install.sh" "$@"
+    ;;
+  up)
+    shift
+    if [[ $# -gt 0 ]]; then
+      echo "up 不接受参数。" >&2
+      exit 2
+    fi
+    if [[ ! -x "$root/platform/.venv/bin/python" || ! -x "$root/.local/engine-src/.venv/bin/python" || ! -f "$root/web/.next/BUILD_ID" ]]; then
+      bash "$root/scripts/install.sh"
+    fi
+    exec "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" start
     ;;
   start|stop|status|doctor|admin)
     if [[ ! -x "$root/platform/.venv/bin/python" ]]; then
@@ -17,7 +29,9 @@ case "$command" in
   help|-h|--help)
     cat <<'HELP'
 SeeAlpha 本机管理（仅 macOS / Linux，本机 HTTP，不用于生产）
-  ./seealpha install                 安装固定版本 Engine、Platform 和 Web；初始化全新 SQLite
+  ./seealpha up                      首次自动安装并启动，后续直接启动
+  ./seealpha install                 自动准备本机 uv/Node、固定 Engine、Platform、Web 和新 SQLite
+  ./seealpha install --no-bootstrap  仅检查已有工具，不下载安装本地工具
   ./seealpha admin create [用户名]  交互创建账号（默认 admin）
   ./seealpha admin reset [用户名]   交互重置密码
   ./seealpha start                   启动本机 Engine、API、Web
