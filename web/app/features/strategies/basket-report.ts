@@ -5,6 +5,56 @@ export type BasketMetric = {
   value: string;
 };
 
+export type BasketTargetEvent = {
+  tsMs: number;
+  memberCount: number | null;
+  action: string | null;
+  targets: Array<{ label: string; quantity: string }>;
+};
+
+/** Runtime source is a JSON report; only expose complete, bounded records. */
+function latestVerifiedTargetEvent(value: unknown): BasketTargetEvent | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const raw: unknown = value.at(-1);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  if (
+    typeof row.ts_ns !== "number" || !Number.isFinite(row.ts_ns)
+    || row.ts_ns <= 0 || !Number.isSafeInteger(Math.trunc(row.ts_ns / 1_000_000))
+    || !Array.isArray(row.targets)
+    || row.targets.length < 1 || row.targets.length > 64
+  ) return null;
+  const targets: BasketTargetEvent["targets"] = [];
+  const seen = new Set<string>();
+  for (const entry of row.targets) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const item = entry as Record<string, unknown>;
+    if (
+      !["spot", "futures_um", "options"].includes(String(item.product))
+      || typeof item.symbol !== "string"
+      || !/^[A-Z0-9_-]{1,64}$/.test(item.symbol)
+      || typeof item.quantity !== "string"
+      || !/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(item.quantity)
+    ) return null;
+    const key = String(item.product) + "/" + item.symbol;
+    if (seen.has(key)) return null;
+    seen.add(key);
+    targets.push({ label: key, quantity: item.quantity });
+  }
+  return {
+    // Native nanoseconds exceed JS safe integer range; report only UTC ms.
+    tsMs: Math.trunc(row.ts_ns / 1_000_000),
+    memberCount: typeof row.member_count === "number"
+      && Number.isInteger(row.member_count)
+      && row.member_count >= 1 && row.member_count <= 16
+      ? row.member_count : null,
+    action: typeof row.action === "string"
+      && ["enter_long", "enter_short", "exit"].includes(row.action)
+      ? row.action : null,
+    targets,
+  };
+}
+
 /** Only project values that actually exist in the Engine research report.
  * Never turn a simulated exposure into a claim about real account positions.
  */
@@ -14,6 +64,7 @@ export function basketReportMetrics(result: BasketBacktestResult): {
   legDrift: string | null;
   fundingObservations: number | null;
   targetEvents: number | null;
+  latestTargetEvent: BasketTargetEvent | null;
 } {
   const last = result.equity_curve.at(-1);
   const positions: BasketMetric[] = [];
@@ -52,5 +103,6 @@ export function basketReportMetrics(result: BasketBacktestResult): {
     fundingObservations: Array.isArray(result.funding_observations)
       ? result.funding_observations.length : null,
     targetEvents: Array.isArray(result.target_events) ? result.target_events.length : null,
+    latestTargetEvent: latestVerifiedTargetEvent(result.target_events),
   };
 }

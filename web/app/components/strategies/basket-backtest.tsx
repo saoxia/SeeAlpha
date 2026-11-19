@@ -112,6 +112,35 @@ export function BasketBacktestPanel({
           <small>结果仅用于研究；不代表实际交易收益、未来盈利或跨腿原子执行能力。</small>
         </div>
       )}
+      {result && result.fills.length > 0 && (
+        <details className="strategy-details">
+          <summary>查看模拟成交审计（最后 50 笔，共 {result.fills.length} 笔）</summary>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">模拟合约</th><th scope="col">成交数量</th>
+                <th scope="col">模拟成交价</th><th scope="col">手续费（原始记录）</th>
+                <th scope="col">执行阶段</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.fills.slice(-50).reverse().map((fill, index) => (
+                <tr key={fill.client_order_id
+                  ? fill.client_order_id + "-" + index : fill.instrument_id + "-" + index}>
+                  <td>{fill.instrument_id}</td>
+                  <td>{fill.quantity}</td>
+                  <td>{fill.price}</td>
+                  <td>{fill.commission === undefined ? "未提供" : fill.commission}
+                    {fill.currency ? " " + fill.currency : ""}</td>
+                  <td>{fill.phase ?? "未提供阶段信息"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <small>以上均为历史开发模拟回报，不是交易所真实成交或生产审计记录。
+            手续费保留原始金额和币种，不在缺少兑换证据时跨币种相加。</small>
+        </details>
+      )}
       {metrics && (metrics.positions.length > 0 || metrics.accounts.length > 0) && (
         <section className="strategy-details" aria-label="历史模拟组合快照">
           <h3>最后一根 K 线的模拟组合快照</h3>
@@ -143,6 +172,29 @@ export function BasketBacktestPanel({
           )}
           {metrics.targetEvents !== null && (
             <p>有来源的模拟目标事件：{metrics.targetEvents} 条（不等于实际成交）。</p>
+          )}
+          {metrics.latestTargetEvent && (
+            <>
+              <h4>最新历史组合目标（并非真实账户委托）</h4>
+              <p>事件时间（UTC，毫秒精度）：{new Date(metrics.latestTargetEvent.tsMs).toISOString()}</p>
+              {metrics.latestTargetEvent.memberCount !== null && (
+                <p>参与策略成员数量：{metrics.latestTargetEvent.memberCount}</p>
+              )}
+              {metrics.latestTargetEvent.action && (
+                <p>策略模型动作：{metrics.latestTargetEvent.action}</p>
+              )}
+              <table>
+                <thead>
+                  <tr><th scope="col">产品 / 合约</th><th scope="col">目标数量</th></tr>
+                </thead>
+                <tbody>{metrics.latestTargetEvent.targets.map(item => (
+                  <tr key={item.label}>
+                    <th scope="row">{item.label}</th><td>{item.quantity}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+              <small>目标不是已成交仓位；完整阶段状态、真实账户盈亏归因和生产执行审批尚未提供。</small>
+            </>
           )}
           <small>全部数字来自 Engine 已保存的开发回测报告；无实时持仓查询、无自动下单或独立收益归因。</small>
         </section>

@@ -24,7 +24,11 @@ export type BasketBacktestResult = {
   bar_count: number;
   starting_balance: string;
   ending_balance: string;
-  fills: Array<{ instrument_id: string; price: string; quantity: string; phase?: string }>;
+  fills: Array<{
+    instrument_id: string; price: string; quantity: string;
+    phase?: string; commission?: string; currency?: string;
+    client_order_id?: string;
+  }>;
   equity_curve: Array<{
     ts_ns: number;
     total_equity: string;

@@ -19,6 +19,12 @@ from core.engine_contracts import EngineConflict, QueryError
 
 from .repository import StrategyRepository
 
+# These built-in cross-product Demos have only *research* runtimes.
+# Even an admin-created grant must not silently turn them into live strategies.
+_RESEARCH_ONLY_SYSTEM_BASKETS = frozenset({
+    "demo_funding_carry", "demo_option_hedged_bollinger",
+})
+
 
 class StrategyStore:
     def __init__(self, database, engine, tenants):
@@ -230,6 +236,12 @@ class StrategyStore:
         version = self.repository.get_version(version_id)
         if version is None:
             raise HTTPException(404, "策略版本不存在。")
+        package = self.repository.get_package(version["package_id"])
+        if package is None:
+            raise HTTPException(404, "策略包不存在。")
+        if (purpose == "production" and package.get("owner_id") is None
+                and package["code_key"] in _RESEARCH_ONLY_SYSTEM_BASKETS):
+            raise HTTPException(409, "跨产品系统 Demo 仅支持开发研究，禁止正式授权。")
         try:
             return self.repository.create_grant(version["id"], purpose)
         except StorageConflict as exc:
@@ -262,6 +274,10 @@ class StrategyStore:
         package = self.repository.get_package(version["package_id"])
         if package is None:
             raise HTTPException(404, "策略包不存在。")
+        if (tenant["purpose"] == "production" and package.get("owner_id") is None
+                and package["code_key"] in _RESEARCH_ONLY_SYSTEM_BASKETS):
+            # Also block legacy grants that might have been created previously.
+            raise HTTPException(409, "跨产品系统 Demo 无正式运行时，禁止加载生产账户。")
         if user_id is not None:
             self._visible_package(package["id"], user_id)
         if self.repository.find_grant(version["id"], tenant["purpose"]) is None:

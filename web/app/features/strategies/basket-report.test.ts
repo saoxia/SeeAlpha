@@ -59,6 +59,72 @@ test("missing optional data remains missing, not fabricated as zero", () => {
   };
   assert.deepEqual(basketReportMetrics(report), {
     positions: [], accounts: [], legDrift: null,
-    fundingObservations: null, targetEvents: null,
+    fundingObservations: null, targetEvents: null, latestTargetEvent: null,
   });
+});
+
+
+test("native carry journal shows exact signed product targets and scoped member count", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_dual_venue_development_only",
+    equity_curve: [{ ts_ns: 200, total_equity: "1001" }],
+    target_events: [{
+      ts_ns: 1_780_000_000_000_000_000, member_count: 2, executable: false,
+      targets: [
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.2" },
+        { product: "futures_um", symbol: "ETHUSDT", quantity: "-0.2" },
+      ],
+    }],
+  };
+  const metrics = basketReportMetrics(report);
+  assert.equal(metrics.targetEvents, 1);
+  assert.deepEqual(metrics.latestTargetEvent, {
+    tsMs: 1_780_000_000_000, memberCount: 2, action: null,
+    targets: [
+      { label: "spot/ETHUSDT", quantity: "0.2" },
+      { label: "futures_um/ETHUSDT", quantity: "-0.2" },
+    ],
+  });
+});
+
+test("malformed target events cannot invent holdings or act as venue evidence", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_protected_options_development_only",
+    equity_curve: [],
+    target_events: [{
+      ts_ns: 101, targets: [
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.1" },
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.2" },
+      ],
+    }],
+  };
+  assert.equal(basketReportMetrics(report).targetEvents, 1);
+  assert.equal(basketReportMetrics(report).latestTargetEvent, null);
+  report.target_events = [{ ts_ns: 102, targets: [
+    { product: "spot", symbol: "ETHUSDT", quantity: "Infinity" },
+  ] }];
+  assert.equal(basketReportMetrics(report).latestTargetEvent, null);
+  report.target_events = [{ ts_ns: -1, targets: [
+    { product: "spot", symbol: "ETHUSDT", quantity: "0" },
+  ] }];
+  assert.equal(basketReportMetrics(report).latestTargetEvent, null);
+});
+
+test("option history target keeps action separate from actual fills", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_protected_options_development_only",
+    equity_curve: [{ ts_ns: 103, total_equity: "1000" }],
+    target_events: [{
+      ts_ns: 103, action: "enter_short",
+      targets: [
+        { product: "options", symbol: "ETH-261225-1800-P", quantity: "0.1" },
+        { product: "options", symbol: "ETH-261225-2200-C", quantity: "0.1" },
+        { product: "futures_um", symbol: "ETHUSDT", quantity: "-0.1" },
+      ],
+    }],
+  };
+  const target = basketReportMetrics(report).latestTargetEvent;
+  assert.equal(target?.action, "enter_short");
+  assert.equal(target?.memberCount, null);
+  assert.equal(target?.targets[2].quantity, "-0.1");
 });
