@@ -87,6 +87,7 @@ export function UserResourcesDialog({
                     <small>{subtitle}</small>
                     <span>{resource.enabled
                       ? "已分配 · " + (custom ? "自定义配额" : "继承系统默认")
+                        + (id === "development" ? (draft.development.realtime_enabled ? " · 实时行情已开通" : " · 仅历史行情") : "")
                       : "未分配"}</span>
                   </div>
                   {resource.enabled && (
@@ -105,6 +106,22 @@ export function UserResourcesDialog({
                     <span>{resource.enabled ? "已分配" : "分配"}</span>
                   </label>
                 </div>
+                {id === "development" && resource.enabled && (
+                  <div className="admin-resource-fields">
+                    <label className="admin-resource-custom">
+                      <input type="checkbox" disabled={busy}
+                        checked={draft.development.realtime_enabled}
+                        onChange={(event) => setDraft((current) => ({
+                          ...current,
+                          development: { ...current.development, realtime_enabled: event.target.checked },
+                        }))} />
+                      允许开发 Docker 接入实时行情
+                    </label>
+                    <p className="admin-resource-policy-note">
+                      默认关闭，开发环境使用历史数据与回测；开启后可配置实时订阅。不影响正式 Docker。
+                    </p>
+                  </div>
+                )}
                 {resource.enabled && expanded === id && (
                   <div className="admin-resource-fields" id={"resource-fields-" + id}>
                     <label className="admin-resource-custom">
