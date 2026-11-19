@@ -414,6 +414,78 @@ class StrategyStore:
         except EngineConflict as exc:
             raise HTTPException(409, exc.message) from exc
 
+    def generic_portfolio_backtest(
+        self, tenant_id, account_id, issuance_ids, legs, start, end, interval,
+        starting_spot_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        """One development account, explicit issued members and bounded virtual funds."""
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "通用多标的回测仅允许开发租户。")
+        account = self._virtual_account(tenant, str(account_id).strip())
+        if account["quote_currency"] != "USDT":
+            raise HTTPException(422, "通用多标的回测只接受 USDT 虚拟账户。")
+        if (
+            not isinstance(issuance_ids, list)
+            or not 1 <= len(issuance_ids) <= 16
+            or len(set(issuance_ids)) != len(issuance_ids)
+            or any(not isinstance(v, str) or not v.isdigit() for v in issuance_ids)
+        ):
+            raise HTTPException(422, "必须选择1至16个当前账户已下发的策略实例。")
+        if (
+            not isinstance(legs, list) or not 1 <= len(legs) <= 8
+            or any(
+                not isinstance(leg, dict) or set(leg) != {"product", "symbol"}
+                or leg["product"] not in {"spot", "futures_um"}
+                or not isinstance(leg["symbol"], str)
+                for leg in legs
+            )
+        ):
+            raise HTTPException(422, "必须指定1至8条现货或永续产品合约。")
+        if len({(leg["product"], leg["symbol"]) for leg in legs}) != len(legs):
+            raise HTTPException(422, "组合不能重复包含同一产品合约。")
+        issued = {
+            str(row["id"]): row for row in self.repository.list_issuances(tenant["id"])
+            if str(row["account_id"]) == str(account["id"])
+            and row["purpose"] == "development"
+        }
+        if not set(issuance_ids).issubset(issued):
+            raise HTTPException(404, "组合中存在不属于当前账户的开发策略。")
+        try:
+            spot = Decimal(str(starting_spot_balance))
+            perp = Decimal(str(starting_perpetual_balance))
+            cap = Decimal(str(max_gross_notional))
+            initial = Decimal(str(account["initial_capital"]))
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise HTTPException(422, "组合模拟资金格式无效。") from exc
+        if (
+            any(not amount.is_finite() or amount <= 0
+                for amount in (spot, perp, cap, initial))
+            or spot + perp > initial
+        ):
+            raise HTTPException(422, "模拟资金必须为正，合计不能超过账户初始资金。")
+        try:
+            self.engine.runnable(tenant["id"], "backtest")
+            return self.engine.run_generic_portfolio_backtest(
+                tenant["id"], account["id"], issuance_ids, legs, start, end, interval,
+                format(spot, "f"), format(perp, "f"), format(cap, "f"),
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+
+    def latest_generic_portfolio_backtest(self, tenant_id, account_id):
+        tenant = self.tenants.require_tenant(tenant_id)
+        self._virtual_account(tenant, str(account_id).strip())
+        try:
+            result = self.engine.latest_generic_portfolio_backtest(
+                tenant["id"], str(account_id).strip(),
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+        if result is None:
+            raise HTTPException(404, "尚无该账户的通用多标的开发回测报告。")
+        return result
+
     def issued_spot_perp_backtest(
         self, tenant_id, account_id, issuance_id, start, end, interval,
         starting_spot_balance, starting_perpetual_balance, max_gross_notional,
