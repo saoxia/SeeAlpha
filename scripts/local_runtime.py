@@ -123,7 +123,7 @@ class LocalRuntime:
         try:
             value = int(self._pid_file(service).read_text().splitlines()[0])
             return value if value > 1 else None
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             return None
 
     def _owned(self, service: str, pid: int | None) -> bool:
@@ -138,27 +138,40 @@ class LocalRuntime:
         except (OSError, ProcessLookupError):
             return False
         command = self._command(service)
-        if service == "web":
-            if command[1] in details:
-                return True
-            # Next.js standalone replaces its process title with "next-server (v...)"
-            # after startup. Verify the original PID's birth time to avoid sending
-            # signals to an unrelated process if a PID is recycled.
-            if not details.strip().startswith("next-server (v"):
+        try:
+            lines = self._pid_file(service).read_text(encoding="ascii").splitlines()
+            if not lines or lines[0] != str(pid):
                 return False
-            try:
-                lines = self._pid_file(service).read_text(encoding="ascii").splitlines()
-                if len(lines) != 2 or lines[0] != str(pid) or not lines[1]:
-                    return False
+            # New launcher PID files include birth-time evidence, preventing accidental
+            # ownership after process ID reuse. Keep old one-line files usable only when
+            # their full original command remains identifiable.
+            if len(lines) == 2:
                 started = subprocess.run(
                     ["ps", "-p", str(pid), "-o", "lstart="],
                     check=False, capture_output=True, text=True,
                 ).stdout.strip()
-                return bool(started) and started == lines[1]
-            except OSError:
+                if not started or started != lines[1]:
+                    return False
+            elif len(lines) != 1:
                 return False
-        return command[0] in details and (
+        except OSError:
+            return False
+
+        if service == "web":
+            return command[1] in details or (
+                len(lines) == 2 and details.strip().startswith("next-server (v")
+            )
+        expected = command[0] in details and (
             "-m engine" in details if service == "engine" else "-m uvicorn" in details
+        )
+        if expected:
+            return True
+        # On macOS the Python interpreter can change its process title to "Python"
+        # after uvicorn startup. Only accept it with the recorded PID birth timestamp.
+        return bool(
+            len(lines) == 2
+            and sys.platform == "darwin"
+            and re.fullmatch(r"python(?:3(?:\\.\\d+)?)?", details.strip(), re.IGNORECASE)
         )
 
     @staticmethod
