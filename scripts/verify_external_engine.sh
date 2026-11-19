@@ -7,7 +7,7 @@ umask 077
 # No real accounts, business database, exchange keys or live trading.
 # Optional backtest exercises only synthetic bars and virtual orders/fills.
 platform_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-engine_sha="${1:-7be37523dce47791c460911ca92152250240a852}"
+engine_sha="${1:-cd9564691adf563549240ed88e19c6144b20e283}"
 if [[ ! "$engine_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Expected complete 40-character Engine source SHA" >&2
   exit 2
