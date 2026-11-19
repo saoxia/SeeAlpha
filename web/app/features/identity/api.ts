@@ -4,7 +4,7 @@ import {
   tenantsPath,
   usersPath,
 } from "./model";
-import type { ManagedUser, TenantRecord } from "./model";
+import type { EngineNodes, ManagedUser, TenantRecord } from "./model";
 
 export {
   tenantActionPath,
@@ -67,5 +67,15 @@ export function fetchUsers(signal?: AbortSignal) {
 
 export function createUser(body: { username: string; password: string }) {
   return request<ManagedUser>(usersPath(), { method: "POST", body: JSON.stringify(body) });
+}
+
+export function fetchEngineNodes() {
+  return request<EngineNodes>("/api/users/engine-nodes");
+}
+
+export function deployUserEngine(userId: number, nodeId: string) {
+  return request<ManagedUser>(`/api/users/${userId}/engine`, {
+    method: "POST", body: JSON.stringify({ node_id: nodeId }),
+  });
 }
 
