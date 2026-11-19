@@ -17,7 +17,11 @@ case "$command" in
     if [[ ! -x "$root/platform/.venv/bin/python" || ! -x "$root/.local/engine-src/.venv/bin/python" || ! -f "$root/web/.next/BUILD_ID" ]]; then
       bash "$root/scripts/install.sh"
     fi
-    exec "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" start
+    exec "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" up
+    ;;
+  container)
+    shift
+    exec bash "$root/scripts/compose_local.sh" "$@"
     ;;
   start|stop|status|doctor|admin)
     if [[ ! -x "$root/platform/.venv/bin/python" ]]; then
@@ -35,6 +39,8 @@ SeeAlpha 本机管理（仅 macOS / Linux，本机 HTTP，不用于生产）
   ./seealpha admin create [用户名]  交互创建账号（默认 admin）
   ./seealpha admin reset [用户名]   交互重置密码
   ./seealpha start                   启动本机 Engine、API、Web
+  ./seealpha container up vX.Y.Z     通过已发布 Docker 镜像安装/运行本地版
+  ./seealpha container status        查看容器部署状态
   ./seealpha status                  查看进程与健康状态
   ./seealpha doctor                  检查依赖、配置和本机服务
   ./seealpha stop                    顺序停止本启动器管理的进程
