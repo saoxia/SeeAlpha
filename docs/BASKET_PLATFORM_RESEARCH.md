@@ -42,7 +42,7 @@ Engine [#28](https://github.com/saoxia/seealpha-engine/pull/28) 新增研究态�
 
 
 Platform 已将独立 Engine 固定到完整提交
-`57842187f78de46f6d75ced36ec9f13b7d658504`。
+`7be37523dce47791c460911ca92152250240a852`。
 包含开发环境专用资金费/期权保护模拟、研究态可重放阶段日志（Engine #26），
 带 POSIX 文件锁与修订版并发检查的持久化（Engine #28），
 以及按每个执行阶段保守计算的毛名义风险预算门禁（Engine #29）。
@@ -50,9 +50,19 @@ Engine #30 新增显式的纯研究态紧急全平规划：对现有严重腿偏
 只有全部目标归零、且各阶段保持单调减险时才允许生成规划；
 本能力未接入订单出口，也不会授予生产执行权限。
 
-**Engine 研究态增量正式固定版本：** Engine [#31](https://github.com/saoxia/seealpha-engine/pull/31) 已合并到 Engine `main`，提交 `57842187f78de46f6d75ced36ec9f13b7d658504`。本次 Platform 更新只展示经过验证的开发回测策略目标，并固定一致的独立 Engine 版本。没有开启真实订单执行；#107 C 阶段生产验收仍未完成，也不会自动更新生产 Docker。
+**Engine 研究态增量正式固定版本：** Engine [#31](https://github.com/saoxia/seealpha-engine/pull/31) 已合并到 Engine `main`，提交 `7be37523dce47791c460911ca92152250240a852`。本次 Platform 更新只展示经过验证的开发回测策略目标，并固定一致的独立 Engine 版本。没有开启真实订单执行；#107 C 阶段生产验收仍未完成，也不会自动更新生产 Docker。
 若现有仓位已超预算，仅允许严格单调降低敞口的研究退出计划；
 不能假定 Spot、USD-M 与 Options 在交易所原子成交。
 该日志尚未接入全部专用模拟执行器，也不具有真实交易所订单发布权限。
 通用多腿策略运行、真实成交补偿、期权到期结算及生产对账仍未完成。
 锁定源码不会自动迁移或升级任何已有 Docker、实盘账户或状态卷。
+
+
+## #107 研究阶段安全增量（2026-11-20）
+
+- Engine [#31](https://github.com/saoxia/seealpha-engine/pull/31)：多策略发布契约和两种开发回测接线。
+- Engine [#33](https://github.com/saoxia/seealpha-engine/pull/33)：研究态委托身份、来源成交与权威仓位完全核对，未知或部分成交时冻结，不自动补发。
+- Engine [#34](https://github.com/saoxia/seealpha-engine/pull/34)：离线核对已认证期权行权/结算价、行权费用及现金流水；现有原生期权回测仍拒绝跨到期窗口，直到历史数据采集和模拟生命周期真实接通。
+- Platform 本次额外禁止对内置资金费和期权保护 Demo 建立生产授权，且即使历史授权错误存在也拒绝生产租户加载。
+
+这些功能均是**研究态增量**。完整 #107 的通用 Nautilus 多产品生命周期、交易所真实订单发送/补偿、保证金风控、到期历史接线及受控账户长期验收仍没有完成。生产权限没有通过本次合并开启。
