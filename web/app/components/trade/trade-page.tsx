@@ -214,8 +214,6 @@ export function TradePage() {
 
   // User-chosen, tenant-authorized *historical backtest targets*, never execution signals.
   useEffect(() => {
-    setStrategyMarkers([]);
-    setStrategyMessage("");
     if (!selectedStrategySource || product !== "futures_um") return;
     const [tenantId, virtualAccountId] = selectedStrategySource.split(":");
     const controller = new AbortController();
@@ -291,7 +289,7 @@ export function TradePage() {
 
   function prepareBatchCancel() {
     if (!account || !state || busyRef.current || pending) return;
-    if (!isFresh(state.checked_at, Date.now()) || accountError) {setNotice("请先刷新账户与委托。");return;}
+    if (!isFresh(state.checked_at, now) || accountError) {setNotice("请先刷新账户与委托。");return;}
     const orders = state.orders.filter(row => row.open && selectedCancels.includes(row.client_order_id));
     if (!orders.length || orders.length > 20 || orders.length !== selectedCancels.length) {
       setNotice("请选择当前合约 1～20 笔有效的待撤订单，再刷新核对。");return;
@@ -310,8 +308,8 @@ export function TradePage() {
 
   async function sendBatch() {
     if (!batchPlan || !account || busyRef.current || pending || batchPlan.accountId !== account.id) return;
-    if (!state || !isFresh(state.checked_at, Date.now()) || accountError
-        || (batchPlan.kind === "submit" && (disabledReason || !isFresh(market?.checked_at, Date.now())))) {
+    if (!state || !isFresh(state.checked_at, now) || accountError
+        || (batchPlan.kind === "submit" && (disabledReason || !isFresh(market?.checked_at, now)))) {
       setBatchPlan(null);setNotice("账户或行情快照已过期，请刷新后重新确认批次。");return;
     }
     busyRef.current = true;setBusy(true);setNotice("");
@@ -372,7 +370,7 @@ export function TradePage() {
   }
 
   function prepareAlgoCancel(order: AlgoOrder) {
-    if (!account || !state || busyRef.current || pending || !isFresh(state.algo_checked_at, Date.now())) {
+    if (!account || !state || busyRef.current || pending || !isFresh(state.algo_checked_at, now)) {
       setNotice("请先刷新条件订单，确认交易所最新挂单后撤销。"); return;
     }
     const payload: AlgoCancelRequest = {
@@ -402,7 +400,7 @@ export function TradePage() {
   async function sendProfessional() {
     if (!professionalPlan || !account || !state || busyRef.current || pending ||
         professionalPlan.accountId !== account.id) return;
-    if (disabledReason || !isFresh(state.checked_at, Date.now())) {
+    if (disabledReason || !isFresh(state.checked_at, now)) {
       setProfessionalPlan(null); setNotice("账户或行情快照已过期，请重新核对后提交。");return;
     }
     busyRef.current = true; setBusy(true); setNotice("");
@@ -486,7 +484,7 @@ export function TradePage() {
     {(marketError || accountError || notice || showLocal && localError || strategyMessage) && <div className="trade-notice" role="status">{[marketError, accountError, showLocal ? localError : "", notice, selectedStrategySource ? strategyMessage : ""].filter(Boolean).join(" · ")}</div>}
     {pending && <div className="trade-pending" role="alert"><span>有一笔操作结果待核实 · {pending.symbol} · {pending.requestId}</span><button disabled={busy} onClick={() => void checkPending()}>核对交易结果</button></div>}
     <div className="trade-layout">
-      <section className="trade-chart-panel"><MarketChart interval={interval} periods={<div className="trade-chart-periods">{intervals.map(i => <button key={i} className={interval === i ? "active" : ""} onClick={() => {setMarket(null); setLocalChart(null); setInterval(i);rememberSelection(symbol, i);}}>{i}</button>)}</div>} toolbar={<><label className="trade-price-precision"><span>价格精度</span><select aria-label="价格显示精度" value={digits} onChange={e=>setDisplayDigits(Number(e.target.value))}>{Array.from({length:13},(_,i)=><option key={i} value={i}>{i===0?"1":`0.${"0".repeat(i-1)}1`}</option>)}</select></label><label className="trade-source-select"><span>回测目标</span><select aria-label="回测目标来源（只读）" value={selectedStrategySource} onChange={e => setSelectedStrategySource(e.target.value)}><option value="">不叠加</option>{strategySources.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{environment === "production" && (local?.candles.length || showLocal) ? <div className="trade-source-select"><select aria-label="K线数据来源" title="K线数据来源" disabled={busy} value={showLocal ? "local" : "binance"} onChange={e => {setConfirmation(null); setChartSource(e.target.value === "local" ? "local" : "binance");}}><option value="binance">实时 K线</option><option value="local">后端 K线</option></select><span aria-hidden="true">▾</span></div> : null}</>} displayDigits={digits} market={chartMarket} depth={market} modeledLiquidations={liquidationModel} strategySignals={strategyMarkers} identity={`${environment}:${symbol}:${interval}:${showLocal ? "local" : "binance"}`} state={isFresh(state?.checked_at, now) && !accountError ? state : null} preview={orderType === "limit" ? price : ""} onPrice={value=>{if (!busy) {setPrice(value);setOrderType("limit");}}} onNotice={setNotice} /></section>
+      <section className="trade-chart-panel"><MarketChart interval={interval} periods={<div className="trade-chart-periods">{intervals.map(i => <button key={i} className={interval === i ? "active" : ""} onClick={() => {setMarket(null); setLocalChart(null); setInterval(i);rememberSelection(symbol, i);}}>{i}</button>)}</div>} toolbar={<><label className="trade-price-precision"><span>价格精度</span><select aria-label="价格显示精度" value={digits} onChange={e=>setDisplayDigits(Number(e.target.value))}>{Array.from({length:13},(_,i)=><option key={i} value={i}>{i===0?"1":`0.${"0".repeat(i-1)}1`}</option>)}</select></label><label className="trade-source-select"><span>回测目标</span><select aria-label="回测目标来源（只读）" value={selectedStrategySource} onChange={e => {setSelectedStrategySource(e.target.value);setStrategyMarkers([]);setStrategyMessage("");}}><option value="">不叠加</option>{strategySources.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>{environment === "production" && (local?.candles.length || showLocal) ? <div className="trade-source-select"><select aria-label="K线数据来源" title="K线数据来源" disabled={busy} value={showLocal ? "local" : "binance"} onChange={e => {setConfirmation(null); setChartSource(e.target.value === "local" ? "local" : "binance");}}><option value="binance">实时 K线</option><option value="local">后端 K线</option></select><span aria-hidden="true">▾</span></div> : null}</>} displayDigits={digits} market={chartMarket} depth={market} modeledLiquidations={liquidationModel} strategySignals={strategyMarkers} identity={`${environment}:${symbol}:${interval}:${showLocal ? "local" : "binance"}`} state={isFresh(state?.checked_at, now) && !accountError ? state : null} preview={orderType === "limit" ? price : ""} onPrice={value=>{if (!busy) {setPrice(value);setOrderType("limit");}}} onNotice={setNotice} /></section>
       <section className="trade-book"><div className="trade-panel-tabs"><button className={bookTab === "book" ? "active" : ""} onClick={() => setBookTab("book")}>订单簿</button><button className={bookTab === "trades" ? "active" : ""} onClick={() => setBookTab("trades")}>最新成交</button></div><div className="trade-book-head"><span>价格({quote})</span><span>数量({base})</span><span>{bookTab === "book" ? "金额" : "时间"}</span></div>
         {bookTab === "book" ? <><div className="trade-book-rows">{market?.asks.slice(0, 9).reverse().map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-red">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div><div className="trade-book-price">{displayPrice(market?.last_price)}{product === "futures_um" && <small>标记 {displayPrice(market?.mark_price)}</small>}</div><div className="trade-book-rows">{market?.bids.slice(0,9).map(([p,q]) => <button key={p} className="trade-book-row" onClick={() => setPrice(p)}><span className="trade-green">{displayPrice(p)}</span><span>{q}</span><span>{number(String(Number(p)*Number(q)), 2)}</span></button>)}</div></> : <div className="trade-recent">{market?.trades.slice().reverse().map(t => <div className="trade-book-row" key={t.id}><span className={t.isBuyerMaker ? "trade-red" : "trade-green"}>{displayPrice(t.price)}</span><span>{t.qty}</span><span>{clock(t.time)}</span></div>)}</div>}
       </section>
