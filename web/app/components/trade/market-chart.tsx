@@ -14,7 +14,7 @@ import { appendDepthSnapshot, type DepthSnapshot, type LiquidationEstimates } fr
 const defaults = {orders: true, positions: true, history: false, breakeven: false, liquidation: false, preview: true, alerts: false, quick: false};
 type Options = typeof defaults;
 const displays = {quick: "快捷填价（点击图表）", orders: "当前委托", positions: "持有仓位", history: "历史委托（委托价）", breakeven: "损益两平价", liquidation: "账户持仓强平价", alerts: "价格提醒", preview: "订单预览线"} as const;
-export function MarketChart({ market, depth, modeledLiquidations = null, strategySignals = [], interval, identity, state, preview, onPrice, onNotice, displayDigits, periods, toolbar }: {
+export function MarketChart({ market, depth, modeledLiquidations = null, strategySignals, interval, identity, state, preview, onPrice, onNotice, displayDigits, periods, toolbar }: {
   periods: ReactNode; toolbar: ReactNode; displayDigits: number; interval:string;
   /** Read-only strategy/backtest markers; never used for trade commands. */
   strategySignals?: readonly ChartSignal[];
@@ -167,7 +167,14 @@ export function MarketChart({ market, depth, modeledLiquidations = null, strateg
     for(const plot of definitions){if(plot.pane>0){const owner=activeStudies.find(s=>plot.key.startsWith(s.id+":"));if(owner)paneOwners.set(plot.pane,owner.id);}}
     value.panes().forEach((pane,i)=>pane.setStretchFactor(i===0?5:workspace.paneWeights[paneOwners.get(i)??""]??2));
     return () => {if(chart.current===value)current.forEach(series=>value.removeSeries(series));};
-  }, [activeStudies, studies, workspace.paneWeights]);
+  }, [activeStudies, studies]);
+  useEffect(() => {
+    const value=chart.current;
+    if(!value)return;
+    const paneOwners=new Map<number,string>();
+    for(const plot of indicatorPlots([],activeStudies)){if(plot.pane>0){const owner=activeStudies.find(s=>plot.key.startsWith(s.id+":"));if(owner)paneOwners.set(plot.pane,owner.id);}}
+    value.panes().forEach((pane,i)=>pane.setStretchFactor(i===0?5:workspace.paneWeights[paneOwners.get(i)??""]??2));
+  },[activeStudies,workspace.paneWeights]);
   useEffect(() => {
     const priceFormat = {type: "price" as const, precision: displayDigits, minMove: 10 ** -displayDigits};
     candles.current?.applyOptions({priceFormat});
