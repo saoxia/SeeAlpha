@@ -25,8 +25,8 @@ from core.engine_contracts import EngineConflict
 from ..market_data.repository import PolicyRepository
 from ..tenant_docker import DockerTenantManager
 from .candidates import parse_candidate
-from .mcp_engine import EngineMCPResearchClient
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
+from .mcp_engine import EngineMCPResearchClient
 from .python_candidates import parse_python_candidate
 
 OPERATIONS = {
