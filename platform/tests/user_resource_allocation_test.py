@@ -111,7 +111,10 @@ def test_development_realtime_is_opt_in_and_production_is_unaffected(api_client,
     assert dev["purpose"] == "development"
     dev_url = f"/api/tenants/{dev['id']}/subscriptions"
     production_url = f"/api/tenants/{user['production_tenant_id']}/subscriptions"
-    requested = {"symbol": "ETHUSDT", "realtime_enabled": True, "history_enabled": True}
+    requested = {
+        "symbol": "ETHUSDT", "realtime_enabled": True, "history_enabled": True,
+        "history_start": "2024-01-01T00:00:00Z",
+    }
     saved = client.post(dev_url, json=requested)
     assert saved.status_code == 200, saved.text
     assert saved.json()["realtime_enabled"] is False
