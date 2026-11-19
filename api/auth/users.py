@@ -9,7 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from core.engine_contracts import EngineConflict, QueryError
 
 from ..config import PROJECT
-
 from .dependencies import AdminUser, actor_is_admin
 from .manage import set_user_password
 
