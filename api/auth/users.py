@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from core.engine_contracts import EngineConflict, QueryError
 
+from ..config import PROJECT
+
 from .dependencies import AdminUser, actor_is_admin
 from .manage import set_user_password
 
@@ -171,7 +173,7 @@ def update_user_resources(
         for key in ("cpus", "memory", "node")
     ):
         raise HTTPException(409, "已有开发租户，请先通过受控迁移流程调整其资源参数。")
-    harness_root = Path(request.app.state.settings.harness_root)
+    harness_root = Path(request.app.state.settings.harness_root or PROJECT / ".local/harness-users")
     if (harness_root / "credentials" / f"user-{user_id}.token").exists() and any(
         proposed["harness"][key] != before["harness"][key]
         for key in ("cpus", "memory", "node")
