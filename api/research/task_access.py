@@ -357,6 +357,8 @@ def _authorized_basket_scope(app, lease: dict, mode: str, interval: str) -> bool
                     not isinstance(put, str) or not isinstance(call, str)
                     or not put.startswith(root) or not call.startswith(root)
                     or put == call or not put.endswith("-P") or not call.endswith("-C")
+                    or len(put.split("-")) != 4 or len(call.split("-")) != 4
+                    or put.split("-")[1] != call.split("-")[1]
                 ):
                     return False
                 options.update((put, call))
@@ -410,6 +412,12 @@ def _basket_command(app, lease: dict, operation: str, args: dict) -> dict:
     try:
         # Synchronous 1-day bound: no unbounded historical replay through an AI
         # task or task-leased read while Engine is busy. Wider windows use UI.
+        if (
+            not isinstance(args["start"], str) or not isinstance(args["end"], str)
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args["start"])
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args["end"])
+        ):
+            raise ValueError("Invalid bounded basket date window")
         start = date.fromisoformat(args["start"])
         end = date.fromisoformat(args["end"])
     except (ValueError, TypeError, OverflowError):
