@@ -257,6 +257,11 @@ class TenantService:
             policy = DataPolicy.model_validate(payload.model_dump())
         except (ValidationError, ValueError) as exc:
             raise HTTPException(422, "行情订阅参数无效。") from exc
+        # The normal Platform workflow keeps basic development tenants historical-only.
+        # This is a product default, not a security boundary in the independent Engine.
+        if (tenant["purpose"] == "development" and self.user_resources is not None
+                and not self.user_resources.get(owner_id)["development"]["realtime_enabled"]):
+            policy = policy.model_copy(update={"realtime_enabled": False})
         stored = PolicyRepository(self.database).upsert(tenant["id"], policy)
         self.engine.ensure_tenant(tenant["id"], tenant["purpose"], tenant["status"])
         self.engine.note_subscription(
@@ -296,11 +301,15 @@ class TenantService:
 
         repository = PolicyRepository(self.database)
         tenant = self.repository.get_tenant(created["id"])
+        include_realtime = (self.user_resources is None or
+                            self.user_resources.get(owner_id)["development"]["realtime_enabled"])
         for record in repository.records(source["id"]):
             try:
                 policy = DataPolicy.model_validate(record["parameters"])
             except (ValidationError, ValueError) as exc:
                 raise HTTPException(422, "行情订阅参数无效。") from exc
+            if not include_realtime:
+                policy = policy.model_copy(update={"realtime_enabled": False})
             stored = repository.upsert(tenant["id"], policy)
             self.engine.note_subscription(
                 tenant["id"], policy.product, policy.symbol, "intent", "configured",
