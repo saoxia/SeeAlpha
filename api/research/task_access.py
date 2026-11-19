@@ -15,6 +15,7 @@ import sqlite3
 import stat
 import time
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
@@ -37,6 +38,10 @@ OPERATIONS = {
     "backtest_submit": "backtests:submit",
     "backtest_get": "backtests:read",
     "backtest_cancel": "backtests:cancel",
+    # These remain Platform-owned, synchronous development research commands.
+    # They never mint an Engine MCP grant or authorize venue order placement.
+    "basket_run": "backtests:submit",
+    "basket_latest": "backtests:read",
     "candidate_create": "candidates:submit",
     "candidate_get": "candidates:submit",
     "candidate_submit": "candidates:submit",
@@ -302,6 +307,137 @@ def allowed_scope(app, owner_id: int, tenant_id: int, account_id: str,
         return False
 
 
+_BASKET_DEMOS = {
+    "funding_carry": "demo_funding_carry",
+    "protected_options": "demo_option_hedged_bollinger",
+}
+
+
+def _authorized_basket_scope(app, lease: dict, mode: str, interval: str) -> bool:
+    """Require exactly the historical legs of an issued research Demo.
+
+    A futures-only task lease is never blanket permission to access Spot or
+    Options: every additional product must be enabled by the tenant policy.
+    Resolve issuances and immutable package identities in the trusted database.
+    """
+    if mode not in _BASKET_DEMOS or interval not in {"1m", "5m"}:
+        return False
+    if not allowed_scope(
+        app, lease["owner_id"], lease["tenant_id"], lease["account_id"],
+        lease["dataset_ref"], require_issued=True,
+    ):
+        return False
+    market, symbol, bound_interval = lease["dataset_ref"].split(":")
+    if market != "futures_um" or interval != bound_interval:
+        return False
+    try:
+        repo = app.state.strategies.repository
+        selected = [
+            item for item in repo.list_issuances(lease["tenant_id"])
+            if item["account_id"] == str(lease["account_id"])
+        ]
+        expected = _BASKET_DEMOS[mode]
+        if not selected or len(selected) > 16:
+            return False
+        options = set()
+        for issued in selected:
+            version = repo.get_version(issued["version_id"])
+            package = repo.get_package(version["package_id"]) if version else None
+            params = issued["parameters"]
+            if (
+                not isinstance(package, dict) or package.get("owner_id") is not None
+                or package.get("code_key") != expected
+                or issued["purpose"] != "development" or params.get("symbol") != symbol
+            ):
+                return False
+            if mode == "protected_options":
+                put, call = params.get("put_symbol"), params.get("call_symbol")
+                root = symbol.removesuffix("USDT") + "-"
+                if (
+                    not isinstance(put, str) or not isinstance(call, str)
+                    or not put.startswith(root) or not call.startswith(root)
+                    or put == call or not put.endswith("-P") or not call.endswith("-C")
+                    or len(put.split("-")) != 4 or len(call.split("-")) != 4
+                    or put.split("-")[1] != call.split("-")[1]
+                ):
+                    return False
+                options.update((put, call))
+        if mode == "protected_options" and len(options) != 2:
+            # A single coherent pair; no implicit cross-expiry or extra wings.
+            return False
+        policies = PolicyRepository(app.state.database).records(lease["tenant_id"])
+        enabled = {
+            (row["product"], row["symbol"])
+            for row in policies if row["parameters"].get("history_enabled") is True
+            and interval in row["parameters"].get("intervals", [])
+        }
+        required = (
+            {("spot", symbol), ("futures_um", symbol)}
+            if mode == "funding_carry"
+            else {("futures_um", symbol)} | {("options", item) for item in options}
+        )
+        return required <= enabled
+    except (KeyError, TypeError, AttributeError, ValueError, OSError):
+        return False
+    except Exception:  # noqa: BLE001 - any authority-store error denies basket access
+        return False
+
+
+def _basket_command(app, lease: dict, operation: str, args: dict) -> dict:
+    """Direct to the existing Platform strategy service, not the Engine admin API.
+
+    The task cannot supply tenant/account identifiers or create production
+    grants. The service independently checks development-only capital bounds.
+    """
+    if not isinstance(args, dict):
+        raise TypeError("Invalid basket research arguments")
+    if operation == "basket_latest":
+        if set(args) != {"mode"}:
+            raise ValueError("Invalid basket research lookup")
+        mode, interval = args["mode"], lease["dataset_ref"].rsplit(":", 1)[-1]
+        if not _authorized_basket_scope(app, lease, mode, interval):
+            raise HTTPException(403, "Basket research scope not authorized")
+        return app.state.strategies.latest_basket_backtest(
+            lease["tenant_id"], lease["account_id"], mode,
+        )
+    expected = {
+        "mode", "start", "end", "interval", "starting_primary_balance",
+        "starting_perpetual_balance", "max_gross_notional",
+    }
+    if operation != "basket_run" or set(args) != expected:
+        raise ValueError("Invalid basket research command")
+    mode, interval = args["mode"], args["interval"]
+    if not _authorized_basket_scope(app, lease, mode, interval):
+        raise HTTPException(403, "Basket research scope not authorized")
+    try:
+        # Synchronous 1-day bound: no unbounded historical replay through an AI
+        # task or task-leased read while Engine is busy. Wider windows use UI.
+        if (
+            not isinstance(args["start"], str) or not isinstance(args["end"], str)
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args["start"])
+            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args["end"])
+        ):
+            raise ValueError("Invalid bounded basket date window")
+        start = date.fromisoformat(args["start"])
+        end = date.fromisoformat(args["end"])
+    except (ValueError, TypeError, OverflowError):
+        raise ValueError("Invalid bounded basket date window") from None
+    if not 0 < (end - start).days <= 1:
+        raise ValueError("Basket research requires a 1-day history window")
+    for field in (
+        "starting_primary_balance", "starting_perpetual_balance",
+        "max_gross_notional",
+    ):
+        if not isinstance(args[field], str) or len(args[field]) > 40:
+            raise ValueError("Invalid basket risk budget")
+    return app.state.strategies.basket_backtest(
+        lease["tenant_id"], lease["account_id"], mode,
+        args["start"], args["end"], interval,
+        args["starting_primary_balance"], args["starting_perpetual_balance"],
+        args["max_gross_notional"],
+    )
+
+
 def engine_connection(app, tenant_id: int) -> tuple[str, str]:
     """Only locally pinned development Engines with an actually installed key."""
     deployment = app.state.production_deployments
@@ -318,6 +454,8 @@ def engine_connection(app, tenant_id: int) -> tuple[str, str]:
 
 def research_command(app, lease: dict, operation: str, args: dict):
     """Authorize one candidate or fixed Engine operation; never run AI Python."""
+    if operation in {"basket_run", "basket_latest"}:
+        return _basket_command(app, lease, operation, args)
     require_issued = operation == "backtest_submit"
     if not allowed_scope(
         app, lease["owner_id"], lease["tenant_id"],

@@ -442,3 +442,129 @@ def test_backend_controls_python_flag_only_for_new_development_docker(tmp_path):
     later = manager(tmp_path / "existing", True)
     later._credentials(env, "13", "development", create=False)
     assert "ENGINE_RESEARCH_PYTHON_ENABLED" not in env.read_text()
+
+
+def test_basket_command_requires_original_task_scope_all_products_and_demo(monkeypatch):
+    from api.research import task_access
+
+    tenant = {"owner_id": 7, "purpose": "development", "status": "active"}
+    accounts = [{"id": 5}]
+    policies = [
+        {"product": "futures_um", "symbol": "ETHUSDT",
+         "parameters": {"history_enabled": True, "intervals": ["1m"]}},
+        {"product": "spot", "symbol": "ETHUSDT",
+         "parameters": {"history_enabled": True, "intervals": ["1m"]}},
+        {"product": "options", "symbol": "ETH-261225-1800-P",
+         "parameters": {"history_enabled": True, "intervals": ["1m"]}},
+        {"product": "options", "symbol": "ETH-261225-2200-C",
+         "parameters": {"history_enabled": True, "intervals": ["1m"]}},
+    ]
+    options_params = {
+        "symbol": "ETHUSDT",
+        "put_symbol": "ETH-261225-1800-P",
+        "call_symbol": "ETH-261225-2200-C",
+    }
+    loads = [{"account_id": "5", "purpose": "development", "version_id": 9,
+              "parameters": {"symbol": "ETHUSDT"}}]
+    packages = {
+        9: {"id": 9, "package_id": 14},
+        10: {"id": 10, "package_id": 15},
+    }
+    identity = {
+        14: {"code_key": "demo_funding_carry", "owner_id": None},
+        15: {"code_key": "demo_option_hedged_bollinger", "owner_id": None},
+    }
+    calls = []
+
+    class FakePolicy:
+        def __init__(self, _database):
+            pass
+
+        def records(self, _tenant):
+            return policies
+
+    def run_basket(*args):
+        calls.append(("run", args))
+        return {"mode": "native_dual_venue_development_only", "fills": []}
+
+    def latest_basket(*args):
+        calls.append(("latest", args))
+        return {"mode": "native_dual_venue_development_only"}
+
+    monkeypatch.setattr(task_access, "PolicyRepository", FakePolicy)
+    app = SimpleNamespace(state=SimpleNamespace(
+        database=object(),
+        tenants=SimpleNamespace(repository=SimpleNamespace(
+            get_tenant=lambda _id: tenant,
+            list_virtual_accounts=lambda _id: accounts,
+        )),
+        user_resources=SimpleNamespace(enabled=lambda _uid, _kind: True),
+        strategies=SimpleNamespace(
+            repository=SimpleNamespace(
+                list_issuances=lambda _id: loads,
+                get_version=lambda vid: packages.get(vid),
+                get_package=lambda pid: identity.get(pid),
+            ),
+            basket_backtest=run_basket,
+            latest_basket_backtest=latest_basket,
+        ),
+    ))
+    lease = {
+        "task_id": "task-1", "owner_id": 7, "tenant_id": 11, "account_id": "5",
+        "dataset_ref": "futures_um:ETHUSDT:1m",
+    }
+    args = {
+        "mode": "funding_carry", "start": "2026-01-01", "end": "2026-01-02",
+        "interval": "1m", "starting_primary_balance": "200",
+        "starting_perpetual_balance": "300", "max_gross_notional": "500",
+    }
+    assert task_access.research_command(app, lease, "basket_run", args)["fills"] == []
+    assert calls == [("run", (11, "5", "funding_carry",
+                              "2026-01-01", "2026-01-02", "1m", "200", "300", "500"))]
+    assert task_access.research_command(
+        app, lease, "basket_latest", {"mode": "funding_carry"},
+    )["mode"] == "native_dual_venue_development_only"
+    assert calls[-1] == ("latest", (11, "5", "funding_carry"))
+
+    def denied(op, payload, task=lease):
+        before = len(calls)
+        with pytest.raises((HTTPException, ValueError)):
+            task_access.research_command(app, task, op, payload)
+        assert len(calls) == before
+
+    denied("basket_run", {**args, "tenant_id": 88})
+    denied("basket_run", {**args, "account_id": "999"})
+    denied("basket_run", {**args, "end": "2026-02-01"})
+    denied("basket_run", {**args, "interval": "5m"})
+    denied("basket_run", {**args, "mode": "live"})
+    denied("basket_run", {**args, "starting_primary_balance": 200})
+    denied("basket_latest", {"mode": "funding_carry", "account_id": "other"})
+    denied("basket_latest", {"mode": "protected_options"})
+    denied("basket_run", args, {**lease, "account_id": "999"})
+    denied("basket_run", args, {**lease, "dataset_ref": "futures_um:BTCUSDT:1m"})
+
+    policies[1]["parameters"]["history_enabled"] = False
+    denied("basket_run", args)
+    policies[1]["parameters"]["history_enabled"] = True
+    loads[0]["purpose"] = "production"
+    denied("basket_run", args)
+    loads[0]["purpose"] = "development"
+    identity[14]["owner_id"] = 8
+    denied("basket_run", args)
+    identity[14]["owner_id"] = None
+    tenant["purpose"] = "production"
+    denied("basket_run", args)
+    tenant["purpose"] = "development"
+
+    loads[0].update({"version_id": 10, "parameters": options_params})
+    option_args = {**args, "mode": "protected_options"}
+    assert task_access.research_command(
+        app, lease, "basket_run", option_args,
+    )["mode"] == "native_dual_venue_development_only"
+    policies[2]["parameters"]["history_enabled"] = False
+    denied("basket_run", option_args)
+    policies[2]["parameters"]["history_enabled"] = True
+    loads[0]["parameters"] = {
+        **options_params, "call_symbol": "BTC-261225-2200-C",
+    }
+    denied("basket_run", option_args)
