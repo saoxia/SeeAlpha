@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Standalone Engine only: this script never reads the Platform's engine/ tree.
-engine_sha="${1:-1fe250e310716f405acd7e922183bbce66541f7e}"
+engine_sha="${1:-17686ec56defa7fee9e1808b1df5b6b112dfc2c5}"
 engine_remote="${SEEALPHA_ENGINE_GIT_REMOTE:-git@github.com:saoxia/seealpha-engine.git}"
 
 if [[ ! "$engine_sha" =~ ^[0-9a-f]{40}$ ]]; then
