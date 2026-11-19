@@ -53,7 +53,7 @@ Engine 和 Platform 仍是不同仓库、不同 Python 环境及不同进程。
 - 启动器 PID：`.local/run/seealpha/`
 - 前端配置：`web/.env.local`（现有配置保留，不覆盖）
 
-这些路径均被 `.gitignore` 忽略。`stop` 只向经 PID + 命令行验证为本启动器创建的进程发送 `SIGTERM`，不会删除订单、行情、数据库或容器，不会强制 `SIGKILL`。
+这些路径均被 `.gitignore` 忽略。`stop` 只向 PID 与记录的进程启动时间匹配的进程发送（旧单行 PID 记录仍需严格命令行验证） `SIGTERM`，不会删除订单、行情、数据库或容器，不会强制 `SIGKILL`。
 
 再次运行 `install` 时不会重新执行已有数据库的迁移；如现有 SQLite 的 Alembic revision 与代码不一致，会失败并要求人工处理。不要删除旧数据库“修复”安装，先备份及确认数据归属。
 
