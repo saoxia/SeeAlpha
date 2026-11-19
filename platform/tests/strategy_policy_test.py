@@ -221,3 +221,36 @@ def test_basket_result_queries_keep_account_scope():
     assert service.engine.calls[-1] == ("latest_protected_option_backtest", 7, "3")
     with pytest.raises(HTTPException):
         service.latest_basket_backtest(7, 999, "funding_carry")
+
+
+@pytest.mark.parametrize("code_key", [
+    "demo_funding_carry", "demo_option_hedged_bollinger",
+])
+def test_research_only_system_basket_cannot_receive_or_use_production_grant(code_key):
+    service = _service("production")
+
+    class Repository:
+        def get_version(self, version_id):
+            assert version_id == 17
+            return {"id": 17, "package_id": 5}
+
+        def get_package(self, package_id):
+            assert package_id == 5
+            return {"id": 5, "owner_id": None, "code_key": code_key}
+
+        def find_grant(self, version_id, purpose):
+            # A legacy or mistakenly created grant must not bypass the gate.
+            assert (version_id, purpose) == (17, "production")
+            return {"id": 10, "purpose": purpose}
+
+        def create_grant(self, *_args):
+            pytest.fail("Production basket Demo must never receive a grant")
+
+    service.repository = Repository()
+    with pytest.raises(HTTPException, match="禁止正式授权") as denied:
+        service.grant(17, "production")
+    assert denied.value.status_code == 409
+    with pytest.raises(HTTPException, match="禁止加载生产账户") as denied:
+        service.issue(7, "1", 17, None)
+    assert denied.value.status_code == 409
+    assert service.engine.calls == []
