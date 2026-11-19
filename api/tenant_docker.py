@@ -30,12 +30,13 @@ class DockerTenantManager:
 
     def __init__(self, root: Path, *, image: str, production_cpus: str,
                  production_memory: str, development_cpus: str, development_memory: str,
-                 log_root: Path, resource_limits=None, research_enabled=False):
+                 log_root: Path, resource_limits=None, research_enabled=False, research_python_enabled=False):
         self.root = Path(root).expanduser().resolve()
         self.image = image
         self.log_root = Path(log_root).expanduser().resolve()
         self.resource_limits = resource_limits
         self.research_enabled = research_enabled
+        self.research_python_enabled = research_enabled and research_python_enabled
         self._endpoints = {}
         self.market_tenant_id = None
         self.limits = {
@@ -107,6 +108,8 @@ class DockerTenantManager:
                 file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
                 if purpose == "development" and self.research_enabled:
                     file.write(f"ENGINE_RESEARCH_SIGNING_KEY={secrets.token_urlsafe(48)}\n")
+                    if self.research_python_enabled:
+                        file.write("ENGINE_RESEARCH_PYTHON_ENABLED=true\n")
                 file.write("ENGINE_HOST=0.0.0.0\n")
                 file.write("ENGINE_PORT=8766\n")
                 file.write("ENGINE_PROJECT=/app\n")

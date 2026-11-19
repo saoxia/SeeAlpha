@@ -36,6 +36,28 @@ python -m seealpha_harness.platform_research backtest-cancel --id BACKTEST_ID
 
 快照单次转发上限 16 MiB；超过后拒绝，不能当作大规模流式数据通道。数据来源/时间窗口/完整性仍由 Engine 验证。绝不把明文任务凭据或管理令牌写入命令参数、日志和报告。
 
+## 完整 Python 策略回测（新增，开发后端路由）
+
+在研究代理已获授权的前提下，Platform 后端负责按租户 ID 决定**目标开发 Engine Docker**，不会把目标 URL/Engine Token 交给 Harness。策略 ZIP 的原始文件和 SHA-256 版本不可变地登记在 Platform 的任务作用域候选库。随后由 Platform 直接把打包的策略交给目标 Engine 的独立研究接口，Engine 内已有 Backtest Worker 执行 NautilusTrader 回测，结果仍走 `backtest-get`。该方案不需要新的 Docker、Gateway 或 MCP。
+
+**显式配置与兼容限制**：
+
+- `RESEARCH_PROXY_ENABLED=true` 且 `RESEARCH_PYTHON_ENABLED=true`，仅支持 `ENGINE_DEPLOYMENT=docker` 的本地可信开发租户。
+- 后端为**新建**的开发 Engine 容器写入独立研究 HMAC 签名密钥和 `ENGINE_RESEARCH_PYTHON_ENABLED=true`，同时保留**每租户独立 Engine Token**、Docker 标签/用途和回环端口校验。现有容器不会被静默重建或覆盖，需要部署人员走已有升级流程。
+- 权限：开发租户归属、开发虚拟账户、授权历史数据订阅、有效 Harness 任务；平台和 Engine 双重确认。生产 Engine、未授权策略、未知租户或错误回测 dataset 都必须拒绝。
+- **自由 Python 不是强隔离沙箱**：容器隔离不同租户与宿主机，但开发 Engine 内子进程与 Engine 服务可能共享 UID、状态和操作系统访问权限。Engine Token/HMAC 防错误路由，不能阻止同 UID 不可信源码读取容器内部的文件。只向可信开发用户显式开放；不能将其宣传为适合任意陌生用户提交代码的安全多租户方案。
+
+AI 写一个符合现有策略包规范的目录（比如参照 `strategy/demo_ema_crossover`），包含 `seealpha-package.json` 和 `strategy.py`，入口为继承 NautilusTrader `Strategy` 的 Python 类，manifest 的 `parameters` 必须明确 `symbol`、`allocation`、`risk_limit`，AI 可以增加其他必要的有限参数。然后：
+
+```bash
+python -m seealpha_harness.platform_research python-candidate-create --package ./ai-strategy
+python -m seealpha_harness.platform_research candidate-get --id CANDIDATE_ID
+python -m seealpha_harness.platform_research python-candidate-submit --id CANDIDATE_ID --start 2026-01-01 --end 2026-01-02 --starting-balance 1000 --quote-currency USDT --idempotency-key version-1
+python -m seealpha_harness.platform_research backtest-get --id BACKTEST_ID
+```
+
+当前限制仍是单品种 `futures_um` 1m/5m 历史数据与已安装的 Engine Python 依赖。策略代码只在开发 Engine 的 Worker 中执行；不会自动进入策略库、正式下发或实盘启动。部署后的真实 Harness/Platform/Engine/行情端到端验收与生产安全评审仍需单独完成。
+
 ## AI 候选策略实验（受限 Python 字面量版）
 
 研究任务可先创建 `candidate.py`，只包含 `CANDIDATE = {...}` 单一字面量字典：

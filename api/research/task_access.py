@@ -27,6 +27,7 @@ from ..tenant_docker import DockerTenantManager
 from .candidates import parse_candidate
 from .direct_engine import DirectEngineResearchClient
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
+from .python_candidates import parse_python_candidate
 
 OPERATIONS = {
     "datasets": "datasets:read",
@@ -39,6 +40,8 @@ OPERATIONS = {
     "candidate_create": "candidates:submit",
     "candidate_get": "candidates:submit",
     "candidate_submit": "candidates:submit",
+    "python_candidate_create": "python_candidates:submit",
+    "python_candidate_submit": "python_candidates:submit",
 }
 _TTL = 900
 _MAX_CALLS = 80
@@ -330,7 +333,16 @@ def research_command(app, lease: dict, operation: str, args: dict):
         if parsed["recipe"]["symbol"] != dataset.split(":")[1]:
             raise HTTPException(403, "Candidate symbol outside research scope")
         return app.state.research_leases.create_candidate(lease, archive, parsed)
-    if operation in {"candidate_get", "candidate_submit"}:
+    if operation == "python_candidate_create":
+        if not app.state.settings.research_python_enabled:
+            raise HTTPException(403, "Python candidate research is disabled")
+        if set(args) != {"archive"}:
+            raise ValueError("Invalid Python candidate package request")
+        archive, parsed = parse_python_candidate(args["archive"])
+        if parsed["recipe"]["parameters"]["symbol"] != dataset.split(":")[1]:
+            raise HTTPException(403, "Python candidate symbol outside research scope")
+        return app.state.research_leases.create_candidate(lease, archive, parsed)
+    if operation in {"candidate_get", "candidate_submit", "python_candidate_submit"}:
         expected = {"candidate_id"} if operation == "candidate_get" else {
             "candidate_id", "start", "end", "starting_balance",
             "quote_currency", "idempotency_key",
@@ -338,6 +350,12 @@ def research_command(app, lease: dict, operation: str, args: dict):
         if set(args) != expected:
             raise ValueError("Invalid candidate reference or backtest request")
         candidate = app.state.research_leases.get_candidate(lease, args["candidate_id"])
+        is_python = candidate["recipe"].get("mode") == "python"
+        if operation == "python_candidate_submit":
+            if not app.state.settings.research_python_enabled or not is_python:
+                raise HTTPException(403, "Python candidate not authorized")
+        elif operation == "candidate_submit" and is_python:
+            raise HTTPException(422, "Use Python candidate research command")
         if operation == "candidate_get":
             return {key: candidate[key] for key in (
                 "candidate_id", "name", "title", "version", "package_hash", "recipe",
@@ -363,6 +381,17 @@ def research_command(app, lease: dict, operation: str, args: dict):
     except ResearchGrantDenied:
         raise HTTPException(403, "Research authorization unavailable") from None
     with DirectEngineResearchClient(origin, grant) as client:
+        if operation == "python_candidate_submit":
+            return client.submit_python_candidate({
+                "candidate_id": candidate["id"],
+                "package_hash": candidate["package_hash"],
+                "archive": base64.b64encode(candidate["archive"]).decode("ascii"),
+                "strategy_ref": account, "dataset_refs": [dataset],
+                "start": args["start"], "end": args["end"],
+                "starting_balance": args["starting_balance"],
+                "quote_currency": args["quote_currency"],
+                "idempotency_key": args["idempotency_key"],
+            })
         if operation == "candidate_submit":
             return client.submit_candidate({
                 "candidate_id": candidate["id"],
