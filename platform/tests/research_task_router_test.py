@@ -3,11 +3,10 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from api.research import task_router
 from api.research.task_access import ResearchLeases
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def test_platform_task_commands_require_bound_live_capability(tmp_path, monkeypatch):
