@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import re
 from hashlib import sha256
+from typing import Self
 from urllib.parse import urlsplit
 
 import httpx
@@ -73,7 +74,7 @@ class DirectEngineResearchClient:
             trust_env=False,
         )
 
-    def __enter__(self) -> "DirectEngineResearchClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_args: object) -> None:

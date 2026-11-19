@@ -3,7 +3,6 @@ import hashlib
 
 import httpx
 import pytest
-
 from api.research.direct_engine import (
     DirectEngineResearchClient,
     DirectResearchError,
@@ -105,9 +104,8 @@ def test_rejects_cross_tenant_or_expired_engine_grant_response_without_leaking_b
     httpx.Response(200, headers=HEADERS, content=b"<html>malformed</html>"),
 ])
 def test_fails_closed_for_redirect_version_size_and_non_json(response):
-    with _client(lambda _request: response) as client:
-        with pytest.raises(DirectResearchError):
-            client.discover_datasets()
+    with _client(lambda _request: response) as client, pytest.raises(DirectResearchError):
+        client.discover_datasets()
 
 
 def test_rejects_arbitrary_code_or_production_backtest_payload_before_network():
@@ -152,15 +150,13 @@ def test_snapshot_integrity_and_limits():
             return httpx.Response(200, headers=HEADERS, content=b"x" * len(raw))
         return httpx.Response(200, headers=HEADERS, json=meta)
 
-    with _client(tampered) as client:
-        with pytest.raises(DirectResearchError, match="integrity"):
-            client.fetch_snapshot(snapshot_id)
+    with _client(tampered) as client, pytest.raises(DirectResearchError, match="integrity"):
+        client.fetch_snapshot(snapshot_id)
 
     def oversize(_request):
         return httpx.Response(200, headers=HEADERS, json={
             **meta, "size_bytes": 100 * 1_048_576,
         })
 
-    with _client(oversize) as client:
-        with pytest.raises(DirectResearchError, match="metadata"):
-            client.fetch_snapshot(snapshot_id)
+    with _client(oversize) as client, pytest.raises(DirectResearchError, match="metadata"):
+        client.fetch_snapshot(snapshot_id)
