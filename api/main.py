@@ -66,6 +66,8 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
         runtime = None
         try:
             database.initialize()
+            if settings.seed_demo_strategies:
+                await asyncio.to_thread(app.state.strategies.seed_system_demos)
             if manager is not None:
                 default = app.state.tenants.repository.require_default()
                 if default is not None:
