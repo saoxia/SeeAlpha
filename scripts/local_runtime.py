@@ -121,7 +121,7 @@ class LocalRuntime:
 
     def _pid(self, service: str) -> int | None:
         try:
-            value = int(self._pid_file(service).read_text().strip())
+            value = int(self._pid_file(service).read_text().splitlines()[0])
             return value if value > 1 else None
         except (OSError, ValueError):
             return None
@@ -139,7 +139,24 @@ class LocalRuntime:
             return False
         command = self._command(service)
         if service == "web":
-            return command[1] in details
+            if command[1] in details:
+                return True
+            # Next.js standalone replaces its process title with "next-server (v...)"
+            # after startup. Verify the original PID's birth time to avoid sending
+            # signals to an unrelated process if a PID is recycled.
+            if not details.strip().startswith("next-server (v"):
+                return False
+            try:
+                lines = self._pid_file(service).read_text(encoding="ascii").splitlines()
+                if len(lines) != 2 or lines[0] != str(pid) or not lines[1]:
+                    return False
+                started = subprocess.run(
+                    ["ps", "-p", str(pid), "-o", "lstart="],
+                    check=False, capture_output=True, text=True,
+                ).stdout.strip()
+                return bool(started) and started == lines[1]
+            except OSError:
+                return False
         return command[0] in details and (
             "-m engine" in details if service == "engine" else "-m uvicorn" in details
         )
@@ -190,7 +207,16 @@ class LocalRuntime:
                 self._command(service), cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                 stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
             )
-        self._pid_file(service).write_text(str(process.pid) + "\n", encoding="ascii")
+        started = subprocess.run(
+            ["ps", "-p", str(process.pid), "-o", "lstart="],
+            check=False, capture_output=True, text=True,
+        ).stdout.strip()
+        if not started:
+            process.terminate()
+            raise RuntimeError(f"{service} 无法记录进程启动身份；拒绝接管。")
+        self._pid_file(service).write_text(
+            f"{process.pid}\\n{started}\\n".replace("\\n", "\n"), encoding="ascii",
+        )
         self._pid_file(service).chmod(0o600)
         health_url = {"engine": f"{ENGINE_URL}/health", "api": f"{API_URL}/api/health",
                       "web": WEB_URL}[service]
