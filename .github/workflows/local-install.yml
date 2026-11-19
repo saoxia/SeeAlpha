@@ -27,9 +27,9 @@ jobs:
         shell: bash
         run: |
           env -i HOME="$HOME" PATH="/usr/bin:/bin" bash scripts/bootstrap_tools.sh
-          .local/bin/uv --version
-          .local/bin/node --version
-          .local/bin/npm --version
+          PATH="$PWD/.local/bin:/usr/bin:/bin" uv --version
+          PATH="$PWD/.local/bin:/usr/bin:/bin" node --version
+          PATH="$PWD/.local/bin:/usr/bin:/bin" npm --version
           [[ ! -e .local/config/api/database_url ]]
           [[ ! -e .local/state/api/seealpha.sqlite ]]
 
