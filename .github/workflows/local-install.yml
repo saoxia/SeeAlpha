@@ -5,6 +5,8 @@ on:
     paths:
       - "seealpha"
       - "scripts/install.sh"
+      - "scripts/bootstrap_tools.sh"
+      - "scripts/compose_local.sh"
       - "scripts/local_runtime.py"
       - "platform/**"
       - "web/**"
@@ -12,6 +14,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  bootstrap_missing_tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and checksum project-local uv and Node from a minimal PATH
+        shell: bash
+        run: |
+          env -i HOME="$HOME" PATH="/usr/bin:/bin" bash scripts/bootstrap_tools.sh
+          PATH="$PWD/.local/bin:/usr/bin:/bin" uv --version
+          PATH="$PWD/.local/bin:/usr/bin:/bin" node --version
+          PATH="$PWD/.local/bin:/usr/bin:/bin" npm --version
+          [[ ! -e .local/config/api/database_url ]]
+          [[ ! -e .local/state/api/seealpha.sqlite ]]
+
   isolated_first_run:
     strategy:
       fail-fast: false
@@ -28,15 +49,17 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install pinned Engine, independent Platform, Web and new local SQLite
-        run: ./seealpha install
+        run: ./seealpha up
       - name: Start and inspect local services
         shell: bash
         run: |
           trap './seealpha stop || true' EXIT
-          ./seealpha start
+          ./seealpha up    # idempotent when all three services are owned
           ./seealpha status
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8000/api/health
           curl --fail --silent --show-error --max-time 5 http://127.0.0.1:3000/ > /dev/null
+          ./seealpha stop
+          ./seealpha up    # must restart cleanly after a controlled stop
           ./seealpha stop
       - name: Show limited process logs if a check failed
         if: failure()

@@ -53,6 +53,11 @@ Assert-SeeAlpha ($install.Contains('git clone --branch main --single-branch')) '
 Assert-SeeAlpha ($install.Contains('./seealpha install')) 'Linux installer reused'
 Assert-SeeAlpha ($install.Contains('remote get-url origin')) 'Existing repo origin verified'
 Assert-SeeAlpha ($install.Contains('id -u')) 'Disallow root install'
+$up = New-SeeAlphaLinuxCommand -Command up -Yes $true
+Assert-SeeAlpha ($up.Contains('./seealpha up')) 'Windows up delegates to Linux up'
+Assert-SeeAlpha ($up.Contains('sudo apt-get install -y git curl')) 'Missing Ubuntu tools are bootstrapped'
+Assert-SeeAlpha ($up.Contains('consent="yes"')) 'Unattended consent is explicit'
+Assert-SeeAlpha ($up.Contains('remote get-url origin')) 'Windows up verifies existing checkout'
 $admin = New-SeeAlphaLinuxCommand -Command admin -Action create -Username user_1
 Assert-SeeAlpha ($admin.Contains('./seealpha admin create user_1')) 'Admin delegates to Linux'
 $status = New-SeeAlphaLinuxCommand -Command status

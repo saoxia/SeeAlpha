@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE_SHA = "b33769d432c17fff2b743c31c7efdd6bf3cb450d"
+ENGINE_SHA = "7fd4e19621aaed9a76e8643f0106f3fb6f7f707d"
 API_URL = "http://127.0.0.1:8000"
 ENGINE_URL = "http://127.0.0.1:8766"
 WEB_URL = "http://127.0.0.1:3000"
@@ -113,8 +113,7 @@ class LocalRuntime:
             return [str(self.platform_python), "-m", "uvicorn", "api.main:app",
                     "--host", "127.0.0.1", "--port", "8000"]
         if service == "web":
-            return ["node", str(self.root / "web/node_modules/next/dist/bin/next"),
-                    "start", "--hostname", "127.0.0.1", "--port", "3000"]
+            return ["node", str(self.root / "web/.next/standalone/server.js")]
         raise ValueError(service)
 
     def _pid_file(self, service: str) -> Path:
@@ -122,9 +121,9 @@ class LocalRuntime:
 
     def _pid(self, service: str) -> int | None:
         try:
-            value = int(self._pid_file(service).read_text().strip())
+            value = int(self._pid_file(service).read_text().splitlines()[0])
             return value if value > 1 else None
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             return None
 
     def _owned(self, service: str, pid: int | None) -> bool:
@@ -138,9 +137,28 @@ class LocalRuntime:
             ).stdout
         except (OSError, ProcessLookupError):
             return False
+        try:
+            lines = self._pid_file(service).read_text(encoding="ascii").splitlines()
+            if not lines or lines[0] != str(pid):
+                return False
+            if len(lines) == 2:
+                # Immutable process identity survives macOS Python and Next.js title
+                # rewrites. Recycled PIDs have a different birth timestamp.
+                started = subprocess.run(
+                    ["ps", "-p", str(pid), "-o", "lstart="],
+                    check=False, capture_output=True, text=True,
+                ).stdout.strip()
+                return bool(started) and started == lines[1]
+            if len(lines) != 1:
+                return False
+        except OSError:
+            return False
+
+        # Legacy one-line PID files: never fall back to a generic Python process
+        # name, which could belong to another app.
         command = self._command(service)
         if service == "web":
-            return command[1] in details and " start" in details
+            return command[1] in details
         return command[0] in details and (
             "-m engine" in details if service == "engine" else "-m uvicorn" in details
         )
@@ -148,6 +166,9 @@ class LocalRuntime:
     @staticmethod
     def _port_available(port: int) -> bool:
         with socket.socket() as check:
+            # macOS retains TCP TIME_WAIT after stop; SO_REUSEADDR permits a
+            # genuine restart, but not binding over another active listener.
+            check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 check.bind(("127.0.0.1", port))
                 return True
@@ -178,7 +199,8 @@ class LocalRuntime:
                        ALLOWED_HOSTS="localhost,127.0.0.1", HARNESS_ENABLED="false")
             cwd = self.root
         else:
-            env.update(SEEALPHA_API_URL=API_URL, NODE_ENV="production")
+            env.update(SEEALPHA_API_URL=API_URL, NODE_ENV="production",
+                       HOSTNAME="127.0.0.1", PORT="3000")
             cwd = self.root / "web"
         log = self.log_dir / f"{service}.log"
         if log.is_symlink():
@@ -190,7 +212,16 @@ class LocalRuntime:
                 self._command(service), cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                 stdout=handle, stderr=subprocess.STDOUT, start_new_session=True,
             )
-        self._pid_file(service).write_text(str(process.pid) + "\n", encoding="ascii")
+        started = subprocess.run(
+            ["ps", "-p", str(process.pid), "-o", "lstart="],
+            check=False, capture_output=True, text=True,
+        ).stdout.strip()
+        if not started:
+            process.terminate()
+            raise RuntimeError(f"{service} 无法记录进程启动身份；拒绝接管。")
+        self._pid_file(service).write_text(
+            f"{process.pid}\\n{started}\\n".replace("\\n", "\n"), encoding="ascii",
+        )
         self._pid_file(service).chmod(0o600)
         health_url = {"engine": f"{ENGINE_URL}/health", "api": f"{API_URL}/api/health",
                       "web": WEB_URL}[service]
@@ -209,7 +240,7 @@ class LocalRuntime:
         self.check_database()
         for required in (
             self.platform_python, self.engine / ".venv/bin/python",
-            self.root / "web/.next/BUILD_ID", self.root / "web/node_modules/next/dist/bin/next",
+            self.root / "web/.next/BUILD_ID", self.root / "web/.next/standalone/server.js",
         ):
             if not required.is_file():
                 raise RuntimeError(f"安装不完整：{required}；请重新运行 ./seealpha install")
@@ -233,6 +264,18 @@ class LocalRuntime:
                 self._stop_one(service)
             raise
         print(f"SeeAlpha 已启动：{WEB_URL}")
+
+    def up(self) -> None:
+        running = [service for service in SERVICE_ORDER if self._owned(service, self._pid(service))]
+        if len(running) == len(SERVICE_ORDER):
+            self.status()
+            return
+        if running:
+            raise RuntimeError(
+                "发现仅部分服务由本启动器运行；请先 ./seealpha status，"
+                "再检查未决任务后执行 ./seealpha stop，不会隐式重启。"
+            )
+        self.start()
 
     def _stop_one(self, service: str) -> bool:
         file = self._pid_file(service)
@@ -311,6 +354,8 @@ def main(argv: list[str]) -> int:
             runtime.check_database()
         elif argv == ["start"]:
             runtime.start()
+        elif argv == ["up"]:
+            runtime.up()
         elif argv == ["stop"]:
             runtime.stop()
         elif argv == ["status"]:

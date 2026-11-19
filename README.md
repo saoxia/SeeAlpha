@@ -15,24 +15,25 @@ SeeAlpha 是一个量化交易研究与管理平台，将行情数据、策略�
 
 ## 快速开始
 
-**适用环境：** macOS、Linux；Windows 通过 WSL2 Ubuntu 运行。安装前需要 [Git](https://git-scm.com/)、[uv](https://docs.astral.sh/uv/)、[Node.js](https://nodejs.org/) **22.13.0 或更高版本**及 npm。
+**适用环境：** macOS、Linux；Windows 通过 WSL2 Ubuntu 运行。源码安装前需要 Git、curl、tar 和 SHA256 校验工具；首次执行时会在项目的 `.local/` 内自动准备 uv 和 Node.js（不会通过 sudo 改动操作系统）。Windows 可以在授权后通过 WSL 安装缺少的 Ubuntu 基础工具。
 
 在 macOS / Linux 终端执行：
 
 ```bash
 git clone https://github.com/saoxia/SeeAlpha.git
 cd SeeAlpha
-./seealpha install
-./seealpha start
+./seealpha up
 ```
 
-安装时会准备本机所需组件，并在交互式首次安装中引导创建管理员。启动后，在浏览器打开：
+首次运行会安装并启动；再次运行 `./seealpha up` 不会重启已健康运行的服务。安装会在交互式首次初始化时引导创建管理员。启动后，在浏览器打开：
 
 **http://127.0.0.1:3000**
 
 常用命令：
 
 ```bash
+./seealpha install  # 单独安装（可加 --no-bootstrap 禁用工具自动准备）
+./seealpha start    # 单独启动
 ./seealpha status   # 查看服务状态
 ./seealpha doctor   # 检查环境和服务
 ./seealpha stop     # 停止本机服务
@@ -43,11 +44,21 @@ cd SeeAlpha
 **Windows 用户：** 下载或克隆本仓库后，在 PowerShell 的项目根目录运行：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\seealpha.ps1 install
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\seealpha.ps1 start
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\seealpha.ps1 up
 ```
 
-Windows 安装器会检查并引导配置 WSL2 Ubuntu；Git、uv、Node.js/npm 等工具仍需在 Ubuntu 内安装。Windows 原生运行暂不支持。详细步骤见 [安装指南](docs/INSTALLATION.md)。
+Windows 安装器会检查并引导配置 WSL2 Ubuntu，并在获得授权后安装缺少的 Ubuntu 基础工具；uv、Node.js/npm 会自动安装在 Linux 项目目录中。Windows 原生运行暂不支持。详细步骤见 [安装指南](docs/INSTALLATION.md)。
+
+## 预构建镜像部署（可选）
+
+已安装 Docker Engine/Desktop 与 Docker Compose v2 的用户，可以跳过 Python/Node/Rust 本机构建，改用固定版本的预构建 Engine、Platform 和 Web 镜像：
+
+```bash
+./seealpha container up vX.Y.Z
+./seealpha container admin create admin
+```
+
+把 `vX.Y.Z` 替换为 [Releases](https://github.com/saoxia/SeeAlpha/releases) 已实际发布的完整版本标签；仓库代码合并不等于已有对应镜像。浏览器同样访问 <http://127.0.0.1:3000>。镜像在 GHCR 发布，所有服务仅通过私有 Docker 网络互联，Web 只绑定本机地址。这个模式只适合**全新单机研究环境**，不会读取、迁移、升级或接管现有正式数据库/租户。更多命令、安全边界和发布流程见 [安装指南](docs/INSTALLATION.md#预构建镜像部署)。
 
 ## 产品范围与当前实现
 

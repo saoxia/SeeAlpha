@@ -1,0 +1,52 @@
+# Loopback-only local research deployment using published, versioned images.
+# Do not connect an existing production account or database to this stack.
+name: seealpha-local
+services:
+  engine:
+    image: ghcr.io/saoxia/seealpha-engine:${SEEALPHA_VERSION:?select_a_published_release}
+    restart: unless-stopped
+    environment:
+      ENGINE_TOKEN: ${ENGINE_TOKEN:?missing_engine_token}
+      ENGINE_HOST: 0.0.0.0
+      ENGINE_PORT: "8766"
+      ENGINE_PROJECT: /app
+      ENGINE_STATE: /app/.local/state/engine
+    volumes:
+      - engine-state:/app/.local/state/engine
+      - engine-data:/app/data
+    networks: [internal]
+  platform:
+    image: ghcr.io/saoxia/seealpha-platform:${SEEALPHA_VERSION:?select_a_published_release}
+    restart: unless-stopped
+    depends_on: [engine]
+    environment:
+      DATABASE_URL: sqlite:////app/.local/state/api/seealpha.sqlite
+      ENGINE_DEPLOYMENT: single
+      ENGINE_URL: http://engine:8766
+      ENGINE_TOKEN: ${ENGINE_TOKEN:?missing_engine_token}
+      COOKIE_SECURE: "false"
+      HARNESS_ENABLED: "false"
+      ALLOWED_ORIGINS: http://127.0.0.1:3000,http://localhost:3000
+      ALLOWED_HOSTS: 127.0.0.1,localhost
+    volumes:
+      - platform-state:/app/.local
+      - platform-data:/app/data
+      - platform-logs:/app/logs
+    networks: [internal]
+  web:
+    image: ghcr.io/saoxia/seealpha-web:${SEEALPHA_VERSION:?select_a_published_release}
+    restart: unless-stopped
+    depends_on: [platform]
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [internal]
+volumes:
+  engine-state:
+  engine-data:
+  platform-state:
+  platform-data:
+  platform-logs:
+# Private bridge: only Web publishes a loopback host port; Engine needs outbound exchange data.
+networks:
+  internal:
+    driver: bridge

@@ -1,0 +1,99 @@
+name: Prebuilt container release
+
+on:
+  pull_request:
+    paths:
+      - "docker/**"
+      - "scripts/container_api.sh"
+      - "scripts/compose_local.sh"
+      - "scripts/install.sh"
+      - "scripts/build_external_engine.sh"
+      - ".dockerignore"
+      - "platform/**"
+      - "web/**"
+      - "api/**"
+      - "core/**"
+      - "migrations/**"
+      - ".github/workflows/release-images.yml"
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell entrypoints
+        run: |
+          for script in seealpha scripts/bootstrap_tools.sh scripts/install.sh scripts/compose_local.sh scripts/container_api.sh scripts/build_external_engine.sh; do
+            bash -n "$script"
+          done
+      - name: Fetch pinned Engine and verify shared contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine_sha="$(sed -n 's/^engine_sha="\([a-f0-9]*\)"$/\1/p' scripts/install.sh)"
+          [[ "$engine_sha" =~ ^[a-f0-9]{40}$ ]]
+          git clone --quiet --no-checkout https://github.com/saoxia/seealpha-engine.git /tmp/seealpha-engine
+          git -C /tmp/seealpha-engine checkout --quiet --detach "$engine_sha"
+          [[ "$(git -C /tmp/seealpha-engine rev-parse HEAD)" == "$engine_sha" ]]
+          cmp core/engine_contracts.py /tmp/seealpha-engine/core/engine_contracts.py
+          cmp core/trading_contracts.py /tmp/seealpha-engine/core/trading_contracts.py
+      - name: Build precompiled Engine, Platform and Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -f /tmp/seealpha-engine/docker/engine.Dockerfile -t seealpha-engine:ci /tmp/seealpha-engine
+          docker build -f docker/platform.Dockerfile -t seealpha-platform:ci .
+          docker build -f docker/web.Dockerfile -t seealpha-web:ci .
+      - name: Smoke test local Compose with fresh persisted state
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in engine platform web; do
+            docker tag "seealpha-$service:ci" "ghcr.io/saoxia/seealpha-$service:ci"
+          done
+          mkdir -p .local/config/compose
+          printf 'SEEALPHA_VERSION=ci\nENGINE_TOKEN=%s\n' "$(openssl rand -hex 32)" > .local/config/compose/local.env
+          chmod 600 .local/config/compose/local.env
+          dc() { docker compose --env-file .local/config/compose/local.env -f docker/compose.local.yml "$@"; }
+          trap 'dc logs --tail 100 || true; dc down || true' EXIT
+          dc up -d
+          for attempt in {1..80}; do
+            if curl --silent --fail --max-time 3 http://127.0.0.1:3000/ >/dev/null; then break; fi
+            sleep 3
+          done
+          curl --fail --max-time 10 http://127.0.0.1:3000/ >/dev/null
+          # Platform initializes a fresh Alembic database on first boot and may lag Web.
+          for attempt in {1..80}; do
+            if dc exec -T platform /app/platform/.venv/bin/python -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200' >/dev/null 2>&1; then break; fi
+            sleep 3
+          done
+          dc exec -T platform /app/platform/.venv/bin/python -c 'import urllib.request; assert urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=5).status == 200'
+          dc exec -T engine python -c 'import os,urllib.request; r=urllib.request.Request("http://127.0.0.1:8766/health",headers={"Authorization":"Bearer "+os.environ["ENGINE_TOKEN"]}); assert urllib.request.urlopen(r,timeout=5).status == 200'
+          dc exec -T platform /app/platform/.venv/bin/python -c 'import sqlite3; c=sqlite3.connect("/app/.local/state/api/seealpha.sqlite"); assert c.execute("SELECT count(*) FROM alembic_version").fetchone()[0] == 1'
+      - name: Publish versioned release images
+        if: github.event_name != 'pull_request'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="sha-$GITHUB_SHA"
+          fi
+          for service in engine platform web; do
+            docker tag "seealpha-$service:ci" "ghcr.io/saoxia/seealpha-$service:$tag"
+            docker push "ghcr.io/saoxia/seealpha-$service:$tag"
+          done
