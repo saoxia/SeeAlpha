@@ -41,6 +41,10 @@ def test_mcp_handshake_discovery_calls_and_revocation(tmp_path, monkeypatch):
             return {"datasets": []}
         if operation == "backtest_submit":
             return {"backtest_id": "b" * 32, "status": "queued"}
+        if operation == "basket_run":
+            return {"mode": "native_dual_venue_development_only", "fills": []}
+        if operation == "basket_latest":
+            return {"mode": "native_dual_venue_development_only"}
         raise AssertionError("Unexpected research operation")
 
     monkeypatch.setattr(task_router, "_client", fake_harness)
@@ -73,6 +77,8 @@ def test_mcp_handshake_discovery_calls_and_revocation(tmp_path, monkeypatch):
         names = {tool["name"] for tool in tools}
         assert "list_datasets" in names
         assert "submit_backtest" in names
+        assert "run_basket_backtest" in names
+        assert "get_latest_basket_backtest" in names
         assert "submit_python_candidate_backtest" not in names
         ok = send(client, 3, "tools/call", {
             "name": "submit_backtest", "arguments": {
@@ -83,6 +89,31 @@ def test_mcp_handshake_discovery_calls_and_revocation(tmp_path, monkeypatch):
         })
         assert ok.json()["result"]["structuredContent"]["status"] == "queued"
         assert calls[0][0] == "backtest_submit"
+        basket = send(client, 31, "tools/call", {
+            "name": "run_basket_backtest", "arguments": {
+                "mode": "funding_carry", "start": "2026-01-01", "end": "2026-01-02",
+                "interval": "1m", "starting_primary_balance": "500",
+                "starting_perpetual_balance": "500", "max_gross_notional": "900",
+            },
+        })
+        assert basket.json()["result"]["structuredContent"]["fills"] == []
+        assert calls[-1][0] == "basket_run"
+        last = send(client, 32, "tools/call", {
+            "name": "get_latest_basket_backtest", "arguments": {
+                "mode": "funding_carry",
+            },
+        })
+        assert last.json()["result"]["structuredContent"]["mode"].startswith("native_")
+        assert calls[-1] == ("basket_latest", {"mode": "funding_carry"})
+        forged = send(client, 33, "tools/call", {
+            "name": "run_basket_backtest", "arguments": {
+                "mode": "funding_carry", "start": "2026-01-01", "end": "2026-01-02",
+                "interval": "1m", "starting_primary_balance": "500",
+                "starting_perpetual_balance": "500", "max_gross_notional": "900",
+                "tenant_id": "999",
+            },
+        })
+        assert forged.json()["result"]["isError"] is True
         assert send(client, 4, "tools/call", {
             "name": "execute_shell", "arguments": {"command": "id"},
         }).json()["error"]["code"] == -32602
