@@ -69,7 +69,7 @@ test("native carry journal shows exact signed product targets and scoped member 
     ...base, mode: "native_dual_venue_development_only",
     equity_curve: [{ ts_ns: 200, total_equity: "1001" }],
     target_events: [{
-      ts_ns: 200, member_count: 2, executable: false,
+      ts_ns: 1_780_000_000_000_000_000, member_count: 2, executable: false,
       targets: [
         { product: "spot", symbol: "ETHUSDT", quantity: "0.2" },
         { product: "futures_um", symbol: "ETHUSDT", quantity: "-0.2" },
@@ -79,7 +79,7 @@ test("native carry journal shows exact signed product targets and scoped member 
   const metrics = basketReportMetrics(report);
   assert.equal(metrics.targetEvents, 1);
   assert.deepEqual(metrics.latestTargetEvent, {
-    tsNs: 200, memberCount: 2, action: null,
+    tsMs: 1_780_000_000_000, memberCount: 2, action: null,
     targets: [
       { label: "spot/ETHUSDT", quantity: "0.2" },
       { label: "futures_um/ETHUSDT", quantity: "-0.2" },
