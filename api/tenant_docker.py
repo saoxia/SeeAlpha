@@ -260,6 +260,51 @@ class DockerTenantManager:
                     retired.mkdir(parents=True, exist_ok=True, mode=0o700)
                     original.rename(retired / f"{tenant_id}-{secrets.token_hex(16)}")
 
+
+    def reset_development(self, tenant_id):
+        """Recreate only a development Engine's volatile state; preserve data and credentials.
+
+        Old state is moved to a private recovery directory, never silently deleted.
+        The caller must check ownership and idle jobs before invoking this method.
+        """
+        tenant_id = self._id(tenant_id)
+        with self._lock:
+            root, state, data, local, env_path = self._paths(tenant_id)
+            if any(path.is_symlink() for path in (self.root, root, state, data, local, env_path)):
+                raise EngineConflict("Engine 存储包含符号链接，拒绝重置。")
+            if not data.is_dir():
+                raise EngineConflict("历史数据卷不可用，拒绝重置。")
+            self._credentials(env_path, tenant_id, "development", create=False)
+            container = self._inspect(self._name(tenant_id))
+            if container is None:
+                raise EngineConflict("开发 Engine Docker 尚未创建。")
+            self._validate_container(container, tenant_id, "development")
+            if container["Config"].get("Image") != self.image:
+                raise EngineConflict("开发 Engine 镜像版本不匹配，拒绝重置。")
+            mounts = {
+                item["Destination"]: Path(item["Source"]).resolve()
+                for item in container.get("Mounts", [])
+            }
+            if (mounts.get("/app/.local/state/engine") != state.resolve()
+                    or mounts.get("/app/.local/run") != local.resolve()
+                    or mounts.get("/app/data") != data.resolve()):
+                raise EngineConflict("开发 Engine 数据卷挂载不匹配，拒绝重置。")
+
+            backup_root = self.root / ".resets"
+            if backup_root.is_symlink():
+                raise EngineConflict("Engine 恢复目录不可信。")
+            backup_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            backup = backup_root / f"{tenant_id}-{secrets.token_hex(16)}"
+            self.stop(tenant_id, remove=True)
+            backup.mkdir(mode=0o700)
+            for source in (state, local):
+                if source.exists():
+                    source.rename(backup / source.name)
+            # Keep the downloaded Catalog and source archives under data/.
+            # Logs and the existing pinned Engine credentials are retained.
+            self.ensure(tenant_id, "development")
+            return backup.name
+
     def worker_log(self, tenant_id, path):
         """Map an API log path into an isolated tenant mount; preserve the API read path."""
         tenant_id = self._id(tenant_id)
