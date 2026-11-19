@@ -5,7 +5,7 @@ import {
   HARNESS_FINISHED, harnessArtifacts, harnessCancel, harnessContinue, harnessGet,
   harnessHistory, harnessImport, harnessStart, harnessStatus, harnessTaskStorageKey,
   harnessTimeline, type HarnessArtifact, type HarnessEvent, type HarnessHistoryTask,
-  type HarnessStatus, type HarnessTask,
+  type HarnessStatus, type HarnessTask, type ResearchSelection,
 } from "@/app/features/research/harness-api";
 
 const statusName:Record<string,string> = {
@@ -22,6 +22,10 @@ export function HarnessWorkspace() {
   const [task,setTask] = useState<HarnessTask|null>(null);
   const [events,setEvents] = useState<HarnessEvent[]>([]);
   const [prompt,setPrompt] = useState("");
+  const [useResearch,setUseResearch] = useState(false);
+  const [researchTenant,setResearchTenant] = useState("");
+  const [researchAccount,setResearchAccount] = useState("");
+  const [researchDataset,setResearchDataset] = useState("futures_um:ETHUSDT:1m");
   const [exportPath,setExportPath] = useState("");
   const [artifacts,setArtifacts] = useState<HarnessArtifact[]>([]);
   const [busy,setBusy] = useState(false);
@@ -134,9 +138,21 @@ export function HarnessWorkspace() {
     if(!value||!available||running||busy)return;
     setBusy(true);setError("");
     try {
+      const selection:ResearchSelection|undefined = useResearch && !task
+        ? {
+            research_tenant_id:Number(researchTenant),
+            research_account_id:researchAccount.trim(),
+            research_dataset_ref:researchDataset.trim(),
+          }
+        : undefined;
+      if (selection && (
+        !Number.isSafeInteger(selection.research_tenant_id)
+        || selection.research_tenant_id <= 0 || !selection.research_account_id
+        || !selection.research_dataset_ref
+      )) throw new Error("请填写有效的开发租户、虚拟账户和授权数据集。");
       const next=task?.status==="completed"
         ? await harnessContinue(task.id,value)
-        : await harnessStart(value);
+        : await harnessStart(value,selection);
       selected.current=next.id;cursor.current=0;
       setTask(next);setPrompt("");setEvents([]);setArtifacts([]);
       try {localStorage.setItem(harnessTaskStorageKey,next.id);} catch { /* Optional. */ }
@@ -203,8 +219,26 @@ export function HarnessWorkspace() {
           <label htmlFor="harness-prompt">{task?.status==="completed"?"继续当前研究会话":"研究目标"}</label>
           <textarea id="harness-prompt" value={prompt} rows={5}
             onChange={e=>setPrompt(e.target.value)} maxLength={20000}
-            placeholder="描述研究目标和数据假设。当前仅提供本地 Agent 研究能力，不会自动获得 Engine 数据和实盘交易权限。"
+            placeholder="描述研究目标和数据假设。可选开启已授权开发回测工具；AI 无实盘交易权限。"
             disabled={!available||running||busy}/>
+          {!task&&<details>
+            <summary>开发环境 Engine 研究工具（可选）</summary>
+            <label><input type="checkbox" checked={useResearch}
+              onChange={e=>setUseResearch(e.target.checked)} disabled={busy}/>
+              授权当前 AI 任务调用开发数据与模拟回测</label>
+            {useResearch&&<div>
+              <label>开发租户 ID<input value={researchTenant}
+                inputMode="numeric" onChange={e=>setResearchTenant(e.target.value)}
+                disabled={busy}/></label>
+              <label>虚拟账户 ID<input value={researchAccount}
+                onChange={e=>setResearchAccount(e.target.value)} disabled={busy}/></label>
+              <label>数据集标识<input value={researchDataset}
+                onChange={e=>setResearchDataset(e.target.value)} disabled={busy}
+                placeholder="futures_um:ETHUSDT:1m"/></label>
+              <p className="research-note">需要该账户已有匹配的开发策略下发，且租户已授权历史数据订阅。
+              研究凭据短期有效，不支持生产下单。</p>
+            </div>}
+          </details>}
           <div className="research-harness-controls">
             <button type="button" className="primary" disabled={!available||!prompt.trim()||running||busy}
               onClick={()=>void submit()}>

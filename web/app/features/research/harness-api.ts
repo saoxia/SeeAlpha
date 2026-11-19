@@ -64,10 +64,16 @@ export function harnessStatus(signal?: AbortSignal) {
   return request<HarnessStatus>(base + "/status", {signal});
 }
 
-export function harnessStart(prompt: string) {
+export type ResearchSelection = {
+  research_tenant_id: number;
+  research_account_id: string;
+  research_dataset_ref: string;
+};
+
+export function harnessStart(prompt: string, research?: ResearchSelection) {
   return request<HarnessTask>(base + "/tasks", {
     method: "POST",
-    body: JSON.stringify({prompt, queue_if_busy: true}),
+    body: JSON.stringify({prompt, queue_if_busy: !research, ...research}),
   });
 }
 

@@ -41,6 +41,8 @@ from .operations.service import OperationService
 from .production_deployments import ProductionDeploymentManager
 from .research.harness_instances import UserHarnessInstances
 from .research.harness_router import router as harness_router
+from .research.task_access import ResearchLeases
+from .research.task_router import router as research_task_router
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
 from .tenant_docker import DockerTenantManager
@@ -180,6 +182,10 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.state.repository = auth_repository(database, admin_username=settings.admin_username)
     app.state.database = database
     app.state.user_resources = UserResources(database)
+    app.state.research_leases = (
+        ResearchLeases(settings.database_path.parent / "research-tasks" / "leases.sqlite3")
+        if settings.research_proxy_enabled else None
+    )
     app.state.accounts = Accounts(database, settings)
     if settings.engine_deployment not in {"single", "docker", "distributed"}:
         raise ValueError("ENGINE_DEPLOYMENT must be single, docker or distributed")
@@ -207,6 +213,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
             development_memory=settings.engine_development_memory,
             log_root=(project if project is not None else PROJECT) / "logs",
             resource_limits=tenant_limits,
+            research_enabled=settings.research_proxy_enabled,
         )
         manager = local
         if settings.engine_deployment == "distributed":
@@ -319,6 +326,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(market_data_router, prefix="/api")
     app.include_router(management_router, prefix="/api")
     app.include_router(harness_router, prefix="/api")
+    app.include_router(research_task_router, prefix="/api")
     app.include_router(tenants_router, prefix="/api")
     app.include_router(node_router, prefix="/api")
     app.include_router(strategies_router, prefix="/api")
