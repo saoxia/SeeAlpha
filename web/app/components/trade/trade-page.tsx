@@ -313,7 +313,7 @@ export function TradePage() {
         <div className="trade-batch-entry">
           <h3>批量限价委托</h3>
           <p className="trade-muted">每行：买/卖,价格,数量（最多 10 笔）。逐笔发送，非原子批次；仅限 GTC 开仓，任何拒绝或未知结果立即停止。</p>
-          <textarea aria-label="批量限价委托清单" rows={4} value={batchDraft} disabled={busy} placeholder={"买,2000,0.01\\n卖,2100,0.01"} onChange={event => setBatchDraft(event.target.value)} />
+          <textarea aria-label="批量限价委托清单" rows={4} value={batchDraft} disabled={busy} placeholder={"买,2000,0.01\n卖,2100,0.01"} onChange={event => setBatchDraft(event.target.value)} />
           <button className="trade-batch-action" disabled={!ready || !batchDraft.trim()} onClick={prepareBatchSubmit}>预览批量限价单</button>
         </div>
         {!ready && <p className="trade-muted" role="status">{disabledReason}</p>}
