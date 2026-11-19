@@ -96,6 +96,30 @@ export function basketReportMetrics(result: BasketBacktestResult): {
       accounts.push({ label: "永续模拟权益（USDT）", value: last.perpetual_equity });
     }
   }
+  if (last && result.mode === "native_generic_development_only") {
+    const seen = new Set<string>();
+    for (const item of Array.isArray(last.positions) ? last.positions : []) {
+      if (
+        !item || !["spot", "futures_um"].includes(item.product)
+        || typeof item.symbol !== "string" || !/^[A-Z0-9-]{2,64}$/.test(item.symbol)
+        || typeof item.quantity !== "string" || !/^-?\\d+(?:\\.\\d+)?$/.test(item.quantity)
+      ) continue;
+      const key = item.product + ":" + item.symbol;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      positions.push({ label: key + " 模拟净持仓", value: item.quantity });
+    }
+    const productEquity = last.product_equity;
+    for (const product of ["spot", "futures_um"]) {
+      const value = productEquity?.[product];
+      if (typeof value === "string" && /^-?\\d+(?:\\.\\d+)?$/.test(value)) {
+        accounts.push({
+          label: product === "spot" ? "现货 CASH 模拟权益（USDT）" : "永续 MARGIN 模拟权益（USDT）",
+          value,
+        });
+      }
+    }
+  }
   return {
     positions,
     accounts,
