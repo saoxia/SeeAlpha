@@ -17,7 +17,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 class ResourceAllocation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enabled: bool = True
-    cpus: str | None = Field(default=None, pattern=r"^(?:0\\.[1-9]|[1-9][0-9]?(?:\\.[0-9])?)$")
+    cpus: str | None = Field(default=None, pattern=r"^(?:0\.[1-9]|[1-9][0-9]?(?:\.[0-9])?)$")
     memory: str | None = Field(default=None, pattern=r"^[1-9][0-9]*[mg]$")
     node: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
 

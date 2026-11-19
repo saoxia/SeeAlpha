@@ -34,6 +34,8 @@ def _require_harness_owner(request: Request, user: CurrentUser) -> None:
     # Single mode has one explicitly designated owner; per-user mode maps each
     # authenticated non-admin user to a separate resident Harness.
     settings = request.app.state.settings
+    if not request.app.state.user_resources.enabled(user.id, "harness"):
+        raise HTTPException(403, "管理员尚未为此用户分配 AI Harness。")
     if settings.harness_deployment == "per_user":
         if user.username.casefold() == settings.admin_username.casefold():
             raise HTTPException(403, "管理员不能运行普通用户的研究任务。")
@@ -52,7 +54,10 @@ def _client(request: Request, user: CurrentUser):
         raise HTTPException(503, "Harness 尚未启用。")
     try:
         if settings.harness_deployment == "per_user":
-            client = request.app.state.harness_instances.client(user.id)
+            allocation = request.app.state.user_resources.get(user.id)["harness"]
+            client = request.app.state.harness_instances.client(
+                user.id, cpus=allocation["cpus"], memory=allocation["memory"]
+            )
         else:
             client = HarnessClient(settings.harness_url, settings.harness_token)
     except (ValueError, OSError):
