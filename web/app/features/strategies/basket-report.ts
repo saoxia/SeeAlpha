@@ -102,7 +102,7 @@ export function basketReportMetrics(result: BasketBacktestResult): {
       if (
         !item || !["spot", "futures_um"].includes(item.product)
         || typeof item.symbol !== "string" || !/^[A-Z0-9-]{2,64}$/.test(item.symbol)
-        || typeof item.quantity !== "string" || !/^-?\d+(?:\\.\d+)?$/.test(item.quantity)
+        || typeof item.quantity !== "string" || !/^-?\d+(?:\.\d+)?$/.test(item.quantity)
       ) continue;
       const key = item.product + ":" + item.symbol;
       if (seen.has(key)) continue;
@@ -112,7 +112,7 @@ export function basketReportMetrics(result: BasketBacktestResult): {
     const productEquity = last.product_equity;
     for (const product of ["spot", "futures_um"]) {
       const value = productEquity?.[product];
-      if (typeof value === "string" && /^-?\d+(?:\\.\d+)?$/.test(value)) {
+      if (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value)) {
         accounts.push({
           label: product === "spot" ? "现货 CASH 模拟权益（USDT）" : "永续 MARGIN 模拟权益（USDT）",
           value,
