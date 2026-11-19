@@ -46,6 +46,7 @@ volumes:
   platform-state:
   platform-data:
   platform-logs:
+# Private bridge: only Web publishes a loopback host port; Engine needs outbound exchange data.
 networks:
   internal:
-    internal: true
+    driver: bridge
