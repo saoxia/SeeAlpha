@@ -108,7 +108,7 @@ export function matchesIncrement(value: string, increment: string): boolean {
     const [whole, fraction = ""] = text.split(".");
     return BigInt(whole + fraction.padEnd(precision, "0"));
   };
-  return scaled(value) % scaled(increment) === 0n;
+  return scaled(value) % scaled(increment) === BigInt(0);
 }
 
 export type BatchTask = {
