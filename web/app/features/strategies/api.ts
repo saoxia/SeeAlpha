@@ -141,6 +141,34 @@ export function issueStrategy(
   });
 }
 
+export type GenericPortfolioLeg = {
+  product: "spot" | "futures_um";
+  symbol: string;
+};
+
+export function runGenericPortfolioBacktest(
+  tenantId: number, accountId: number, values: {
+    issuance_ids: string[];
+    legs: GenericPortfolioLeg[];
+    start: string; end: string; interval: "1m" | "5m";
+    starting_spot_balance: string;
+    starting_perpetual_balance: string;
+    max_gross_notional: string;
+  },
+) {
+  return request<BasketBacktestResult>(
+    `/api/tenants/${tenantId}/accounts/${accountId}/generic-portfolio-backtests`, {
+      method: "POST", body: JSON.stringify(values),
+    },
+  );
+}
+
+export function latestGenericPortfolioBacktest(tenantId: number, accountId: number) {
+  return request<BasketBacktestResult>(
+    `/api/tenants/${tenantId}/accounts/${accountId}/generic-portfolio-backtests/latest`,
+  );
+}
+
 export function runIssuedSpotPerpBacktest(
   tenantId: number, accountId: number, values: {
     issuance_id: string; start: string; end: string; interval: "1m" | "5m";
