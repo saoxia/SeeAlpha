@@ -92,6 +92,7 @@ class DistributedTenantManager:
             "memory": memory,
             "port": 8766,
             "env": {
+                "ENGINE_AUTH_MODE": "token",
                 "ENGINE_TOKEN": self._token(tenant_id),
                 "ENGINE_TENANT_ID": str(tenant_id),
                 "ENGINE_TENANT_PURPOSE": purpose,

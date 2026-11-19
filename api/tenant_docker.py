@@ -101,6 +101,7 @@ class DockerTenantManager:
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
             descriptor = os.open(env_path, flags, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as file:
+                file.write("ENGINE_AUTH_MODE=token\n")
                 file.write(f"ENGINE_TOKEN={secrets.token_urlsafe(48)}\n")
                 file.write(f"ENGINE_TENANT_ID={tenant_id}\n")
                 file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
@@ -115,7 +116,8 @@ class DockerTenantManager:
         values = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
         if (values.get("ENGINE_TENANT_ID") != tenant_id
                 or values.get("ENGINE_TENANT_PURPOSE") != purpose
-                or not values.get("ENGINE_TOKEN")):
+                or values.get("ENGINE_AUTH_MODE") != "token"
+                or len(values.get("ENGINE_TOKEN", "")) < 32):
             raise EngineConflict("租户 Engine 凭据配置与租户不一致。")
         return values["ENGINE_TOKEN"]
 

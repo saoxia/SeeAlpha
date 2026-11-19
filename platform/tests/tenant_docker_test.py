@@ -42,6 +42,7 @@ def test_engine_client_rejects_inprocess_and_uses_http_only(tmp_path):
     def reply(request):
         requests.append((request.method, request.url.path))
         assert request.headers[ENGINE_CONTRACT_HEADER] == ENGINE_CONTRACT_VERSION
+        assert "Authorization" not in request.headers
         return httpx.Response(
             200, json={"tenant_id": "7", "status": "active"},
             headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION},
@@ -262,3 +263,42 @@ def test_engine_offline_fails_without_fallback(tmp_path):
     )
     with pytest.raises(OSError, match="交易引擎不可用"):
         client._sync("GET", "/health")
+
+
+def test_single_engine_client_sends_only_explicit_token(tmp_path):
+    seen = []
+
+    def reply(request):
+        seen.append(request.headers.get("Authorization"))
+        return httpx.Response(
+            200, json={"status": "ok"},
+            headers={ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION},
+        )
+
+    client = EngineClient(
+        tmp_path, token="caller-provided-token",
+        sync_transport=httpx.MockTransport(reply),
+    )
+    assert client._sync("GET", "/health")["status"] == "ok"
+    assert seen == ["Bearer caller-provided-token"]
+
+
+def test_docker_credentials_enable_token_mode_and_reject_legacy_env(tmp_path):
+    manager = DockerTenantManager(
+        tmp_path / "tenants", image="seealpha-engine:test",
+        production_cpus="2", production_memory="4g",
+        development_cpus="4", development_memory="8g",
+        log_root=tmp_path / "logs",
+    )
+    _root, _state, _data, _local, env_path = manager._paths("7")
+    env_path.parent.mkdir(parents=True)
+    token = manager._credentials(env_path, "7", "development", create=True)
+    values = dict(line.split("=", 1) for line in env_path.read_text().splitlines())
+    assert values["ENGINE_AUTH_MODE"] == "token"
+    assert values["ENGINE_TOKEN"] == token
+    assert len(token) >= 32
+    assert manager._credentials(env_path, "7", "development", create=False) == token
+
+    env_path.write_text(env_path.read_text().replace("ENGINE_AUTH_MODE=token\n", ""))
+    with pytest.raises(EngineConflict, match="凭据配置"):
+        manager._credentials(env_path, "7", "development", create=False)

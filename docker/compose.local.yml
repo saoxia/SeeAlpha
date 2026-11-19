@@ -6,6 +6,7 @@ services:
     image: ghcr.io/saoxia/seealpha-engine:${SEEALPHA_VERSION:?select_a_published_release}
     restart: unless-stopped
     environment:
+      ENGINE_AUTH_MODE: token
       ENGINE_TOKEN: ${ENGINE_TOKEN:?missing_engine_token}
       ENGINE_HOST: 0.0.0.0
       ENGINE_PORT: "8766"

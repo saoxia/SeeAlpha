@@ -48,7 +48,7 @@ class RemoteProcess:
 
 class EngineClient:
     def __init__(
-        self, root, url="http://127.0.0.1:8766", token="seealpha-local-engine",
+        self, root, url="http://127.0.0.1:8766", token="",
         market_account_id="market-data", tenant_manager=None, *, sync_transport=None,
         async_transport=None,
     ):
@@ -64,10 +64,9 @@ class EngineClient:
         self.remote = True
         self.sync_transport = sync_transport
         self.async_transport = async_transport
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-            ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION,
-        }
+        self.headers = {ENGINE_CONTRACT_HEADER: ENGINE_CONTRACT_VERSION}
+        if self.token:
+            self.headers["Authorization"] = f"Bearer {self.token}"
 
     def close(self):
         """HTTP connections are scoped to each call; no Engine runtime is owned."""
