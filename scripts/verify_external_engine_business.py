@@ -28,7 +28,7 @@ def _environment():
             or parsed.path not in ("", "/")):
         raise RuntimeError("Business smoke requires a loopback-only Engine HTTP URL")
     token = os.environ["ENGINE_TOKEN"]
-    if not token or token == "seealpha-local-engine":
+    if len(token) < 32:
         raise RuntimeError("Refusing to use a shared or default Engine token")
     tenant_id = os.environ["ENGINE_SMOKE_TENANT_ID"]
     if not tenant_id.isdecimal() or int(tenant_id) < 100000000:
