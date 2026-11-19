@@ -263,6 +263,102 @@ export function TradePage() {
     }
   }
 
+
+  function prepareConditional(side: "buy" | "sell") {
+    if (!account || !state || disabledReason || product !== "futures_um") return;
+    const isTrailing = algoType === "TRAILING_STOP_MARKET";
+    const isLimit = algoType === "STOP" || algoType === "TAKE_PROFIT";
+    if (!matchesIncrement(algoQty, state.instrument.size_increment)
+        || state.instrument.min_quantity && Number(algoQty) < Number(state.instrument.min_quantity)) {
+      setNotice("条件单数量无效或不符合合约精度。"); return;
+    }
+    const tick = state.instrument.price_increment;
+    if (!isTrailing && !matchesIncrement(triggerPrice, tick)
+        || isLimit && !matchesIncrement(stopLimitPrice, tick)
+        || isTrailing && activationPrice && !matchesIncrement(activationPrice, tick)) {
+      setNotice("触发价/委托价/激活价无效或不符合合约精度。"); return;
+    }
+    if (isTrailing && (!/^\d+(\.\d{1,4})?$/.test(callbackRate) || Number(callbackRate) < 0.1 || Number(callbackRate) > 20)) {
+      setNotice("跟踪回调率必须在 0.1%～20% 之间。"); return;
+    }
+    const position = state.positions.find(p => p.side === (side === "sell" ? "long" : "short"));
+    if (!position || Number(algoQty) > Number(position.quantity)) {
+      setNotice("仅允许保护已有仓位的减仓条件单，数量不能超过当前多/空持仓。"); return;
+    }
+    const payload: AlgoRequest = {
+      account_revision: state.account_revision, request_id: requestId(), symbol, environment, side,
+      order_type: algoType, quantity: algoQty, expected_position_mode: state.position_mode,
+      position_effect: "close", working_type: workingType,
+      trigger_price: isTrailing ? null : triggerPrice,
+      price: isLimit ? stopLimitPrice : null,
+      activation_price: isTrailing && activationPrice ? activationPrice : null,
+      callback_rate: isTrailing ? callbackRate : null,
+      price_protect: !isTrailing && !isLimit && priceProtect,
+    };
+    setProfessionalPlan({accountId: account.id, action: "algo_submit", payload,
+      title: "交易所原生条件单",
+      details: [
+        `方向：${side === "sell" ? "卖出平多" : "买入平空"}，${algoQty} ${base}`,
+        `类型：${algoType} · ${workingType}`,
+        isTrailing ? `回调率：${callbackRate}% · 激活价：${activationPrice || "交易所最新价"}`
+          : `触发价：${triggerPrice}${isLimit ? ` · 限价：${stopLimitPrice}` : ""}`,
+        "仅对已有仓位减仓；由 Binance 托管触发，非页面价格提醒。",
+      ]});
+  }
+
+  function prepareAlgoCancel(order: AlgoOrder) {
+    if (!account || !state || busyRef.current || pending || !isFresh(state.algo_checked_at, Date.now())) {
+      setNotice("请先刷新条件订单，确认交易所最新挂单后撤销。"); return;
+    }
+    const payload: AlgoCancelRequest = {
+      account_revision: state.account_revision, request_id: requestId(), symbol, environment,
+      client_algo_id: order.client_algo_id,
+    };
+    setProfessionalPlan({accountId: account.id, action: "algo_cancel", payload,
+      title: "撤销交易所条件单",
+      details: [`客户条件单号：${order.client_algo_id}`, `类型：${order.order_type}`,
+                `方向：${order.side} · 状态：${order.status}`]});
+  }
+
+  function prepareLeverage() {
+    if (!account || !state || disabledReason || product !== "futures_um") return;
+    const proposed = Number(newLeverage);
+    if (!/^\d+$/.test(newLeverage) || !Number.isInteger(proposed) || proposed < 1 || proposed > 125) {
+      setNotice("杠杆必须是 1～125 的整数；交易所可能有更低的合约或账户上限。"); return;
+    }
+    const payload: LeverageRequest = {account_revision: state.account_revision, request_id: requestId(),
+      symbol, environment, leverage: proposed};
+    setProfessionalPlan({accountId: account.id, action: "leverage", payload,
+      title: "更改合约初始杠杆",
+      details: [`合约：${symbol}`, `当前：${state.leverage ?? "未知"}× → 目标：${proposed}×`,
+                "不会切换保证金模式或持仓模式；交易所决定该账户可用上限。"]});
+  }
+
+  async function sendProfessional() {
+    if (!professionalPlan || !account || !state || busyRef.current || pending ||
+        professionalPlan.accountId !== account.id) return;
+    if (disabledReason || !isFresh(state.checked_at, Date.now())) {
+      setProfessionalPlan(null); setNotice("账户或行情快照已过期，请重新核对后提交。");return;
+    }
+    busyRef.current = true; setBusy(true); setNotice("");
+    const payload = professionalPlan.payload;
+    remember({accountId: account.id, requestId: payload.request_id, symbol, environment});
+    const suffix = professionalPlan.action === "algo_submit" ? "algo/orders"
+      : professionalPlan.action === "algo_cancel" ? "algo/cancel" : "leverage";
+    try {
+      const result = await tradingRequest<Result>(`/api/trading/accounts/${account.id}/${suffix}`, {
+        method: "POST", body: JSON.stringify(payload),
+      });
+      setNotice(`${result.message}${result.algo_order ? ` · ${result.algo_order.client_algo_id}` : ""}`);
+      if (result.status === "completed") remember(null);
+      if (professionalPlan.action === "algo_submit" && result.status === "completed") setAlgoQty("");
+    } catch (error) {
+      setNotice(`操作结果待核实：${error instanceof Error ? error.message : "连接中断"}。不得盲目重新提交。`);
+    } finally {
+      setProfessionalPlan(null); busyRef.current = false; setBusy(false); void refreshState();
+    }
+  }
+
   async function send() {
     if (busyRef.current || !account || (!confirmation && !cancelOrder)) return;
     busyRef.current = true; setBusy(true); setNotice("");
