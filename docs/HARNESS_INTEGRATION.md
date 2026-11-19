@@ -1,6 +1,6 @@
 # 在 SeeAlpha Platform 接入独立 Harness（本地开发阶段）
 
-> **2026-11-19 架构调整**：已选定 Harness → Platform 轻量研究代理 → Engine Research API，不再要求独立 Gateway/MCP Bridge。详见 [简化 AI 研究调用链](DIRECT_AI_RESEARCH.md)。现有 Harness 任务/Session 入口保持不变；新增 Platform 内部 `DirectEngineResearchClient` 但任务级代理授权与 Agent 调用尚未接通，不能称 AI 自动回测已完成。
+> **2026-11-20 MCP 接线**：已接入 Harness SDK MCP Client → Platform 任务 MCP 代理 → Engine 原生 MCP；不部署独立 Gateway/MCP Bridge。详见 [AI 研究 MCP 调用链](DIRECT_AI_RESEARCH.md)。平台仍以任务级能力对 Harness 授权，并代持 Engine Grant。真实模型/开发 Docker 联调尚未完成，不宣称 AI 自动回测已实机通过。
 
 > 本文描述原有单用户 `HARNESS_DEPLOYMENT=single` 模式。新增的可选 `per_user` 实例部署、远端 Node Agent 和用户级路由见 [每用户独立 Harness](HARNESS_PER_USER.md)。两种模式均尚未获得真实资金或生产级 Agent 沙箱验收。
 

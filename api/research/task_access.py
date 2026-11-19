@@ -25,8 +25,8 @@ from core.engine_contracts import EngineConflict
 from ..market_data.repository import PolicyRepository
 from ..tenant_docker import DockerTenantManager
 from .candidates import parse_candidate
-from .direct_engine import DirectEngineResearchClient
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
+from .mcp_engine import EngineMCPResearchClient
 from .python_candidates import parse_python_candidate
 
 OPERATIONS = {
@@ -380,7 +380,7 @@ def research_command(app, lease: dict, operation: str, args: dict):
         )
     except ResearchGrantDenied:
         raise HTTPException(403, "Research authorization unavailable") from None
-    with DirectEngineResearchClient(origin, grant) as client:
+    with EngineMCPResearchClient(origin, grant) as client:
         if operation == "python_candidate_submit":
             return client.submit_python_candidate({
                 "candidate_id": candidate["id"],

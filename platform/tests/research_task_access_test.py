@@ -338,7 +338,7 @@ def test_full_python_candidate_is_immutable_and_task_scoped(leases, monkeypatch)
         f"https://engine-{tenant}.internal", "test-signing-key",
     ))
     monkeypatch.setattr(task_access, "ResearchGrantIssuer", FakeGrantIssuer)
-    monkeypatch.setattr(task_access, "DirectEngineResearchClient", FakeClient)
+    monkeypatch.setattr(task_access, "EngineMCPResearchClient", FakeClient)
     args = {
         "candidate_id": created["candidate_id"],
         "start": "2026-01-01", "end": "2026-01-02",
