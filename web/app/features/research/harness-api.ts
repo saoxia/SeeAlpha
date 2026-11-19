@@ -50,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!result.ok) {
     if (result.status === 403) {
-      throw new Error("当前账户尚未获准使用该单用户 Harness。管理员可配置专属研究账户；多用户隔离仍未开放。");
+      throw new Error("当前账户没有使用 AI Harness 或对应开发资源的权限。");
     }
     const payload: unknown = await result.json().catch(() => null);
     throw new Error(errorDetail(payload, "无法访问 Harness，请检查服务连接。"));
@@ -121,3 +121,70 @@ export async function harnessArtifacts(id: string, signal?: AbortSignal) {
 
 export const HARNESS_FINISHED = new Set(["completed","failed","cancelled","interrupted"]);
 export const harnessTaskStorageKey = "seealpha.research.harness.latest-task-id";
+
+export type DevelopmentEngineSelection = {
+  tenant_id: number;
+  account_id: string;
+  dataset_ref: string;
+};
+
+export type DevelopmentDataWindow = DevelopmentEngineSelection & {
+  start: string;
+  end: string;
+};
+
+export type DevelopmentDataJob = {
+  id: string;
+  action: string;
+  status: string;
+  progress?: string;
+  error?: string | null;
+  created_at?: string;
+  result?: Record<string, unknown> | null;
+};
+
+export type DevelopmentDataPlan = {
+  missing_days?: number;
+  archive_days?: number;
+  message?: string;
+};
+
+const developmentEngine = base + "/development-engine";
+
+export function engineDataPlan(payload: DevelopmentDataWindow) {
+  return request<DevelopmentDataPlan>(developmentEngine + "/data/plan", {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export function enginePrepareData(payload: DevelopmentDataWindow) {
+  return request<DevelopmentDataJob>(developmentEngine + "/data/prepare", {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export async function engineDataJobs(selection: DevelopmentEngineSelection) {
+  const query = new URLSearchParams({
+    tenant_id: String(selection.tenant_id),
+    account_id: selection.account_id,
+    dataset_ref: selection.dataset_ref,
+  });
+  const result = await request<{jobs:DevelopmentDataJob[]}>(
+    developmentEngine + "/data/jobs?" + query,
+  );
+  return result.jobs;
+}
+
+export function engineCancelDataJob(selection: DevelopmentEngineSelection, id: string) {
+  return request<DevelopmentDataJob>(
+    developmentEngine + "/data/jobs/" + encodeURIComponent(id) + "/cancel",
+    {method: "POST", body: JSON.stringify(selection)},
+  );
+}
+
+export function engineResetDevelopment(tenantId: number, confirmation: string) {
+  return request<{status:string,tenant_id:number,backup:string,historical_data_preserved:boolean}>(
+    developmentEngine + "/reset",
+    {method: "POST",body: JSON.stringify({tenant_id:tenantId,confirmation})},
+  );
+}
