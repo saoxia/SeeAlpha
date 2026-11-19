@@ -206,7 +206,7 @@ jobs:
           mkdir -p /tmp/seealpha-ci/{state,data,run,logs}
           docker run -d --name seealpha-engine-ci -p 127.0.0.1:18766:8766 \
             -e ENGINE_HOST=0.0.0.0 -e ENGINE_PORT=8766 \
-            -e ENGINE_TOKEN=ci-only-engine-token \
+            -e ENGINE_AUTH_MODE=token -e ENGINE_TOKEN=ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef \
             -e ENGINE_TENANT_ID=42 -e ENGINE_TENANT_PURPOSE=development \
             -v /tmp/seealpha-ci/state:/app/.local/state/engine \
             -v /tmp/seealpha-ci/data:/app/data \
@@ -215,14 +215,14 @@ jobs:
             seealpha-engine:ci
           trap 'docker logs seealpha-engine-ci || true; docker rm -f seealpha-engine-ci || true' EXIT
           for i in $(seq 1 50); do
-            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token' http://127.0.0.1:18766/health; then break; fi
+            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' http://127.0.0.1:18766/health; then break; fi
             sleep 1
           done
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             http://127.0.0.1:18766/tenants/99/export)" = 403
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' \
             -d '{"purpose":"development"}' \
             -X PUT http://127.0.0.1:18766/tenants/42)" = 200
@@ -231,42 +231,42 @@ jobs:
             -d '{"symbols":["ETHUSDT"]}' \
             -X POST http://127.0.0.1:18766/tenants/42/data/datasets)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' \
             -d '{"symbols":["ETHUSDT"]}' \
             -X POST http://127.0.0.1:18766/tenants/99/data/datasets)" = 403
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' \
             -d '{"symbols":["ETHUSDT"]}' \
             -X POST http://127.0.0.1:18766/tenants/42/data/datasets)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' \
             -d '{"policies":[{"symbol":"ETHUSDT","realtime_enabled":false}]}' \
             -X POST http://127.0.0.1:18766/tenants/42/data/control/sync)" = 200
-          curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
+          curl -fsS -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' -d '{}' \
             http://127.0.0.1:18766/tenants/42/data/control/subscriptions | grep ETHUSDT
           test "$(curl -s -o /dev/null -w '%{http_code}' \
             http://127.0.0.1:18766/tenants/42/jobs)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             http://127.0.0.1:18766/tenants/99/jobs)" = 403
-          curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
+          curl -fsS -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             http://127.0.0.1:18766/tenants/42/jobs | grep items
 
           test "$(curl -s -o /dev/null -w '%{http_code}' \
-            -H 'Authorization: Bearer ci-only-engine-token' \
+            -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' \
             -d '{"policies":[]}' \
             -X POST http://127.0.0.1:18766/tenants/99/data/control/sync)" = 403
           docker restart seealpha-engine-ci
           for i in $(seq 1 50); do
-            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token' http://127.0.0.1:18766/health; then break; fi
+            if curl -fsS --max-time 2 -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' http://127.0.0.1:18766/health; then break; fi
             sleep 1
           done
-          curl -fsS -H 'Authorization: Bearer ci-only-engine-token' \
+          curl -fsS -H 'Authorization: Bearer ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef' \
             -H 'Content-Type: application/json' -d '{}' \
             http://127.0.0.1:18766/tenants/42/data/control/subscriptions | grep ETHUSDT
 
@@ -283,7 +283,7 @@ jobs:
           from core.engine_contracts import ENGINE_CONTRACT_VERSION, QueryError
           from fastapi import HTTPException
 
-          engine = EngineClient(root, url="http://127.0.0.1:18766", token="ci-only-engine-token")
+          engine = EngineClient(root, url="http://127.0.0.1:18766", token="ci-only-engine-token-0123456789abcdef0123456789abcdef0123456789abcdef")
           health = engine._sync("GET", "/health")
           assert health["contract_version"] == ENGINE_CONTRACT_VERSION
           assert engine.ensure_tenant(42, "development")["tenant_id"] == "42"

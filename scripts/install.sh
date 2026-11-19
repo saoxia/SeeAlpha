@@ -15,7 +15,7 @@ fi
 export PATH="$root/.local/bin:$PATH"
 
 # Never act on inherited production deployment configuration.
-for key in DATABASE_URL DATABASE_URL_FILE ENGINE_DEPLOYMENT ENGINE_URL ENGINE_TOKEN; do
+for key in DATABASE_URL DATABASE_URL_FILE ENGINE_DEPLOYMENT ENGINE_URL ENGINE_TOKEN ENGINE_AUTH_MODE; do
   if [[ -n "${!key:-}" ]]; then
     echo "检测到 $key：本机安装拒绝接管已有部署。请在隔离的终端环境执行。" >&2
     exit 2

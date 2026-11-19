@@ -23,11 +23,11 @@ Phase 20 已从 SeeAlpha Platform 仓库移除 `engine/` 源码、旧 Dockerfile
 
 ## 模式 A：独立进程（隔离开发）
 
-在独立 Engine 仓库的 checkout 中，使用新项目的 Python 依赖和私有令牌：
+在独立 Engine 仓库的 checkout 中，默认 `ENGINE_AUTH_MODE=none`，无需设置令牌，仅监听 `127.0.0.1`：
 
 ```bash
 uv sync --locked
-ENGINE_TOKEN='<随机私有开发令牌>' uv run python -m engine
+uv run python -m engine
 ```
 
 在另一个终端切回 SeeAlpha Platform 仓库：
@@ -36,7 +36,7 @@ ENGINE_TOKEN='<随机私有开发令牌>' uv run python -m engine
 uv sync --project platform --locked --no-default-groups
 export ENGINE_DEPLOYMENT=single
 export ENGINE_URL=http://127.0.0.1:8766
-export ENGINE_TOKEN='<相同的随机私有开发令牌>'
+# 独立本机 Engine 无需 ENGINE_TOKEN；Platform Client 不发送 Authorization
 # 另行配置隔离开发 DATABASE_URL，然后启动 API
 platform/.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
 ```
@@ -52,6 +52,8 @@ export ENGINE_DEPLOYMENT=docker
 export ENGINE_DOCKER_IMAGE=seealpha-engine:b33769d432c1
 export ENGINE_TENANT_ROOT=/absolute/path/to/disposable-test-tenants
 ```
+
+Platform 的本地租户 Docker、远程 Node 和本地 Compose 均强制使用 `ENGINE_AUTH_MODE=token`，由 Platform 生成/保存强随机租户令牌并在创建容器时注入。旧 `engine.env` 如未声明鉴权模式将被拒绝复用；镜像/状态升级需要经批准的停机、备份、未决订单核对与重建。
 
 当前 Platform Docker 管理器只在同一宿主机管理 `seealpha-engine-<tenant_id>`；即使测试数据目录不同，也**不能复用现有正式租户 ID**。将 `ENGINE_DOCKER_IMAGE` 改为新值不会迁移旧容器。现在代码会在新旧镜像不一致时拒绝复用/连接，而非偷偷继续运行旧 Engine；停止、备份、核实未决订单及重建仍须人工批准。
 

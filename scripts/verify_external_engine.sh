@@ -51,6 +51,7 @@ test ! -e "$sandbox/platform/nautilus_support.py"
 # Disposable secret lives only in a 0600 env file and process environment.
 token="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 cat > "$sandbox/engine.env" <<EOF
+ENGINE_AUTH_MODE=token
 ENGINE_TOKEN=$token
 ENGINE_TENANT_ID=987654321
 ENGINE_TENANT_PURPOSE=development
@@ -135,6 +136,7 @@ if [[ "${SEEALPHA_VERIFY_PLATFORM_BACKTEST:-0}" == "1" \
 
   api_token="$(python3 -c 'import secrets;print(secrets.token_urlsafe(48))')"
   cat > "$sandbox/api-engine.env" <<EOF
+ENGINE_AUTH_MODE=token
 ENGINE_TOKEN=$api_token
 ENGINE_HOST=0.0.0.0
 ENGINE_PORT=8766

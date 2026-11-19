@@ -40,7 +40,7 @@ export ENGINE_DEVELOPMENT_MEMORY=8g
 
 以上只是默认配额示例，须结合机器容量和实际内存峰值调整。
 `ENGINE_DEPLOYMENT=single` 仍保留现有单 Engine 模式供开发使用；
-Docker 模式不在失败时偷偷回退到生产进程内执行。
+Docker 模式不在失败时偷偷回退到生产进程内执行。Engine 默认的 `none` 只允许独立本机运行；Platform 创建的 Docker 必须显式启用 `token` 并注入强随机令牌。升级前创建的 `engine.env` 如缺少 `ENGINE_AUTH_MODE=token` 会拒绝复用，必须先执行受控停止、备份和重建；不会悄悄替旧容器修改启动环境。
 
 首次 API 启动时会确保系统默认行情租户有一个独立 Engine；用户创建开发租户时仍按原流程部署。
 **新增普通用户只创建正式租户的业务记录，不自动创建正式 Docker。** 管理员需先在
@@ -84,7 +84,7 @@ API 仍选择业务库里 `system_key=default` 的租户作为请求目标，属
 明确报“指定区间没有可用的本地 K 线”，不会回退到另一个租户的 Catalog。
 
 每个 Engine 内部仍监听 `8766`，Docker 仅把它映射到宿主机
-`127.0.0.1` 随机端口，由 API 发现。各租户使用独立 Bearer 令牌，
+`127.0.0.1` 随机端口，由 API 发现。各租户使用 Platform 生成的独立 Bearer 令牌（`ENGINE_AUTH_MODE=token`），
 Engine 还校验 URL 里的租户 ID 和登记用途。不要在外部反向代理或防火墙上
 公开这些随机端口，也不要将 Engine 令牌交给浏览器。
 `ENGINE_DEPLOYMENT=docker` 管理**同一 Docker 宿主机**。`ENGINE_DEPLOYMENT=distributed`
