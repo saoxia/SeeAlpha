@@ -48,7 +48,7 @@ class EngineMCPResearchClient(DirectEngineResearchClient):
         else:
             raise ValueError("Unsupported Engine MCP research route")
         if not isinstance(arguments, dict):
-            raise ValueError("Invalid research MCP arguments")
+            raise TypeError("Invalid research MCP arguments")
         try:
             request = json.dumps({
                 "jsonrpc": "2.0", "id": 1, "method": "tools/call",
