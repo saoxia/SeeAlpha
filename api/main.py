@@ -39,6 +39,7 @@ from .olap.service import ClickhouseMonitor
 from .operations.router import router as operations_router
 from .operations.service import OperationService
 from .production_deployments import ProductionDeploymentManager
+from .research.development_engine import router as development_engine_router
 from .research.harness_instances import UserHarnessInstances
 from .research.harness_router import router as harness_router
 from .research.task_access import ResearchLeases
@@ -326,6 +327,7 @@ def create_app(settings: Settings | None = None, *, project: Path | None = None)
     app.include_router(market_data_router, prefix="/api")
     app.include_router(management_router, prefix="/api")
     app.include_router(harness_router, prefix="/api")
+    app.include_router(development_engine_router, prefix="/api")
     app.include_router(research_task_router, prefix="/api")
     app.include_router(tenants_router, prefix="/api")
     app.include_router(node_router, prefix="/api")
