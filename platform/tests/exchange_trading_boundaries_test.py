@@ -222,3 +222,73 @@ def test_market_picker_permissions_full_catalog_and_environment(environment, mon
         assert result["markets"][-1]["funding_rate"] == "-0.0000252"
         assert client.get("/api/trading/markets?environment=invalid").status_code == 422
     assert dispatched == []
+
+
+@pytest.mark.parametrize("changes", [
+    {"quantity": "0"}, {"order_type": "STOP", "price": None},
+    {"order_type": "TRAILING_STOP_MARKET", "trigger_price": "1800", "callback_rate": "1"},
+    {"order_type": "TRAILING_STOP_MARKET", "trigger_price": None, "callback_rate": "0.01"},
+    {"position_effect": "open"}, {"expected_position_mode": "invalid"},
+])
+def test_professional_commands_are_strictly_validated_before_engine(environment, changes):
+    app, _database, dispatched = environment
+    with TestClient(app) as client:
+        signin(client)
+        create_account(client)
+        value = {
+            "account_revision": "f" * 64, "request_id": str(uuid4()),
+            "symbol": "ETHUSDT-PERP", "environment": "production", "side": "sell",
+            "order_type": "STOP_MARKET", "quantity": "0.01", "trigger_price": "1800",
+            "expected_position_mode": "oneway",
+            **changes,
+        }
+        result = client.post("/api/trading/accounts/1/algo/orders", json=value)
+        assert result.status_code == 422, result.text
+    assert dispatched == []
+
+
+def test_professional_controls_require_owned_account_revision_origin_and_environment(environment):
+    app, _database, dispatched = environment
+    with TestClient(app) as client:
+        path = "/api/trading/accounts/1/leverage"
+        payload = {"account_revision": "f" * 64, "request_id": str(uuid4()),
+                   "symbol": "ETHUSDT-PERP", "environment": "production", "leverage": 3}
+        assert client.post(path, json=payload).status_code == 401
+        signin(client, "admin")
+        assert client.post(path, json=payload).status_code == 403
+        signin(client)
+        create_account(client)
+        assert client.post(path, json={**payload, "leverage": 200}).status_code == 422
+        assert client.post(path, json={**payload, "environment": "sandbox"}).status_code == 409
+        assert client.post(path, json={**payload, "account_revision": "e" * 64}).status_code == 409
+        assert client.post(path, json=payload, headers={"Origin": "https://evil.invalid"}).status_code == 403
+        assert client.post("/api/trading/accounts/999/leverage", json=payload).status_code == 404
+    assert dispatched == []
+
+
+def test_professional_command_inherits_normal_engine_idempotency_and_result_shape(environment, monkeypatch):
+    app, _database, dispatched = environment
+    calls = []
+    async def fake_command(account, action, values):
+        calls.append((account["id"], action, values))
+        return {"response": {"request_id": values["request_id"], "status": "completed",
+                             "message": "fixture", "algo_order": {
+                                 "client_algo_id": "SAfixture", "algo_id": "12",
+                                 "symbol": values["symbol"], "side": "sell", "position_side": "BOTH",
+                                 "order_type": "STOP_MARKET", "quantity": "0.01",
+                                 "working_type": "MARK_PRICE", "status": "new", "open": True,
+                                 "timestamp": 123,
+                             }}, "ledger_synced": True, "records": []}
+    monkeypatch.setattr(app.state.engine, "command", fake_command)
+    with TestClient(app) as client:
+        signin(client)
+        create_account(client)
+        payload = {"account_revision": "f" * 64, "request_id": str(uuid4()),
+                   "symbol": "ETHUSDT-PERP", "environment": "production", "side": "sell",
+                   "order_type": "STOP_MARKET", "quantity": "0.01",
+                   "trigger_price": "1800", "expected_position_mode": "oneway"}
+        response = client.post("/api/trading/accounts/1/algo/orders", json=payload)
+        assert response.status_code == 200, response.text
+        assert response.json()["algo_order"]["client_algo_id"] == "SAfixture"
+        assert calls[0][1] == "algo_submit" and calls[0][2]["request_id"] == payload["request_id"]
+    assert dispatched == []
