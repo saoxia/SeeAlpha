@@ -5,6 +5,7 @@ import {
   latestBasketBacktest, runBasketBacktest,
   type BasketBacktestResult, type BasketMode,
 } from "@/app/features/strategies/api";
+import { basketReportMetrics } from "@/app/features/strategies/basket-report";
 
 export function BasketBacktestPanel({
   tenantId, accountId,
@@ -57,6 +58,8 @@ export function BasketBacktestPanel({
     }
   }
 
+  const metrics = result ? basketReportMetrics(result) : null;
+
   return (
     <section className="strategy-details" aria-label="跨产品组合开发回测">
       <h2>跨产品组合开发回测</h2>
@@ -108,6 +111,41 @@ export function BasketBacktestPanel({
             最后一期模拟权益 {result.ending_balance} USDT。</p>
           <small>结果仅用于研究；不代表实际交易收益、未来盈利或跨腿原子执行能力。</small>
         </div>
+      )}
+      {metrics && (metrics.positions.length > 0 || metrics.accounts.length > 0) && (
+        <section className="strategy-details" aria-label="历史模拟组合快照">
+          <h3>最后一根 K 线的模拟组合快照</h3>
+          {metrics.positions.length > 0 && (
+            <>
+              <h4>各交易产品持仓（模拟结果，不是实时账户仓位）</h4>
+              <table>
+                <thead><tr><th scope="col">产品与含义</th><th scope="col">数量</th></tr></thead>
+                <tbody>{metrics.positions.map(item => (
+                  <tr key={item.label}><th scope="row">{item.label}</th><td>{item.value}</td></tr>
+                ))}</tbody>
+              </table>
+            </>
+          )}
+          {metrics.legDrift !== null && <p>模拟现货／永续腿间数量偏差：{metrics.legDrift}</p>}
+          {metrics.accounts.length > 0 && (
+            <>
+              <h4>分账户模拟权益</h4>
+              <table>
+                <thead><tr><th scope="col">账户</th><th scope="col">权益</th></tr></thead>
+                <tbody>{metrics.accounts.map(item => (
+                  <tr key={item.label}><th scope="row">{item.label}</th><td>{item.value}</td></tr>
+                ))}</tbody>
+              </table>
+            </>
+          )}
+          {metrics.fundingObservations !== null && (
+            <p>历史资金费观测：{metrics.fundingObservations} 条（不等于逐笔资金划转对账）。</p>
+          )}
+          {metrics.targetEvents !== null && (
+            <p>有来源的模拟目标事件：{metrics.targetEvents} 条（不等于实际成交）。</p>
+          )}
+          <small>全部数字来自 Engine 已保存的开发回测报告；无实时持仓查询、无自动下单或独立收益归因。</small>
+        </section>
       )}
     </section>
   );
