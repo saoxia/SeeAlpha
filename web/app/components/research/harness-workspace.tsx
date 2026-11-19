@@ -5,7 +5,7 @@ import {
   HARNESS_FINISHED, harnessArtifacts, harnessCancel, harnessContinue, harnessGet,
   harnessHistory, harnessImport, harnessStart, harnessStatus, harnessTaskStorageKey,
   harnessTimeline, type HarnessArtifact, type HarnessEvent, type HarnessHistoryTask,
-  type HarnessStatus, type HarnessTask,
+  type HarnessStatus, type HarnessTask, type ResearchSelection,
 } from "@/app/features/research/harness-api";
 
 const statusName:Record<string,string> = {

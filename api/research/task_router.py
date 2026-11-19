@@ -10,7 +10,7 @@ from starlette.responses import Response
 from ..research.harness_client import HarnessUnavailable, validate_task_id
 from ..research.harness_router import _client, _require_harness_owner
 from .direct_engine import DirectResearchError
-from .task_access import OPERATIONS, allowed_scope, research_command
+from .task_access import OPERATIONS, research_command
 
 router = APIRouter(prefix="/research/tasks", tags=["development-research"])
 

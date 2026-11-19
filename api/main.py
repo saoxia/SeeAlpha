@@ -40,9 +40,9 @@ from .operations.router import router as operations_router
 from .operations.service import OperationService
 from .production_deployments import ProductionDeploymentManager
 from .research.harness_instances import UserHarnessInstances
+from .research.harness_router import router as harness_router
 from .research.task_access import ResearchLeases
 from .research.task_router import router as research_task_router
-from .research.harness_router import router as harness_router
 from .strategies.router import router as strategies_router
 from .strategies.service import StrategyStore
 from .tenant_docker import DockerTenantManager

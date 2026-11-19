@@ -16,9 +16,10 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
+from core.engine_contracts import EngineConflict
+
 from ..market_data.repository import PolicyRepository
 from ..tenant_docker import DockerTenantManager
-from core.engine_contracts import EngineConflict
 from .direct_engine import DirectEngineResearchClient
 from .grants import ResearchGrantDenied, ResearchGrantIssuer
 

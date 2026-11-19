@@ -4,13 +4,12 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from fastapi import HTTPException
-
 from api.research.direct_engine import DirectEngineResearchClient
-from api.research.task_access import ResearchLeases, allowed_scope
 from api.research.grants import ResearchGrant
+from api.research.task_access import ResearchLeases, allowed_scope
 from api.tenant_docker import DockerTenantManager
 from core.engine_contracts import EngineConflict
+from fastapi import HTTPException
 
 
 @pytest.fixture
