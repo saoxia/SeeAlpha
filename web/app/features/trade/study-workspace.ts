@@ -1,4 +1,4 @@
-import { indicatorCatalog, indicatorError, maxIndicators, type IndicatorConfig, type IndicatorKind } from "./indicators";
+import { indicatorCatalog, indicatorError, maxIndicators, type IndicatorConfig, type IndicatorKind } from "./indicators.ts";
 
 export type StudyTemplate = {id:string;name:string;studies:IndicatorConfig[]};
 export type StudyWorkspace = {
