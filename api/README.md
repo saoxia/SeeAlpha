@@ -63,7 +63,9 @@ API 启动前必须显式配置 `DATABASE_URL` 或本机私有数据库连接文
 | `POST /api/auth/impersonate` | 管理员把当前会话切换为另一用户的视图 |
 | `POST /api/auth/impersonate/stop` | 管理员退出该视图，回到自己的会话 |
 | `GET /api/users` | 管理员列出用户及其正式租户。正在查看其他用户时不可用 |
-| `POST /api/users` | 管理员创建用户。创建时自动准备一个初始正式租户 |
+| `POST /api/users` | 管理员创建用户和正式租户业务记录，不自动创建正式 Docker |
+| `GET /api/users/engine-nodes` | 管理员列出正式 Engine 可选部署节点（含本机） |
+| `POST /api/users/{user_id}/engine` | 管理员选择节点并部署用户正式 Docker，首次选择持久化且不可直接改绑 |
 | `GET /api/tenants` | 当前视图用户自己的正式和开发租户 |
 | `POST /api/tenants` | 新建开发租户；额外正式租户仅管理员可创建，按用途创建独立 Engine |
 | `POST /api/tenants/{id}/copy` | 把行情订阅复制成自己的新开发租户，不复制密钥或虚拟资金 |
