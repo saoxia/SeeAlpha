@@ -1,9 +1,9 @@
 """Admin user directory. Tenants stay on the existing user table."""
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from core.engine_contracts import EngineConflict, QueryError
-from pydantic import BaseModel, ConfigDict, Field
 
 from .dependencies import AdminUser, actor_is_admin
 from .manage import set_user_password
