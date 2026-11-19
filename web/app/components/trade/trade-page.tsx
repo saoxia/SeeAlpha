@@ -6,6 +6,8 @@ import { formatPrice, priceDigits, fundingCountdown } from "@/app/features/trade
 import { subscribeMarket } from "@/app/features/trade/market-stream";
 import type { components } from "@/app/api/generated/schema";
 import type { ExchangeTrade } from "../types";
+import type { LiquidationEstimates } from "@/app/features/trade/market-overlays";
+import type { ChartSignal } from "@/app/features/trade/chart-signals";
 import { dataManagementApi } from "@/app/features/data-management/api";
 import { MarketChart } from "./market-chart";
 import { MarketPicker } from "./market-picker";
@@ -13,6 +15,16 @@ import { tradeIntervals as intervals, selectionKey, restoreTradeSelection } from
 const pendingKey = "seealpha.manual.pending";
 type Pending = {accountId: number; requestId: string; symbol: string; environment: string};
 type BatchPlan = { accountId: number; kind: "submit" | "cancel"; tasks: BatchTask[]; lines: string[]; };
+type AlgoOrder = components["schemas"]["ManualAlgoOrderView"];
+type AlgoRequest = components["schemas"]["AlgoOrderValues"];
+type LeverageRequest = components["schemas"]["LeverageChangeValues"];
+type AlgoCancelRequest = components["schemas"]["AlgoCancelValues"];
+type ProfessionalPlan = {
+  accountId: number; action: "algo_submit" | "algo_cancel" | "leverage";
+  payload: AlgoRequest | LeverageRequest | AlgoCancelRequest; title: string; details: string[];
+};
+type DevTenant = {id:number; name:string; purpose:string};
+type VirtualAccount = {id:number; account_name:string; kind:string};
 function number(value: string | undefined, digits = 6) {return value === undefined ? "—" : Number(value).toLocaleString("en-US", {maximumFractionDigits: digits});}
 function clock(ms: number) {return new Date(ms).toLocaleTimeString("zh-CN", {hour12: false});}
 
@@ -50,9 +62,25 @@ export function TradePage() {
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
   const [batchDraft, setBatchDraft] = useState("");
   const [batchPlan, setBatchPlan] = useState<BatchPlan | null>(null);
+  const [tradeMode, setTradeMode] = useState<"standard" | "conditional" | "leverage">("standard");
+  const [professionalPlan, setProfessionalPlan] = useState<ProfessionalPlan | null>(null);
+  const [algoType, setAlgoType] = useState<AlgoRequest["order_type"]>("STOP_MARKET");
+  const [algoQty, setAlgoQty] = useState("");
+  const [triggerPrice, setTriggerPrice] = useState("");
+  const [stopLimitPrice, setStopLimitPrice] = useState("");
+  const [activationPrice, setActivationPrice] = useState("");
+  const [callbackRate, setCallbackRate] = useState("1");
+  const [workingType, setWorkingType] = useState<"MARK_PRICE" | "CONTRACT_PRICE">("MARK_PRICE");
+  const [priceProtect, setPriceProtect] = useState(false);
+  const [newLeverage, setNewLeverage] = useState("");
+  const [liquidationModel, setLiquidationModel] = useState<LiquidationEstimates | null>(null);
+  const [strategyMarkers, setStrategyMarkers] = useState<ChartSignal[]>([]);
+  const [strategySources, setStrategySources] = useState<Array<{value:string;label:string}>>([]);
+  const [selectedStrategySource, setSelectedStrategySource] = useState("");
+  const [strategyMessage, setStrategyMessage] = useState("");
   const [selectedCancels, setSelectedCancels] = useState<string[]>([]);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [table, setTable] = useState<"positions" | "orders" | "history" | "trades">("positions");
+  const [table, setTable] = useState<"positions" | "orders" | "algo" | "history" | "trades">("positions");
   const [bookTab, setBookTab] = useState<"book" | "trades">("book");
   const [now, setNow] = useState(() => Date.now());
   const account = accounts.find(a => String(a.id) === accountId);
@@ -66,7 +94,7 @@ export function TradePage() {
   function rememberSelection(nextSymbol: string, nextInterval: string) {
     try {localStorage.setItem(selectionKey, JSON.stringify({symbol: nextSymbol, interval: nextInterval}));} catch { /* Optional display preference. */ }
   }
-  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setSelectedCancels([]); setBatchDraft(""); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
+  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setProfessionalPlan(null); setSelectedCancels([]); setBatchDraft(""); setStrategyMarkers([]); setLiquidationModel(null); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     const initial = window.setTimeout(() => {
@@ -127,7 +155,7 @@ export function TradePage() {
     return () => {c.abort(); clearTimeout(timer); window.removeEventListener("focus", focus);};
   }, [refreshState]);
   useEffect(() => {
-    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null); setBatchPlan(null);}}
+    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setProfessionalPlan(null);}}
     document.addEventListener("keydown", escape); return () => document.removeEventListener("keydown", escape);
   }, []);
 
@@ -267,6 +295,7 @@ export function TradePage() {
   const ready = !disabledReason;
   const openOrders = state?.orders.filter(o => o.open) ?? [];
   const history = state?.orders.filter(o => !o.open) ?? [];
+  const algoOrders = state?.algo_orders?.filter(o => o.open) ?? [];
   const spotBalances = Object.entries(state?.balances ?? {})
     .filter(([, amount]) => Number(amount.total) > 0)
     .sort(([a], [b]) => a.localeCompare(b));
