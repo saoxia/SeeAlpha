@@ -69,6 +69,15 @@ def tenants(request: Request):
     return service
 
 
+@router.get("/capabilities")
+def tenant_capabilities(request: Request, user: TradingUser):
+    return {
+        "development_realtime_enabled": request.app.state.user_resources.get(
+            user.id
+        )["development"]["realtime_enabled"],
+    }
+
+
 @router.get("/templates")
 def list_templates(request: Request, _: AdminUser):
     return tenants(request).list_templates()

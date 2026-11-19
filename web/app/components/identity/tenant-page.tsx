@@ -7,6 +7,7 @@ import {
   createDevelopmentTenant,
   deleteTenant,
   fetchTenants,
+  fetchTenantCapabilities,
   restoreTenant,
   shareTenant,
 } from "../../features/identity/api";
@@ -33,6 +34,7 @@ const sections: Array<{ id: Section; number: string; label: string; description:
 export function TenantPage() {
   const [section, setSection] = useState<Section>("list");
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
+  const [developmentRealtimeEnabled, setDevelopmentRealtimeEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -40,7 +42,9 @@ export function TenantPage() {
 
   const refresh = useCallback(async () => {
     try {
-      setTenants(sortTenants(await fetchTenants()));
+      const [rows, capabilities] = await Promise.all([fetchTenants(), fetchTenantCapabilities()]);
+      setTenants(sortTenants(rows));
+      setDevelopmentRealtimeEnabled(capabilities.development_realtime_enabled);
       setError("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "无法读取租户。");
@@ -53,9 +57,10 @@ export function TenantPage() {
     let active = true;
     const load = async () => {
       try {
-        const rows = sortTenants(await fetchTenants());
+        const [rows, capabilities] = await Promise.all([fetchTenants(), fetchTenantCapabilities()]);
         if (!active) return;
-        setTenants(rows);
+        setTenants(sortTenants(rows));
+        setDevelopmentRealtimeEnabled(capabilities.development_realtime_enabled);
         setError("");
       } catch (caught) {
         if (!active) return;
@@ -181,6 +186,11 @@ export function TenantPage() {
             )}
             {section === "create" && (
               <form className="form-grid" onSubmit={onCreate}>
+                <p className="field field-wide github-key-note">
+                  {developmentRealtimeEnabled
+                    ? "开发实时行情已开通；仍需为具体开发租户配置订阅。"
+                    : "开发环境默认仅使用历史数据与回测；实时行情需由管理员分配。"}
+                </p>
                 <label className="field">
                   <span>名称</span>
                   <input name="name" required maxLength={100} placeholder="例如：ETH 研究" />

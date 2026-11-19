@@ -46,13 +46,19 @@ export type ResourceAllocation = {
   memory: string | null;
   node: string | null;
 };
-export type UserResources = Record<ResourceKind, ResourceAllocation>;
+export type UserResources = {
+  harness: ResourceAllocation;
+  development: ResourceAllocation & { realtime_enabled: boolean };
+  production: ResourceAllocation;
+};
 export type ResourceCapabilities = {
   nodes: EngineNode[];
   defaults: Record<ResourceKind, { cpus: string; memory: string }>;
   harness_deployment: "disabled" | "single" | "per_user";
   engine_deployment: "single" | "docker" | "distributed";
 };
+
+export type TenantCapabilities = { development_realtime_enabled: boolean };
 
 export type EngineNode = { id: string; online: boolean };
 export type EngineNodes = { deployment: "single" | "docker" | "distributed"; nodes: EngineNode[] };

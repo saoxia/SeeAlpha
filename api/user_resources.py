@@ -16,6 +16,8 @@ DEFAULT = {
     kind: {"enabled": True, "cpus": None, "memory": None, "node": None}
     for kind in KINDS
 }
+# Development market-data access is an opt-in product capability, not an Engine limit.
+DEFAULT["development"]["realtime_enabled"] = False
 
 
 class UserResources:

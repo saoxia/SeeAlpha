@@ -41,7 +41,7 @@ def allocation(*, harness=True, development=True, production=True):
         return {"enabled": enabled, "cpus": None, "memory": None, "node": None}
     return {
         "harness": resource(harness),
-        "development": resource(development),
+        "development": {**resource(development), "realtime_enabled": False},
         "production": resource(production),
     }
 
@@ -55,6 +55,7 @@ def test_admin_allocation_persists_and_gates_user_routes(api_client):
     user = created.json()
     uid = user["id"]
     assert all(row["enabled"] for row in user["resources"].values())
+    assert user["resources"]["development"]["realtime_enabled"] is False
     assert client.get("/api/users/resource-capabilities").status_code == 200
 
     disabled = allocation(harness=False, development=False, production=False)
@@ -88,6 +89,71 @@ def test_invalid_quota_and_node_do_not_change_allocation(api_client):
     bad["harness"]["node"] = "not-a-real-node"
     assert client.put(f"/api/users/{uid}/resources", json=bad).status_code == 422
     assert client.get("/api/users").json()[0]["resources"] == allocation()
+    bad = allocation()
+    bad["production"]["realtime_enabled"] = True
+    assert client.put(f"/api/users/{uid}/resources", json=bad).status_code == 422
+
+
+def test_development_realtime_is_opt_in_and_production_is_unaffected(api_client, monkeypatch):
+    client, app = api_client
+    user = client.post("/api/users", json={
+        "username": "alice", "password": "test-password-123",
+    }).json()
+    uid = user["id"]
+    monkeypatch.setattr(app.state.engine, "ensure_tenant", lambda *args: None)
+    monkeypatch.setattr(app.state.engine, "note_subscription", lambda *args: None)
+
+    auth(client, "alice")
+    assert client.get("/api/tenants/capabilities").json() == {
+        "development_realtime_enabled": False,
+    }
+    dev = client.post("/api/tenants", json={"name": "historical"}).json()
+    assert dev["purpose"] == "development"
+    dev_url = f"/api/tenants/{dev['id']}/subscriptions"
+    production_url = f"/api/tenants/{user['production_tenant_id']}/subscriptions"
+    requested = {
+        "symbol": "ETHUSDT", "realtime_enabled": True, "history_enabled": True,
+        "history_start": "2024-01-01T00:00:00Z",
+    }
+    saved = client.post(dev_url, json=requested)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["realtime_enabled"] is False
+    assert saved.json()["history_enabled"] is True
+    assert client.get(dev_url).json()[0]["realtime_enabled"] is False
+
+    production = client.post(production_url, json=requested)
+    assert production.status_code == 200, production.text
+    assert production.json()["realtime_enabled"] is True
+
+    # Copying production configuration into a basic development tenant drops
+    # only the live flag. No Engine internals or historical data are modified.
+    copy = client.post(f"/api/tenants/{user['production_tenant_id']}/copy", json={
+        "name": "historical-copy",
+    })
+    assert copy.status_code == 201, copy.text
+    assert client.get(f"/api/tenants/{copy.json()['id']}/subscriptions").json()[0]["realtime_enabled"] is False
+
+    auth(client, "admin")
+    upgraded = allocation()
+    upgraded["development"]["realtime_enabled"] = True
+    changed = client.put(f"/api/users/{uid}/resources", json=upgraded)
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["resources"]["development"]["realtime_enabled"] is True
+    assert app.state.user_resources.get(uid)["development"]["realtime_enabled"] is True
+
+    auth(client, "alice")
+    assert client.get("/api/tenants/capabilities").json()["development_realtime_enabled"] is True
+    assert client.post(dev_url, json=requested).json()["realtime_enabled"] is True
+    copy = client.post(f"/api/tenants/{user['production_tenant_id']}/copy", json={
+        "name": "live-copy",
+    })
+    assert copy.status_code == 201, copy.text
+    assert client.get(f"/api/tenants/{copy.json()['id']}/subscriptions").json()[0]["realtime_enabled"] is True
+
+    auth(client, "admin")
+    assert client.get("/api/tenants/capabilities").status_code == 403
+    reverted = allocation()
+    assert client.put(f"/api/users/{uid}/resources", json=reverted).status_code == 200
 
 
 def test_resource_overrides_must_precede_existing_development_tenant(api_client):
