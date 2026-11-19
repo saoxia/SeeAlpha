@@ -133,3 +133,15 @@
 .trade-account input[type="checkbox"]{accent-color:var(--trade-accent-ink)}
 .trade-batch-review{max-height:230px;overflow:auto;overflow-wrap:anywhere;padding:10px 12px 10px 32px;margin:18px 0;background:var(--trade-panel);border:1px solid var(--trade-line);border-radius:6px;font-size:12px}
 .trade-batch-review li{padding:4px 0}
+
+
+/* Native venue-hosted conditional orders and read-only signal provenance. */
+.trade-ticket .trade-professional-tabs{gap:8px;overflow-x:auto}
+.trade-ticket .trade-professional-tabs button{font-size:10px;flex-shrink:0}
+.trade-professional-form{padding:4px 0 18px}
+.trade-professional-form>label{display:flex;flex-direction:column;gap:6px;color:var(--trade-muted);font-size:11px;margin:12px 0}
+.trade-professional-form>label>input,.trade-professional-form>label>select{padding:9px;width:100%;box-sizing:border-box;color:inherit;background:var(--trade-panel);border:1px solid var(--trade-line);border-radius:5px}
+.trade-professional-form>label.trade-checkbox{flex-direction:row;align-items:center}
+.trade-professional-form .trade-checkbox input{width:auto}
+.trade-professional-review{padding:10px 12px 10px 30px;max-height:220px;overflow:auto;overflow-wrap:anywhere;font-size:12px;background:var(--trade-panel);border:1px solid var(--trade-line);border-radius:6px}
+.trade-professional-review li{margin:7px 0}

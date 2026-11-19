@@ -452,7 +452,8 @@ class EngineClient:
         })
 
     async def command(self, account, action, values):
-        suffix = "/spot/orders" if not values["symbol"].endswith("-PERP") else "/orders"
+        suffix = ("/trading/controls" if action in {"algo_submit", "algo_cancel", "leverage"}
+                  else "/spot/orders" if not values["symbol"].endswith("-PERP") else "/orders")
         return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + suffix, json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
