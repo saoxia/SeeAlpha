@@ -62,7 +62,7 @@ export function MarketDataPanel() {
   const [busy, setBusy] = useState(false);
   const deletionKey = JSON.stringify({ product, symbol });
   const currentDeletion = deletion?.key === deletionKey ? deletion.value : null;
-  const currentProduct: DataProduct = product === "options" ? "options" : "futures_um";
+  const currentProduct: DataProduct = product === "options" ? "options" : product === "spot" ? "spot" : "futures_um";
   const configurationKey = JSON.stringify({ symbol, currentProduct, baseLevel, realtimeEnabled, historyEnabled, historyStart });
   const currentConfiguration = configurationPlan?.key === configurationKey ? configurationPlan.value : null;
   const levels = ["tick", ...(currentProduct === "options" ? capabilities?.option_intervals ?? ["1m", "5m", "15m"] : capabilities?.intervals ?? [])];
@@ -70,7 +70,7 @@ export function MarketDataPanel() {
   const grouped = groupDataItems([], subscriptions);
   const symbols = [...new Set(grouped.filter((item) => !filterProduct || (item.product ?? "futures_um") === filterProduct).map((item) => item.symbol))];
   const marketOptions = markets.filter((item) => item.symbol.includes(marketSearch.trim().toUpperCase())
-    && (product !== "futures_um" || !subscriptions.some((s) => s.policy.product === "futures_um" && s.policy.symbol === item.symbol)));
+    && (product === "options" || !subscriptions.some((s) => s.policy.product === product && s.policy.symbol === item.symbol)));
   const selectedBusy = adding && currentProduct === "futures_um" && selectedSymbols.some((value) => hasPairTask(tasks, value, "futures_um"));
   const canWrite = Boolean(capabilities?.can_operate && status?.storage.available && status.storage.writable && !pollErrors.status && !pollErrors["subscriptions?group_options=true"]);
   const pairBusy = hasPairTask(tasks, symbol, currentProduct);
@@ -257,7 +257,7 @@ export function MarketDataPanel() {
       <article><small>存储状态</small><b>{status ? status.storage.available ? status.storage.writable ? "可读写" : "只读" : "不可用" : "读取中"}</b><span>{status?.storage.message ?? (status?.storage.free_bytes != null ? `剩余 ${displayBytes(status.storage.free_bytes)}` : "等待存储状态")}</span></article>
     </div>
     <div className="data-inventory-filters">
-      <label>产品筛选<select value={filterProduct} onChange={(event) => { setFilterProduct(event.target.value); setFilterSymbol(""); }}><option value="">全部产品</option><option value="futures_um">U 本位永续</option><option value="options">期权</option></select></label>
+      <label>产品筛选<select value={filterProduct} onChange={(event) => { setFilterProduct(event.target.value); setFilterSymbol(""); }}><option value="">全部产品</option><option value="futures_um">U 本位永续</option><option value="spot">现货</option><option value="options">期权</option></select></label>
       <label>交易对<select value={filterSymbol} onChange={(event) => setFilterSymbol(event.target.value)}><option value="">全部交易对</option>{symbols.map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>数据级别<select value={filterLevel} onChange={(event) => setFilterLevel(event.target.value)}><option value="">全部级别</option>{["tick", ...(capabilities?.intervals ?? [])].map((value) => <option key={value} value={value}>{dataLevelLabels[value] ?? value}</option>)}</select></label>
       <label>数据状态<select value={filterState} onChange={(event) => setFilterState(event.target.value)}><option value="">全部状态</option><option value="history">已开启历史补齐</option><option value="live">实时运行中</option></select></label>
@@ -317,7 +317,7 @@ export function MarketDataPanel() {
       {mode === "configure" && pairBusy && <p role="status">该交易对正在处理数据，完成后可继续调整配置。</p>}
       {mode === "configure" && <fieldset disabled={busy || !capabilities?.can_operate || pairBusy || selectedBusy} className="data-configuration-fields">
         {adding && <>
-          <div className="data-market-picker"><label>产品<select value={product} onChange={(event) => { setProduct(event.target.value); setSymbol(""); setSelectedSymbols([]); setMarkets([]); setMarketSearch(""); setMarketError(""); setMarketsLoading(false); setBaseLevel("1m"); setHistoryEnabled(event.target.value === "options"); setRealtimeEnabled(true); }}><option value="">请选择产品</option><option value="futures_um">U 本位永续（USDT / USDC）</option><option value="options">期权</option></select></label></div>
+          <div className="data-market-picker"><label>产品<select value={product} onChange={(event) => { setProduct(event.target.value); setSymbol(""); setSelectedSymbols([]); setMarkets([]); setMarketSearch(""); setMarketError(""); setMarketsLoading(false); setBaseLevel("1m"); setHistoryEnabled(event.target.value === "options"); setRealtimeEnabled(true); }}><option value="">请选择产品</option><option value="futures_um">U 本位永续（USDT / USDC）</option><option value="spot">现货（USDT / USDC / FDUSD）</option><option value="options">期权</option></select></label></div>
           {product === "options" && <p>按标的交易对管理，自动包含该标的全部到期日、方向和行权价；新上市合约沿用同一份采集与补齐设置。</p>}
           {product && <div className="data-market-picker">
             <label>搜索 Binance 交易对<input type="search" value={marketSearch} placeholder="输入币种，例如 XRP" onChange={(event) => { setMarketSearch(event.target.value); if (product === "options") setSymbol(""); }} /></label>
@@ -343,7 +343,7 @@ export function MarketDataPanel() {
           </div>}
         </>}
         {currentProduct === "options" && !adding && <p>配置统一应用到 {symbol} 的全部到期日、方向和行权价，新上市合约自动沿用。已到期合约停止实时订阅。</p>}
-        {currentProduct === "futures_um" ? <>
+        {currentProduct !== "options" ? <>
           <label>保存数据<select value={baseLevel} onChange={(event) => setBaseLevel(event.target.value)}><option value="1m">全部周期 K 线</option><option value="tick">Tick 与全部周期 K 线</option></select></label>
           <p>保存本地 1s 与 Binance 全部周期：{levels.filter((value) => value !== "tick").join("、")}。周期按 UTC 对齐，未闭合与不完整数据分别标记。</p>
         </> : <><label>保存数据<select value={baseLevel} onChange={(event) => setBaseLevel(event.target.value)}><option value="1m">K 线</option><option value="tick">实时 Tick 与 K 线</option></select></label><p>期权使用现有支持的周期：1m、5m、15m。</p></>}
@@ -353,7 +353,7 @@ export function MarketDataPanel() {
           <label><input type="checkbox" checked={historyEnabled} onChange={(event) => setHistoryEnabled(event.target.checked)} />自动补齐历史数据</label>
         </>
         <label><input type="checkbox" checked={realtimeEnabled} onChange={(event) => setRealtimeEnabled(event.target.checked)} />实时加载并自动更新</label>
-        <p>{currentProduct === "futures_um" ? "默认持续更新，服务重启恢复采集。未闭合 K 线单独展示；发现缺口会保留补缺位置。Tick 使用真实逐笔来源，缺口未补齐时标记为不完整。" : "期权持续保存官方闭合 K 线，选择 Tick 时同时保存实时成交。断线重连后补取可用 K 线及所选近期成交。Tick 无完整历史回溯来源，缺口保留，不代表逐笔完整。"}</p>
+        <p>{currentProduct !== "options" ? "默认持续更新，服务重启恢复采集。未闭合 K 线单独展示；发现缺口会保留补缺位置。Tick 使用真实逐笔来源，缺口未补齐时标记为不完整。" : "期权持续保存官方闭合 K 线，选择 Tick 时同时保存实时成交。断线重连后补取可用 K 线及所选近期成交。Tick 无完整历史回溯来源，缺口保留，不代表逐笔完整。"}</p>
         <p>{currentProduct === "options" ? "期权保存官方闭合 K 线，不生成形成中或虚构成交数据。" : "新数据按所选保存方式写入，K 线自动生成全部官方周期。开始日期调晚时，确认后删除旧数据。"}数据状态不代表策略获准交易。</p>
         {currentConfiguration?.requires_confirmation && currentConfiguration.deletion && <div className="tick-delete-confirm">
           <p className="data-danger-text">开始日期将调整为 {currentConfiguration.policy.history_start?.slice(0, 10)} UTC 00:00，将删除此前数据和原始归档。</p>

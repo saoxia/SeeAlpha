@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from core.engine_contracts import QueryError
+from core.market.instruments import INTERVALS, MarketConfigError, normalize_symbol
 
 from ..auth.dependencies import AdminUser, TradingUser
 from ..operations.options import position_view
@@ -31,13 +32,50 @@ async def markets(
     user: TradingUser,
     exchange: str = "binance",
     environment: Literal["production", "sandbox"] = "production",
-    market_type: str = "linear",
+    market_type: Literal["linear", "spot"] = "linear",
     search: str = Query(default="", max_length=80),
 ):
-    if exchange != "binance" or market_type != "linear":
-        raise HTTPException(422, "本轮原生接入仅开放 Binance USD-M 永续市场。")
-    items = await request.app.state.exchanges.catalog(environment)
+    if exchange != "binance":
+        raise HTTPException(422, "暂不支持此交易所。")
+    product = "spot" if market_type == "spot" else "futures_um"
+    items = await request.app.state.exchanges.catalog(environment, product=product)
     return [i for i in items if search.strip().upper() in i["symbol"]][:200]
+
+
+def checked_spot_symbol(symbol: str):
+    try:
+        return normalize_symbol(symbol, "spot")
+    except MarketConfigError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+@router.get("/system/exchange-spot-candles")
+async def spot_candles(
+    request: Request, _: TradingUser,
+    symbol: str = Query(min_length=3, max_length=30),
+    interval: str = Query(default="1m", max_length=3),
+    start_ms: int = Query(ge=0),
+    end_ms: int = Query(gt=0),
+    limit: int = Query(default=1000, ge=1, le=1000),
+):
+    """Public Spot OHLCV page, independent of the USD-M storage and trading paths."""
+    symbol = checked_spot_symbol(symbol)
+    if interval not in INTERVALS or start_ms >= end_ms:
+        raise HTTPException(422, "现货周期或时间范围无效。")
+    return await request.app.state.engine.spot_candles(
+        symbol, interval, start_ms, end_ms, limit=limit,
+    )
+
+
+@router.get("/system/exchange-spot-recent-trades")
+async def spot_recent_trades(
+    request: Request, _: TradingUser,
+    symbol: str = Query(min_length=3, max_length=30),
+    limit: int = Query(default=500, ge=1, le=1000),
+):
+    """Recent public trades; never claim a complete historical trade set."""
+    symbol = checked_spot_symbol(symbol)
+    return await request.app.state.engine.spot_recent_trades(symbol, limit=limit)
 
 
 @router.get("/system/exchange-accounts", response_model=list[ExchangeAccountResponse])

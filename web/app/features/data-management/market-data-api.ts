@@ -1,10 +1,10 @@
 import type { components } from "@/app/api/generated/schema";
 
-export type DataMarket = components["schemas"]["DataMarket"];
+export type DataMarket = Omit<components["schemas"]["DataMarket"], "product"> & { product?: DataProduct };
 export type DataCapabilities = components["schemas"]["DataCapabilities"];
 export type DataJob = components["schemas"]["DataJobResponse"];
 export type DataDeletionPlan = components["schemas"]["DataDeletionPlan"];
-export type DataProduct = "futures_um" | "options";
+export type DataProduct = "futures_um" | "spot" | "options";
 export type DataItem = { symbol: string; product?: DataProduct; level: string; event_ranges_ns: string[][]; quality: string;
   contract?: { underlying?: string; expiry?: number; strike?: string; right?: string; multiplier?: string; quote?: string } };
 export type DataSelection = { symbol: string; start: string; end: string; intervals: string[]; product?: DataProduct };
@@ -57,7 +57,7 @@ export function selection(symbol: string, start: string, end: string, level: str
   const duration = last.getTime() - first.getTime();
   if (!Number.isFinite(duration) || duration <= 0) throw new Error("结束日期须晚于开始日期。");
   if (last.getTime() > Date.now() - Date.now() % 86400000 + (product === "options" ? 86400000 : 0)) throw new Error("只支持已完成的 UTC 日，结束日期最晚为今天。");
-  return { symbol, start: first.toISOString(), end: last.toISOString(), intervals: level === "tick" ? [] : [level], ...(product === "options" ? { product } : {}) };
+  return { symbol, start: first.toISOString(), end: last.toISOString(), intervals: level === "tick" ? [] : [level], ...(product !== "futures_um" ? { product } : {}) };
 }
 
 export const dataLevelLabels: Record<string, string> = { tick: "逐笔 Tick", "1s": "1 秒 K 线", "1m": "1 分钟 K 线", "5m": "5 分钟 K 线", "15m": "15 分钟 K 线", "3m": "3 分钟 K 线", "30m": "30 分钟 K 线", "1h": "1 小时 K 线", "2h": "2 小时 K 线", "4h": "4 小时 K 线", "6h": "6 小时 K 线", "8h": "8 小时 K 线", "12h": "12 小时 K 线", "1d": "日线", "3d": "3 日 K 线", "1w": "周线", "1M": "月线" };
@@ -91,7 +91,7 @@ export function taskTransitions<T extends { id: string; status: string }>(previo
 }
 
 
-export const dataProductLabels: Record<DataProduct, string> = { futures_um: "U 本位永续", options: "期权" };
+export const dataProductLabels: Record<DataProduct, string> = { futures_um: "U 本位永续", spot: "现货", options: "期权" };
 
 // Binance USD-M sockets support up to 1,024 streams. We allocate 128 pairs
 // per group: one shared /public socket for raw trades and one shared /market
@@ -103,8 +103,8 @@ export function toggleFuturesSymbol(current: string[], symbol: string): string[]
   if (current.length >= FUTURES_BATCH_LIMIT) return current;
   return [...current, symbol];
 }
-export type PairDeletePlanRequest = components["schemas"]["PairDeletePlanRequest"];
-export type PairDeleteRequest = components["schemas"]["PairDeleteRequest"];
+export type PairDeletePlanRequest = Omit<components["schemas"]["PairDeletePlanRequest"], "product"> & { product?: DataProduct };
+export type PairDeleteRequest = Omit<components["schemas"]["PairDeleteRequest"], "product"> & { product?: DataProduct };
 
 export type DataPolicy = Required<Pick<components["schemas"]["DataPolicy"], "symbol" | "product" | "base_level" | "intervals" | "realtime_enabled">> &
   Pick<components["schemas"]["DataPolicy"], "history_enabled" | "history_mode" | "history_start" | "history_days" | "underlying">;

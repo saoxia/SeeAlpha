@@ -177,10 +177,25 @@ class EngineClient:
         )
         return result["items"]
 
-    async def market_tickers(self, environment):
+    async def market_tickers(self, environment, product="futures_um"):
         return await self._async(
             "POST", f"/tenants/{self._public_tenant()}/venue/tickers",
-            json={"environment": environment},
+            json={"environment": environment, "product": product},
+        )
+
+    async def spot_candles(self, symbol, interval, start_ms, end_ms, *, limit=1000):
+        """Read Binance Spot public candles only; no persistent catalog mutation."""
+        return await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/spot/klines",
+            json={"environment": "production", "symbol": symbol, "interval": interval,
+                  "start_ms": start_ms, "end_ms": end_ms, "limit": limit},
+        )
+
+    async def spot_recent_trades(self, symbol, *, limit=500):
+        """Only the venue's bounded recent public trade page, not trade history."""
+        return await self._async(
+            "POST", f"/tenants/{self._public_tenant()}/venue/spot/trades",
+            json={"environment": "production", "symbol": symbol, "limit": limit},
         )
 
     async def asset_price(self, environment, currency):
@@ -339,6 +354,7 @@ class EngineClient:
 
     def run_backtest(
         self, tenant_id, account_id, start, end, interval, starting_balance, quote_currency,
+        product="futures_um",
     ):
         return self._sync(
             "POST", self._account_path(tenant_id, account_id) + "/backtests",
@@ -346,6 +362,7 @@ class EngineClient:
             json={
                 "start": start, "end": end, "interval": interval,
                 "starting_balance": str(starting_balance), "quote_currency": quote_currency,
+                "product": product,
             },
         )
 
@@ -426,7 +443,8 @@ class EngineClient:
         return AccountSnapshot(payload["balances"], payload["info"], payload["positions"], payload["observed_at"])
 
     async def trading_state(self, account, symbol):
-        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/trading/state", json={
+        suffix = "/spot/trading/state" if not symbol.endswith("-PERP") else "/trading/state"
+        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + suffix, json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],
@@ -434,7 +452,8 @@ class EngineClient:
         })
 
     async def command(self, account, action, values):
-        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + "/orders", json={
+        suffix = "/spot/orders" if not values["symbol"].endswith("-PERP") else "/orders"
+        return await self._async("POST", self._account_path(account["tenant_id"], account["id"]) + suffix, json={
             "environment": account["environment"],
             "api_key": account["credentials"]["apiKey"],
             "api_secret": account["credentials"]["secret"],

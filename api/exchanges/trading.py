@@ -4,12 +4,13 @@ import asyncio
 import hashlib
 import json
 import time
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.engine_contracts import EngineConflict
 from core.trading_contracts import TRADING_SYMBOL, CancelOrderValues, SubmitOrderValues
@@ -27,6 +28,43 @@ class ManualOrderRequest(SubmitOrderValues):
 
 class ManualCancelRequest(CancelOrderValues):
     pass
+
+
+class SpotOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: UUID
+    symbol: str = Field(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")
+    side: Literal["buy", "sell"]
+    order_type: Literal["limit", "market"]
+    quantity: str = Field(pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
+    price: str | None = Field(default=None, pattern=r"^\d{1,16}(?:\.\d{1,18})?$", max_length=35)
+    time_in_force: Literal["GTC", "IOC", "FOK"] = "GTC"
+    post_only: bool = False
+    environment: Literal["production", "sandbox"]
+
+    @model_validator(mode="after")
+    def check_spot(self):
+        if Decimal(self.quantity) <= 0:
+            raise ValueError("现货数量必须大于零")
+        if self.order_type == "limit" and (self.price is None or Decimal(self.price) <= 0):
+            raise ValueError("现货限价单需要有效价格")
+        if self.order_type == "market" and (
+            self.price is not None or self.post_only or self.time_in_force != "GTC"
+        ):
+            raise ValueError("现货市价单不能设置限价或 Post Only")
+        if self.post_only and self.time_in_force != "GTC":
+            raise ValueError("Post Only 仅支持 GTC")
+        return self
+
+
+class SpotCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: UUID
+    symbol: str = Field(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")
+    client_order_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    environment: Literal["production", "sandbox"]
 
 
 class ManualOrderView(BaseModel):
@@ -84,7 +122,7 @@ class ManualStateResponse(BaseModel):
 class ManualMarketSummary(BaseModel):
     symbol: str
     base: str
-    quote: Literal["USDT", "USDC"]
+    quote: Literal["USDT", "USDC", "FDUSD"]
     last_price: str | None
     change_percent: str | None
     quote_volume: str | None
@@ -169,15 +207,31 @@ async def state(request: Request, account_id: int, user: TradingUser,
     request.app.state.accounts.require_owned(account_id, user.id)
     return await request.app.state.trading.snapshot(account_id, symbol)
 
+@router.get("/accounts/{account_id}/spot/state", response_model=ManualStateResponse)
+async def spot_state(request: Request, account_id: int, user: TradingUser,
+                     symbol: str = Query(pattern=r"^[A-Z0-9]{2,30}(?:USDT|USDC|FDUSD)$")):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await request.app.state.trading.snapshot(account_id, symbol)
+
 
 @router.post("/accounts/{account_id}/orders", response_model=ManualOrderResponse)
 async def submit(request: Request, account_id: int, payload: ManualOrderRequest, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
 
+@router.post("/accounts/{account_id}/spot/orders", response_model=ManualOrderResponse)
+async def spot_submit(request: Request, account_id: int, payload: SpotOrderRequest, user: TradingUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "submit"))
+
 
 @router.post("/accounts/{account_id}/cancel", response_model=ManualOrderResponse)
 async def cancel(request: Request, account_id: int, payload: ManualCancelRequest, user: TradingUser):
+    request.app.state.accounts.require_owned(account_id, user.id)
+    return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
+
+@router.post("/accounts/{account_id}/spot/cancel", response_model=ManualOrderResponse)
+async def spot_cancel(request: Request, account_id: int, payload: SpotCancelRequest, user: TradingUser):
     request.app.state.accounts.require_owned(account_id, user.id)
     return await asyncio.shield(request.app.state.trading.command(account_id, payload, "cancel"))
 
@@ -205,15 +259,21 @@ async def lookup(request: Request, account_id: int, request_id: UUID, user: Trad
 
 @router.get("/markets", response_model=ManualMarketsResponse)
 async def market_list(request: Request, user: TradingUser,
-                      environment: Literal["production", "sandbox"] = "production"):
-    catalog, snapshot = await asyncio.gather(request.app.state.exchanges.catalog(environment),
-                                             request.app.state.engine.market_tickers(environment))
+                      environment: Literal["production", "sandbox"] = "production",
+                      product: Literal["futures_um", "spot"] = "futures_um"):
+    catalog, snapshot = await asyncio.gather(
+        request.app.state.exchanges.catalog(environment, product="spot") if product == "spot"
+        else request.app.state.exchanges.catalog(environment),
+        request.app.state.engine.market_tickers(environment, "spot") if product == "spot"
+        else request.app.state.engine.market_tickers(environment),
+    )
     rows = []
     for item in catalog:
-        if item["quote"] not in {"USDT", "USDC"}:
+        if item["quote"] not in {"USDT", "USDC", "FDUSD"}:
             continue
         raw_symbol = item["base"] + item["quote"]
-        rows.append({"symbol": raw_symbol + "-PERP", "base": item["base"], "quote": item["quote"],
+        rows.append({"symbol": raw_symbol + ("-PERP" if product == "futures_um" else ""),
+                     "base": item["base"], "quote": item["quote"],
                      **snapshot["rows"].get(raw_symbol, {"last_price": None, "change_percent": None,
                                                        "quote_volume": None, "funding_rate": None})})
     return {"checked_at": snapshot["checked_at"], "environment": environment, "markets": rows}
