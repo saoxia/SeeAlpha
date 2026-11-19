@@ -8,6 +8,7 @@ import { Navigation } from "./navigation";
 import { ResearchPage } from "./research/research-page";
 import { SettingsPage } from "./settings/settings-page";
 import { TenantPage } from "./identity/tenant-page";
+import { StrategyLibrary } from "./strategies/strategy-library";
 import type { AppView } from "./types";
 import { fetchTenants } from "../features/identity/api";
 import { productionTenant, type AuthSession } from "../features/identity/model";
@@ -49,6 +50,7 @@ export function TradingSystemApp({ session, onLogout }: TradingSystemAppProps) {
       {activeView === "trade" && <TradePage />}
       {activeView === "data" && <DataManagementPage scope="user" />}
       {activeView === "research" && <ResearchPage />}
+      {activeView === "strategies" && <StrategyLibrary userId={session.user.id} />}
       {activeView === "settings" && <SettingsPage />}
       {activeView === "tenants" && <TenantPage />}
     </main>
