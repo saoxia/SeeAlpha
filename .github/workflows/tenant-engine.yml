@@ -3,7 +3,7 @@ name: Platform + external Engine compatibility
 # Same immutable independent Engine revision as scripts/build_external_engine.sh.
 # Upgrade this pin only with explicit cross-repo contract and regression review.
 env:
-  ENGINE_SOURCE_SHA: 36aed104d66101e16b788b75dc7033271e7e8bb1
+  ENGINE_SOURCE_SHA: b4a371cda12f8db5e176cc147b1bac26f3d85e4e
 
 on:
   pull_request:

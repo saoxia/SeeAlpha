@@ -25,7 +25,18 @@ export type BasketBacktestResult = {
   starting_balance: string;
   ending_balance: string;
   fills: Array<{ instrument_id: string; price: string; quantity: string; phase?: string }>;
-  equity_curve: Array<{ ts_ns: number; total_equity: string }>;
+  equity_curve: Array<{
+    ts_ns: number;
+    total_equity: string;
+    spot_quantity?: string;
+    perpetual_quantity?: string;
+    put_quantity?: string;
+    call_quantity?: string;
+    leg_drift?: string;
+    spot_equity?: string;
+    perpetual_equity?: string;
+    options_equity?: string;
+  }>;
   [key: string]: unknown;
 };
 
