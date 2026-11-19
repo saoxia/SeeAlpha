@@ -201,7 +201,7 @@ function Invoke-SeeAlphaWindows {
         return
     }
     Write-Host "使用已安装的 WSL2 发行版：$selected（停止状态会在运行 Linux 命令时自动启动）。"
-    $script = New-SeeAlphaLinuxCommand -Command $Command -Action $Action -Username $Username
+    $script = New-SeeAlphaLinuxCommand -Command $Command -Action $Action -Username $Username -Yes:$Yes
     Invoke-SeeAlphaLinux -WslExe $wslExe -Distro $selected -Script $script
     if ($Command -in @('start', 'up')) {
         Write-Host '可在 Windows 浏览器打开 http://127.0.0.1:3000（需 WSL localhost 转发正常）。'
