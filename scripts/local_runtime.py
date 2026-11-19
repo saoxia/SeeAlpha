@@ -166,6 +166,9 @@ class LocalRuntime:
     @staticmethod
     def _port_available(port: int) -> bool:
         with socket.socket() as check:
+            # macOS retains TCP TIME_WAIT after stop; SO_REUSEADDR permits a
+            # genuine restart, but not binding over another active listener.
+            check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
                 check.bind(("127.0.0.1", port))
                 return True
