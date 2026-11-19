@@ -15,6 +15,9 @@ class FakeTenants:
         assert tenant_id == 7
         return {"id": tenant_id, "purpose": self.purpose, "status": "active"}
 
+    def require_tenant(self, tenant_id):
+        return self.require_active(tenant_id)
+
     def list_virtual_accounts(self, tenant_id):
         assert tenant_id == 7
         return self.accounts
@@ -34,6 +37,22 @@ class FakeEngine:
     def submit_task(self, tenant_id, action, payload, *, idempotency_key=None):
         self.calls.append(("submit_task", tenant_id, action, payload, idempotency_key))
         return {"id": "a" * 32, "kind": action, "status": "PENDING"}
+
+    def run_funding_carry_backtest(self, *args):
+        self.calls.append(("run_funding_carry_backtest", *args))
+        return {"mode": "native_dual_venue_development_only", "bar_count": 4}
+
+    def run_protected_option_backtest(self, *args):
+        self.calls.append(("run_protected_option_backtest", *args))
+        return {"mode": "native_protected_options_development_only", "bar_count": 4}
+
+    def latest_funding_carry_backtest(self, tenant_id, account_id):
+        self.calls.append(("latest_funding_carry_backtest", tenant_id, account_id))
+        return {"mode": "native_dual_venue_development_only"}
+
+    def latest_protected_option_backtest(self, tenant_id, account_id):
+        self.calls.append(("latest_protected_option_backtest", tenant_id, account_id))
+        return {"mode": "native_protected_options_development_only"}
 
 
 def _service(purpose, accounts=()):
@@ -123,3 +142,82 @@ def test_strategy_business_module_only_calls_engine_protocol_and_never_imports_p
     assert "from nautilus_trader" not in source
     assert "open_package(" not in source
     assert "inspect_strategy(" in source
+
+
+def test_basket_backtests_allow_only_development_virtual_usdt_budget():
+    for purpose in ("development", "production"):
+        service = _service(purpose, [{
+            "id": 3, "initial_capital": "2000", "quote_currency": "USDT",
+        }])
+        args = (7, 3, "funding_carry", "2024-01-01", "2024-01-02", "1m",
+                "800", "900", "1900")
+        if purpose == "production":
+            with pytest.raises(HTTPException, match="开发"):
+                service.basket_backtest(*args)
+            assert not service.engine.calls
+            continue
+        result = service.basket_backtest(*args)
+        assert result["bar_count"] == 4
+        assert service.engine.calls == [
+            ("runnable", 7, "backtest"),
+            ("run_funding_carry_backtest", 7, 3,
+             "2024-01-01", "2024-01-02", "1m", "800", "900", "1900"),
+        ]
+        service.engine.calls.clear()
+        options = service.basket_backtest(
+            7, 3, "protected_options", "2024-01-01", "2024-01-02",
+            "5m", "400", "500", "1200",
+        )
+        assert options["mode"] == "native_protected_options_development_only"
+        assert service.engine.calls[-1] == (
+            "run_protected_option_backtest", 7, 3, "2024-01-01",
+            "2024-01-02", "5m", "400", "500", "1200",
+        )
+        service.engine.calls.clear()
+        for invalid in ("0", "-1", "NaN", "Infinity", "1e100"):
+            with pytest.raises(HTTPException) as rejected:
+                service.basket_backtest(
+                    7, 3, "funding_carry", "2024-01-01", "2024-01-02",
+                    "1m", invalid, "900", "1900",
+                )
+            assert rejected.value.status_code == 422
+        with pytest.raises(HTTPException, match="超出"):
+            service.basket_backtest(
+                7, 3, "funding_carry", "2024-01-01", "2024-01-02",
+                "1m", "1200", "900", "1900",
+            )
+        assert service.engine.calls == []
+
+
+def test_basket_backtest_rejects_unowned_account_and_bad_currency_before_engine():
+    missing = _service("development")
+    with pytest.raises(HTTPException) as exc:
+        missing.basket_backtest(
+            7, 999, "funding_carry", "2024-01-01", "2024-01-02",
+            "1m", "100", "100", "200",
+        )
+    assert exc.value.status_code == 404
+    assert missing.engine.calls == []
+
+    wrong_currency = _service("development", [{
+        "id": 3, "initial_capital": "2000", "quote_currency": "USDC",
+    }])
+    with pytest.raises(HTTPException) as exc:
+        wrong_currency.basket_backtest(
+            7, 3, "protected_options", "2024-01-01", "2024-01-02",
+            "1m", "100", "100", "200",
+        )
+    assert exc.value.status_code == 422
+    assert wrong_currency.engine.calls == []
+
+
+def test_basket_result_queries_keep_account_scope():
+    service = _service("development", [{
+        "id": 3, "initial_capital": "1000", "quote_currency": "USDT",
+    }])
+    assert service.latest_basket_backtest(7, 3, "funding_carry")["mode"].startswith("native_")
+    assert service.engine.calls[-1] == ("latest_funding_carry_backtest", 7, "3")
+    assert service.latest_basket_backtest(7, 3, "protected_options")["mode"].startswith("native_")
+    assert service.engine.calls[-1] == ("latest_protected_option_backtest", 7, "3")
+    with pytest.raises(HTTPException):
+        service.latest_basket_backtest(7, 999, "funding_carry")

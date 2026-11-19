@@ -18,6 +18,17 @@ export type StrategyPackage = {
   versions: StrategyVersion[];
 };
 
+export type BasketMode = "funding_carry" | "protected_options";
+export type BasketBacktestResult = {
+  mode: string;
+  bar_count: number;
+  starting_balance: string;
+  ending_balance: string;
+  fills: Array<{ instrument_id: string; price: string; quantity: string; phase?: string }>;
+  equity_curve: Array<{ ts_ns: number; total_equity: string }>;
+  [key: string]: unknown;
+};
+
 export type ShareRecipient = { id: number; username: string };
 export type TenantAccount = { id: number; kind: string; account_name: string };
 
@@ -91,8 +102,32 @@ export function listTenantAccounts(tenantId: number) {
   return request<TenantAccount[]>(`/api/tenants/${tenantId}/accounts`);
 }
 
-export function issueStrategy(tenantId: number, versionId: number, accountId: number) {
+export function issueStrategy(
+  tenantId: number, versionId: number, accountId: number,
+  parameters?: Record<string, unknown>,
+) {
   return request<unknown>(`/api/tenants/${tenantId}/strategy-loads`, {
-    method: "POST", body: JSON.stringify({ version_id: versionId, account_id: accountId }),
+    method: "POST", body: JSON.stringify({
+      version_id: versionId, account_id: accountId,
+      ...(parameters ? { parameters } : {}),
+    }),
   });
+}
+
+export function runBasketBacktest(
+  tenantId: number, accountId: number, values: {
+    mode: BasketMode; start: string; end: string; interval: "1m" | "5m";
+    starting_primary_balance: string; starting_perpetual_balance: string;
+    max_gross_notional: string;
+  },
+) {
+  return request<BasketBacktestResult>(`/api/tenants/${tenantId}/accounts/${accountId}/basket-backtests`, {
+    method: "POST", body: JSON.stringify(values),
+  });
+}
+
+export function latestBasketBacktest(tenantId: number, accountId: number, mode: BasketMode) {
+  return request<BasketBacktestResult>(
+    `/api/tenants/${tenantId}/accounts/${accountId}/basket-backtests/${mode}/latest`,
+  );
 }

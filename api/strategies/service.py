@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import zipfile
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid4
 
@@ -35,9 +36,10 @@ class StrategyStore:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if manifest.get("name") != folder.name or manifest.get("format") != 1:
                 raise ValueError("演示策略元数据与目录不一致。")
-            if any(p["code_key"] == folder.name and p["owner_id"] is None
-                   for p in self.repository.list_packages(is_admin=True)):
-                continue
+            existing = next((
+                row for row in self.repository.list_packages(is_admin=True)
+                if row["code_key"] == folder.name and row["owner_id"] is None
+            ), None)
             source_files = sorted(p for p in folder.iterdir() if p.name == "seealpha-package.json"
                                   or p.suffix == ".py")
             with io.BytesIO() as memory:
@@ -45,6 +47,36 @@ class StrategyStore:
                     for file in source_files:
                         bundle.write(file, arcname=file.name)
                 archive = memory.getvalue()
+            digest = hashlib.sha256(archive).hexdigest()
+            if existing is not None:
+                # Grant only the immutable, checked-in research Demo version.
+                # Do not authorize an unrelated or previously replaced package.
+                if folder.name in {"demo_funding_carry", "demo_option_hedged_bollinger"}:
+                    for version in self.repository.list_versions(existing["id"]):
+                        if (
+                            version["version"] != manifest["version"]
+                            or version["entry_point"] != manifest["entry_point"]
+                        ):
+                            continue
+                        old_archive = version["archive"]
+                        if (
+                            not isinstance(old_archive, bytes)
+                            or hashlib.sha256(old_archive).hexdigest() != version["package_hash"]
+                        ):
+                            continue
+                        try:
+                            with zipfile.ZipFile(io.BytesIO(old_archive)) as saved:
+                                same_files = set(saved.namelist()) == {
+                                    source.name for source in source_files
+                                } and all(
+                                    saved.read(source.name) == source.read_bytes()
+                                    for source in source_files
+                                )
+                        except (OSError, KeyError, zipfile.BadZipFile):
+                            continue
+                        if same_files:
+                            self.repository.create_grant(version["id"], "development")
+                continue
             try:
                 package = self.repository.create_package(
                     manifest["name"], manifest["title"], manifest.get("description"),
@@ -55,10 +87,15 @@ class StrategyStore:
                 continue
             version = self.repository.create_version(
                 package["id"], manifest["version"], manifest.get("parameters") or {},
-                manifest["entry_point"], hashlib.sha256(archive).hexdigest(), archive,
+                manifest["entry_point"], digest, archive,
             )
-            # Only the single-product EMA demo has an executable Engine path today.
-            if manifest["name"] in {"demo_ema_crossover", "demo_multi_signal_portfolio"}:
+            # Only explicitly audited system demos get development grants.
+            # Cross-product demos execute via restricted research endpoints;
+            # their standard Strategy.on_start remains fail-closed.
+            if manifest["name"] in {
+                "demo_ema_crossover", "demo_multi_signal_portfolio",
+                "demo_funding_carry", "demo_option_hedged_bollinger",
+            }:
                 self.repository.create_grant(version["id"], "development")
 
     def list_packages(self, viewer_id=None, is_admin=False):
@@ -318,6 +355,65 @@ class StrategyStore:
             )
         except EngineConflict as exc:
             raise HTTPException(409, exc.message) from exc
+
+    def basket_backtest(
+        self, tenant_id, account_id, mode, start, end, interval,
+        starting_primary_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        """Only grant-scoped development research with a real virtual capital budget."""
+        tenant = self.tenants.require_active(tenant_id)
+        if tenant["purpose"] != "development":
+            raise HTTPException(409, "跨产品组合回测仅支持开发租户。")
+        account = self._virtual_account(tenant, str(account_id).strip())
+        if account["quote_currency"] != "USDT":
+            raise HTTPException(422, "跨产品组合仅接受 USDT 虚拟资金。")
+        if mode not in {"funding_carry", "protected_options"}:
+            raise HTTPException(422, "未知的研究组合模式。")
+        try:
+            amounts = (
+                Decimal(str(starting_primary_balance)),
+                Decimal(str(starting_perpetual_balance)),
+                Decimal(str(max_gross_notional)),
+            )
+            initial = Decimal(str(account["initial_capital"]))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise HTTPException(422, "组合资金和风险预算格式无效。") from exc
+        if (
+            any(not value.is_finite() or value <= 0 for value in amounts)
+            or not initial.is_finite()
+            or amounts[0] + amounts[1] > initial
+        ):
+            raise HTTPException(422, "两独立账户初始资金必须为正，且总额不能超出虚拟账户资金。")
+        try:
+            self.engine.runnable(tenant["id"], "backtest")
+            runner = (
+                self.engine.run_funding_carry_backtest
+                if mode == "funding_carry" else self.engine.run_protected_option_backtest
+            )
+            return runner(
+                tenant["id"], account["id"], start, end, interval,
+                format(amounts[0], "f"), format(amounts[1], "f"),
+                format(amounts[2], "f"),
+            )
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+
+    def latest_basket_backtest(self, tenant_id, account_id, mode):
+        tenant = self.tenants.require_tenant(tenant_id)
+        self._virtual_account(tenant, str(account_id).strip())
+        if mode not in {"funding_carry", "protected_options"}:
+            raise HTTPException(422, "未知的研究组合模式。")
+        try:
+            getter = (
+                self.engine.latest_funding_carry_backtest
+                if mode == "funding_carry" else self.engine.latest_protected_option_backtest
+            )
+            found = getter(tenant["id"], str(account_id).strip())
+        except EngineConflict as exc:
+            raise HTTPException(409, exc.message) from exc
+        if found is None:
+            raise HTTPException(404, "还没有该组合的开发回测结果。")
+        return found
 
     def development_worker_tenants(self):
         return [

@@ -366,6 +366,57 @@ class EngineClient:
             },
         )
 
+    def run_funding_carry_backtest(
+        self, tenant_id, account_id, start, end, interval,
+        starting_spot_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        return self._sync(
+            "POST", self._account_path(tenant_id, account_id) + "/carry-backtests",
+            timeout=600,
+            json={
+                "start": start, "end": end, "interval": interval,
+                "starting_spot_balance": str(starting_spot_balance),
+                "starting_perpetual_balance": str(starting_perpetual_balance),
+                "max_gross_notional": str(max_gross_notional),
+            },
+        )
+
+    def run_protected_option_backtest(
+        self, tenant_id, account_id, start, end, interval,
+        starting_options_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        return self._sync(
+            "POST", self._account_path(tenant_id, account_id) + "/protected-option-backtests",
+            timeout=600,
+            json={
+                "start": start, "end": end, "interval": interval,
+                "starting_options_balance": str(starting_options_balance),
+                "starting_perpetual_balance": str(starting_perpetual_balance),
+                "max_gross_notional": str(max_gross_notional),
+            },
+        )
+
+    def latest_funding_carry_backtest(self, tenant_id, account_id):
+        try:
+            return self._sync(
+                "GET", self._account_path(tenant_id, account_id) + "/carry-backtests/latest",
+            )
+        except QueryError as error:
+            if "还没有资金费组合回测结果" in str(error):
+                return None
+            raise
+
+    def latest_protected_option_backtest(self, tenant_id, account_id):
+        try:
+            return self._sync(
+                "GET",
+                self._account_path(tenant_id, account_id) + "/protected-option-backtests/latest",
+            )
+        except QueryError as error:
+            if "还没有期权保护组合回测结果" in str(error):
+                return None
+            raise
+
     def _task_sync(self, method, tenant_id, suffix="", **kwargs):
         """Forward task HTTP statuses without masking a missing job as 502."""
         from fastapi import HTTPException
