@@ -6,7 +6,7 @@ export type BasketMetric = {
 };
 
 export type BasketTargetEvent = {
-  tsNs: number;
+  tsMs: number;
   memberCount: number | null;
   action: string | null;
   targets: Array<{ label: string; quantity: string }>;
@@ -19,8 +19,9 @@ function latestVerifiedTargetEvent(value: unknown): BasketTargetEvent | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const row = raw as Record<string, unknown>;
   if (
-    typeof row.ts_ns !== "number" || !Number.isSafeInteger(row.ts_ns)
-    || row.ts_ns <= 0 || !Array.isArray(row.targets)
+    typeof row.ts_ns !== "number" || !Number.isFinite(row.ts_ns)
+    || row.ts_ns <= 0 || !Number.isSafeInteger(Math.trunc(row.ts_ns / 1_000_000))
+    || !Array.isArray(row.targets)
     || row.targets.length < 1 || row.targets.length > 64
   ) return null;
   const targets: BasketTargetEvent["targets"] = [];
@@ -41,7 +42,8 @@ function latestVerifiedTargetEvent(value: unknown): BasketTargetEvent | null {
     targets.push({ label: key, quantity: item.quantity });
   }
   return {
-    tsNs: row.ts_ns,
+    // Native nanoseconds exceed JS safe integer range; report only UTC ms.
+    tsMs: Math.trunc(row.ts_ns / 1_000_000),
     memberCount: typeof row.member_count === "number"
       && Number.isInteger(row.member_count)
       && row.member_count >= 1 && row.member_count <= 16
