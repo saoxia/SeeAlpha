@@ -14,7 +14,7 @@ case "$command" in
       echo "up 不接受参数。" >&2
       exit 2
     fi
-    if [[ ! -x "$root/platform/.venv/bin/python" || ! -x "$root/.local/engine-src/.venv/bin/python" || ! -f "$root/web/.next/BUILD_ID" ]] ||
+    if [[ ! -x "$root/platform/.venv/bin/python" || ! -x "$root/.local/engine-src/.venv/bin/python" || ! -f "$root/web/.next/standalone/server.js" ]] ||
        ! "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" check-config >/dev/null 2>&1 ||
        ! "$root/platform/.venv/bin/python" "$root/scripts/local_runtime.py" check-database >/dev/null 2>&1; then
       bash "$root/scripts/install.sh"
