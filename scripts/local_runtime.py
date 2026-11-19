@@ -113,8 +113,7 @@ class LocalRuntime:
             return [str(self.platform_python), "-m", "uvicorn", "api.main:app",
                     "--host", "127.0.0.1", "--port", "8000"]
         if service == "web":
-            return ["node", str(self.root / "web/node_modules/next/dist/bin/next"),
-                    "start", "--hostname", "127.0.0.1", "--port", "3000"]
+            return ["node", str(self.root / "web/.next/standalone/server.js")]
         raise ValueError(service)
 
     def _pid_file(self, service: str) -> Path:
@@ -140,7 +139,7 @@ class LocalRuntime:
             return False
         command = self._command(service)
         if service == "web":
-            return command[1] in details and " start" in details
+            return command[1] in details
         return command[0] in details and (
             "-m engine" in details if service == "engine" else "-m uvicorn" in details
         )
@@ -178,7 +177,8 @@ class LocalRuntime:
                        ALLOWED_HOSTS="localhost,127.0.0.1", HARNESS_ENABLED="false")
             cwd = self.root
         else:
-            env.update(SEEALPHA_API_URL=API_URL, NODE_ENV="production")
+            env.update(SEEALPHA_API_URL=API_URL, NODE_ENV="production",
+                       HOSTNAME="127.0.0.1", PORT="3000")
             cwd = self.root / "web"
         log = self.log_dir / f"{service}.log"
         if log.is_symlink():
@@ -209,7 +209,7 @@ class LocalRuntime:
         self.check_database()
         for required in (
             self.platform_python, self.engine / ".venv/bin/python",
-            self.root / "web/.next/BUILD_ID", self.root / "web/node_modules/next/dist/bin/next",
+            self.root / "web/.next/BUILD_ID", self.root / "web/.next/standalone/server.js",
         ):
             if not required.is_file():
                 raise RuntimeError(f"安装不完整：{required}；请重新运行 ./seealpha install")
