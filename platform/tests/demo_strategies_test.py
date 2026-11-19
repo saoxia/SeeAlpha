@@ -2,7 +2,7 @@
 
 This test suite deliberately does not import Engine or NautilusTrader.
 """
-import ast
+import ast  # noqa: I001 -- CI isort grouping for standalone package tests
 import importlib.util
 import json
 from pathlib import Path

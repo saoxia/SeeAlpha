@@ -73,9 +73,7 @@ class BollingerModel:
         deviation = variance.sqrt()
         lower, upper = mean - self.deviation * deviation, mean + self.deviation * deviation
         proposed = self.position
-        if self.position > 0 and close >= mean:
-            proposed = 0
-        elif self.position < 0 and close <= mean:
+        if (self.position > 0 and close >= mean) or (self.position < 0 and close <= mean):
             proposed = 0
         elif self.position == 0 and deviation > 0:
             if close < lower:

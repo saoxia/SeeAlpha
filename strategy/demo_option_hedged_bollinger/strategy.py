@@ -3,7 +3,7 @@
 This is a fail-closed research example, NOT runnable in the current single-
 instrument Engine or a claim of guaranteed option protection.
 """
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation  # noqa: I001
 
 from nautilus_trader.trading import Strategy
 
@@ -27,7 +27,7 @@ DEFAULTS = {
 
 def _positive(value, label):
     if isinstance(value, bool):
-        raise ValueError(f"{label}必须大于零")
+        raise TypeError(f"{label}必须大于零")
     try:
         number = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
@@ -84,7 +84,7 @@ class DemoOptionHedgedBollinger(Strategy):
         if not callable(getattr(self, "publish_basket", None)) or not callable(
             getattr(self, "subscribe_market_bundle", None)
         ):
-            raise RuntimeError(
+            raise TypeError(
                 "当前 Engine 不支持跨永续与期权的原子多腿目标、"
                 "先成交保护腿的门禁及完整回测；禁止裸方向仓位启动。"
             )

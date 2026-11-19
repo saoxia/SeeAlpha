@@ -3,7 +3,7 @@
 Requires a future basket-capable Engine adapter; the present single-symbol
 PortfolioCoordinator cannot safely execute an atomic cross-product hedge.
 """
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation  # noqa: I001
 
 from nautilus_trader.trading import Strategy
 
@@ -23,7 +23,7 @@ DEFAULTS = {
 
 def _number(value, key, *, zero=False):
     if isinstance(value, bool):
-        raise ValueError(f"{key}必须是有限十进制数")
+        raise TypeError(f"{key}必须是有限十进制数")
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
@@ -69,7 +69,7 @@ class DemoFundingCarry(Strategy):
         if not callable(getattr(self, "publish_basket", None)) or not callable(
             getattr(self, "subscribe_market_bundle", None)
         ):
-            raise RuntimeError(
+            raise TypeError(
                 "当前 Engine 仅支持单品种目标；本 Demo 需要跨现货/永续行情、"
                 "原子多腿目标、成交补偿和对账能力，禁止降级成单腿交易。"
             )
