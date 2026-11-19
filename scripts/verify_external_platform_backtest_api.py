@@ -36,7 +36,7 @@ def _environment():
         raise RuntimeError("Legacy Engine must not appear in Platform source tree")
     if not (root / "migrations").is_dir() or not (root / "alembic.ini").is_file():
         raise RuntimeError("Missing actual Platform Alembic migrations")
-    package = root / "strategy" / "ema_crossover"
+    package = root / "strategy" / "demo_ema_crossover"
     if not (package / "seealpha-package.json").is_file():
         raise RuntimeError("Missing portable EMA strategy example")
     url = os.environ["ENGINE_URL"].rstrip("/")

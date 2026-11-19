@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "demo_funding_carry",
+  "title": "演示｜现货多头 + 永续空头资金费率",
+  "version": "1",
+  "entry_point": "strategy:DemoFundingCarry",
+  "description": "跨产品等量对冲获取正资金费率的策略示例；当前仅用于研究多腿目标计算，Engine 尚未接入原子多腿执行。",
+  "parameters": {
+    "symbol": "ETHUSDT",
+    "allocation": "0.1",
+    "risk_limit": "0.1",
+    "min_funding_rate": "0.00005",
+    "max_basis_bps": "30",
+    "max_leg_drift": "0.001",
+    "max_age_seconds": 180
+  }
+}

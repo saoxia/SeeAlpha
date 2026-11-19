@@ -157,7 +157,7 @@ pandas 3.1 起 `high`、`legacy` 和 `round_trip` 共用同一转换器。`iter_
 
 ## 查看与复查
 
-[运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md) · [策略包示例](strategy/ema_crossover/README.md)
+[运维与恢复记录](web/README.md) · [操作记录说明](docs/OPERATIONS_API.md) · [策略包示例](strategy/demo_ema_crossover/README.md)
 
 2026-10-26 的开发环境记录是当日验收：当时 pytest 为 1,345 项通过。该数字不是上面的当前结果。
 详情见 [开发环境说明](DEV_ENVIRONMENT.md)。

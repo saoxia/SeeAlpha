@@ -95,7 +95,7 @@ def run_cases(state, engine_http):
             assert "strategy_python" in research.json()["detail"]
             package, version = _package(http)
             listed = http.get("/api/strategy-packages").json()
-            assert listed[0]["code_key"] == "ema_crossover"
+            assert listed[0]["code_key"] == "demo_ema_crossover"
             assert listed[0]["versions"][0]["version"] == "1"
             assert listed[0]["versions"][0]["entry_point"] == "strategy:EmaCrossover"
             assert listed[0]["versions"][0]["package_hash"] == version["package_hash"]
@@ -148,7 +148,7 @@ def run_cases(state, engine_http):
             body = issued.json()
             assert body["status"] == "loaded"
             assert body["purpose"] == "development"
-            assert body["code_key"] == "ema_crossover"
+            assert body["code_key"] == "demo_ema_crossover"
             assert body["entry_point"] == "strategy:EmaCrossover"
             assert "api_key" not in issued.text
             assert "archive" not in body
@@ -218,7 +218,7 @@ def run_cases(state, engine_http):
                 f"/tenants/{production['id']}/strategy-loads", params={"account_id": str(account_id)},
             ).json()["loads"]
             assert rows[0]["grant_purpose"] == "production"
-            assert rows[0]["code_key"] == "ema_crossover"
+            assert rows[0]["code_key"] == "demo_ema_crossover"
             # The resident Engine has its own storage. Its exported tenant state
             # must never include the encrypted credentials kept in Platform ORM.
             exported = engine_http.get(f"/tenants/{production['id']}/export")

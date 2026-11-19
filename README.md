@@ -52,7 +52,7 @@ Windows 安装器会检查并引导配置 WSL2 Ubuntu；Git、uv、Node.js/npm �
 ## 产品范围与当前实现
 
 - **行情与数据：** 已接入 Binance USD-M 永续合约公开行情，支持历史数据准备与分钟级行情。
-- **策略与回测：** 管理和下发策略包，运行研究与回测任务；提供[双均线策略示例](strategy/ema_crossover/README.md)。跨产品组合与对冲是持续建设方向。
+- **策略与回测：** 管理和下发策略包，运行研究与回测任务；提供 [三个 Demo 演示策略](strategy/README.md)。EMA 双均线在现有单品种回测链路可用；资金费率 Carry 与期权保护布林带已提供研究逻辑，完整跨产品执行/回测仍需 Engine 接线。
 - **Web 管理：** 管理用户、租户、策略授权与研究任务，查看任务状态和日志。
 - **账户与交易：** 已有 Binance 账户只读查询及永续合约手动交易代码路径，但真实账户与真实订单尚未完成验收。
 - **更多市场：** 期权的部分行情与适配器能力已实现；现货、股票和其他期货等仍需逐步接入与验证。
@@ -73,7 +73,7 @@ SeeAlpha 由两个部分组成：本仓库负责 **Platform（Web + API）**，�
 | 通过自然语言开展 AI 策略研究 | **AI Harness**（实验性功能，需另行启用；自动回测与上线仍在开发） |
 | 管理租户与运行环境 | 右上角用户菜单中的 **租户**；管理员还可进入 **管理后台** |
 
-例如，你可以从 **DATA 准备数据**开始，参考[双均线策略示例](strategy/ema_crossover/README.md)了解策略包，再通过已配置的 Engine 开展研究与回测。相关能力的可用性取决于数据、服务及权限配置。
+例如，你可以从 **DATA 准备数据**开始，参考[三个演示策略](strategy/README.md)了解策略包，再通过已配置的 Engine 开展研究与回测。相关能力的可用性取决于数据、服务及权限配置。
 
 ## 进一步阅读
 
@@ -81,5 +81,5 @@ SeeAlpha 由两个部分组成：本仓库负责 **Platform（Web + API）**，�
 - [项目进度与待办](PROJECT_STATUS.md)
 - [系统架构](docs/ARCHITECTURE.md)
 - [Web 前端](web/README.md) · [API 服务](api/README.md)
-- [策略包示例](strategy/ema_crossover/README.md) · [AI Harness 说明](docs/HARNESS_INTEGRATION.md)
+- [演示策略](strategy/README.md) · [AI Harness 说明](docs/HARNESS_INTEGRATION.md)
 - [更多技术文档](docs/README.md)

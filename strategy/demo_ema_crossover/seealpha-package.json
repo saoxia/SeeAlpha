@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "name": "ema_crossover",
-  "title": "双均线",
+  "name": "demo_ema_crossover",
+  "title": "演示｜EMA 双均线",
   "version": "1",
   "entry_point": "strategy:EmaCrossover",
-  "description": "金叉满额，死叉空仓",
+  "description": "EMA 金叉目标多头、死叉目标空仓；现有单品种回测路径可用",
   "parameters": {
     "symbol": "ETHUSDT",
     "fast_period": 8,
