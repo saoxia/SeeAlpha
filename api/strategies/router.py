@@ -78,6 +78,15 @@ class BasketBacktestRequest(BacktestRequest):
     max_gross_notional: str = Field(min_length=1, max_length=40)
 
 
+class IssuedSpotPerpBacktestRequest(BacktestRequest):
+    """One issued strategy, independently funded Spot and UM simulation."""
+
+    issuance_id: str = Field(min_length=1, max_length=64, pattern=r"^[0-9]+$")
+    starting_spot_balance: str = Field(min_length=1, max_length=40)
+    starting_perpetual_balance: str = Field(min_length=1, max_length=40)
+    max_gross_notional: str = Field(min_length=1, max_length=40)
+
+
 def store(request: Request):
     service = getattr(request.app.state, "strategies", None)
     if service is None:
@@ -194,6 +203,28 @@ def start_backtest(
 def latest_backtest(request: Request, tenant_id: int, account_id: int, user: TradingUser):
     request.app.state.tenants.require_owned(tenant_id, user.id)
     return store(request).latest_backtest(tenant_id, account_id)
+
+
+@router.post("/tenants/{tenant_id}/accounts/{account_id}/issued-spot-perp-backtests")
+def start_issued_spot_perp_backtest(
+    request: Request, tenant_id: int, account_id: int,
+    payload: IssuedSpotPerpBacktestRequest, user: TradingUser,
+):
+    request.app.state.tenants.require_owned_active(tenant_id, user.id)
+    return store(request).issued_spot_perp_backtest(
+        tenant_id, account_id, payload.issuance_id,
+        payload.start, payload.end, payload.interval,
+        payload.starting_spot_balance, payload.starting_perpetual_balance,
+        payload.max_gross_notional,
+    )
+
+
+@router.get("/tenants/{tenant_id}/accounts/{account_id}/issued-spot-perp-backtests/latest")
+def latest_issued_spot_perp_backtest(
+    request: Request, tenant_id: int, account_id: int, user: TradingUser,
+):
+    request.app.state.tenants.require_owned(tenant_id, user.id)
+    return store(request).latest_issued_spot_perp_backtest(tenant_id, account_id)
 
 
 @router.post("/tenants/{tenant_id}/accounts/{account_id}/basket-backtests")
