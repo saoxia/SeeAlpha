@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isFresh, orderError, requestId, tradingRequest, type OrderRequest } from "./api.ts";
+import { isFresh, orderError, requestId, tradingRequest, parseBatchLimitLines, matchesIncrement, executeManualBatch, type OrderRequest } from "./api.ts";
 
 test("future timestamps and stale snapshots never enable manual orders", () => {
   assert.equal(isFresh(1000, 2000), true);
@@ -47,4 +47,63 @@ test("background account reads keep valid snapshots actionable but never bypass 
     assert.notEqual(orderBlockReason({...ready,...changes}), '');
   }
   assert.equal(orderBlockReason({...ready, accountCheckedAt:61000, marketCheckedAt:61000, now:62000}), '');
+});
+
+test("batch lines require explicit side, price, quantity and a finite 10-order cap", () => {
+  assert.deepEqual(parseBatchLimitLines("买,2000,0.1\nSELL,2100,0.2"), [
+    {side: "buy", price: "2000", quantity: "0.1"},
+    {side: "sell", price: "2100", quantity: "0.2"},
+  ]);
+  for (const bad of ["", "买,20", "买,-1,1", "买,1e4,1", "卖,0,2", "buy,NaN,1", "close,10,1", "买,1,1\n".repeat(11)]) {
+    assert.throws(() => parseBatchLimitLines(bad));
+  }
+  assert.equal(matchesIncrement("1.2300", "0.01"), true);
+  assert.equal(matchesIncrement("1.2301", "0.01"), false);
+  assert.equal(matchesIncrement("0.003", "0.001"), true);
+  assert.equal(matchesIncrement("0.1", "0"), false);
+});
+
+test("batch submits independently, remembers each UUID, and stops at the first uncertain response", async t => {
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (_: unknown, init?: RequestInit) => {
+    const id = JSON.parse(String(init?.body)).request_id;
+    calls.push(id);
+    if (id === "two") return new Response(JSON.stringify({status: "unknown", message: "unknown"}), {status: 200});
+    return new Response(JSON.stringify({status: "completed", message: "accepted", order: {status: "accepted", open: true}}), {status: 200});
+  });
+  const pending: Array<string | null> = [];
+  const outcome = await executeManualBatch(["one", "two", "three"].map(request_id => ({
+    kind: "submit" as const, path: "/api/trading/accounts/1/orders", payload: {request_id}
+  })), id => pending.push(id));
+  assert.deepEqual(calls, ["one", "two"]);
+  assert.deepEqual(pending, ["one", null, "two"]);
+  assert.equal(outcome.done, 1);
+  assert.equal(outcome.uncertain, true);
+  assert.match(outcome.message, /余下委托未发送/);
+});
+
+test("batch cancel stops on a definitive rejection; network errors never retry", async t => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    return new Response(JSON.stringify({status: "completed", message: "rejected", order: {status: "accepted", open: true}}), {status: 200});
+  });
+  const pending: Array<string | null> = [];
+  const tasks = ["a", "b"].map(request_id => ({kind: "cancel" as const, path: "/api/trading/accounts/1/cancel", payload: {request_id}}));
+  const result = await executeManualBatch(tasks, id => pending.push(id));
+  assert.equal(calls, 1);
+  assert.equal(result.done, 0);
+  assert.equal(result.uncertain, false);
+  assert.deepEqual(pending, ["a", null]);
+});
+test("batch aborts on transport failure without advancing or dropping the unresolved identity", async t => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {calls++; throw new TypeError("connection lost");});
+  const pending: Array<string | null> = [];
+  const result = await executeManualBatch(["a", "b"].map(request_id =>
+    ({kind: "submit" as const, path: "/api/trading/accounts/1/orders", payload: {request_id}})),
+    id => pending.push(id));
+  assert.equal(calls, 1);
+  assert.equal(result.uncertain, true);
+  assert.deepEqual(pending, ["a"]);
 });

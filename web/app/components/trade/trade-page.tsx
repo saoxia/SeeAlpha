@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isFresh, orderBlockReason, orderError, requestId, tradingRequest, type TradingAccount, type Market, type Order, type OrderRequest, type Result, type TradeState } from "@/app/features/trade/api";
+import { isFresh, orderBlockReason, orderError, requestId, tradingRequest, parseBatchLimitLines, matchesIncrement, executeManualBatch, type BatchTask, type TradingAccount, type Market, type Order, type OrderRequest, type Result, type TradeState } from "@/app/features/trade/api";
 import { formatPrice, priceDigits, fundingCountdown } from "@/app/features/trade/display";
 import { subscribeMarket } from "@/app/features/trade/market-stream";
 import type { components } from "@/app/api/generated/schema";
@@ -12,6 +12,7 @@ import { MarketPicker } from "./market-picker";
 import { tradeIntervals as intervals, selectionKey, restoreTradeSelection } from "@/app/features/trade/preferences";
 const pendingKey = "seealpha.manual.pending";
 type Pending = {accountId: number; requestId: string; symbol: string; environment: string};
+type BatchPlan = { accountId: number; kind: "submit" | "cancel"; tasks: BatchTask[]; lines: string[]; };
 function number(value: string | undefined, digits = 6) {return value === undefined ? "—" : Number(value).toLocaleString("en-US", {maximumFractionDigits: digits});}
 function clock(ms: number) {return new Date(ms).toLocaleTimeString("zh-CN", {hour12: false});}
 
@@ -47,6 +48,9 @@ export function TradePage() {
   const [tif, setTif] = useState<"GTC" | "IOC" | "FOK">("GTC");
   const [confirmation, setConfirmation] = useState<{accountId: number; order: OrderRequest} | null>(null);
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+  const [batchDraft, setBatchDraft] = useState("");
+  const [batchPlan, setBatchPlan] = useState<BatchPlan | null>(null);
+  const [selectedCancels, setSelectedCancels] = useState<string[]>([]);
   const [pending, setPending] = useState<Pending | null>(null);
   const [table, setTable] = useState<"positions" | "orders" | "history" | "trades">("positions");
   const [bookTab, setBookTab] = useState<"book" | "trades">("book");
@@ -62,7 +66,7 @@ export function TradePage() {
   function rememberSelection(nextSymbol: string, nextInterval: string) {
     try {localStorage.setItem(selectionKey, JSON.stringify({symbol: nextSymbol, interval: nextInterval}));} catch { /* Optional display preference. */ }
   }
-  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
+  function resetSelection() {setDisplayDigits(null); setLocalChart(null); setChartSource("binance"); setConfirmation(null); setCancelOrder(null); setBatchPlan(null); setSelectedCancels([]); setBatchDraft(""); setQuantity(""); setPrice(""); setNotice(""); setState(null); setMarket(null); setAccountError(""); setFills([]); setFillError("");}
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     const initial = window.setTimeout(() => {
@@ -123,7 +127,7 @@ export function TradePage() {
     return () => {c.abort(); clearTimeout(timer); window.removeEventListener("focus", focus);};
   }, [refreshState]);
   useEffect(() => {
-    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null);}}
+    function escape(e: KeyboardEvent) {if (e.key === "Escape" && !busyRef.current) {setConfirmation(null); setCancelOrder(null); setBatchPlan(null);}}
     document.addEventListener("keydown", escape); return () => document.removeEventListener("keydown", escape);
   }, []);
 
@@ -153,6 +157,84 @@ export function TradePage() {
     const error = orderError(order); if (error) {setNotice(error); return;}
     setConfirmation({accountId: account.id, order});
   }
+
+  function prepareBatchSubmit() {
+    if (!account || !state || busyRef.current || disabledReason) return;
+    try {
+      if (product === "futures_um" && reduceOnly) throw new Error("批量限价仅支持开仓。请先取消只减仓或平仓选项。");
+      const lines = parseBatchLimitLines(batchDraft);
+      const tasks = lines.map((row, index) => {
+        const order: OrderRequest = {
+          account_revision: state.account_revision, request_id: requestId(),
+          symbol, environment, side: row.side, order_type: "limit",
+          price: row.price, quantity: row.quantity, time_in_force: "GTC",
+          post_only: false,
+          ...(product === "futures_um" ? {
+            expected_position_mode: state.position_mode,
+            position_effect: "open" as const, reduce_only: false,
+          } : {}),
+        };
+        const error = orderError(order);
+        if (error) throw new Error(`第 ${index + 1} 笔：${error}`);
+        if (!matchesIncrement(row.price, state.instrument.price_increment)
+            || !matchesIncrement(row.quantity, state.instrument.size_increment)) {
+          throw new Error(`第 ${index + 1} 笔价格或数量不符合交易所步长。不会自动四舍五入。`);
+        }
+        if (state.instrument.min_quantity && Number(row.quantity) < Number(state.instrument.min_quantity)) {
+          throw new Error(`第 ${index + 1} 笔数量低于交易所最低数量。`);
+        }
+        if (state.instrument.min_notional && Number(row.price) * Number(row.quantity) < Number(state.instrument.min_notional)) {
+          throw new Error(`第 ${index + 1} 笔名义金额低于交易所最低限额。`);
+        }
+        return {kind: "submit" as const,
+          path: `/api/trading/accounts/${account.id}/${product === "spot" ? "spot/" : ""}orders`,
+          payload: order};
+      });
+      setConfirmation(null); setCancelOrder(null);
+      setBatchPlan({accountId: account.id, kind: "submit", tasks,
+        lines: lines.map((row, i) => `${i + 1}. ${row.side === "buy" ? "买" : "卖"} ${row.quantity} ${base} @ ${row.price} ${quote}`)});
+    } catch (error) {setNotice(error instanceof Error ? error.message : "批量委托参数无效。");}
+  }
+
+  function prepareBatchCancel() {
+    if (!account || !state || busyRef.current || pending) return;
+    if (!isFresh(state.checked_at, Date.now()) || accountError) {setNotice("请先刷新账户与委托。");return;}
+    const orders = state.orders.filter(row => row.open && selectedCancels.includes(row.client_order_id));
+    if (!orders.length || orders.length > 20 || orders.length !== selectedCancels.length) {
+      setNotice("请选择当前合约 1～20 笔有效的待撤订单，再刷新核对。");return;
+    }
+    setConfirmation(null);setCancelOrder(null);
+    setBatchPlan({accountId: account.id, kind: "cancel",
+      tasks: orders.map(order => ({
+        kind: "cancel" as const,
+        path: `/api/trading/accounts/${account.id}/${product === "spot" ? "spot/" : ""}cancel`,
+        payload: {account_revision: state.account_revision, request_id: requestId(),
+          symbol, environment, client_order_id: order.client_order_id},
+      })),
+      lines: orders.map((order, i) => `${i + 1}. ${order.client_order_id} · ${order.side} ${order.quantity} @ ${order.price ?? "市价"}`),
+    });
+  }
+
+  async function sendBatch() {
+    if (!batchPlan || !account || busyRef.current || pending || batchPlan.accountId !== account.id) return;
+    if (!state || !isFresh(state.checked_at, Date.now()) || accountError
+        || (batchPlan.kind === "submit" && (disabledReason || !isFresh(market?.checked_at, Date.now())))) {
+      setBatchPlan(null);setNotice("账户或行情快照已过期，请刷新后重新确认批次。");return;
+    }
+    busyRef.current = true;setBusy(true);setNotice("");
+    try {
+      const outcome = await executeManualBatch(batchPlan.tasks, requestId => {
+        remember(requestId ? {accountId: account.id, requestId, symbol, environment} : null);
+      });
+      setNotice(`已确认 ${outcome.done}/${batchPlan.tasks.length} 笔 · ${outcome.message}`);
+      if (!outcome.uncertain) setSelectedCancels([]);
+    } catch (error) {
+      setNotice(`批量操作已停止：${error instanceof Error ? error.message : "未知错误"}。请核对交易所状态。`);
+    } finally {
+      setBatchPlan(null); busyRef.current = false;setBusy(false);void refreshState();
+    }
+  }
+
   async function send() {
     if (busyRef.current || !account || (!confirmation && !cancelOrder)) return;
     busyRef.current = true; setBusy(true); setNotice("");
@@ -228,15 +310,29 @@ export function TradePage() {
         {orderType === "limit" && <><label>有效方式<select value={tif} disabled={busy || postOnly} onChange={e => setTif(e.target.value as "GTC" | "IOC" | "FOK")}><option>GTC</option><option>IOC</option><option>FOK</option></select></label><label className="trade-checkbox"><input type="checkbox" checked={postOnly} disabled={busy} onChange={e => {setPostOnly(e.target.checked); setTif("GTC");}} />只做 Maker (Post Only)</label></>}
         {product === "futures_um" && <label className="trade-checkbox"><input type="checkbox" checked={reduceOnly} disabled={busy} onChange={e => setReduceOnly(e.target.checked)} />{state?.position_mode === "hedge" ? "平仓（自动匹配多 / 空仓位）" : "只减仓 (Reduce Only)"}</label>}
         <div className="trade-order-buttons"><button className="trade-buy" disabled={!ready} onClick={() => prepare("buy")}>{product === "spot" ? "买入现货" : reduceOnly ? "买入 / 平空" : "买入 / 做多"}</button><button className="trade-sell" disabled={!ready} onClick={() => prepare("sell")}>{product === "spot" ? "卖出现货" : reduceOnly ? "卖出 / 平多" : "卖出 / 做空"}</button></div>
+        <div className="trade-batch-entry">
+          <h3>批量限价委托</h3>
+          <p className="trade-muted">每行：买/卖,价格,数量（最多 10 笔）。逐笔发送，非原子批次；仅限 GTC 开仓，任何拒绝或未知结果立即停止。</p>
+          <textarea aria-label="批量限价委托清单" rows={4} value={batchDraft} disabled={busy} placeholder={"买,2000,0.01\n卖,2100,0.01"} onChange={event => setBatchDraft(event.target.value)} />
+          <button className="trade-batch-action" disabled={!ready || !batchDraft.trim()} onClick={prepareBatchSubmit}>预览批量限价单</button>
+        </div>
         {!ready && <p className="trade-muted" role="status">{disabledReason}</p>}
         <div className="trade-contract-info"><h3>{product === "spot" ? "现货交易规则" : "合约信息"}</h3><p><span>价格步长</span><b>{state?.instrument.price_increment ?? "—"}</b></p><p><span>数量步长</span><b>{state?.instrument.size_increment ?? "—"}</b></p><p><span>最小名义金额</span><b>{state?.instrument.min_notional ?? "—"} {quote}</b></p></div>
       </aside>
-      <section className="trade-account"><div className="trade-account-head"><div className="trade-panel-tabs">{([['positions', product === "spot" ? `资产(${spotBalances.length})` : `持仓(${state?.positions.length ?? 0})`], ['orders', `当前委托(${openOrders.length})`], ['history', '历史委托'], ['trades', '成交记录']] as const).map(([id,label]) => <button className={table === id ? "active" : ""} key={id} onClick={() => setTable(id)}>{label}</button>)}</div><button disabled={loading || busy || !account} onClick={() => void refreshState()}>{loading ? "查询中…" : "刷新账户"}</button></div>
-        <div className="trade-table-wrap">{table === "positions" ? product === "spot" ? <table><thead><tr><th>现货资产</th><th>可用</th><th>锁定</th><th>合计</th></tr></thead><tbody>{spotBalances.map(([currency, balance]) => <tr key={currency}><td>{currency}</td><td>{balance.free}</td><td>{balance.locked}</td><td>{balance.total}</td></tr>)}</tbody></table> : <table><thead><tr><th>合约</th><th>方向</th><th>数量</th><th>开仓均价</th><th>操作</th></tr></thead><tbody>{state?.positions.map(p => <tr key={p.id}><td>{p.symbol}</td><td className={p.side === "long" ? "trade-green" : "trade-red"}>{p.side === "long" ? "多" : "空"}</td><td>{p.quantity}</td><td>{displayPrice(p.entry_price)}</td><td><button disabled={busy} onClick={() => {setQuantity(p.quantity); setOrderType("market"); setReduceOnly(true); setNotice(`已填入平仓数量，请点击${p.side === "long" ? "卖出" : "买入"}并确认。`);}}>填入平仓数量</button></td></tr>)}</tbody></table> : table === "trades" ? <><table><thead><tr><th>时间</th><th>合约</th><th>方向</th><th>成交价格</th><th>成交数量</th><th>手续费</th></tr></thead><tbody>{fills.map(f => <tr key={f.id}><td>{f.timestamp ? clock(f.timestamp) : "—"}</td><td>{f.symbol}</td><td className={f.side === "buy" ? "trade-green" : "trade-red"}>{f.side}</td><td>{displayPrice(f.price)}</td><td>{f.amount ?? "—"}</td><td>{f.fee_cost ?? "—"} {f.fee_currency}</td></tr>)}</tbody></table>{!fills.length && <div className="trade-table-empty">当前合约暂无已入账成交</div>}{fillError && <p className="trade-muted">{fillError}</p>}</> : <table><thead><tr><th>时间</th><th>合约 / 客户单号</th><th>类型</th><th>方向</th><th>价格</th><th>数量 / 已成交</th><th>状态</th>{table === "orders" && <th>操作</th>}</tr></thead><tbody>{(table === "orders" ? openOrders : history).map(o => <tr key={o.client_order_id}><td>{clock(o.timestamp)}</td><td>{o.symbol}<small>{o.client_order_id}</small></td><td>{o.order_type}</td><td className={o.side === "buy" ? "trade-green" : "trade-red"}>{o.side}</td><td>{o.price === null ? "市价" : displayPrice(o.price)}</td><td>{o.quantity} / {o.filled}</td><td>{o.status}</td>{table === "orders" && <td><button disabled={busy || Boolean(pending)} onClick={() => setCancelOrder(o)}>撤单</button></td>}</tr>)}</tbody></table>}
+      <section className="trade-account"><div className="trade-account-head"><div className="trade-panel-tabs">{([['positions', product === "spot" ? `资产(${spotBalances.length})` : `持仓(${state?.positions.length ?? 0})`], ['orders', `当前委托(${openOrders.length})`], ['history', '历史委托'], ['trades', '成交记录']] as const).map(([id,label]) => <button className={table === id ? "active" : ""} key={id} onClick={() => setTable(id)}>{label}</button>)}</div><div className="trade-account-actions">{table === "orders" && <button disabled={busy || Boolean(pending) || !selectedCancels.length} onClick={prepareBatchCancel}>批量撤单 ({selectedCancels.length})</button>}<button disabled={loading || busy || !account} onClick={() => void refreshState()}>{loading ? "查询中…" : "刷新账户"}</button></div></div>
+        <div className="trade-table-wrap">{table === "positions" ? product === "spot" ? <table><thead><tr><th>现货资产</th><th>可用</th><th>锁定</th><th>合计</th></tr></thead><tbody>{spotBalances.map(([currency, balance]) => <tr key={currency}><td>{currency}</td><td>{balance.free}</td><td>{balance.locked}</td><td>{balance.total}</td></tr>)}</tbody></table> : <table><thead><tr><th>合约</th><th>方向</th><th>数量</th><th>开仓均价</th><th>操作</th></tr></thead><tbody>{state?.positions.map(p => <tr key={p.id}><td>{p.symbol}</td><td className={p.side === "long" ? "trade-green" : "trade-red"}>{p.side === "long" ? "多" : "空"}</td><td>{p.quantity}</td><td>{displayPrice(p.entry_price)}</td><td><button disabled={busy} onClick={() => {setQuantity(p.quantity); setOrderType("market"); setReduceOnly(true); setNotice(`已填入平仓数量，请点击${p.side === "long" ? "卖出" : "买入"}并确认。`);}}>填入平仓数量</button></td></tr>)}</tbody></table> : table === "trades" ? <><table><thead><tr><th>时间</th><th>合约</th><th>方向</th><th>成交价格</th><th>成交数量</th><th>手续费</th></tr></thead><tbody>{fills.map(f => <tr key={f.id}><td>{f.timestamp ? clock(f.timestamp) : "—"}</td><td>{f.symbol}</td><td className={f.side === "buy" ? "trade-green" : "trade-red"}>{f.side}</td><td>{displayPrice(f.price)}</td><td>{f.amount ?? "—"}</td><td>{f.fee_cost ?? "—"} {f.fee_currency}</td></tr>)}</tbody></table>{!fills.length && <div className="trade-table-empty">当前合约暂无已入账成交</div>}{fillError && <p className="trade-muted">{fillError}</p>}</> : <table><thead><tr><th>时间</th><th>合约 / 客户单号</th><th>类型</th><th>方向</th><th>价格</th><th>数量 / 已成交</th><th>状态</th>{table === "orders" && <><th>选择</th><th>操作</th></>}</tr></thead><tbody>{(table === "orders" ? openOrders : history).map(o => <tr key={o.client_order_id}><td>{clock(o.timestamp)}</td><td>{o.symbol}<small>{o.client_order_id}</small></td><td>{o.order_type}</td><td className={o.side === "buy" ? "trade-green" : "trade-red"}>{o.side}</td><td>{o.price === null ? "市价" : displayPrice(o.price)}</td><td>{o.quantity} / {o.filled}</td><td>{o.status}</td>{table === "orders" && <><td><input aria-label={`选择撤销 ${o.client_order_id}`} type="checkbox" checked={selectedCancels.includes(o.client_order_id)} disabled={busy || Boolean(pending)} onChange={e => setSelectedCancels(current => e.target.checked ? [...current.filter(id => id !== o.client_order_id), o.client_order_id] : current.filter(id => id !== o.client_order_id))} /></td><td><button disabled={busy || Boolean(pending)} onClick={() => setCancelOrder(o)}>撤单</button></td></>}</tr>)}</tbody></table>}
         {table !== "trades" && !(table === "positions" ? (product === "spot" ? spotBalances.length : state?.positions.length) : table === "orders" ? openOrders.length : history.length) && <div className="trade-table-empty">{loading ? "正在查询交易所账户…" : !state ? "账户数据尚未就绪" : "当前合约暂无记录"}</div>}</div>
 
       </section>
     </div>
+    {batchPlan && <div className="trade-modal-backdrop"><section className="trade-confirm" role="dialog" aria-modal="true" aria-labelledby="trade-batch-confirm-title">
+      <h2 id="trade-batch-confirm-title">确认{batchPlan.kind === "submit" ? "批量限价委托" : "批量撤单"}（{batchPlan.tasks.length} 笔）</h2>
+      <p className="trade-confirm-environment">{account?.account_name} · {environment === "sandbox" ? "测试网" : "真实账户"} · {symbol}</p>
+      <ol className="trade-batch-review">{batchPlan.lines.map((line, index) => <li key={index}>{line}</li>)}</ol>
+      <p>各笔操作独立发送；前一笔收到明确成功结果后才会提交下一笔。交易所拒绝、网络中断或结果未知时停止，已成交的操作不会自动回滚。</p>
+      {environment === "production" && <p><strong>警告：</strong>确认将向真实 Binance 账户逐笔发送交易指令。</p>}
+      <div className="trade-confirm-actions"><button disabled={busy} onClick={() => setBatchPlan(null)}>返回修改</button><button disabled={busy} onClick={() => void sendBatch()}>{busy ? "提交中…" : "确认逐笔发送"}</button></div>
+    </section></div>}
     {(confirmation || cancelOrder) && <div className="trade-modal-backdrop"><section className="trade-confirm" role="dialog" aria-modal="true" aria-labelledby="trade-confirm-title"><h2 id="trade-confirm-title">{cancelOrder ? "确认撤销委托" : "确认提交订单"}</h2><p className="trade-confirm-environment">{account?.account_name} · {environment === "sandbox" ? "测试网" : "真实账户"}</p><dl>{Object.entries(confirmation ? {合约: symbol, 方向: confirmation.order.side === "buy" ? "买入" : "卖出", 类型: confirmation.order.order_type === "limit" ? "限价" : "市价", 数量: `${confirmation.order.quantity} ${base}`, 价格: confirmation.order.price ?? "市场价格", ...(product === "futures_um" ? {持仓模式: confirmation.order.expected_position_mode === "hedge" ? "双向 · 沿用账户" : "单向 · 沿用账户", 只减仓: confirmation.order.reduce_only ? "是" : "否"} : {})} : {合约: symbol, 客户订单号: cancelOrder!.client_order_id, 价格: cancelOrder!.price ?? "市价", 数量: cancelOrder!.quantity}).map(([k,v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl><p>{environment === "production" ? "确认后将向 Binance 实盘账户发送交易指令。" : "确认后向 Binance 测试网发送指令。"}</p><div className="trade-confirm-actions"><button disabled={busy} onClick={() => {setConfirmation(null); setCancelOrder(null);}}>返回修改</button><button disabled={busy} onClick={() => void send()}>{busy ? "提交中…" : "确认"}</button></div></section></div>}
   </section>;
 }
