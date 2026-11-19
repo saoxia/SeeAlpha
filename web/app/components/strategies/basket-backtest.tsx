@@ -112,6 +112,35 @@ export function BasketBacktestPanel({
           <small>结果仅用于研究；不代表实际交易收益、未来盈利或跨腿原子执行能力。</small>
         </div>
       )}
+      {result && result.fills.length > 0 && (
+        <details className="strategy-details">
+          <summary>查看模拟成交审计（最后 50 笔，共 {result.fills.length} 笔）</summary>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">模拟合约</th><th scope="col">成交数量</th>
+                <th scope="col">模拟成交价</th><th scope="col">手续费（原始记录）</th>
+                <th scope="col">执行阶段</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.fills.slice(-50).reverse().map((fill, index) => (
+                <tr key={fill.client_order_id
+                  ? fill.client_order_id + "-" + index : fill.instrument_id + "-" + index}>
+                  <td>{fill.instrument_id}</td>
+                  <td>{fill.quantity}</td>
+                  <td>{fill.price}</td>
+                  <td>{fill.commission === undefined ? "未提供" : fill.commission}
+                    {fill.currency ? " " + fill.currency : ""}</td>
+                  <td>{fill.phase ?? "未提供阶段信息"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <small>以上均为历史开发模拟回报，不是交易所真实成交或生产审计记录。
+            手续费保留原始金额和币种，不在缺少兑换证据时跨币种相加。</small>
+        </details>
+      )}
       {metrics && (metrics.positions.length > 0 || metrics.accounts.length > 0) && (
         <section className="strategy-details" aria-label="历史模拟组合快照">
           <h3>最后一根 K 线的模拟组合快照</h3>
