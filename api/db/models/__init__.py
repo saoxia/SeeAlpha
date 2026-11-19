@@ -259,11 +259,29 @@ class StrategyPackage(Base):
     code_key: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    owner_id: Mapped[int | None] = mapped_column(ID, ForeignKey("users.id"))
+    visibility: Mapped[str] = mapped_column(Text, nullable=False, default="system", server_default="system")
     created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
     __table_args__ = (
-        Index("strategy_packages_code_key_unique", code_key, unique=True),
-        Index("strategy_packages_name_unique", func.lower(name), unique=True),
+        CheckConstraint("visibility in ('system','private','public')", name="strategy_packages_visibility_check"),
+        Index("strategy_packages_system_code_unique", code_key, unique=True,
+              sqlite_where=text("owner_id IS NULL"),
+              postgresql_where=text("owner_id IS NULL")),
+        Index("strategy_packages_owner_code_unique", owner_id, code_key, unique=True,
+              sqlite_where=text("owner_id IS NOT NULL"),
+              postgresql_where=text("owner_id IS NOT NULL")),
     )
+
+
+class StrategyPackageShare(Base):
+    __tablename__ = "strategy_package_shares"
+    package_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("strategy_packages.id", ondelete="CASCADE"), primary_key=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ID, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,
+    )
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
 class StrategyPackageVersion(Base):
