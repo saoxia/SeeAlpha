@@ -1,5 +1,7 @@
 # 技术说明
 
+- [待评估开发功能](FEATURE_EVALUATION_BACKLOG.md)：记录尚未批准开发的功能候选与产品边界；包含 TRADE 是否集成策略研究/回测复盘的待评估事项。
+
 - [Harness 接入说明](HARNESS_INTEGRATION.md)：独立常驻 Harness 的 Platform 鉴权代理、AI Harness 界面与当前开发阶段安全限制。
 - [每用户独立 Harness](HARNESS_PER_USER.md)：可选的按用户 Docker 实例、Node Agent 节点分配及迁移边界。
 
