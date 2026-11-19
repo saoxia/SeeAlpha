@@ -8,7 +8,6 @@ No exchange access, order placement, or engine imports belong here.
 from collections import deque
 from decimal import Decimal, InvalidOperation
 
-
 DEFAULTS = {
     "symbol": "ETHUSDT",
     "mode": "combined",
@@ -25,7 +24,7 @@ DEFAULTS = {
 
 def _amount(value, name, *, allow_zero=False):
     if isinstance(value, bool):
-        raise ValueError(f"{name}必须是有限十进制数")
+        raise TypeError(f"{name}必须是有限十进制数")
     try:
         result = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
@@ -113,7 +112,7 @@ class MultiSignalModel:
 
     def on_close(self, price):
         if isinstance(price, bool):
-            raise ValueError("收盘价必须为正数")
+            raise TypeError("收盘价必须为正数")
         try:
             close = Decimal(str(price))
         except (InvalidOperation, TypeError, ValueError):
