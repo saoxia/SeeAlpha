@@ -7,7 +7,9 @@ import time
 from sqlalchemy import delete, select
 
 from api.db.errors import StorageConflict
-from api.db.models import StrategyGrant, StrategyIssuance, StrategyPackage, StrategyPackageVersion
+from api.db.models import (
+    StrategyGrant, StrategyIssuance, StrategyPackage, StrategyPackageShare, StrategyPackageVersion,
+)
 
 
 def _mapping(row, *fields):
@@ -24,7 +26,7 @@ def _parameters(value):
     return dict(value)
 
 
-_PACKAGE = ("id", "code_key", "name", "description", "created_at")
+_PACKAGE = ("id", "code_key", "name", "description", "owner_id", "visibility", "created_at")
 _VERSION = (
     "id", "package_id", "version", "parameters", "entry_point", "package_hash", "archive", "created_at",
 )
@@ -36,23 +38,45 @@ class StrategyRepository:
     def __init__(self, database):
         self.database = database
 
-    def list_packages(self):
+    def list_packages(self, viewer_id=None, is_admin=False):
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 rows = connection.execute(
-                    """SELECT id, code_key, name, description, created_at
+                    """SELECT id, code_key, name, description, owner_id, visibility, created_at
                        FROM strategy_packages ORDER BY id"""
                 ).fetchall()
-            return [_mapping(row, *_PACKAGE) for row in rows]
+            packages = [_mapping(row, *_PACKAGE) for row in rows]
+        else:
+            with self.database.session() as session:
+                rows = session.scalars(select(StrategyPackage).order_by(StrategyPackage.id)).all()
+                packages = [_mapping(row, *_PACKAGE) for row in rows]
+        if is_admin:
+            return packages
+        shared = self.shared_package_ids(viewer_id) if viewer_id is not None else set()
+        return [
+            item for item in packages
+            if item["visibility"] in {"system", "public"}
+            or (viewer_id is not None and item["owner_id"] == viewer_id)
+            or item["id"] in shared
+        ]
+
+    def shared_package_ids(self, user_id):
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                return {row["package_id"] for row in connection.execute(
+                    "SELECT package_id FROM strategy_package_shares WHERE user_id = ?", (user_id,),
+                )}
         with self.database.session() as session:
-            rows = session.scalars(select(StrategyPackage).order_by(StrategyPackage.id)).all()
-            return [_mapping(row, *_PACKAGE) for row in rows]
+            return set(session.scalars(
+                select(StrategyPackageShare.package_id)
+                .where(StrategyPackageShare.user_id == user_id)
+            ).all())
 
     def get_package(self, package_id):
         if self.database.backend != "orm":
             with self.database.connect() as connection:
                 row = connection.execute(
-                    """SELECT id, code_key, name, description, created_at
+                    """SELECT id, code_key, name, description, owner_id, visibility, created_at
                        FROM strategy_packages WHERE id = ?""",
                     (package_id,),
                 ).fetchone()
@@ -60,31 +84,93 @@ class StrategyRepository:
         with self.database.session() as session:
             return _mapping(session.get(StrategyPackage, package_id), *_PACKAGE)
 
-    def create_package(self, code_key, name, description):
+    def create_package(self, code_key, name, description, owner_id=None, visibility="system"):
+        if visibility not in {"system", "private", "public"} or (
+            (owner_id is None) != (visibility == "system")
+        ):
+            raise ValueError("策略归属或可见性无效。")
         now = int(time.time())
         try:
             if self.database.backend != "orm":
                 with self.database.connect() as connection:
                     cursor = connection.execute(
-                        """INSERT INTO strategy_packages (code_key, name, description, created_at)
-                           VALUES (?, ?, ?, ?)""",
-                        (code_key, name, description, now),
+                        """INSERT INTO strategy_packages (code_key, name, description, owner_id, visibility, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?)""",
+                        (code_key, name, description, owner_id, visibility, now),
                     )
                     row = connection.execute(
-                        """SELECT id, code_key, name, description, created_at
+                        """SELECT id, code_key, name, description, owner_id, visibility, created_at
                            FROM strategy_packages WHERE id = ?""",
                         (cursor.lastrowid,),
                     ).fetchone()
                 return _mapping(row, *_PACKAGE)
             with self.database.session(write=True) as session:
                 package = StrategyPackage(
-                    code_key=code_key, name=name, description=description, created_at=now,
+                    code_key=code_key, name=name, description=description,
+                    owner_id=owner_id, visibility=visibility, created_at=now,
                 )
                 session.add(package)
                 session.flush()
                 return _mapping(package, *_PACKAGE)
         except sqlite3.IntegrityError:
             raise StorageConflict("策略包不能重复。") from None
+
+    def set_visibility(self, package_id, visibility):
+        if visibility not in {"private", "public"}:
+            raise ValueError("用户策略仅允许私有或公开。")
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                connection.execute(
+                    "UPDATE strategy_packages SET visibility = ? WHERE id = ? AND owner_id IS NOT NULL",
+                    (visibility, package_id),
+                )
+        else:
+            with self.database.session(write=True) as session:
+                package = session.get(StrategyPackage, package_id)
+                if package is not None and package.owner_id is not None:
+                    package.visibility = visibility
+
+    def list_shares(self, package_id):
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                return [int(row["user_id"]) for row in connection.execute(
+                    "SELECT user_id FROM strategy_package_shares WHERE package_id = ? ORDER BY user_id",
+                    (package_id,),
+                )]
+        with self.database.session() as session:
+            return list(session.scalars(
+                select(StrategyPackageShare.user_id)
+                .where(StrategyPackageShare.package_id == package_id)
+                .order_by(StrategyPackageShare.user_id)
+            ).all())
+
+    def add_share(self, package_id, user_id):
+        if user_id in self.list_shares(package_id):
+            return
+        now = int(time.time())
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                connection.execute(
+                    "INSERT INTO strategy_package_shares (package_id, user_id, created_at) VALUES (?, ?, ?)",
+                    (package_id, user_id, now),
+                )
+        else:
+            with self.database.session(write=True) as session:
+                session.add(StrategyPackageShare(package_id=package_id, user_id=user_id, created_at=now))
+
+    def remove_share(self, package_id, user_id):
+        if self.database.backend != "orm":
+            with self.database.connect() as connection:
+                connection.execute(
+                    "DELETE FROM strategy_package_shares WHERE package_id = ? AND user_id = ?",
+                    (package_id, user_id),
+                )
+        else:
+            with self.database.session(write=True) as session:
+                session.execute(delete(StrategyPackageShare).where(
+                    StrategyPackageShare.package_id == package_id,
+                    StrategyPackageShare.user_id == user_id,
+                ))
 
     def list_versions(self, package_id):
         if self.database.backend != "orm":
