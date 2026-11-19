@@ -30,11 +30,12 @@ class DockerTenantManager:
 
     def __init__(self, root: Path, *, image: str, production_cpus: str,
                  production_memory: str, development_cpus: str, development_memory: str,
-                 log_root: Path, resource_limits=None):
+                 log_root: Path, resource_limits=None, research_enabled=False):
         self.root = Path(root).expanduser().resolve()
         self.image = image
         self.log_root = Path(log_root).expanduser().resolve()
         self.resource_limits = resource_limits
+        self.research_enabled = research_enabled
         self._endpoints = {}
         self.market_tenant_id = None
         self.limits = {
@@ -103,6 +104,8 @@ class DockerTenantManager:
                 file.write(f"ENGINE_TOKEN={secrets.token_urlsafe(48)}\n")
                 file.write(f"ENGINE_TENANT_ID={tenant_id}\n")
                 file.write(f"ENGINE_TENANT_PURPOSE={purpose}\n")
+                if purpose == "development" and self.research_enabled:
+                    file.write(f"ENGINE_RESEARCH_SIGNING_KEY={secrets.token_urlsafe(48)}\n")
                 file.write("ENGINE_HOST=0.0.0.0\n")
                 file.write("ENGINE_PORT=8766\n")
                 file.write("ENGINE_PROJECT=/app\n")
@@ -115,6 +118,22 @@ class DockerTenantManager:
                 or not values.get("ENGINE_TOKEN")):
             raise EngineConflict("租户 Engine 凭据配置与租户不一致。")
         return values["ENGINE_TOKEN"]
+
+    def research_signing_key(self, tenant_id):
+        """Read a pinned key only for a development Engine provisioned with research enabled."""
+        tenant_id = self._id(tenant_id)
+        if not self.research_enabled:
+            raise EngineConflict("Research API is disabled")
+        _root, _state, _data, _local, env_path = self._paths(tenant_id)
+        if env_path.is_symlink() or not env_path.exists() or env_path.stat().st_mode & 0o077:
+            raise EngineConflict("Research tenant credential file unavailable")
+        values = dict(line.split("=", 1) for line in env_path.read_text().splitlines() if "=" in line)
+        if values.get("ENGINE_TENANT_ID") != tenant_id or values.get("ENGINE_TENANT_PURPOSE") != "development":
+            raise EngineConflict("Research tenant is not a development tenant")
+        key = values.get("ENGINE_RESEARCH_SIGNING_KEY", "")
+        if len(key) < 32 or key == values.get("ENGINE_TOKEN"):
+            raise EngineConflict("Research signing key unavailable on this tenant")
+        return key
 
     @staticmethod
     def _address(container):

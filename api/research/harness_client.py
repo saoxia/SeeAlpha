@@ -106,10 +106,13 @@ class HarnessClient:
             "final_response", "error",
         )}
 
-    def create(self, prompt: str, *, queue_if_busy: bool) -> dict:
-        return self.public_task(self._request("POST", "/v1/tasks", payload={
-            "prompt": prompt, "queue_if_busy": queue_if_busy,
-        }))
+    def create(self, prompt: str, *, queue_if_busy: bool, task_id=None,
+               research_access=None) -> dict:
+        payload = {"prompt": prompt, "queue_if_busy": queue_if_busy}
+        if task_id is not None:
+            payload["task_id"] = validate_task_id(task_id)
+            payload["research_access"] = research_access
+        return self.public_task(self._request("POST", "/v1/tasks", payload=payload))
 
     def recent_tasks(self, *, limit: int = 50) -> list[dict]:
         if type(limit) is not int or not 1 <= limit <= 100:
@@ -168,10 +171,13 @@ class HarnessClient:
     def get(self, task_id: str) -> dict:
         return self.public_task(self._request("GET", f"/v1/tasks/{validate_task_id(task_id)}"))
 
-    def continue_task(self, task_id: str, prompt: str, *, queue_if_busy: bool) -> dict:
+    def continue_task(self, task_id: str, prompt: str, *, queue_if_busy: bool,
+                      research_access=None) -> dict:
+        payload = {"prompt": prompt, "queue_if_busy": queue_if_busy}
+        if research_access is not None:
+            payload["research_access"] = research_access
         return self.public_task(self._request(
-            "POST", f"/v1/tasks/{validate_task_id(task_id)}/continue",
-            payload={"prompt": prompt, "queue_if_busy": queue_if_busy},
+            "POST", f"/v1/tasks/{validate_task_id(task_id)}/continue", payload=payload,
         ))
 
     def cancel(self, task_id: str) -> dict:

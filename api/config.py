@@ -46,6 +46,9 @@ class Settings:
     harness_root: Path | None = None
     harness_cpus: str = "2"
     harness_memory: str = "4g"
+    # Disabled by default; research only on pinned local development tenant Engines.
+    research_proxy_enabled: bool = False
+    research_platform_origin: str = ""
 
     @classmethod
     def from_environment(cls):
@@ -116,4 +119,6 @@ class Settings:
             )),
             harness_cpus=os.getenv("HARNESS_CPUS", "2"),
             harness_memory=os.getenv("HARNESS_MEMORY", "4g"),
+            research_proxy_enabled=os.getenv("RESEARCH_PROXY_ENABLED", "false").lower() in {"1", "true"},
+            research_platform_origin=os.getenv("RESEARCH_PLATFORM_ORIGIN", "").strip(),
         )
