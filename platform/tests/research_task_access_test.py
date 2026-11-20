@@ -98,6 +98,27 @@ def test_scope_checks_active_owner_account_issuance_policy(monkeypatch):
     assert allowed_scope(app, 8, 11, "5", "futures_um:ETHUSDT:1m") is False
     assert allowed_scope(app, 7, 11, "99", "futures_um:ETHUSDT:1m") is False
     assert allowed_scope(app, 7, 11, "5", "futures_um:BTCUSDT:1m") is False
+
+    # Research scope is product-neutral; the tenant's historical data policy,
+    # not a hard-coded perpetual market, decides which products are available.
+    policy.append({"product": "spot", "symbol": "ETHUSDT",
+                   "parameters": {"history_enabled": True, "intervals": ["1m"]}})
+    assert allowed_scope(app, 7, 11, "5", "spot:ETHUSDT:1m") is True
+    assert allowed_scope(app, 7, 11, "5", "spot:ETHUSDT:5m") is False
+
+    option = "ETH-261225-2200-C"
+    policy.append({"product": "options", "symbol": option,
+                   "parameters": {"history_enabled": True, "intervals": ["tick"]}})
+    assert allowed_scope(
+        app, 7, 11, "5", f"options:{option}:tick", require_issued=False,
+    ) is True
+    # An option data snapshot does not itself authorize a Python strategy
+    # submission or a different product's issued strategy.
+    assert allowed_scope(app, 7, 11, "5", f"options:{option}:tick") is False
+    assert allowed_scope(app, 7, 11, "5", f"options:{option}:1m",
+                         require_issued=False) is False
+    assert allowed_scope(app, 7, 11, "5", "unknown:ETHUSDT:1m",
+                         require_issued=False) is False
     tenant["purpose"] = "production"
     assert allowed() is False
     tenant["purpose"] = "development"
