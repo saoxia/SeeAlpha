@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "demo_multi_asset_portfolio",
+  "title": "演示｜ETH 现货 + BTC 永续跨标的组合",
+  "version": "1",
+  "entry_point": "strategy:DemoMultiAssetPortfolio",
+  "description": "通用多标的原生回测最小示例：ETH 现货多头与 BTC 永续空头独立目标；不是对冲盈利策略、无实盘授权。",
+  "parameters": {
+    "symbol": "BTCUSDT",
+    "spot_symbol": "ETHUSDT",
+    "spot_quantity": "0.05",
+    "perpetual_quantity": "-0.001"
+  }
+}
