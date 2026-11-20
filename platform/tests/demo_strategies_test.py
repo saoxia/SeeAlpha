@@ -171,7 +171,8 @@ def test_all_public_sample_packages_are_labeled_demo_and_declare_entry_points():
     folders = sorted(x for x in ROOT.iterdir() if x.is_dir())
     assert [folder.name for folder in folders] == [
         "demo_ema_crossover", "demo_funding_carry",
-        "demo_multi_signal_portfolio", "demo_option_hedged_bollinger",
+        "demo_multi_asset_portfolio", "demo_multi_signal_portfolio",
+        "demo_option_hedged_bollinger",
     ]
     for folder in folders:
         manifest = json.loads((folder / "seealpha-package.json").read_text(encoding="utf-8"))

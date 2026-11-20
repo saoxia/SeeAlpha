@@ -366,6 +366,28 @@ class EngineClient:
             },
         )
 
+    def run_generic_portfolio_backtest(
+        self, tenant_id, account_id, issuance_ids, legs, start, end, interval,
+        starting_spot_balance, starting_perpetual_balance, max_gross_notional,
+    ):
+        return self._sync(
+            "POST", self._account_path(tenant_id, account_id) + "/generic-portfolio-backtests",
+            timeout=600,
+            json={
+                "issuance_ids": list(issuance_ids), "legs": list(legs),
+                "start": start, "end": end, "interval": interval,
+                "starting_spot_balance": str(starting_spot_balance),
+                "starting_perpetual_balance": str(starting_perpetual_balance),
+                "max_gross_notional": str(max_gross_notional),
+            },
+        )
+
+    def latest_generic_portfolio_backtest(self, tenant_id, account_id):
+        return self._sync(
+            "GET", self._account_path(tenant_id, account_id)
+            + "/generic-portfolio-backtests/latest",
+        )
+
     def run_issued_spot_perp_backtest(
         self, tenant_id, account_id, issuance_id, start, end, interval,
         starting_spot_balance, starting_perpetual_balance, max_gross_notional,

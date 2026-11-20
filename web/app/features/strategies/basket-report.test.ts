@@ -128,3 +128,57 @@ test("option history target keeps action separate from actual fills", () => {
   assert.equal(target?.memberCount, null);
   assert.equal(target?.targets[2].quantity, "-0.1");
 });
+
+
+test("generic native portfolio reports multiple signed instruments and separate venue cash", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_generic_development_only",
+    equity_curve: [{
+      ts_ns: 1_780_000_000_000_000_000,
+      total_equity: "1005",
+      positions: [
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.1" },
+        { product: "futures_um", symbol: "BTCUSDT", quantity: "-0.2" },
+        { product: "futures_um", symbol: "SOLUSDT", quantity: "0.3" },
+      ],
+      product_equity: { spot: "502", futures_um: "503" },
+    }],
+    target_events: [{
+      ts_ns: 1_780_000_000_000_000_000,
+      targets: [
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.1" },
+        { product: "futures_um", symbol: "BTCUSDT", quantity: "-0.2" },
+        { product: "futures_um", symbol: "SOLUSDT", quantity: "0.3" },
+      ],
+    }],
+  };
+  const metrics = basketReportMetrics(report);
+  assert.deepEqual(metrics.positions.map(item => item.label), [
+    "spot:ETHUSDT 模拟净持仓",
+    "futures_um:BTCUSDT 模拟净持仓",
+    "futures_um:SOLUSDT 模拟净持仓",
+  ]);
+  assert.deepEqual(metrics.positions.map(item => item.value), ["0.1", "-0.2", "0.3"]);
+  assert.deepEqual(metrics.accounts.map(item => item.value), ["502", "503"]);
+  assert.equal(metrics.latestTargetEvent?.targets.length, 3);
+  assert.equal(metrics.legDrift, null);
+});
+
+test("generic native portfolio report rejects duplicate and invalid position evidence", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_generic_development_only",
+    equity_curve: [{
+      ts_ns: 1, total_equity: "10",
+      positions: [
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.1" },
+        { product: "spot", symbol: "ETHUSDT", quantity: "0.2" },
+        { product: "futures_um", symbol: "BTCUSDT", quantity: "Infinity" },
+      ],
+      product_equity: { spot: "Infinity", futures_um: "10" },
+    }],
+  };
+  const metrics = basketReportMetrics(report);
+  assert.equal(metrics.positions.length, 1);
+  assert.equal(metrics.positions[0].value, "0.1");
+  assert.deepEqual(metrics.accounts.map(item => item.value), ["10"]);
+});
