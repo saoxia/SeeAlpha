@@ -1,4 +1,4 @@
-"""Offline regression tests for four shipping demo package definitions.
+"""Offline regression tests for shipping demo package definitions.
 
 This test suite deliberately does not import Engine or NautilusTrader.
 """
@@ -172,7 +172,7 @@ def test_all_public_sample_packages_are_labeled_demo_and_declare_entry_points():
     assert [folder.name for folder in folders] == [
         "demo_ema_crossover", "demo_funding_carry",
         "demo_multi_asset_portfolio", "demo_multi_signal_portfolio",
-        "demo_option_hedged_bollinger",
+        "demo_option_hedged_bollinger", "demo_spot_perpetual_hedge",
     ]
     for folder in folders:
         manifest = json.loads((folder / "seealpha-package.json").read_text(encoding="utf-8"))

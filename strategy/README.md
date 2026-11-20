@@ -1,6 +1,6 @@
 # SeeAlpha 演示策略（Demo）
 
-本目录的四个包全部以 `demo_` 命名，供研究学习、回测示例和演示框架架构；**不代表策略经验证可盈利**。一个包目录打成 ZIP 时，`seealpha-package.json` 必须在 ZIP 根目录。
+本目录的六个包全部以 `demo_` 命名，供研究学习、回测示例和演示框架架构；**不代表策略经验证可盈利**。一个包目录打成 ZIP 时，`seealpha-package.json` 必须在 ZIP 根目录。
 
 | 包名 | 功能 | 当前运行状态 |
 | --- | --- | --- |
@@ -8,18 +8,20 @@
 | [demo_funding_carry](demo_funding_carry/README.md) | 等量现货多头 + USD-M 永续空头；费率、基差、仓位偏差与数据新鲜度门禁 | **开发环境专用 Spot/UM 原生模拟；无标准实盘下单** |
 | [demo_multi_signal_portfolio](demo_multi_signal_portfolio/README.md) | EMA 趋势方向 + 布林带反向强度；单包加权目标或两独立实例由 Coordinator 统一净额 | **现有 Engine 单品种回测示例** |
 | [demo_option_hedged_bollinger](demo_option_hedged_bollinger/README.md) | 永续布林带均值回归，配合同标的看涨/看跌多头期权尾部保护与期权覆盖预算 | **开发环境专用 PUT/CALL/UM 原生模拟；无到期结算或实盘下单** |
+| [demo_multi_asset_portfolio](demo_multi_asset_portfolio/README.md) | ETH 现货 + BTC 永续不同标的的固定目标，演示独立产品组合 | **开发环境专用通用多标的回测；不是自动对冲** |
+| [demo_spot_perpetual_hedge](demo_spot_perpetual_hedge/README.md) | 同标的 Spot 多头 + USD-M 空头等量对冲，声明成交阶段顺序 | **开发环境专用同标的显式对冲回测；无实盘、无资金费结算** |
 
 ## 策略与执行边界
 
 `prepare(parameters)` 校验并归一化策略参数。EMA 与多信号 Demo 使用已存在的 `publish(symbol, quantity)`，可直接进入 Engine 单品种 `PortfolioCoordinator`。多信号 Demo 既可在包内合成趋势/均值回归目标，也可用两个独立下发的策略实例交由 Coordinator 进行真实的跨实例净额。
 
-另两个 Demo 将信号和多产品目标规划分离为可单元测试的 `logic.py`，并以 `publish_basket` / `subscribe_market_bundle` **明确声明对未来跨产品 Engine 的依赖**。当前 Engine 的标准策略运行时仍不实现这两个接口；直接运行会拒绝，不能把多腿计划拆为互不协调的裸单。另有**开发租户专用**原生模拟：Funding Carry 使用 Spot/UM 独立账户和历史资金费观测；期权保护使用 PUT/CALL/UM 历史盘口证据与保护腿先成交的协调顺序。两者通过已授权 Demo 的专用 Engine 研究入口调用，不是标准策略运行或真实下单能力。模拟收益不代表可复制实盘盈利。
+资金费和期权保护两个 Demo 将信号和多产品目标规划分离为可单元测试的 `logic.py`，并以 `publish_basket` / `subscribe_market_bundle` **明确声明对未来跨产品 Engine 的依赖**。当前 Engine 的标准策略运行时仍不实现这两个接口；直接运行会拒绝，不能把多腿计划拆为互不协调的裸单。另有**开发租户专用**原生模拟：Funding Carry 使用 Spot/UM 独立账户和历史资金费观测；期权保护使用 PUT/CALL/UM 历史盘口证据与保护腿先成交的协调顺序。两者通过已授权 Demo 的专用 Engine 研究入口调用，不是标准策略运行或真实下单能力。模拟收益不代表可复制实盘盈利。
 
 尚待 Engine 完成：通用多产品成员目标发布与协调、真实订单持久化与失败补偿、跨产品总资金/保证金及风险预算、实际滑点和部分成交核对、期权行权到期核算，以及生产执行与长期运行验收。现有研究态阶段日志不能直接当作生产订单账本。**本文档和示例并未自动开启实盘。**
 
 ## 策略库权限与默认可见性
 
-Platform 启动后在业务数据库中幂等登记本目录自带的四个 Demo。
+Platform 启动后在业务数据库中幂等登记本目录自带的六个 Demo。
 系统 Demo 对所有已登录用户可见；这不创建策略加载记录、租户或 Docker。
 EMA 与多信号 Demo 自动获得 **开发租户** 加载授权。资金费与期权保护 Demo 可获得**开发租户专用模拟**加载授权，只有官方原始归档与当前源码内容和哈希完全一致时才对旧登记补发。全部 Demo 的公开可见性均不构成正式交易许可，也不代表标准运行时支持多腿发布。
 

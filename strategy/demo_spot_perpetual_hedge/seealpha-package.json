@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "demo_spot_perpetual_hedge",
+  "title": "演示｜同标的现货与永续对冲",
+  "version": "1",
+  "entry_point": "strategy:DemoSpotPerpetualHedge",
+  "description": "在原生通用多产品开发回测中，先买同标的现货，再开等量永续空头；仅演示数量对冲和成交阶段校验，无资金费结算或实盘授权。",
+  "parameters": {
+    "symbol": "ETHUSDT",
+    "quantity": "0.1"
+  }
+}

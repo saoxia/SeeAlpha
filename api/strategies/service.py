@@ -23,7 +23,7 @@ from .repository import StrategyRepository
 # Even an admin-created grant must not silently turn them into live strategies.
 _RESEARCH_ONLY_SYSTEM_BASKETS = frozenset({
     "demo_funding_carry", "demo_option_hedged_bollinger",
-    "demo_multi_asset_portfolio",
+    "demo_multi_asset_portfolio", "demo_spot_perpetual_hedge",
 })
 
 
@@ -60,7 +60,7 @@ class StrategyStore:
                 # Do not authorize an unrelated or previously replaced package.
                 if folder.name in {
                     "demo_funding_carry", "demo_option_hedged_bollinger",
-                    "demo_multi_asset_portfolio",
+                    "demo_multi_asset_portfolio", "demo_spot_perpetual_hedge",
                 }:
                     for version in self.repository.list_versions(existing["id"]):
                         if (
@@ -105,7 +105,7 @@ class StrategyStore:
             if manifest["name"] in {
                 "demo_ema_crossover", "demo_multi_signal_portfolio",
                 "demo_funding_carry", "demo_option_hedged_bollinger",
-                "demo_multi_asset_portfolio",
+                "demo_multi_asset_portfolio", "demo_spot_perpetual_hedge",
             }:
                 self.repository.create_grant(version["id"], "development")
 

@@ -5,6 +5,8 @@ export type BasketMetric = {
   value: string;
 };
 
+export type BasketHedge = { symbol: string; baseQuantityDriftLimit: string };
+
 export type BasketTargetEvent = {
   tsMs: number;
   memberCount: number | null;
@@ -55,12 +57,38 @@ function latestVerifiedTargetEvent(value: unknown): BasketTargetEvent | null {
   };
 }
 
+/** Opt-in research hedge metadata only; malformed/partial claims are never displayed. */
+function verifiedHedges(result: BasketBacktestResult): BasketHedge[] {
+  const claims = result.declared_hedges;
+  if (
+    result.mode !== "native_generic_development_only"
+    || result.hedge_verification !== "confirmed_phases_only_non_atomic"
+    || !Array.isArray(claims) || claims.length < 1 || claims.length > 8
+  ) return [];
+  const seen = new Set<string>();
+  const rows: BasketHedge[] = [];
+  for (const claim of claims) {
+    if (!claim || typeof claim !== "object" || Array.isArray(claim)) return [];
+    const row = claim as Record<string, unknown>;
+    if (
+      typeof row.spot !== "string" || !/^[A-Z0-9-]{2,64}$/.test(row.spot)
+      || row.spot !== row.perpetual
+      || row.base_quantity_drift_limit !== "0"
+      || seen.has(row.spot)
+    ) return [];
+    seen.add(row.spot);
+    rows.push({ symbol: row.spot, baseQuantityDriftLimit: "0" });
+  }
+  return rows;
+}
+
 /** Only project values that actually exist in the Engine research report.
  * Never turn a simulated exposure into a claim about real account positions.
  */
 export function basketReportMetrics(result: BasketBacktestResult): {
   positions: BasketMetric[];
   accounts: BasketMetric[];
+  hedges: BasketHedge[];
   legDrift: string | null;
   fundingObservations: number | null;
   targetEvents: number | null;
@@ -123,6 +151,7 @@ export function basketReportMetrics(result: BasketBacktestResult): {
   return {
     positions,
     accounts,
+    hedges: verifiedHedges(result),
     legDrift: typeof last?.leg_drift === "string" ? last.leg_drift : null,
     fundingObservations: Array.isArray(result.funding_observations)
       ? result.funding_observations.length : null,
