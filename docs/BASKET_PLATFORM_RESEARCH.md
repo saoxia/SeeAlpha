@@ -106,3 +106,16 @@ Engine 从已校验的发行 ZIP 中隔离执行策略原有的 `on_start` 和 `
 
 
 **已合并 Engine 版本**：Engine [PR #36](https://github.com/saoxia/seealpha-engine/pull/36) 已合并至 `main`，合并提交 `b65234a7864211b6a7366890204539188de73870`。Platform 的安装脚本、独立构建、验收脚本、开发本地运行及 CI 一致固定该完整 SHA。该版本已通过 Engine 原有与新增历史回测回归，不意味着生产 Engine 容器已经部署，更不意味着开启真实多腿交易。
+
+
+## 通用回测中显式 Spot/UM 对冲（2026-11-20）
+
+引擎 `36dcf87309fe94f1dfa12a840d3e9d3a88447e43` 在现有通用多产品回测中支持策略
+`publish_basket(..., constraints={"spot_perpetual_hedges": [{"symbol": "ETHUSDT"}]})`。
+只有**相同标的**已订阅的现货多头和永续空头可以声明严格 BASE 数量对冲；未声明的跨标的
+策略保持独立组合逻辑，不能把 ETH 现货 + BTC 永续误称为精确对冲。
+
+平台新增公开可见但仅开发授权的 `demo_spot_perpetual_hedge`，供用户通过原有通用多标的
+研究页面验证两腿历史成交、先现货后增加永续风险的阶段门禁、报表中的声明和阶段结果。
+安装工具和兼容 CI 均固定已合并 Engine SHA；不会覆盖现有 Engine checkout 或自动切换
+生产容器。当前没有真实资金费结算、跨交易所原子成交或任何跨产品实盘委托授权。
