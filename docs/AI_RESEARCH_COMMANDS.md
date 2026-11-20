@@ -5,7 +5,7 @@
 ## 本阶段新增
 
 - Platform 根据当前登录用户选择的 **开发租户 ID、虚拟账户 ID、数据集 ID** 创建绑定 UUID 的 Harness 研究任务。普通会话原行为不变。
-- 研究资格由 Platform 实时核验：开发租户必须 active/归属该用户；Harness + Development 资源获配；账户是该租户的虚拟账户；`market_data_policies` 中有匹配产品/品种、历史数据订阅及 1m/5m；该账户已下发与品种一致的开发策略。Engine 还需独立验证实际数据与策略存在。
+- 研究资格由 Platform 实时核验：开发租户必须 active/归属该用户；Harness + Development 资源获配；账户是该租户的虚拟账户；`market_data_policies` 中有匹配产品/品种、历史数据订阅及请求粒度；该账户已下发与品种一致的开发策略。Engine 还需独立验证实际数据与策略存在。
 - Platform 将随机短期 **任务调用凭据**交给该用户的常驻 Harness Worker（不交 Engine 管理令牌或 Engine 签名 Grant）。只支持白名单研究命令与最多 80 次操作；凭据只在当前任务/当前轮次/15 分钟内有效。
 - Platform 私有 `research-tasks/leases.sqlite3` 使用独立 0700 目录、0600 文件，保存哈希凭据/调用预算/任务所有者/轮次/事件；每次命令重新查询 Harness 的当前任务状态，接受 `starting`/`running`，拒绝取消、完成、失效、旧轮次以及越权。
 - 每次调用再签发绑定任务/租户/数据集/策略/操作的**60 秒 Engine Research Grant**，经 Platform `EngineMCPResearchClient` 调用 Engine 原生 `/research/mcp` 模拟/研究工具。研究 Grant 不进入 Harness 环境、Web、Session 或成果。
@@ -56,7 +56,7 @@ python -m seealpha_harness.platform_research python-candidate-submit --id CANDID
 python -m seealpha_harness.platform_research backtest-get --id BACKTEST_ID
 ```
 
-当前限制仍是单品种 `futures_um` 1m/5m 历史数据与已安装的 Engine Python 依赖。策略代码只在开发 Engine 的 Worker 中执行；不会自动进入策略库、正式下发或实盘启动。部署后的真实 Harness/Platform/Engine/行情端到端验收与生产安全评审仍需单独完成。
+当前单品种 Python 回测执行支持 `futures_um` 或 `spot` 的 1m/5m 历史数据及已安装的 Engine Python 依赖。期权行情快照可按实际数据订阅授权，但通用期权/跨产品 Python 策略回测尚无对应 Engine 执行合同，不能伪装成已支持。策略代码只在开发 Engine 的 Worker 中执行；不会自动进入策略库、正式下发或实盘启动。部署后的真实 Harness/Platform/Engine/行情端到端验收与生产安全评审仍需单独完成。
 
 ## AI 候选策略实验（受限 Python 字面量版）
 
@@ -73,7 +73,7 @@ CANDIDATE = {
 }
 ```
 
-允许的策略规则仅有 EMA/SMA 交叉及反转（`ema_cross/ema_revert/sma_cross/sma_revert`），仅能研究授权的单品种 `futures_um` 1m/5m 数据。Platform 通过 `candidate-create` 将 ZIP 的原始内容、候选 ID、SHA-256、所属用户/开发租户/任务持久保存；再次修改产生新 ID 和哈希，不覆盖旧版本。
+允许的策略规则仅有 EMA/SMA 交叉及反转（`ema_cross/ema_revert/sma_cross/sma_revert`），现有候选回测执行仅接受授权的单品种 `futures_um` 或 `spot` 1m/5m 数据；其它已订阅产品的数据仍可通过快照研究。Platform 通过 `candidate-create` 将 ZIP 的原始内容、候选 ID、SHA-256、所属用户/开发租户/任务持久保存；再次修改产生新 ID 和哈希，不覆盖旧版本。
 
 ```bash
 python -m seealpha_harness.platform_research candidate-create --file candidate.py --name eth_research --version 1

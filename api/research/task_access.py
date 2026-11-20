@@ -282,8 +282,10 @@ def allowed_scope(app, owner_id: int, tenant_id: int, account_id: str,
         ):
             return False
         market, symbol, interval = dataset_ref.split(":")
-        if market != "futures_um" or interval not in {"1m", "5m"}:
+        if not (market and symbol and interval):
             return False
+        # Product/interval eligibility comes from the tenant's real data
+        # subscription, not from a futures-only AI research feature flag.
         accounts = app.state.tenants.repository.list_virtual_accounts(tenant_id)
         if str(account_id) not in {str(row["id"]) for row in accounts}:
             return False
