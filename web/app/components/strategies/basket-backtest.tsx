@@ -185,7 +185,8 @@ export function BasketBacktestPanel({
       </form>
       {mode === "generic" && (
         <p>使用一个 NautilusTrader 原生模拟引擎处理多标的。所选已下发开发策略需通过
-          subscribe_market_bundle 声明全部市场腿，并通过 publish_basket 提交目标。
+          subscribe_market_bundle 声明所需的产品／合约和 lookback_bars（最多256根已闭合K线），
+          在同一 on_market_snapshot 中计算跨市场价格关系，再通过 publish_basket 提交完整目标。
           只有策略在 publish_basket 显式声明 spot_perpetual_hedges，才会校验同标的现货多头与
           永续空头的等量目标及阶段成交；不同标的并非自动对冲。
           当前通用模式仅支持 USDT 现货和 USD-M 永续；资金费结算、期权通用回测及实盘下单均不在此入口。</p>

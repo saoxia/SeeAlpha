@@ -119,3 +119,52 @@ Engine 从已校验的发行 ZIP 中隔离执行策略原有的 `on_start` 和 `
 研究页面验证两腿历史成交、先现货后增加永续风险的阶段门禁、报表中的声明和阶段结果。
 安装工具和兼容 CI 均固定已合并 Engine SHA；不会覆盖现有 Engine checkout 或自动切换
 生产容器。当前没有真实资金费结算、跨交易所原子成交或任何跨产品实盘委托授权。
+
+
+
+## 一个策略读取多个市场的历史数据
+
+通用 `generic-portfolio-backtests` 是统一的**多产品/多标的策略回测入口**。
+策略自己选择已授权的多个市场行情，基于它们的价格关联生成目标，
+无需把每一种组合硬编码成 `funding_carry`、`hedge` 或 `spread` 运行模式。
+例如一个策略可以这样读取 ETH 现货和 BTC 永续两个市场：
+
+```python
+from decimal import Decimal
+
+def on_start(self):
+    self.subscribe_market_bundle(
+        legs=(
+            {"product": "spot", "symbol": "ETHUSDT"},
+            {"product": "futures_um", "symbol": "BTCUSDT"},
+        ),
+        data=("closed_bars", "account_positions"),
+        lookback_bars=40,
+    )
+
+def on_market_snapshot(self, snapshot):
+    left = snapshot["history"]["spot:ETHUSDT"]
+    right = snapshot["history"]["futures_um:BTCUSDT"]
+    if min(len(left), len(right)) < 40:
+        spot, perp = "0", "0"
+    else:
+        # 两个市场严格使用上一根及更早已闭合的K线，不读取当前待撮合行情
+        relative_price = Decimal(right[-1]["close"]) / Decimal(left[-1]["close"])
+        spot, perp = ("0.1", "-0.01") if relative_price > Decimal("20") else ("0", "0")
+    self.publish_basket(targets=[
+        {"product": "spot", "symbol": "ETHUSDT", "quantity": spot},
+        {"product": "futures_um", "symbol": "BTCUSDT", "quantity": perp},
+    ])
+```
+
+上面只是说明可在一个发行策略里计算跨市场信号和多腿目标的简化示例，
+不是被验证可盈利的策略或自动对冲承诺。每个市场独立订阅、按原生合约步长
+和毛名义风险预算校验，多成员只对**相同产品+合约**净额；对冲完整性属于可选
+风险约束，而不是策略必须满足的产品类型关系。历史 K 线支持最多 256 根，
+完整字段为 `ts_ns/open/high/low/close/volume`（字符串十进制数值），
+每个策略只可见自己声明的行情腿。无未来数据注入，缺失/未授权行情直接阻断。
+
+通用策略接口与产品撮合能力分层：代码可以按 `product+symbol` 声明市场集合，
+但底层已有验证的原生通用历史成交模拟目前仅限 USDT Spot 和 USD-M。
+Options 的历史报价、到期结算等证据不足时仍拒绝模拟；
+不能把策略接口的通用性误写成所有产品实盘已实现。
