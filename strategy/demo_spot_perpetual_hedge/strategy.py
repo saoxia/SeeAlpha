@@ -19,7 +19,7 @@ def prepare(parameters):
         raise ValueError("当前 Demo 仅支持 ETHUSDT 或 BTCUSDT")
     raw = merged["quantity"]
     if isinstance(raw, bool) or not isinstance(raw, (str, int, Decimal)):
-        raise ValueError("对冲数量必须为十进制数")
+        raise TypeError("对冲数量必须为十进制数")
     try:
         quantity = Decimal(str(raw))
     except (TypeError, ValueError, InvalidOperation) as exc:
