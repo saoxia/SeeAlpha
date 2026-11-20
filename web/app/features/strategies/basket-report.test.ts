@@ -58,7 +58,7 @@ test("missing optional data remains missing, not fabricated as zero", () => {
     ...base, mode: "native_dual_venue_development_only", equity_curve: [],
   };
   assert.deepEqual(basketReportMetrics(report), {
-    positions: [], accounts: [], legDrift: null,
+    positions: [], accounts: [], hedges: [], legDrift: null,
     fundingObservations: null, targetEvents: null, latestTargetEvent: null,
   });
 });
@@ -181,4 +181,27 @@ test("generic native portfolio report rejects duplicate and invalid position evi
   assert.equal(metrics.positions.length, 1);
   assert.equal(metrics.positions[0].value, "0.1");
   assert.deepEqual(metrics.accounts.map(item => item.value), ["10"]);
+});
+
+
+test("only complete Engine-native hedge declarations are rendered", () => {
+  const report: BasketBacktestResult = {
+    ...base, mode: "native_generic_development_only", equity_curve: [],
+    hedge_verification: "confirmed_phases_only_non_atomic",
+    declared_hedges: [
+      { spot: "ETHUSDT", perpetual: "ETHUSDT", base_quantity_drift_limit: "0" },
+    ],
+  };
+  assert.deepEqual(basketReportMetrics(report).hedges, [{
+    symbol: "ETHUSDT", baseQuantityDriftLimit: "0",
+  }]);
+  report.declared_hedges = [
+    { spot: "ETHUSDT", perpetual: "BTCUSDT", base_quantity_drift_limit: "0" },
+  ];
+  assert.deepEqual(basketReportMetrics(report).hedges, []);
+  report.declared_hedges = [
+    { spot: "ETHUSDT", perpetual: "ETHUSDT", base_quantity_drift_limit: "0" },
+  ];
+  report.hedge_verification = "not_declared";
+  assert.deepEqual(basketReportMetrics(report).hedges, []);
 });

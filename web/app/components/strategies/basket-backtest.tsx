@@ -186,6 +186,8 @@ export function BasketBacktestPanel({
       {mode === "generic" && (
         <p>使用一个 NautilusTrader 原生模拟引擎处理多标的。所选已下发开发策略需通过
           subscribe_market_bundle 声明全部市场腿，并通过 publish_basket 提交目标。
+          只有策略在 publish_basket 显式声明 spot_perpetual_hedges，才会校验同标的现货多头与
+          永续空头的等量目标及阶段成交；不同标的并非自动对冲。
           当前通用模式仅支持 USDT 现货和 USD-M 永续；资金费结算、期权通用回测及实盘下单均不在此入口。</p>
       )}
       {mode === "issued_spot_perp" && (
@@ -249,6 +251,12 @@ export function BasketBacktestPanel({
             </>
           )}
           {metrics.legDrift !== null && <p>模拟现货／永续腿间数量偏差：{metrics.legDrift}</p>}
+          {metrics.hedges.length > 0 && (
+            <p>Engine 对冲阶段验证：{metrics.hedges.map(item =>
+              item.symbol + " Spot 多头 / USD-M 空头（稳定阶段允许 BASE 数量偏差 "
+              + item.baseQuantityDriftLimit + "）"
+            ).join("；")}。这是模拟成交核验，不代表跨产品原子执行或资金费盈利。</p>
+          )}
           {metrics.accounts.length > 0 && (
             <>
               <h4>分账户模拟权益</h4>
