@@ -241,6 +241,7 @@ def test_basket_result_queries_keep_account_scope():
 
 @pytest.mark.parametrize("code_key", [
     "demo_funding_carry", "demo_option_hedged_bollinger",
+    "demo_multi_asset_portfolio",
 ])
 def test_research_only_system_basket_cannot_receive_or_use_production_grant(code_key):
     service = _service("production")
