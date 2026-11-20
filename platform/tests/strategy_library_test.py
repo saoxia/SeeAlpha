@@ -74,12 +74,13 @@ def test_system_demo_is_seeded_and_public_for_every_login(runtime):
         rows = response.json()
         demos = {item["code_key"]: item for item in rows if item["visibility"] == "system"}
         assert set(demos) == {
-            "demo_ema_crossover", "demo_funding_carry", "demo_multi_signal_portfolio",
-            "demo_option_hedged_bollinger",
+            "demo_ema_crossover", "demo_funding_carry", "demo_multi_asset_portfolio",
+            "demo_multi_signal_portfolio", "demo_option_hedged_bollinger",
         }
         assert demos["demo_ema_crossover"]["versions"][0]["grants"] == ["development"]
         assert demos["demo_multi_signal_portfolio"]["versions"][0]["grants"] == ["development"]
         assert demos["demo_funding_carry"]["versions"][0]["grants"] == ["development"]
+        assert demos["demo_multi_asset_portfolio"]["versions"][0]["grants"] == ["development"]
         assert demos["demo_option_hedged_bollinger"]["versions"][0]["grants"] == ["development"]
         assert all("production" not in v["grants"] for row in demos.values() for v in row["versions"])
         assert all(item["owner_id"] is None for item in demos.values())
