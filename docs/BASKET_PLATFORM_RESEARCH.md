@@ -158,7 +158,7 @@ def on_market_snapshot(self, snapshot):
 ```
 
 上面只是说明可在一个发行策略里计算跨市场信号和多腿目标的简化示例，
-不是被验证可盈利的策略或自动对冲承诺。每个市场独立订阅、按原生合约步长
+不是被验证可盈利的策略或自动对冲承诺。每个策略声明自己的订阅需求，由 Engine 共享已订阅的市场历史、按原生合约步长
 和毛名义风险预算校验，多成员只对**相同产品+合约**净额；对冲完整性属于可选
 风险约束，而不是策略必须满足的产品类型关系。历史 K 线支持最多 256 根，
 完整字段为 `ts_ns/open/high/low/close/volume`（字符串十进制数值），
@@ -168,3 +168,33 @@ def on_market_snapshot(self, snapshot):
 但底层已有验证的原生通用历史成交模拟目前仅限 USDT Spot 和 USD-M。
 Options 的历史报价、到期结算等证据不足时仍拒绝模拟；
 不能把策略接口的通用性误写成所有产品实盘已实现。
+
+
+## 统一市场数据注册和策略视图（2026-11-20）
+
+本阶段不是新增“跨产品策略数据源”，而是把数据生产与策略消费解耦。
+已合并的 Engine `6dcbcc7416cbbf8bd36fdb303bce7dcd27eb7a33`
+在 `engine.feed.subscription_hub` 建立以下可复用基础：
+
+```text
+市场源 (venue + product + symbol + interval + kind)
+       │
+       ▼
+SharedMarketData：统一去重订阅需求、共享有界历史、管理引用计数
+       ├── 策略 A：仅 BTC 现货 / ETH 现货，40 根历史
+       ├── 策略 B：仅 BTC 现货 / BTC 永续，120 根历史
+       └── 策略 C：仅 ETH 永续 / BTC 永续，20 根历史
+                  ↓
+        各策略独立信号 → 组合目标净额 → 组合风控/执行
+```
+
+策略继续使用原来的 `subscribe_market_bundle` / `publish_basket`，
+不需要每新增一种价格关联策略就新增 HTTP 路由或撮合器。
+策略订阅不代表独立向交易所打开 WebSocket；相同市场的订阅需求由共享组件汇总。
+`MarketStream.kind` 将 K 线与未来 Tick/L2 等类型分开，当前只实际交付已验证
+的已闭合 K 线。订阅生命周期和行情身份位于 Engine，不移到 Platform 业务数据库。
+
+**边界**：共享内存行情抽象已接通单次通用开发回测；
+跨独立策略进程、多个回测任务或不同 Engine 实例的常驻网络连接复用还没有接通。
+既有 `feed.managed`、Pipeline/Catalog 继续是采集和来源证据路径；
+现阶段不动实盘授权、生产容器或已有持久化数据。

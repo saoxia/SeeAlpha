@@ -126,6 +126,27 @@ Binance 原生 REST / WebSocket ─┴→ Coordinator / Store
 
 `MinuteBar` 使用规范化交易对、UTC 分钟开盘毫秒及 Decimal OHLCV；唯一键为交易对与开盘时间。转 Nautilus Bar 时事件时间为闭合边界前 1ms，以纳秒存储。回放和补洞交付不得获得实时决策资格；断线、冲突、缺口、时钟或消费者故障触发现有降级/恢复约束。连续服务默认数据目录为 `data/market_data/binance_um_1m/`，不回写历史 Catalog；当前未自动接入研究策略或实盘执行。
 
+### 统一市场数据订阅的 Engine 内部抽象（2026-11-20）
+
+Engine [PR #42](https://github.com/saoxia/seealpha-engine/pull/42) 增加
+`engine.feed.subscription_hub.SharedMarketData`，职责是将行情数据的物理身份
+`MarketStream(source, product, symbol, interval, kind)` 与每个策略的消费需求分开。
+运行时已校验数据权限和已下发策略后，把各成员 `subscribe_market_bundle` 的要求
+登记到统一共享对象：相同的上游市场流以 `requirements` 去重，记录最大的历史回看
+窗口，内部只保存一份有界闭合行情；各成员单独获得自己的行情/持仓历史视图。
+最后一个订阅者释放时回收该流的本地内存缓存。行情数据身份不包括策略/租户，
+但订阅消费者包含租户和发行标识；持仓依然从可信账户模拟状态读取，
+不会混用不同成员的仓位或允许跨租户读取任意视图。
+
+**当前实际接入范围**：单次 `generic-portfolio-backtests` 原生开发回测。
+现有行情采集器、历史 Catalog、闭合 K 线连续性/恢复/风险资格门禁和公共 HTTP
+契约未改变。该抽象不建立 WebSocket、不增加数据库或常驻微服务；
+`feed.managed` 的多市场采集进程还未与共享 `requirements` 绑定，
+所以**跨独立回测、不同 Engine 进程的网络连接/缓存共享未实现**。
+Tick/L2 等类型只保留独立的需求身份，尚未实现对应的分发适配器。
+实盘行情就绪和新增风险资格仍由原 `Feed.check()` /
+`Delivery.allow_new_risk` 验证，本抽象不承诺生产交易能力。
+
 ### 策略内部
 
 ```text
