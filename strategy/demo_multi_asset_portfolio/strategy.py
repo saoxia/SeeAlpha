@@ -57,7 +57,7 @@ class DemoMultiAssetPortfolio(Strategy):
             not callable(getattr(self, "subscribe_market_bundle", None))
             or not callable(getattr(self, "publish_basket", None))
         ):
-            raise RuntimeError("仅可在原生通用多标的开发回测中使用此 Demo")
+            raise TypeError("仅可在原生通用多标的开发回测中使用此 Demo")
         self.subscribe_market_bundle(
             legs=(
                 {"product": "spot", "symbol": self.parameters["spot_symbol"]},
